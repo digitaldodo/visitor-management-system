@@ -1,6 +1,7 @@
 package com.visitor.management.config;
 
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.UserRepository;
 import org.slf4j.Logger;
@@ -31,9 +32,9 @@ public class TestAccountSeeder {
                 return;
             }
 
-            createUser(userRepository, passwordEncoder, "Admin User", "admin@visitor.local", "Admin@12345", Role.ADMIN, "Operations");
-            createUser(userRepository, passwordEncoder, "Employee User", "employee@visitor.local", "Employee@12345", Role.EMPLOYEE, "People");
-            createUser(userRepository, passwordEncoder, "Security Guard", "security@visitor.local", "Security@12345", Role.SECURITY_GUARD, "Security");
+            createUser(userRepository, passwordEncoder, "Admin User", "admin", "admin@visitor.local", "Admin@12345", Role.ADMIN, "Operations");
+            createUser(userRepository, passwordEncoder, "Employee User", "employee", "employee@visitor.local", "Employee@12345", Role.EMPLOYEE, "People");
+            createUser(userRepository, passwordEncoder, "Security Guard", "security", "security@visitor.local", "Security@12345", Role.SECURITY_GUARD, "Security");
             log.info("Seeded Visitor Management test accounts. Disable APP_SEED_TEST_ACCOUNTS outside controlled environments.");
         };
     }
@@ -42,6 +43,7 @@ public class TestAccountSeeder {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             String fullName,
+            String username,
             String email,
             String password,
             Role role,
@@ -49,11 +51,13 @@ public class TestAccountSeeder {
     ) {
         User user = new User();
         user.setFullName(fullName);
+        user.setUsername(username);
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setRoles(Set.of(role));
         user.setDepartment(department);
         user.setActive(true);
+        user.setAccountStatus(AccountStatus.ACTIVE);
         userRepository.save(user);
     }
 }

@@ -46,8 +46,8 @@
             <h2>Sign in</h2>
           </div>
           <label class="form-field">
-            <span>Email</span>
-            <input name="email" type="email" autocomplete="email" placeholder="admin@visitor.local" required />
+            <span>Username or email</span>
+            <input name="identifier" type="text" autocomplete="username" placeholder="admin or admin@visitor.local" required />
           </label>
           <label class="form-field form-field--password">
             <span>Password</span>
@@ -68,12 +68,16 @@
             <input name="fullName" type="text" autocomplete="name" placeholder="Jane Cooper" required />
           </label>
           <label class="form-field">
+            <span>Username</span>
+            <input name="username" type="text" autocomplete="username" placeholder="jane.cooper" required />
+          </label>
+          <label class="form-field">
             <span>Email</span>
             <input name="email" type="email" autocomplete="email" placeholder="jane@company.com" required />
           </label>
           <label class="form-field form-field--password">
             <span>Password</span>
-            <input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" required />
+            <input name="password" type="password" autocomplete="new-password" placeholder="12+ chars, mixed types" required />
             <button class="password-toggle" type="button" aria-label="Show password">Show</button>
           </label>
           <label class="form-field">

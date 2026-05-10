@@ -1,11 +1,23 @@
 package com.visitor.management.dto;
 
-import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record AuthRequest(
-        @Email @NotBlank String email,
+        @Size(max = 160) String identifier,
+        @Size(max = 160) String email,
         @NotBlank @Size(min = 8, max = 128) String password
 ) {
+    public String loginIdentifier() {
+        if (identifier != null && !identifier.isBlank()) {
+            return identifier;
+        }
+        return email;
+    }
+
+    @AssertTrue(message = "Username or email is required.")
+    public boolean hasLoginIdentifier() {
+        return loginIdentifier() != null && !loginIdentifier().isBlank();
+    }
 }

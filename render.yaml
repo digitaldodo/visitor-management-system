@@ -28,6 +28,14 @@ services:
         value: visitor-management
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      - key: SENDGRID_ENABLED
+        value: true
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: SENDGRID_FROM_NAME
+        value: AccessFlow Security
 
   - type: static
     name: visitor-management-web

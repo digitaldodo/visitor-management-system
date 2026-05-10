@@ -1,4 +1,4 @@
-import { forgotPassword, login, registerAccount } from "./shared/authApi.js";
+import { login, registerAccount } from "./shared/authApi.js";
 import { $, $$ } from "./shared/dom.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
 import { getTokenRoles, setSession } from "./shared/session.js";
@@ -49,13 +49,13 @@ function initLoginForm() {
     const form = event.currentTarget;
     const data = getFormData(form);
 
-    if (!isEmail(data.email) || !data.password) {
-      showToast("Check the form", "Enter a valid email and password.");
+    if (!isUsernameOrEmail(data.identifier) || !data.password) {
+      showToast("Check the form", "Enter a valid username/email and password.");
       return;
     }
 
     await withLoading(form, async () => {
-      const response = await login({ email: data.email, password: data.password });
+      const response = await login({ identifier: data.identifier, password: data.password });
       const session = response.data;
       const tokenRoles = getTokenRoles(session.accessToken);
       const role = session.roles?.find((candidate) => tokenRoles.includes(candidate));
@@ -77,14 +77,15 @@ function initRegisterForm() {
     const form = event.currentTarget;
     const data = getFormData(form);
 
-    if (!data.fullName || !isEmail(data.email) || !validatePassword(data.password)) {
-      showToast("Check the form", "Use a valid email and a password with letters and numbers.");
+    if (!data.fullName || !isUsername(data.username) || !isEmail(data.email) || !validatePassword(data.password)) {
+      showToast("Check the form", "Use a valid username, email, and strong password.");
       return;
     }
 
     await withLoading(form, async () => {
       await registerAccount({
         fullName: data.fullName,
+        username: data.username,
         email: data.email,
         password: data.password,
         role: data.role,
@@ -99,18 +100,11 @@ function initRegisterForm() {
 
 function initForgotPassword() {
   $("#forgot-password-button")?.addEventListener("click", async () => {
-    const email = $("#login-form input[name='email']")?.value;
-    if (!isEmail(email)) {
-      showToast("Email needed", "Enter your account email first.");
-      return;
+    const identifier = $("#login-form input[name='identifier']")?.value?.trim();
+    if (identifier && isUsernameOrEmail(identifier)) {
+      sessionStorage.setItem("passwordResetIdentifier", identifier);
     }
-
-    try {
-      await forgotPassword(email);
-      showToast("Request accepted", "Password reset delivery can be connected to email next.");
-    } catch (error) {
-      showToast("Request failed", error.message);
-    }
+    window.location.href = "./pages/forgot-password/index.html";
   });
 }
 
@@ -137,8 +131,21 @@ function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function isUsername(value) {
+  return /^[A-Za-z0-9._-]{3,32}$/.test(String(value || "").trim());
+}
+
+function isUsernameOrEmail(value) {
+  const trimmed = String(value || "").trim();
+  return isEmail(trimmed) || isUsername(trimmed);
+}
+
 function validatePassword(value) {
-  return /[A-Za-z]/.test(value || "") && /\d/.test(value || "") && String(value || "").length >= 8;
+  return /[a-z]/.test(value || "")
+    && /[A-Z]/.test(value || "")
+    && /\d/.test(value || "")
+    && /[^A-Za-z0-9]/.test(value || "")
+    && String(value || "").length >= 12;
 }
 
 function formatRole(role) {

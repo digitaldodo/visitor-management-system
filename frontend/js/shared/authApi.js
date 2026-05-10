@@ -23,10 +23,26 @@ export function logout(refreshToken) {
   });
 }
 
-export function forgotPassword(email) {
+export function forgotPassword(identifier) {
   return request("/auth/forgot-password", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ identifier }),
+    auth: false,
+  });
+}
+
+export function verifyOtp(identifier, otp) {
+  return request("/auth/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ identifier, otp }),
+    auth: false,
+  });
+}
+
+export function resetPassword(resetToken, newPassword) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ resetToken, newPassword }),
     auth: false,
   });
 }

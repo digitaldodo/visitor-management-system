@@ -16,11 +16,24 @@ public class PasswordResetToken {
     @Indexed
     private String userId;
 
-    @Indexed(unique = true)
+    @Indexed
+    private String otpHash;
+
+    @Indexed(unique = true, sparse = true)
     private String tokenHash;
 
+    @Indexed(unique = true, sparse = true)
+    private String resetTokenHash;
+
     private Instant expiresAt;
+    private Instant resendAvailableAt;
+    private Instant verifiedAt;
+    private Instant resetTokenExpiresAt;
     private Instant usedAt;
+    private Instant lockedAt;
+
+    private int attempts;
+    private int maxAttempts = 5;
 
     @CreatedDate
     private Instant createdAt;
@@ -41,12 +54,52 @@ public class PasswordResetToken {
         this.userId = userId;
     }
 
+    public String getOtpHash() {
+        return otpHash;
+    }
+
+    public void setOtpHash(String otpHash) {
+        this.otpHash = otpHash;
+    }
+
     public String getTokenHash() {
         return tokenHash;
     }
 
     public void setTokenHash(String tokenHash) {
         this.tokenHash = tokenHash;
+    }
+
+    public String getResetTokenHash() {
+        return resetTokenHash;
+    }
+
+    public void setResetTokenHash(String resetTokenHash) {
+        this.resetTokenHash = resetTokenHash;
+    }
+
+    public Instant getResendAvailableAt() {
+        return resendAvailableAt;
+    }
+
+    public void setResendAvailableAt(Instant resendAvailableAt) {
+        this.resendAvailableAt = resendAvailableAt;
+    }
+
+    public Instant getVerifiedAt() {
+        return verifiedAt;
+    }
+
+    public void setVerifiedAt(Instant verifiedAt) {
+        this.verifiedAt = verifiedAt;
+    }
+
+    public Instant getResetTokenExpiresAt() {
+        return resetTokenExpiresAt;
+    }
+
+    public void setResetTokenExpiresAt(Instant resetTokenExpiresAt) {
+        this.resetTokenExpiresAt = resetTokenExpiresAt;
     }
 
     public Instant getExpiresAt() {
@@ -63,6 +116,30 @@ public class PasswordResetToken {
 
     public void setUsedAt(Instant usedAt) {
         this.usedAt = usedAt;
+    }
+
+    public Instant getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(Instant lockedAt) {
+        this.lockedAt = lockedAt;
+    }
+
+    public int getAttempts() {
+        return attempts;
+    }
+
+    public void setAttempts(int attempts) {
+        this.attempts = attempts;
+    }
+
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
+
+    public void setMaxAttempts(int maxAttempts) {
+        this.maxAttempts = maxAttempts;
     }
 
     public Instant getCreatedAt() {

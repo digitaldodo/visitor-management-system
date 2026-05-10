@@ -24,6 +24,9 @@ public class AppProperties {
     private Cloudinary cloudinary = new Cloudinary();
 
     @Valid
+    private SendGrid sendgrid = new SendGrid();
+
+    @Valid
     private Seed seed = new Seed();
 
     public Cors getCors() {
@@ -48,6 +51,14 @@ public class AppProperties {
 
     public void setCloudinary(Cloudinary cloudinary) {
         this.cloudinary = cloudinary;
+    }
+
+    public SendGrid getSendgrid() {
+        return sendgrid;
+    }
+
+    public void setSendgrid(SendGrid sendgrid) {
+        this.sendgrid = sendgrid;
     }
 
     public Seed getSeed() {
@@ -162,6 +173,54 @@ public class AppProperties {
 
         public void setFolder(String folder) {
             this.folder = folder;
+        }
+    }
+
+    public static class SendGrid {
+        private String apiKey;
+        private String fromEmail;
+        private String fromName = "AccessFlow Security";
+        private String apiBaseUrl = "https://api.sendgrid.com";
+        private boolean enabled = true;
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getFromEmail() {
+            return fromEmail;
+        }
+
+        public void setFromEmail(String fromEmail) {
+            this.fromEmail = fromEmail;
+        }
+
+        public String getFromName() {
+            return fromName;
+        }
+
+        public void setFromName(String fromName) {
+            this.fromName = fromName;
+        }
+
+        public String getApiBaseUrl() {
+            return apiBaseUrl;
+        }
+
+        public void setApiBaseUrl(String apiBaseUrl) {
+            this.apiBaseUrl = apiBaseUrl;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 

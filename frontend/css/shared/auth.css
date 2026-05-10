@@ -7,6 +7,10 @@
   overflow-x: hidden;
 }
 
+.auth-layout--compact .auth-copy {
+  min-height: 100vh;
+}
+
 .auth-copy {
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.22), transparent 36%),
@@ -170,6 +174,69 @@
 .link-button {
   padding: 0;
   text-align: left;
+}
+
+.link-button--anchor {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.otp-input {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.otp-meta {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  justify-content: space-between;
+  min-height: 2rem;
+}
+
+.otp-meta .link-button:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.password-strength {
+  color: var(--color-muted);
+  display: grid;
+  font-size: 0.83rem;
+  font-weight: 800;
+  gap: 0.4rem;
+}
+
+.password-strength__bar {
+  background: #eef2f6;
+  border-radius: 999px;
+  display: block;
+  height: 0.45rem;
+  overflow: hidden;
+}
+
+.password-strength__bar span {
+  background: #dc2626;
+  display: block;
+  height: 100%;
+  transition: width 160ms ease, background 160ms ease;
+  width: 12%;
+}
+
+.password-strength__bar span[data-score="2"] {
+  background: #d97706;
+}
+
+.password-strength__bar span[data-score="3"] {
+  background: #2563eb;
+}
+
+.password-strength__bar span[data-score="4"] {
+  background: #16a34a;
 }
 
 .auth-footer {

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AccessFlow password recovery." />
+    <title>AccessFlow | Forgot Password</title>
+    <link rel="stylesheet" href="../../css/shared/auth.css?v=20260511" />
+  </head>
+  <body>
+    <main class="auth-layout auth-layout--compact">
+      <section class="auth-copy" aria-label="AccessFlow security">
+        <span class="brand__mark">AF</span>
+        <h1>AccessFlow</h1>
+        <p class="auth-copy__tagline">Smart. Secure. Seamless Visitor Management.</p>
+        <p>Protected recovery for operational accounts.</p>
+      </section>
+
+      <section class="auth-card" aria-label="Forgot password">
+        <form class="auth-form" id="forgot-password-form" novalidate>
+          <div>
+            <p class="eyebrow">Account recovery</p>
+            <h2>Forgot password</h2>
+          </div>
+          <label class="form-field">
+            <span>Username or email</span>
+            <input name="identifier" type="text" autocomplete="username" placeholder="admin or admin@visitor.local" required />
+          </label>
+          <button class="button button--primary auth-submit" type="submit">Send OTP</button>
+          <a class="link-button link-button--anchor" href="../../index.html">Back to login</a>
+        </form>
+        <footer class="auth-footer">AccessFlow · Account recovery</footer>
+      </section>
+    </main>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/passwordReset.js?v=20260511"></script>
+  </body>
+</html>

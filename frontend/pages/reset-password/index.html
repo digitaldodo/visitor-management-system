@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AccessFlow password reset." />
+    <title>AccessFlow | Reset Password</title>
+    <link rel="stylesheet" href="../../css/shared/auth.css?v=20260511" />
+  </head>
+  <body>
+    <main class="auth-layout auth-layout--compact">
+      <section class="auth-copy" aria-label="AccessFlow security">
+        <span class="brand__mark">AF</span>
+        <h1>AccessFlow</h1>
+        <p class="auth-copy__tagline">Smart. Secure. Seamless Visitor Management.</p>
+        <p>Create a new account password.</p>
+      </section>
+
+      <section class="auth-card" aria-label="Reset password">
+        <form class="auth-form" id="reset-password-form" novalidate>
+          <div>
+            <p class="eyebrow">Account recovery</p>
+            <h2>Reset password</h2>
+          </div>
+          <label class="form-field form-field--password">
+            <span>New password</span>
+            <input name="newPassword" type="password" autocomplete="new-password" placeholder="12+ chars, mixed types" required />
+            <button class="password-toggle" type="button" aria-label="Show password">Show</button>
+          </label>
+          <div class="password-strength" aria-live="polite">
+            <span class="password-strength__bar"><span id="password-strength-bar"></span></span>
+            <span id="password-strength-label">Strength: weak</span>
+          </div>
+          <label class="form-field form-field--password">
+            <span>Confirm password</span>
+            <input name="confirmPassword" type="password" autocomplete="new-password" placeholder="Repeat password" required />
+            <button class="password-toggle" type="button" aria-label="Show password">Show</button>
+          </label>
+          <button class="button button--primary auth-submit" type="submit">Update password</button>
+          <a class="link-button link-button--anchor" href="../../index.html">Back to login</a>
+        </form>
+        <footer class="auth-footer">AccessFlow · Password reset</footer>
+      </section>
+    </main>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/passwordReset.js?v=20260511"></script>
+  </body>
+</html>

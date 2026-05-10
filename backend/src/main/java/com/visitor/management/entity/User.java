@@ -19,6 +19,9 @@ public class User {
     @Indexed(unique = true)
     private String email;
 
+    @Indexed(unique = true, sparse = true)
+    private String username;
+
     private String fullName;
 
     private String passwordHash;
@@ -30,6 +33,10 @@ public class User {
     private Set<Role> roles = new HashSet<>();
 
     private boolean active = true;
+
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
+
+    private Instant passwordChangedAt;
 
     @CreatedDate
     private Instant createdAt;
@@ -51,6 +58,14 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getFullName() {
@@ -99,6 +114,22 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public AccountStatus getAccountStatus() {
+        return accountStatus;
+    }
+
+    public void setAccountStatus(AccountStatus accountStatus) {
+        this.accountStatus = accountStatus;
+    }
+
+    public Instant getPasswordChangedAt() {
+        return passwordChangedAt;
+    }
+
+    public void setPasswordChangedAt(Instant passwordChangedAt) {
+        this.passwordChangedAt = passwordChangedAt;
     }
 
     public Instant getCreatedAt() {

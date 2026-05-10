@@ -10,9 +10,13 @@ import com.visitor.management.dto.RefreshTokenRequest;
 import com.visitor.management.dto.RegisterRequest;
 import com.visitor.management.dto.ResetPasswordRequest;
 import com.visitor.management.dto.UserProfileResponse;
+import com.visitor.management.dto.VerifyOtpRequest;
+import com.visitor.management.dto.VerifyOtpResponse;
 import com.visitor.management.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping({"/api/v1/auth", "/api/auth"})
 public class AuthController {
 
     private final AuthService authService;
@@ -51,8 +55,15 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public ApiResponse<ForgotPasswordResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        return ApiResponse.ok("Password reset request accepted.", authService.forgotPassword(request));
+    public ResponseEntity<ApiResponse<ForgotPasswordResponse>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.ok("If the account exists, an OTP has been sent.", authService.forgotPassword(request)));
+    }
+
+    @PostMapping("/verify-otp")
+    public ApiResponse<VerifyOtpResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        return ApiResponse.ok("OTP verified.", authService.verifyOtp(request));
     }
 
     @PostMapping("/reset-password")

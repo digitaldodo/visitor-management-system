@@ -11,6 +11,7 @@ public record AuthResponse(
         String tokenType,
         Instant expiresAt,
         String userId,
+        String username,
         String email,
         String fullName,
         Set<Role> roles

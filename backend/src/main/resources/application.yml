@@ -24,6 +24,12 @@ app:
     api-key: ${CLOUDINARY_API_KEY:}
     api-secret: ${CLOUDINARY_API_SECRET:}
     folder: ${CLOUDINARY_FOLDER:visitor-management}
+  sendgrid:
+    enabled: ${SENDGRID_ENABLED:true}
+    api-key: ${SENDGRID_API_KEY:}
+    from-email: ${SENDGRID_FROM_EMAIL:}
+    from-name: ${SENDGRID_FROM_NAME:AccessFlow Security}
+    api-base-url: ${SENDGRID_API_BASE_URL:https://api.sendgrid.com}
   seed:
     test-accounts: ${APP_SEED_TEST_ACCOUNTS:false}
 

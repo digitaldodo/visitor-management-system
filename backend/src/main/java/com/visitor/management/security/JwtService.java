@@ -32,10 +32,15 @@ public class JwtService {
     }
 
     public String generateAccessToken(User user) {
-        return generateToken(user.getId(), user.getEmail(), user.getRoles());
+        Instant passwordChangedAt = user.getPasswordChangedAt();
+        return generateToken(user.getId(), user.getEmail(), user.getRoles(), passwordChangedAt);
     }
 
     public String generateToken(String subject, String email, Set<Role> roles) {
+        return generateToken(subject, email, roles, null);
+    }
+
+    public String generateToken(String subject, String email, Set<Role> roles, Instant passwordChangedAt) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(jwtProperties.getExpirationMinutes() * 60);
 
@@ -48,6 +53,10 @@ public class JwtService {
 
         if (email != null && !email.isBlank()) {
             builder.claim("email", email);
+        }
+
+        if (passwordChangedAt != null) {
+            builder.claim("passwordChangedAt", passwordChangedAt.getEpochSecond());
         }
 
         return builder.signWith(secretKey).compact();
@@ -76,7 +85,12 @@ public class JwtService {
 
     @SuppressWarnings("unchecked")
     public Set<Role> getRoles(String token) {
-        Object rolesClaim = parseClaims(token).get("roles", List.class);
+        return getRoles(parseClaims(token));
+    }
+
+    @SuppressWarnings("unchecked")
+    public Set<Role> getRoles(Claims claims) {
+        Object rolesClaim = claims.get("roles", List.class);
         if (rolesClaim == null) {
             return Set.of();
         }

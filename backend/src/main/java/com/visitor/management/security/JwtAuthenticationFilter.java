@@ -1,7 +1,9 @@
 package com.visitor.management.security;
 
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -44,10 +46,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authorization.substring(BEARER_PREFIX.length());
         try {
-            String subject = jwtService.getSubject(token);
-            Set<Role> roles = jwtService.getRoles(token);
+            Claims claims = jwtService.parseClaims(token);
+            String subject = claims.getSubject();
+            Set<Role> roles = jwtService.getRoles(claims);
             boolean activeUser = userRepository.findById(subject)
-                    .map(user -> user.isActive() && user.getRoles().containsAll(roles))
+                    .map(user -> user.isActive()
+                            && (user.getAccountStatus() == null || user.getAccountStatus() == AccountStatus.ACTIVE)
+                            && user.getRoles().containsAll(roles)
+                            && !tokenIssuedBeforePasswordChange(claims, user.getPasswordChangedAt()))
                     .orElse(false);
             if (!activeUser) {
                 SecurityContextHolder.clearContext();
@@ -66,5 +72,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean tokenIssuedBeforePasswordChange(Claims claims, java.time.Instant passwordChangedAt) {
+        if (passwordChangedAt == null || claims.getIssuedAt() == null) {
+            return false;
+        }
+        return claims.getIssuedAt().toInstant().isBefore(passwordChangedAt.minusSeconds(1));
     }
 }
