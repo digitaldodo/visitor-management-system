@@ -27,9 +27,6 @@ public class AppProperties {
     private SendGrid sendgrid = new SendGrid();
 
     @Valid
-    private Seed seed = new Seed();
-
-    @Valid
     private Visitors visitors = new Visitors();
 
     @Valid
@@ -71,14 +68,6 @@ public class AppProperties {
 
     public void setSendgrid(SendGrid sendgrid) {
         this.sendgrid = sendgrid;
-    }
-
-    public Seed getSeed() {
-        return seed;
-    }
-
-    public void setSeed(Seed seed) {
-        this.seed = seed;
     }
 
     public Visitors getVisitors() {
@@ -265,18 +254,6 @@ public class AppProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
-        }
-    }
-
-    public static class Seed {
-        private boolean testAccounts;
-
-        public boolean isTestAccounts() {
-            return testAccounts;
-        }
-
-        public void setTestAccounts(boolean testAccounts) {
-            this.testAccounts = testAccounts;
         }
     }
 

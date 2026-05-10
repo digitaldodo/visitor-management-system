@@ -83,7 +83,7 @@ class VisitorManagementApplicationTests {
 
     @Test
     void accessTokenStoresRoleClaims() {
-        String token = jwtService.generateToken("employee-id", "employee@visitor.local", Set.of(Role.EMPLOYEE));
+        String token = jwtService.generateToken("employee-id", "employee@example.com", Set.of(Role.EMPLOYEE));
 
         org.assertj.core.api.Assertions.assertThat(jwtService.getRoles(token)).containsExactly(Role.EMPLOYEE);
     }
@@ -153,7 +153,7 @@ class VisitorManagementApplicationTests {
                                   "companyName": "Acme Corp",
                                   "purposeOfVisit": "Vendor meeting",
                                   "hostEmployee": "Aarav Mehta",
-                                  "photoUrl": "https://res.cloudinary.com/demo/image/upload/v1/visitor.jpg",
+                                  "photoUrl": "https://res.cloudinary.com/accessflow-test/image/upload/v1/visitor.jpg",
                                   "photoPublicId": "visitor-management/visitor-photos/visitor-test"
                                 }
                                 """))
@@ -200,13 +200,13 @@ class VisitorManagementApplicationTests {
     }
 
     private String bearer(String subject, Role role) {
-        return "Bearer " + jwtService.generateToken(subject, subject + "@visitor.local", Set.of(role));
+        return "Bearer " + jwtService.generateToken(subject, subject + "@example.com", Set.of(role));
     }
 
     private User user(String id, Role role) {
         User user = new User();
         user.setId(id);
-        user.setEmail(id + "@visitor.local");
+        user.setEmail(id + "@example.com");
         user.setFullName(id);
         user.setRoles(Set.of(role));
         user.setActive(true);

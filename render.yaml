@@ -1,15 +1,20 @@
 services:
   - type: web
-    name: visitor-management-api
+    name: accessflow-api
     env: java
     plan: free
     rootDir: backend
-    buildCommand: bash ./mvnw -B clean package -DskipTests
-    startCommand: java -XX:MaxRAMPercentage=75 -XX:+UseG1GC -Dspring.profiles.active=prod -jar target/visitor-management-backend-0.0.1-SNAPSHOT.jar
+    autoDeploy: true
+    buildCommand: chmod +x ./mvnw && ./mvnw -B clean package -DskipTests
+    startCommand: java -XX:MaxRAMPercentage=75 -XX:+UseG1GC -jar target/visitor-management-backend-0.0.1-SNAPSHOT.jar
     healthCheckPath: /api/v1/health/ready
     envVars:
       - key: JAVA_VERSION
         value: 21
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: BACKEND_PUBLIC_URL
+        sync: false
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
@@ -20,13 +25,17 @@ services:
         value: 60
       - key: JWT_REFRESH_EXPIRATION_DAYS
         value: 7
-      - key: APP_SEED_TEST_ACCOUNTS
-        value: false
       - key: RATE_LIMIT_ENABLED
         value: true
       - key: RATE_LIMIT_REQUESTS_PER_MINUTE
         value: 180
       - key: CLOUDINARY_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
         sync: false
       - key: CLOUDINARY_FOLDER
         value: visitor-management
@@ -44,10 +53,13 @@ services:
         value: false
 
   - type: static
-    name: visitor-management-web
+    name: accessflow-web
     rootDir: frontend
+    autoDeploy: true
     buildCommand: test -n "$VISITOR_API_BASE_URL" && printf 'window.VISITOR_API_BASE_URL = "%s";\n' "$VISITOR_API_BASE_URL" > assets/js/env.js
     staticPublishPath: .
     envVars:
       - key: VISITOR_API_BASE_URL
+        sync: false
+      - key: FRONTEND_PUBLIC_URL
         sync: false

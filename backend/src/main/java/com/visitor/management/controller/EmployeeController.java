@@ -5,11 +5,13 @@ import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.SearchRequest;
+import com.visitor.management.dto.NotificationResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.NotificationService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -37,10 +39,16 @@ public class EmployeeController {
 
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final NotificationService notificationService;
 
-    public EmployeeController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService) {
+    public EmployeeController(
+            VisitorService visitorService,
+            CloudinaryUploadService cloudinaryUploadService,
+            NotificationService notificationService
+    ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/overview")
@@ -70,11 +78,8 @@ public class EmployeeController {
     }
 
     @GetMapping("/notifications")
-    public ApiResponse<List<Map<String, String>>> notifications() {
-        return ApiResponse.ok("Employee notifications loaded.", List.of(
-                Map.of("title", "Visitor arrived", "message", "Isha Nair is waiting at reception."),
-                Map.of("title", "Approval reminder", "message", "Dev Patel needs approval.")
-        ));
+    public ApiResponse<List<NotificationResponse>> notifications(Authentication authentication) {
+        return ApiResponse.ok("Employee notifications loaded.", notificationService.listForUser(authentication.getName(), 10).items());
     }
 
     @GetMapping("/scheduled-visitors")

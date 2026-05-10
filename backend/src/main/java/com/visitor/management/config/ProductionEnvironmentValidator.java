@@ -33,32 +33,38 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         require("CORS_ALLOWED_ORIGINS", missing);
 
         String mongoUri = environment.getProperty("spring.data.mongodb.uri");
-        if (LOCAL_MONGO_URI.equals(mongoUri) || mongoUri == null || !mongoUri.startsWith("mongodb+srv://")) {
+        if (LOCAL_MONGO_URI.equals(mongoUri)
+                || mongoUri == null
+                || !mongoUri.startsWith("mongodb+srv://")
+                || hasPlaceholder(mongoUri)) {
             missing.add("MONGODB_URI must point to MongoDB Atlas in production");
         }
-        if (LOCAL_JWT_SECRET.equals(properties.getJwt().getSecret())) {
-            missing.add("JWT_SECRET must not use the local development default");
+        if (LOCAL_JWT_SECRET.equals(properties.getJwt().getSecret()) || hasPlaceholder(properties.getJwt().getSecret())) {
+            missing.add("JWT_SECRET must not use a local default or placeholder value");
         }
         if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isLocalOrigin)) {
             missing.add("CORS_ALLOWED_ORIGINS must contain deployed frontend origins only");
         }
 
         AppProperties.Cloudinary cloudinary = properties.getCloudinary();
-        boolean hasCloudinaryUrl = hasText(cloudinary.getUrl());
+        boolean hasCloudinaryUrl = hasText(cloudinary.getUrl()) && !hasPlaceholder(cloudinary.getUrl());
         boolean hasCloudinaryParts = hasText(cloudinary.getCloudName())
                 && hasText(cloudinary.getApiKey())
-                && hasText(cloudinary.getApiSecret());
+                && hasText(cloudinary.getApiSecret())
+                && !hasPlaceholder(cloudinary.getCloudName())
+                && !hasPlaceholder(cloudinary.getApiKey())
+                && !hasPlaceholder(cloudinary.getApiSecret());
         if (!hasCloudinaryUrl && !hasCloudinaryParts) {
-            missing.add("CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET");
+            missing.add("CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET with real Cloudinary values");
         }
 
         AppProperties.SendGrid sendgrid = properties.getSendgrid();
         if (sendgrid.isEnabled()) {
-            if (!hasText(sendgrid.getApiKey())) {
-                missing.add("SENDGRID_API_KEY");
+            if (!hasText(sendgrid.getApiKey()) || hasPlaceholder(sendgrid.getApiKey())) {
+                missing.add("SENDGRID_API_KEY with a real SendGrid key");
             }
-            if (!hasText(sendgrid.getFromEmail())) {
-                missing.add("SENDGRID_FROM_EMAIL");
+            if (!hasText(sendgrid.getFromEmail()) || hasPlaceholder(sendgrid.getFromEmail())) {
+                missing.add("SENDGRID_FROM_EMAIL with a verified sender");
             }
         }
 
@@ -79,5 +85,20 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
 
     private boolean isLocalOrigin(String origin) {
         return origin != null && (origin.contains("localhost") || origin.contains("127.0.0.1"));
+    }
+
+    private boolean hasPlaceholder(String value) {
+        if (value == null) {
+            return false;
+        }
+        String normalized = value.toLowerCase();
+        return normalized.contains("replace-with")
+                || normalized.contains("example.com")
+                || normalized.contains("cluster.example")
+                || normalized.contains("user:password")
+                || normalized.contains("api_key")
+                || normalized.contains("api_secret")
+                || normalized.contains("cloud_name")
+                || normalized.contains("cloudname");
     }
 }

@@ -206,11 +206,11 @@ function template(options) {
   const hostFields = options.showHostFields === false ? "" : `
     <label class="form-field">
       <span>Host Employee</span>
-      <input name="hostEmployee" type="text" placeholder="Aarav Mehta" />
+      <input name="hostEmployee" type="text" placeholder="Host employee name" />
     </label>
     <label class="form-field">
       <span>Host ID / Email</span>
-      <input name="hostEmployeeId" type="text" placeholder="aarav@company.com" />
+      <input name="hostEmployeeId" type="text" placeholder="host@company.com" />
     </label>
   `;
 
@@ -225,23 +225,23 @@ function template(options) {
     <form class="visitor-form" data-visitor-form novalidate>
       <label class="form-field">
         <span>Full Name</span>
-        <input name="fullName" type="text" autocomplete="name" placeholder="Priya Shah" required />
+        <input name="fullName" type="text" autocomplete="name" placeholder="Visitor full name" required />
       </label>
       <label class="form-field">
         <span>Phone</span>
-        <input name="phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210" required />
+        <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" required />
       </label>
       <label class="form-field">
         <span>Email</span>
-        <input name="email" type="email" autocomplete="email" placeholder="priya@company.com" />
+        <input name="email" type="email" autocomplete="email" placeholder="visitor@company.com" />
       </label>
       <label class="form-field">
         <span>Company Name</span>
-        <input name="companyName" type="text" autocomplete="organization" placeholder="Acme Corp" />
+        <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
       </label>
       <label class="form-field form-field--wide">
         <span>Purpose of Visit</span>
-        <input name="purposeOfVisit" type="text" placeholder="Vendor meeting" required />
+        <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
       </label>
       ${hostFields}
       <section class="visitor-camera form-field--wide" aria-label="Visitor photo capture">

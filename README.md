@@ -103,7 +103,6 @@ Never commit real `.env` files or service credentials. Use `.env.example` as a s
 | `SENDGRID_API_KEY` | Production | SendGrid API key with Mail Send permission |
 | `SENDGRID_FROM_EMAIL` | Production | Verified sender email for OTP delivery |
 | `SENDGRID_FROM_NAME` | No | Sender display name, defaults to `AccessFlow Security` |
-| `APP_SEED_TEST_ACCOUNTS` | No | Set to `true` before first startup to seed local test users |
 | `RATE_LIMIT_ENABLED` | No | Enables global API rate limiting |
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | No | Per-client API request budget |
 | `VISITOR_MAX_ACTIVE_PER_EMPLOYEE` | No | Active visitor cap per host employee |
@@ -113,7 +112,9 @@ Never commit real `.env` files or service credentials. Use `.env.example` as a s
 | `SWAGGER_UI_ENABLED` | No | Enables Swagger UI in production when set to `true` |
 | `BACKUP_STRATEGY` | No | Operational backup strategy label |
 | `BACKUP_RETENTION` | No | Operational backup retention label |
-| `VISITOR_API_BASE_URL` | Frontend deploy | Public API base URL, for example `https://visitor-management-api.onrender.com/api/v1` |
+| `BACKEND_PUBLIC_URL` | Render deploy | Public backend origin, for example `https://accessflow-api.onrender.com` |
+| `FRONTEND_PUBLIC_URL` | Render deploy | Public frontend origin, for example `https://accessflow-web.onrender.com` |
+| `VISITOR_API_BASE_URL` | Frontend deploy | Public API base URL, for example `https://accessflow-api.onrender.com/api/v1` |
 
 ## Backend Architecture
 
@@ -166,22 +167,9 @@ Admins receive full visitor access through admin-owned endpoints instead of cros
 
 Each portal owns its sidebar, dashboard layout, route list, role guard invocation, role API calls, and role CSS. Shared utilities live under `frontend/js/shared/` and shared styling under `frontend/css/shared/`.
 
-## Test Accounts
+## First Admin Setup
 
-Set `APP_SEED_TEST_ACCOUNTS=true` before the first backend startup against an empty database.
-
-Windows example:
-
-```powershell
-$env:APP_SEED_TEST_ACCOUNTS="true"
-.\mvnw.cmd spring-boot:run
-```
-
-| Role | Username | Email | Password |
-| --- | --- | --- | --- |
-| `ADMIN` | `admin` | `admin@visitor.local` | `Admin@12345` |
-| `EMPLOYEE` | `employee` | `employee@visitor.local` | `Employee@12345` |
-| `SECURITY_GUARD` | `security` | `security@visitor.local` | `Security@12345` |
+AccessFlow does not ship with preset accounts or default passwords. After deploying against an empty MongoDB Atlas database, register the first account from the login screen with the `ADMIN` role. After that first admin exists, additional privileged accounts must be created by an authenticated admin; normal employee registrations remain self-service.
 
 ## API Endpoints
 
@@ -276,8 +264,8 @@ Expected error envelope:
 
 `render.yaml` defines:
 
-- `visitor-management-api`: Java web service from `backend/`
-- `visitor-management-web`: static site from `frontend/`
+- `accessflow-api`: Java web service from `backend/`
+- `accessflow-web`: static site from `frontend/`
 
 ### 1. Create MongoDB Atlas
 
@@ -289,16 +277,16 @@ Create a Cloudinary project and copy either `CLOUDINARY_URL` or all three indivi
 
 ### 3. Create Render Services
 
-Create a Blueprint from this repository or create the two services from `render.yaml`. The backend uses Java 21 and starts with the `prod` Spring profile. The static frontend publishes the `frontend/` folder directly; do not add a catch-all rewrite because the portals are real static pages under `/pages/...`.
+Use Render's **New > Blueprint** flow, connect this repository, and let Render read `render.yaml`. The backend uses Java 21, auto-deploys from the connected branch, and runs with the `prod` Spring profile through `SPRING_PROFILES_ACTIVE=prod`. The static frontend publishes the `frontend/` folder directly; do not add a catch-all rewrite because the portals are real static pages under `/pages/...`.
 
 ### 4. Set Backend Environment Variables
 
 - `MONGODB_URI`
 - `JWT_SECRET` with at least 32 random characters
-- `CLOUDINARY_URL`
+- `BACKEND_PUBLIC_URL` to the deployed backend origin
+- `CLOUDINARY_URL`, or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`
 - `CORS_ALLOWED_ORIGINS` to the deployed frontend URL
 - `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` when `SENDGRID_ENABLED=true`
-- `APP_SEED_TEST_ACCOUNTS=false` in production
 
 The backend now fails startup in the `prod` profile when required production values are missing, local defaults are still active, Cloudinary is not configured, or production CORS still points at localhost.
 
@@ -307,10 +295,10 @@ The backend now fails startup in the `prod` profile when required production val
 Set `VISITOR_API_BASE_URL` on the Render static site to the deployed backend URL including `/api/v1`, for example:
 
 ```text
-https://visitor-management-api.onrender.com/api/v1
+https://accessflow-api.onrender.com/api/v1
 ```
 
-The frontend build command writes this value to `frontend/assets/js/env.js`; if it is missing, the static deploy fails instead of silently pointing users to localhost.
+Set `FRONTEND_PUBLIC_URL` to the deployed static site origin. The frontend build command writes `VISITOR_API_BASE_URL` to `frontend/assets/js/env.js`; if it is missing, the static deploy fails instead of silently pointing users to localhost.
 
 ### 6. Verify Production
 
@@ -324,8 +312,6 @@ After deployment:
 
 ## Optional Future Enhancements
 
-1. Add email delivery for password reset links.
-2. Add audit logs for visitor photo capture and profile updates.
-3. Add audit logs and report export generation.
-4. Add webcam, QR, and badge-printer device integrations.
-5. Add advanced approvals around pre-registered visitors.
+1. Add generated report export files for the existing reports view.
+2. Add deeper device integrations for webcam, QR scanner, and badge printers.
+3. Add advanced approval policies for recurring and pre-registered visitors.

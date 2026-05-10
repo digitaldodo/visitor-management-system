@@ -7,10 +7,13 @@ import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.entity.User;
+import com.visitor.management.repository.UserRepository;
 import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,11 +40,18 @@ public class AdminController {
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
     private final AnalyticsService analyticsService;
+    private final UserRepository userRepository;
 
-    public AdminController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService, AnalyticsService analyticsService) {
+    public AdminController(
+            VisitorService visitorService,
+            CloudinaryUploadService cloudinaryUploadService,
+            AnalyticsService analyticsService,
+            UserRepository userRepository
+    ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.analyticsService = analyticsService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/overview")
@@ -59,20 +69,16 @@ public class AdminController {
 
     @GetMapping("/users")
     public ApiResponse<List<Map<String, Object>>> users() {
-        return ApiResponse.ok("Admin user management loaded.", List.of(
-                Map.of("name", "Aarav Mehta", "role", "EMPLOYEE", "status", "Active"),
-                Map.of("name", "Nisha Rao", "role", "SECURITY_GUARD", "status", "Active"),
-                Map.of("name", "Rohan Sen", "role", "ADMIN", "status", "Active")
-        ));
+        List<Map<String, Object>> users = userRepository.findAll(Sort.by(Sort.Direction.ASC, "fullName"))
+                .stream()
+                .map(this::userRow)
+                .toList();
+        return ApiResponse.ok("Admin user management loaded.", users);
     }
 
     @GetMapping("/reports")
     public ApiResponse<List<Map<String, String>>> reports() {
-        return ApiResponse.ok("Admin reports loaded.", List.of(
-                Map.of("title", "Daily visitor summary", "status", "Ready"),
-                Map.of("title", "Department traffic", "status", "Ready"),
-                Map.of("title", "Badge exception audit", "status", "Review")
-        ));
+        return ApiResponse.ok("Admin reports loaded.", List.of());
     }
 
     @GetMapping("/monitoring")
@@ -125,5 +131,17 @@ public class AdminController {
     public ApiResponse<Void> deleteVisitor(@PathVariable String id) {
         visitorService.delete(id);
         return ApiResponse.ok("Visitor deleted.", null);
+    }
+
+    private Map<String, Object> userRow(User user) {
+        return Map.of(
+                "name", blankToDefault(blankToDefault(user.getFullName(), user.getEmail()), "Unknown user"),
+                "role", user.getRoles(),
+                "status", user.isActive() ? "ACTIVE" : "DISABLED"
+        );
+    }
+
+    private String blankToDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

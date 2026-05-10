@@ -39,8 +39,6 @@ app:
     from-email: ${SENDGRID_FROM_EMAIL:}
     from-name: ${SENDGRID_FROM_NAME:AccessFlow Security}
     api-base-url: ${SENDGRID_API_BASE_URL:https://api.sendgrid.com}
-  seed:
-    test-accounts: ${APP_SEED_TEST_ACCOUNTS:false}
   visitors:
     max-active-per-employee: ${VISITOR_MAX_ACTIVE_PER_EMPLOYEE:10}
     pending-approval-ttl-minutes: ${VISITOR_PENDING_APPROVAL_TTL_MINUTES:240}
