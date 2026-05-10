@@ -31,7 +31,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !appProperties.getRateLimit().isEnabled()
                 || "OPTIONS".equalsIgnoreCase(request.getMethod())
-                || !request.getRequestURI().startsWith("/api/");
+                || (!request.getRequestURI().startsWith("/api/") && !request.getRequestURI().startsWith("/auth/"));
     }
 
     @Override

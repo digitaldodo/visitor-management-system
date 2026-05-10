@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -45,6 +46,9 @@ class VisitorManagementApplicationTests {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -76,6 +80,8 @@ class VisitorManagementApplicationTests {
         when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(user("employee-target-id", Role.EMPLOYEE)));
         when(userRepository.findById("admin-target-id")).thenReturn(Optional.of(user("admin-target-id", Role.ADMIN)));
         when(userRepository.findById("super-admin-target-id")).thenReturn(Optional.of(user("super-admin-target-id", Role.SUPER_ADMIN)));
+        when(userRepository.findByUsernameIgnoreCase("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
+        when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -97,6 +103,43 @@ class VisitorManagementApplicationTests {
     void protectedRoleRoutesRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/admin/overview"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminUserCreationRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Employee User",
+                                  "username": "employee.user",
+                                  "email": "employee.user@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "EMPLOYEE"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void healthEndpointsArePublic() throws Exception {
+        mockMvc.perform(get("/api/v1/health/live"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void unprefixedPublicLoginIssuesTokens() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "employee-id",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.roles[0]").value("EMPLOYEE"));
     }
 
     @Test
@@ -158,6 +201,39 @@ class VisitorManagementApplicationTests {
                                   "fullName": "Visitor User",
                                   "username": "visitor.user",
                                   "email": "visitor@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("VISITOR"));
+    }
+
+    @Test
+    void unprefixedPublicRegistrationCreatesOnlyVisitorAccounts() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Direct Visitor",
+                                  "username": "direct.visitor",
+                                  "email": "direct.visitor@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("VISITOR"));
+    }
+
+    @Test
+    void publicRegistrationIgnoresInvalidBearerToken() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer not-a-valid-token")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Tokenless Visitor",
+                                  "username": "tokenless.visitor",
+                                  "email": "tokenless.visitor@example.com",
                                   "password": "SecurePass123!"
                                 }
                                 """))
@@ -340,8 +416,10 @@ class VisitorManagementApplicationTests {
     private User user(String id, Role role) {
         User user = new User();
         user.setId(id);
+        user.setUsername(id);
         user.setEmail(id + "@example.com");
         user.setFullName(id);
+        user.setPasswordHash(passwordEncoder.encode("SecurePass123!"));
         user.setRoles(Set.of(role));
         user.setActive(true);
         return user;
