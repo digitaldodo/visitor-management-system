@@ -28,25 +28,48 @@ public class SendGridEmailService implements EmailService {
 
     @Override
     public void sendPasswordResetOtp(String toEmail, String recipientName, String otp) {
+        sendEmail(
+                toEmail,
+                safeName(recipientName),
+                "Your AccessFlow password reset code",
+                plainTextBody(recipientName, otp),
+                htmlBody(recipientName, otp),
+                "Password reset OTP"
+        );
+    }
+
+    @Override
+    public void sendNotificationEmail(String toEmail, String recipientName, String subject, String title, String message, String actionUrl) {
+        sendEmail(
+                toEmail,
+                safeName(recipientName),
+                subject,
+                notificationPlainText(recipientName, title, message, actionUrl),
+                notificationHtml(recipientName, title, message, actionUrl),
+                "Notification"
+        );
+    }
+
+    private void sendEmail(String toEmail, String recipientName, String subject, String plainText, String html, String description) {
         if (!properties.isEnabled()) {
-            log.info("SendGrid delivery is disabled. Password reset OTP suppressed for {}.", toEmail);
+            log.info("SendGrid delivery is disabled. {} suppressed for {}.", description, toEmail);
             return;
         }
 
         if (isBlank(properties.getApiKey()) || isBlank(properties.getFromEmail())) {
-            log.warn("SendGrid is not configured. Password reset OTP could not be delivered for {}.", toEmail);
+            log.warn("SendGrid is not configured. {} could not be delivered for {}.", description, toEmail);
             return;
         }
 
         Map<String, Object> payload = Map.of(
                 "personalizations", List.of(Map.of(
-                        "to", List.of(Map.of("email", toEmail, "name", safeName(recipientName))),
-                        "subject", "Your AccessFlow password reset code"
+                        "to", List.of(Map.of("email", toEmail, "name", recipientName)),
+                        "subject", subject
                 )),
                 "from", Map.of("email", properties.getFromEmail(), "name", blankToDefault(properties.getFromName(), "AccessFlow Security")),
                 "content", List.of(
-                        Map.of("type", "text/plain", "value", plainTextBody(recipientName, otp)),
-                        Map.of("type", "text/html", "value", htmlBody(recipientName, otp))
+                        Map.of("type", "text/plain", "value", plainText),
+                        Map.of("type", "text/html", "value", html)
                 )
         );
 
@@ -57,6 +80,56 @@ public class SendGridEmailService implements EmailService {
                 .body(payload)
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    private String notificationPlainText(String recipientName, String title, String message, String actionUrl) {
+        String link = isBlank(actionUrl) ? "" : "\n\nOpen AccessFlow: " + actionUrl;
+        return """
+                AccessFlow notification
+
+                Hi %s,
+
+                %s
+
+                %s%s
+                """.formatted(safeName(recipientName), title, message, link);
+    }
+
+    private String notificationHtml(String recipientName, String title, String message, String actionUrl) {
+        String escapedName = escapeHtml(safeName(recipientName));
+        String escapedTitle = escapeHtml(title);
+        String escapedMessage = escapeHtml(message);
+        String action = isBlank(actionUrl) ? "" : """
+                <p style="margin:24px 0 0;"><a href="%s" style="background:#1d4ed8;border-radius:8px;color:#ffffff;display:inline-block;font-weight:800;padding:12px 16px;text-decoration:none;">Open AccessFlow</a></p>
+                """.formatted(escapeHtml(actionUrl));
+        return """
+                <!doctype html>
+                <html>
+                  <body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#101828;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;">
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e7ec;border-radius:8px;overflow:hidden;">
+                            <tr>
+                              <td style="background:#101828;color:#ffffff;padding:24px 28px;">
+                                <div style="font-size:13px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#bfdbfe;">AccessFlow</div>
+                                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">%s</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:28px;">
+                                <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Hi %s,</p>
+                                <p style="margin:0;font-size:16px;line-height:1.5;">%s</p>
+                                %s
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </body>
+                </html>
+                """.formatted(escapedTitle, escapedName, escapedMessage, action);
     }
 
     private String plainTextBody(String recipientName, String otp) {

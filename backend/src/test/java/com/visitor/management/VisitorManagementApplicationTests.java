@@ -5,6 +5,8 @@ import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
+import com.visitor.management.repository.NotificationRepository;
+import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -53,6 +56,9 @@ class VisitorManagementApplicationTests {
     private VisitorAuditLogRepository visitorAuditLogRepository;
 
     @MockitoBean
+    private NotificationRepository notificationRepository;
+
+    @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
 
     @MockitoBean
@@ -68,6 +74,7 @@ class VisitorManagementApplicationTests {
         when(userRepository.findById("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -99,6 +106,23 @@ class VisitorManagementApplicationTests {
         mockMvc.perform(get("/api/v1/security/overview")
                         .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void authenticatedUsersCanLoadNotifications() throws Exception {
+        Notification notification = new Notification();
+        notification.setId("notification-id");
+        notification.setRecipientUserId("employee-id");
+        notification.setTitle("Visitor checked in");
+        notification.setMessage("Test Visitor has checked in.");
+        when(notificationRepository.countByRecipientUserIdAndReadFalse("employee-id")).thenReturn(1L);
+        when(notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(any(), any())).thenReturn(List.of(notification));
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.unreadCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("Visitor checked in"));
     }
 
     @Test

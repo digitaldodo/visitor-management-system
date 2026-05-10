@@ -124,6 +124,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), null, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
+        visitorNotificationService.visitorApprovalRequested(saved);
         return toResponse(saved);
     }
 
@@ -235,6 +236,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
+        visitorNotificationService.visitorApproved(saved);
         return toResponse(saved);
     }
 
@@ -260,6 +262,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
+        visitorNotificationService.visitorRejected(saved);
         return toResponse(saved);
     }
 
@@ -378,6 +381,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
+        visitorNotificationService.visitorCheckedIn(saved);
         return toResponse(saved);
     }
 

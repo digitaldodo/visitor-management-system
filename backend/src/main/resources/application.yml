@@ -40,6 +40,8 @@ app:
     max-active-per-employee: ${VISITOR_MAX_ACTIVE_PER_EMPLOYEE:10}
     pending-approval-ttl-minutes: ${VISITOR_PENDING_APPROVAL_TTL_MINUTES:240}
     expiry-sweep-delay-ms: ${VISITOR_EXPIRY_SWEEP_DELAY_MS:60000}
+  notifications:
+    email-retry-delay-ms: ${NOTIFICATION_EMAIL_RETRY_DELAY_MS:120000}
 
 management:
   endpoints:

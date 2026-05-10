@@ -72,6 +72,7 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/v1/auth/reset-password"
                         ).permitAll()
+                        .requestMatchers("/api/v1/notifications/**").hasAnyRole("ADMIN", "EMPLOYEE", "SECURITY_GUARD")
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")
                         .requestMatchers("/api/v1/security/**").hasRole("SECURITY_GUARD")

@@ -4,11 +4,16 @@ import { $, $$, setText } from "./dom.js";
 import { LOGIN_FROM_PORTAL } from "./config.js";
 import { clearSession, getRefreshToken } from "./session.js";
 import { showToast } from "./toast.js";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
+
+let notificationPollTimer;
+let latestNotificationSeenAt = "";
 
 export function initPortalShell(session, options = {}) {
   initSidebar();
   initLogout();
   initRouteTabs(options.allowedRoutes || []);
+  initNotifications();
   $("#refresh-health")?.addEventListener("click", () => refreshHealth(true));
 
   setText("#user-chip", `${session.fullName || session.email} · ${formatRole(session.roles?.[0])}`);
@@ -131,6 +136,118 @@ function initLogout() {
   });
 }
 
+function initNotifications() {
+  const actions = $(".topbar__actions");
+  if (!actions || $("#notification-button")) {
+    return;
+  }
+
+  actions.insertAdjacentHTML("afterbegin", `
+    <div class="notification-menu" id="notification-menu">
+      <button class="icon-button notification-button" id="notification-button" type="button" aria-label="Notifications" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.4 2.4 0 0 0 2.3-1.8H9.7A2.4 2.4 0 0 0 12 22Zm7-5-2-2v-4a5 5 0 0 0-10 0v4l-2 2v1h14Z"/></svg>
+        <span class="notification-badge is-hidden" id="notification-badge">0</span>
+      </button>
+      <section class="notification-popover is-hidden" id="notification-popover" aria-label="Notifications">
+        <div class="notification-popover__header">
+          <strong>Notifications</strong>
+          <button class="button button--ghost" id="notification-read-all" type="button">Mark all read</button>
+        </div>
+        <div class="notification-list" id="notification-list"></div>
+      </section>
+    </div>
+  `);
+
+  $("#notification-button")?.addEventListener("click", () => {
+    const popover = $("#notification-popover");
+    const isHidden = popover?.classList.toggle("is-hidden");
+    $("#notification-button")?.setAttribute("aria-expanded", String(!isHidden));
+  });
+
+  $("#notification-read-all")?.addEventListener("click", async () => {
+    try {
+      renderNotifications((await markAllNotificationsRead()).data, false);
+    } catch (error) {
+      showToast("Notifications unavailable", error.message);
+    }
+  });
+
+  $("#notification-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-notification-id]");
+    if (!button) {
+      return;
+    }
+    try {
+      const response = await markNotificationRead(button.dataset.notificationId);
+      renderNotifications(response.data, false);
+    } catch (error) {
+      showToast("Notification update failed", error.message);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#notification-menu")) {
+      $("#notification-popover")?.classList.add("is-hidden");
+      $("#notification-button")?.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  loadNotifications(false);
+  window.clearInterval(notificationPollTimer);
+  notificationPollTimer = window.setInterval(() => loadNotifications(true), 20000);
+  window.addEventListener("beforeunload", () => window.clearInterval(notificationPollTimer), { once: true });
+}
+
+async function loadNotifications(showNewToast) {
+  try {
+    const response = await getNotifications(10);
+    renderNotifications(response.data, showNewToast);
+  } catch {
+    renderNotifications({ unreadCount: 0, items: [] }, false);
+  }
+}
+
+function renderNotifications(data, showNewToast) {
+  const badge = $("#notification-badge");
+  const list = $("#notification-list");
+  const unreadCount = data?.unreadCount || 0;
+  const items = data?.items || [];
+
+  if (badge) {
+    badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+    badge.classList.toggle("is-hidden", unreadCount === 0);
+  }
+
+  if (list) {
+    list.innerHTML = items.length ? items.map(notificationItem).join("") : `
+      <article class="notification-empty">
+        <strong>No notifications</strong>
+        <span>New visitor activity will appear here.</span>
+      </article>
+    `;
+  }
+
+  const newest = items[0];
+  if (showNewToast && newest && newest.createdAt && newest.createdAt !== latestNotificationSeenAt && !newest.read) {
+    showToast(newest.title, newest.message);
+  }
+  if (newest?.createdAt) {
+    latestNotificationSeenAt = newest.createdAt;
+  }
+}
+
+function notificationItem(item) {
+  return `
+    <button class="notification-item ${item.read ? "" : "is-unread"}" type="button" data-notification-id="${escapeHtml(item.id)}">
+      <span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <small>${escapeHtml(item.message)}</small>
+      </span>
+      <time>${escapeHtml(formatNotificationTime(item.createdAt))}</time>
+    </button>
+  `;
+}
+
 async function refreshHealth(showSuccessToast) {
   setHealthLoading();
 
@@ -187,4 +304,14 @@ function setHealthOffline(message) {
 
 function formatRole(role) {
   return String(role || "USER").replaceAll("_", " ");
+}
+
+function formatNotificationTime(value) {
+  if (!value) {
+    return "";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
