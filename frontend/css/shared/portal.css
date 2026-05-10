@@ -551,6 +551,24 @@
   color: #86600e;
 }
 
+.status-badge--pending {
+  background: #fff7e6;
+  border-color: #efd28e;
+  color: #86600e;
+}
+
+.status-badge--approved {
+  background: #e9f8ef;
+  border-color: #a8d9bb;
+  color: #1f6b43;
+}
+
+.status-badge--rejected {
+  background: #fbeded;
+  border-color: #e4b8b8;
+  color: #963b3b;
+}
+
 .status-badge--checked-in {
   background: #e9f8ef;
   border-color: #a8d9bb;
@@ -659,6 +677,31 @@
 
 .visitor-detail__photo {
   grid-column: 1 / -1;
+}
+
+.visitor-detail__timeline {
+  grid-column: 1 / -1;
+}
+
+.visitor-detail__timeline ol {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.visitor-detail__timeline li {
+  border-left: 3px solid var(--role-accent, var(--color-primary));
+  display: grid;
+  gap: 0.12rem;
+  padding-left: 0.65rem;
+}
+
+.visitor-detail__timeline span,
+.visitor-detail__timeline small {
+  color: var(--color-muted);
+  font-size: 0.82rem;
 }
 
 .visitor-detail__photo img {

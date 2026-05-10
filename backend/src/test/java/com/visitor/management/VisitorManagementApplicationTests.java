@@ -4,6 +4,7 @@ import com.visitor.management.repository.PasswordResetTokenRepository;
 import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
+import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
@@ -47,6 +48,9 @@ class VisitorManagementApplicationTests {
 
     @MockitoBean
     private VisitorRepository visitorRepository;
+
+    @MockitoBean
+    private VisitorAuditLogRepository visitorAuditLogRepository;
 
     @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
@@ -131,13 +135,13 @@ class VisitorManagementApplicationTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fullName").value("Priya Shah"))
-                .andExpect(jsonPath("$.data.status").value("SCHEDULED"))
-                .andExpect(jsonPath("$.data.qrCode").exists());
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.qrCode").doesNotExist());
     }
 
     @Test
     void checkoutRequiresCheckedInVisitor() throws Exception {
-        Visitor visitor = visitor("visitor-id", VisitorStatus.SCHEDULED);
+        Visitor visitor = visitor("visitor-id", VisitorStatus.PENDING);
         when(visitorRepository.findById("visitor-id")).thenReturn(Optional.of(visitor));
 
         mockMvc.perform(patch("/api/v1/security/visitors/visitor-id/check-out")

@@ -1,6 +1,7 @@
 package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
+import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,11 +51,8 @@ public class EmployeeController {
     }
 
     @GetMapping("/approvals")
-    public ApiResponse<List<Map<String, String>>> approvals() {
-        return ApiResponse.ok("Employee approvals loaded.", List.of(
-                Map.of("visitor", "Isha Nair", "purpose", "Interview", "status", "Pending"),
-                Map.of("visitor", "Dev Patel", "purpose", "Vendor review", "status", "Pending")
-        ));
+    public ApiResponse<PageResponse<VisitorResponse>> approvals(Authentication authentication) {
+        return ApiResponse.ok("Employee approvals loaded.", visitorService.pendingApprovals(authentication.getName()));
     }
 
     @GetMapping("/pre-approvals")
@@ -75,8 +74,8 @@ public class EmployeeController {
     @GetMapping("/scheduled-visitors")
     public ApiResponse<List<Map<String, String>>> scheduledVisitors() {
         return ApiResponse.ok("Employee scheduled visitors loaded.", List.of(
-                Map.of("visitor", "Sana Khan", "time", "10:30", "status", "Scheduled"),
-                Map.of("visitor", "Arjun Bose", "time", "14:00", "status", "Scheduled")
+                Map.of("visitor", "Sana Khan", "time", "10:30", "status", "Approved"),
+                Map.of("visitor", "Arjun Bose", "time", "14:00", "status", "Pending")
         ));
     }
 
@@ -98,6 +97,24 @@ public class EmployeeController {
     @PostMapping("/visitors")
     public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request, Authentication authentication) {
         return ApiResponse.ok("Visitor registered.", visitorService.create(request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/approve")
+    public ApiResponse<VisitorResponse> approveVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody(required = false) ApprovalDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor approved.", visitorService.approve(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reject")
+    public ApiResponse<VisitorResponse> rejectVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody(required = false) ApprovalDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor rejected.", visitorService.reject(id, request, authentication.getName()));
     }
 
     @PostMapping(value = "/visitors/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

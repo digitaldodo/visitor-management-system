@@ -17,3 +17,127 @@
 .employee-shell .metric-card {
   background: linear-gradient(180deg, #ffffff 0%, #f7fffd 100%);
 }
+
+.approval-card {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(8rem, 0.34fr) minmax(0, 1fr);
+  padding: 0.9rem;
+}
+
+.approval-card__media {
+  aspect-ratio: 4 / 3;
+  background: #111827;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.approval-card__media img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.approval-card__body {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.approval-card__header,
+.approval-card__actions {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.approval-card__header h3,
+.approval-card__header p {
+  margin: 0;
+}
+
+.approval-card__header p,
+.approval-meta dt,
+.approval-timeline span,
+.approval-timeline small,
+.approval-empty p {
+  color: var(--color-muted);
+}
+
+.approval-meta {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.approval-meta div {
+  background: #ffffff;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 0.65rem;
+}
+
+.approval-meta dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.approval-meta dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.approval-timeline {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.approval-timeline li {
+  border-left: 3px solid var(--role-accent);
+  display: grid;
+  gap: 0.1rem;
+  padding-left: 0.65rem;
+}
+
+.approval-empty {
+  background: #fcfcfd;
+  border: 1px dashed #a7c9c3;
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.approval-empty h3 {
+  margin: 0;
+}
+
+.approval-empty p {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .approval-card {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-card__header,
+  .approval-card__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .approval-meta {
+    grid-template-columns: 1fr;
+  }
+}

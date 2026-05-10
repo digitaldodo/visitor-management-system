@@ -3,6 +3,7 @@ package com.visitor.management.dto;
 import com.visitor.management.entity.VisitorStatus;
 
 import java.time.Instant;
+import java.util.List;
 
 public record VisitorResponse(
         String id,
@@ -18,6 +19,12 @@ public record VisitorResponse(
         Instant checkOutTime,
         VisitorStatus status,
         String qrCode,
+        Instant approvedAt,
+        Instant rejectedAt,
+        String approvedBy,
+        String rejectedBy,
+        String rejectionReason,
+        List<VisitorStatusHistoryResponse> statusHistory,
         Instant createdAt,
         Instant updatedAt
 ) {

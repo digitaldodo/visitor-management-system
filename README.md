@@ -187,6 +187,8 @@ Base URL: `/api/v1`
 | `DELETE` | `/admin/visitors/{id}` | `ADMIN` | Delete visitor |
 | `GET` | `/employee/overview` | `EMPLOYEE` | Employee dashboard metrics |
 | `GET` | `/employee/approvals` | `EMPLOYEE` | Visitor approvals |
+| `PATCH` | `/employee/visitors/{id}/approve` | `EMPLOYEE` | Approve a pending visitor and generate the visitor pass |
+| `PATCH` | `/employee/visitors/{id}/reject` | `EMPLOYEE` | Reject a pending visitor with an optional decision note |
 | `GET` | `/employee/pre-approvals` | `EMPLOYEE` | Pre-approved visitors |
 | `GET` | `/employee/notifications` | `EMPLOYEE` | Employee notifications |
 | `GET` | `/employee/scheduled-visitors` | `EMPLOYEE` | Scheduled visitors |
@@ -212,7 +214,7 @@ Base URL: `/api/v1`
 | `GET` | `/actuator/health` | Public | Render health check |
 | `GET` | `/actuator/info` | Public | Actuator info |
 
-Visitor list endpoints accept `query`, `status`, `hostEmployeeId`, `from`, `to`, `page`, `size`, `sortBy`, and `direction` query parameters. Visitor statuses are `SCHEDULED`, `CHECKED_IN`, `CHECKED_OUT`, and `CANCELLED`.
+Visitor list endpoints accept `query`, `status`, `hostEmployeeId`, `from`, `to`, `page`, `size`, `sortBy`, and `direction` query parameters. Visitor statuses are `PENDING`, `APPROVED`, `REJECTED`, `CHECKED_IN`, and `CHECKED_OUT`. New registrations start as `PENDING`; approval generates the visitor pass/QR code.
 
 Expected response envelope:
 

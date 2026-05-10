@@ -26,6 +26,21 @@ export function uploadVisitorPhoto(basePath, file) {
   });
 }
 
+export function approveVisitor(basePath, id, note = "") {
+  return request(`${basePath}/visitors/${id}/approve`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function rejectVisitor(basePath, id, note = "") {
+  return request(`${basePath}/visitors/${id}/reject`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
+
 export function checkInVisitor(basePath, id) {
   return request(`${basePath}/visitors/${id}/check-in`, {
     method: "PATCH",

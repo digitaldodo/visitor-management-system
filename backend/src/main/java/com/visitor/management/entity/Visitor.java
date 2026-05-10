@@ -7,6 +7,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "visitors")
 public class Visitor {
@@ -39,11 +41,23 @@ public class Visitor {
     private Instant checkOutTime;
 
     @Indexed
-    private VisitorStatus status = VisitorStatus.SCHEDULED;
+    private VisitorStatus status = VisitorStatus.PENDING;
 
     private String photoUrl;
 
     private String photoPublicId;
+
+    private Instant approvedAt;
+
+    private Instant rejectedAt;
+
+    private String approvedBy;
+
+    private String rejectedBy;
+
+    private String rejectionReason;
+
+    private List<VisitorStatusHistoryEntry> statusHistory = new ArrayList<>();
 
     @Indexed(unique = true, sparse = true)
     private String qrCode;
@@ -156,6 +170,54 @@ public class Visitor {
 
     public void setPhotoPublicId(String photoPublicId) {
         this.photoPublicId = photoPublicId;
+    }
+
+    public Instant getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(Instant approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public Instant getRejectedAt() {
+        return rejectedAt;
+    }
+
+    public void setRejectedAt(Instant rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public String getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public void setRejectedBy(String rejectedBy) {
+        this.rejectedBy = rejectedBy;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+
+    public List<VisitorStatusHistoryEntry> getStatusHistory() {
+        return statusHistory;
+    }
+
+    public void setStatusHistory(List<VisitorStatusHistoryEntry> statusHistory) {
+        this.statusHistory = statusHistory;
     }
 
     public String getQrCode() {

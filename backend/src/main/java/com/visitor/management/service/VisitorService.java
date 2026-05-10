@@ -1,15 +1,20 @@
 package com.visitor.management.service;
 
 import com.visitor.management.dto.PageResponse;
+import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
+import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.entity.VisitorAuditLog;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.entity.VisitorStatusHistoryEntry;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ResourceNotFoundException;
+import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
 import org.springframework.data.domain.Page;
@@ -48,17 +53,20 @@ public class VisitorService {
 
     private final VisitorRepository visitorRepository;
     private final UserRepository userRepository;
+    private final VisitorAuditLogRepository visitorAuditLogRepository;
     private final MongoTemplate mongoTemplate;
     private final PaginationService paginationService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
             UserRepository userRepository,
+            VisitorAuditLogRepository visitorAuditLogRepository,
             MongoTemplate mongoTemplate,
             PaginationService paginationService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
+        this.visitorAuditLogRepository = visitorAuditLogRepository;
         this.mongoTemplate = mongoTemplate;
         this.paginationService = paginationService;
     }
@@ -79,11 +87,13 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
-        visitor.setStatus(VisitorStatus.SCHEDULED);
-        visitor.setQrCode(generateQrCode());
+        visitor.setStatus(VisitorStatus.PENDING);
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
-        return toResponse(visitorRepository.save(visitor));
+        addHistory(visitor, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), null, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
+        return toResponse(saved);
     }
 
     public VisitorResponse get(String id) {
@@ -113,6 +123,57 @@ public class VisitorService {
         return paginationService.toResponse(page);
     }
 
+    public PageResponse<VisitorResponse> pendingApprovals(String hostEmployeeId) {
+        SearchRequest request = new SearchRequest(null, 0, 50, "createdAt", "desc", VisitorStatus.PENDING, null, null, null);
+        return search(request, hostEmployeeId);
+    }
+
+    public VisitorResponse approve(String id, ApprovalDecisionRequest request, String actorId) {
+        Visitor visitor = find(id);
+        requireHostAccess(visitor, actorId);
+        if (visitor.getStatus() != VisitorStatus.PENDING) {
+            throw new BadRequestException("Only pending visitors can be approved.");
+        }
+
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        visitor.setStatus(VisitorStatus.APPROVED);
+        visitor.setApprovedAt(now);
+        visitor.setApprovedBy(actorId);
+        visitor.setRejectedAt(null);
+        visitor.setRejectedBy(null);
+        visitor.setRejectionReason(null);
+        visitor.setQrCode(generateQrCode());
+        visitor.setUpdatedAt(now);
+        String note = trimToNull(request == null ? null : request.note());
+        addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
+        return toResponse(saved);
+    }
+
+    public VisitorResponse reject(String id, ApprovalDecisionRequest request, String actorId) {
+        Visitor visitor = find(id);
+        requireHostAccess(visitor, actorId);
+        if (visitor.getStatus() != VisitorStatus.PENDING) {
+            throw new BadRequestException("Only pending visitors can be rejected.");
+        }
+
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        String note = trimToNull(request == null ? null : request.note());
+        visitor.setStatus(VisitorStatus.REJECTED);
+        visitor.setRejectedAt(now);
+        visitor.setRejectedBy(actorId);
+        visitor.setRejectionReason(note);
+        visitor.setQrCode(null);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
+        return toResponse(saved);
+    }
+
     public VisitorResponse update(String id, VisitorUpdateRequest request) {
         Visitor visitor = find(id);
         applyUpdate(visitor, request);
@@ -140,16 +201,20 @@ public class VisitorService {
         if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
             throw new BadRequestException("Checked-out visitors cannot be checked in again.");
         }
-        if (visitor.getStatus() == VisitorStatus.CANCELLED) {
-            throw new BadRequestException("Cancelled visitors cannot be checked in.");
+        if (visitor.getStatus() != VisitorStatus.APPROVED) {
+            throw new BadRequestException("Only approved visitors can be checked in.");
         }
 
         Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
         visitor.setCheckInTime(now);
         visitor.setCheckOutTime(null);
         visitor.setStatus(VisitorStatus.CHECKED_IN);
         visitor.setUpdatedAt(now);
-        return toResponse(visitorRepository.save(visitor));
+        addHistory(visitor, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
+        return toResponse(saved);
     }
 
     public VisitorResponse checkOut(String id) {
@@ -159,10 +224,14 @@ public class VisitorService {
         }
 
         Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
         visitor.setCheckOutTime(now);
         visitor.setStatus(VisitorStatus.CHECKED_OUT);
         visitor.setUpdatedAt(now);
-        return toResponse(visitorRepository.save(visitor));
+        addHistory(visitor, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", null, "Visitor checked out.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", null, "Visitor checked out.", now);
+        return toResponse(saved);
     }
 
     public List<Map<String, Object>> metrics() {
@@ -170,7 +239,8 @@ public class VisitorService {
         Instant end = start.plusSeconds(24 * 60 * 60);
         return List.of(
                 Map.of("label", "Visitors today", "value", visitorRepository.countByCheckInTimeBetween(start, end), "note", "Checked in"),
-                Map.of("label", "Scheduled", "value", visitorRepository.countByStatus(VisitorStatus.SCHEDULED), "note", "Awaiting arrival"),
+                Map.of("label", "Pending", "value", visitorRepository.countByStatus(VisitorStatus.PENDING), "note", "Awaiting approval"),
+                Map.of("label", "Approved", "value", visitorRepository.countByStatus(VisitorStatus.APPROVED), "note", "Passes generated"),
                 Map.of("label", "On site", "value", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN), "note", "Currently checked in"),
                 Map.of("label", "Checked out", "value", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT), "note", "Completed visits")
         );
@@ -178,10 +248,11 @@ public class VisitorService {
 
     public Map<String, Object> statusSummary() {
         return Map.of(
-                "scheduled", visitorRepository.countByStatus(VisitorStatus.SCHEDULED),
+                "pending", visitorRepository.countByStatus(VisitorStatus.PENDING),
+                "approved", visitorRepository.countByStatus(VisitorStatus.APPROVED),
+                "rejected", visitorRepository.countByStatus(VisitorStatus.REJECTED),
                 "checkedIn", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN),
-                "checkedOut", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT),
-                "cancelled", visitorRepository.countByStatus(VisitorStatus.CANCELLED)
+                "checkedOut", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT)
         );
     }
 
@@ -251,16 +322,7 @@ public class VisitorService {
     }
 
     private void applyDirectStatusUpdate(Visitor visitor, VisitorStatus status) {
-        if (status == VisitorStatus.CHECKED_IN || status == VisitorStatus.CHECKED_OUT) {
-            throw new BadRequestException("Use check-in and check-out endpoints to change active visit status.");
-        }
-        if (visitor.getStatus() == VisitorStatus.CHECKED_IN && status == VisitorStatus.SCHEDULED) {
-            throw new BadRequestException("Checked-in visitors cannot be moved back to scheduled.");
-        }
-        visitor.setStatus(status);
-        if (status == VisitorStatus.CANCELLED) {
-            visitor.setCheckOutTime(null);
-        }
+        throw new BadRequestException("Use approval, check-in, and check-out endpoints to change visitor status.");
     }
 
     private Visitor find(String id) {
@@ -319,6 +381,21 @@ public class VisitorService {
                 visitor.getCheckOutTime(),
                 visitor.getStatus(),
                 visitor.getQrCode(),
+                visitor.getApprovedAt(),
+                visitor.getRejectedAt(),
+                visitor.getApprovedBy(),
+                visitor.getRejectedBy(),
+                visitor.getRejectionReason(),
+                visitor.getStatusHistory() == null ? List.of() : visitor.getStatusHistory()
+                        .stream()
+                        .map(entry -> new VisitorStatusHistoryResponse(
+                                entry.getStatus(),
+                                entry.getAction(),
+                                entry.getActorId(),
+                                entry.getNote(),
+                                entry.getTimestamp()
+                        ))
+                        .toList(),
                 visitor.getCreatedAt(),
                 visitor.getUpdatedAt()
         );
@@ -343,5 +420,30 @@ public class VisitorService {
         if (value != null) {
             consumer.accept(value);
         }
+    }
+
+    private void addHistory(Visitor visitor, VisitorStatus status, String action, String actorId, String note, Instant timestamp) {
+        VisitorStatusHistoryEntry entry = new VisitorStatusHistoryEntry();
+        entry.setStatus(status);
+        entry.setAction(action);
+        entry.setActorId(actorId);
+        entry.setNote(note);
+        entry.setTimestamp(timestamp);
+        if (visitor.getStatusHistory() == null) {
+            visitor.setStatusHistory(new ArrayList<>());
+        }
+        visitor.getStatusHistory().add(entry);
+    }
+
+    private void audit(String visitorId, VisitorStatus from, VisitorStatus to, String action, String actorId, String note, Instant timestamp) {
+        VisitorAuditLog log = new VisitorAuditLog();
+        log.setVisitorId(visitorId);
+        log.setFromStatus(from);
+        log.setToStatus(to);
+        log.setAction(action);
+        log.setActorId(actorId);
+        log.setNote(note);
+        log.setCreatedAt(timestamp);
+        visitorAuditLogRepository.save(log);
     }
 }

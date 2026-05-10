@@ -97,7 +97,7 @@ public class SecurityPortalController {
                 request.size(),
                 request.sortBy(),
                 request.direction(),
-                VisitorStatus.SCHEDULED,
+                VisitorStatus.APPROVED,
                 request.hostEmployeeId(),
                 request.from(),
                 request.to()

@@ -1,8 +1,9 @@
 package com.visitor.management.entity;
 
 public enum VisitorStatus {
-    SCHEDULED,
+    PENDING,
+    APPROVED,
+    REJECTED,
     CHECKED_IN,
-    CHECKED_OUT,
-    CANCELLED
+    CHECKED_OUT
 }

@@ -2,10 +2,11 @@ import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVi
 import { showToast } from "./toast.js";
 
 const STATUS_LABELS = {
-  SCHEDULED: "Scheduled",
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
   CHECKED_IN: "Checked in",
   CHECKED_OUT: "Checked out",
-  CANCELLED: "Cancelled",
 };
 
 export function initVisitorModule(selector, options) {
@@ -145,8 +146,17 @@ export function initVisitorModule(selector, options) {
     }
   }
 
-  async function load() {
-    renderSkeleton(root);
+  const pollInterval = options.pollIntervalMs ?? 15000;
+  let pollTimer;
+  if (pollInterval > 0) {
+    pollTimer = window.setInterval(() => load(false), pollInterval);
+    window.addEventListener("beforeunload", () => window.clearInterval(pollTimer));
+  }
+
+  async function load(showSkeleton = true) {
+    if (showSkeleton) {
+      renderSkeleton(root);
+    }
     try {
       const response = await searchVisitors(options.basePath, {
         page: state.page,
@@ -242,10 +252,11 @@ function template(options) {
       </label>
       <select data-visitor-status aria-label="Filter visitor status">
         <option value="">All statuses</option>
-        <option value="SCHEDULED">Scheduled</option>
+        <option value="PENDING">Pending</option>
+        <option value="APPROVED">Approved</option>
+        <option value="REJECTED">Rejected</option>
         <option value="CHECKED_IN">Checked in</option>
         <option value="CHECKED_OUT">Checked out</option>
-        <option value="CANCELLED">Cancelled</option>
       </select>
       <select data-visitor-size aria-label="Rows per page">
         <option value="10">10 rows</option>
@@ -330,7 +341,7 @@ function row(visitor, options) {
           <button class="icon-button" type="button" title="View details" data-visitor-action="detail" data-visitor-id="${escapeHtml(visitor.id)}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7s-9-4.5-10-7c1-2.5 5-7 10-7Zm0 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z"/></svg>
           </button>
-          ${visitor.status === "SCHEDULED" ? actionButton("check-in", visitor.id, "Check in") : ""}
+          ${visitor.status === "APPROVED" ? actionButton("check-in", visitor.id, "Check in") : ""}
           ${visitor.status === "CHECKED_IN" ? actionButton("check-out", visitor.id, "Check out") : ""}
           ${options.canDelete ? actionButton("delete", visitor.id, "Delete") : ""}
         </div>
@@ -394,6 +405,7 @@ function openDetail(root, visitor) {
         ${detail("Check-out Time", formatDate(visitor.checkOutTime))}
         ${photoDetail(visitor.photoUrl)}
         ${detail("QR Code", visitor.qrCode)}
+        ${timelineDetail(visitor.statusHistory)}
       </dl>
     </div>
   `;
@@ -415,6 +427,22 @@ function photoDetail(photoUrl) {
     <div class="visitor-detail__photo">
       <dt>Photo</dt>
       <dd><img src="${escapeHtml(photoUrl)}" alt="Visitor photo" loading="lazy" /></dd>
+    </div>
+  `;
+}
+
+function timelineDetail(history = []) {
+  const items = history.map((entry) => `
+    <li>
+      <strong>${escapeHtml(STATUS_LABELS[entry.status] || entry.status)}</strong>
+      <span>${formatDate(entry.timestamp)}</span>
+      ${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ""}
+    </li>
+  `).join("");
+  return `
+    <div class="visitor-detail__timeline">
+      <dt>Status Timeline</dt>
+      <dd><ol>${items || "<li><strong>No status history</strong></li>"}</ol></dd>
     </div>
   `;
 }
