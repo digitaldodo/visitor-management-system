@@ -22,7 +22,7 @@ public class SendGridEmailService implements EmailService {
     public SendGridEmailService(AppProperties appProperties, RestClient.Builder restClientBuilder) {
         this.properties = appProperties.getSendgrid();
         this.restClient = restClientBuilder
-                .baseUrl(blankToDefault(properties.getApiBaseUrl(), "https://api.sendgrid.com"))
+                .baseUrl("https://api.sendgrid.com")
                 .build();
     }
 
@@ -51,11 +51,6 @@ public class SendGridEmailService implements EmailService {
     }
 
     private void sendEmail(String toEmail, String recipientName, String subject, String plainText, String html, String description) {
-        if (!properties.isEnabled()) {
-            log.info("SendGrid delivery is disabled. {} suppressed for {}.", description, toEmail);
-            return;
-        }
-
         if (isBlank(properties.getApiKey()) || isBlank(properties.getFromEmail())) {
             log.warn("SendGrid is not configured. {} could not be delivered for {}.", description, toEmail);
             return;

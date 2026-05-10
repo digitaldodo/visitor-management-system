@@ -30,7 +30,7 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
 
         require("MONGODB_URI", missing);
         require("JWT_SECRET", missing);
-        require("CORS_ALLOWED_ORIGINS", missing);
+        require("FRONTEND_URL", missing);
 
         String mongoUri = environment.getProperty("spring.data.mongodb.uri");
         if (LOCAL_MONGO_URI.equals(mongoUri)
@@ -43,32 +43,29 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
             missing.add("JWT_SECRET must not use a local default or placeholder value");
         }
         if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isLocalOrigin)) {
-            missing.add("CORS_ALLOWED_ORIGINS must contain deployed frontend origins only");
+            missing.add("FRONTEND_URL must be the deployed frontend origin");
         }
         if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isWildcardOrigin)) {
-            missing.add("CORS_ALLOWED_ORIGINS must not use wildcards in production");
+            missing.add("FRONTEND_URL must not use wildcards in production");
         }
 
         AppProperties.Cloudinary cloudinary = properties.getCloudinary();
-        boolean hasCloudinaryUrl = hasText(cloudinary.getUrl()) && !hasPlaceholder(cloudinary.getUrl());
         boolean hasCloudinaryParts = hasText(cloudinary.getCloudName())
                 && hasText(cloudinary.getApiKey())
                 && hasText(cloudinary.getApiSecret())
                 && !hasPlaceholder(cloudinary.getCloudName())
                 && !hasPlaceholder(cloudinary.getApiKey())
                 && !hasPlaceholder(cloudinary.getApiSecret());
-        if (!hasCloudinaryUrl && !hasCloudinaryParts) {
-            missing.add("CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET with real Cloudinary values");
+        if (!hasCloudinaryParts) {
+            missing.add("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET with real Cloudinary values");
         }
 
         AppProperties.SendGrid sendgrid = properties.getSendgrid();
-        if (sendgrid.isEnabled()) {
-            if (!hasText(sendgrid.getApiKey()) || hasPlaceholder(sendgrid.getApiKey())) {
-                missing.add("SENDGRID_API_KEY with a real SendGrid key");
-            }
-            if (!hasText(sendgrid.getFromEmail()) || hasPlaceholder(sendgrid.getFromEmail())) {
-                missing.add("SENDGRID_FROM_EMAIL with a verified sender");
-            }
+        if (!hasText(sendgrid.getApiKey()) || hasPlaceholder(sendgrid.getApiKey())) {
+            missing.add("SENDGRID_API_KEY with a real SendGrid key");
+        }
+        if (!hasText(sendgrid.getFromEmail()) || hasPlaceholder(sendgrid.getFromEmail())) {
+            missing.add("SENDGRID_FROM_EMAIL with a verified sender");
         }
 
         if (!missing.isEmpty()) {

@@ -1,88 +1,32 @@
-# AccessFlow Render Blueprint
-# Free-tier compatible split deployment:
-# - Backend: Spring Boot API as a Docker web service.
-# - Frontend: Vanilla HTML/CSS/JS as a Render static site.
-# Render static sites use type: web with runtime set to static.
 version: "1"
 
 previews:
   generation: off
 
 services:
-  # ---------------------------------------------------------------------------
-  # Backend: AccessFlow Spring Boot API
-  # ---------------------------------------------------------------------------
   - type: web
     name: accessflow-api
     runtime: docker
     rootDir: backend
     plan: free
-    region: oregon
     dockerfilePath: ./Dockerfile
-    dockerContext: .
     healthCheckPath: /api/v1/health/ready
-    autoDeployTrigger: commit
-    buildFilter:
-      paths:
-        - backend/**
-        - render.yaml
-      ignoredPaths:
-        - frontend/**
-        - README.md
     envVars:
-      # Required secrets
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
         sync: false
-
-      # Public URLs and CORS
-      - key: BACKEND_PUBLIC_URL
-        value: https://accessflow-api.onrender.com
-      - key: FRONTEND_PUBLIC_URL
+      - key: FRONTEND_URL
         value: https://accessflow-web.onrender.com
-      - key: CORS_ALLOWED_ORIGINS
-        value: https://accessflow-web.onrender.com
-
-      # Spring Boot production runtime
-      - key: SPRING_PROFILES_ACTIVE
-        value: prod
-      - key: JAVA_OPTS
-        value: "-XX:MaxRAMPercentage=75 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
-
-      # JWT configuration
-      - key: JWT_ISSUER
-        value: visitor-management
-      - key: JWT_EXPIRATION_MINUTES
-        value: 60
-      - key: JWT_REFRESH_EXPIRATION_DAYS
-        value: 7
-
-      # Cloudinary configuration
-      # Provide either CLOUDINARY_URL or the individual Cloudinary values.
-      - key: CLOUDINARY_URL
-        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: CLOUDINARY_FOLDER
-        value: visitor-management
-
-      # SendGrid configuration
-      - key: SENDGRID_ENABLED
-        value: "true"
       - key: SENDGRID_API_KEY
         sync: false
       - key: SENDGRID_FROM_EMAIL
-        sync: false
-      - key: SENDGRID_FROM_NAME
-        value: AccessFlow Security
-
-      # SUPER_ADMIN bootstrap configuration
-      - key: SUPER_ADMIN_NAME
         sync: false
       - key: SUPER_ADMIN_USERNAME
         sync: false
@@ -91,33 +35,14 @@ services:
       - key: SUPER_ADMIN_PASSWORD
         sync: false
 
-      # Operational defaults
-      - key: RATE_LIMIT_ENABLED
-        value: "true"
-      - key: RATE_LIMIT_REQUESTS_PER_MINUTE
-        value: 180
-      - key: SWAGGER_UI_ENABLED
-        value: "false"
-
-  # ---------------------------------------------------------------------------
-  # Frontend: AccessFlow static web app
-  # ---------------------------------------------------------------------------
   - type: web
     name: accessflow-web
     runtime: static
     rootDir: frontend
     staticPublishPath: .
-    autoDeployTrigger: commit
     buildCommand: |
       test -n "$API_BASE_URL"
-      printf 'window.API_BASE_URL = "%s";\nwindow.VISITOR_API_BASE_URL = window.API_BASE_URL;\nwindow.ACCESSFLOW_SITE_URL = "%s";\n' "$API_BASE_URL" "$FRONTEND_PUBLIC_URL" > assets/js/env.js
-    buildFilter:
-      paths:
-        - frontend/**
-        - render.yaml
-      ignoredPaths:
-        - backend/**
-        - README.md
+      printf 'window.API_BASE_URL = "%s";\n' "$API_BASE_URL" > assets/js/env.js
     headers:
       - path: /assets/js/env.js
         name: Cache-Control
@@ -166,8 +91,5 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      # Public frontend runtime configuration
       - key: API_BASE_URL
         value: https://accessflow-api.onrender.com/api/v1
-      - key: FRONTEND_PUBLIC_URL
-        value: https://accessflow-web.onrender.com

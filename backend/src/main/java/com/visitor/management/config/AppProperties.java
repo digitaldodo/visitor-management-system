@@ -35,9 +35,6 @@ public class AppProperties {
     @Valid
     private SecurityHeaders securityHeaders = new SecurityHeaders();
 
-    @Valid
-    private Backup backup = new Backup();
-
     public Cors getCors() {
         return cors;
     }
@@ -92,14 +89,6 @@ public class AppProperties {
 
     public void setSecurityHeaders(SecurityHeaders securityHeaders) {
         this.securityHeaders = securityHeaders;
-    }
-
-    public Backup getBackup() {
-        return backup;
-    }
-
-    public void setBackup(Backup backup) {
-        this.backup = backup;
     }
 
     public static class Cors {
@@ -162,19 +151,10 @@ public class AppProperties {
     }
 
     public static class Cloudinary {
-        private String url;
         private String cloudName;
         private String apiKey;
         private String apiSecret;
         private String folder;
-
-        public String getUrl() {
-            return url;
-        }
-
-        public void setUrl(String url) {
-            this.url = url;
-        }
 
         public String getCloudName() {
             return cloudName;
@@ -213,8 +193,6 @@ public class AppProperties {
         private String apiKey;
         private String fromEmail;
         private String fromName = "AccessFlow Security";
-        private String apiBaseUrl = "https://api.sendgrid.com";
-        private boolean enabled = true;
 
         public String getApiKey() {
             return apiKey;
@@ -240,21 +218,6 @@ public class AppProperties {
             this.fromName = fromName;
         }
 
-        public String getApiBaseUrl() {
-            return apiBaseUrl;
-        }
-
-        public void setApiBaseUrl(String apiBaseUrl) {
-            this.apiBaseUrl = apiBaseUrl;
-        }
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
     }
 
     public static class Visitors {
@@ -327,24 +290,4 @@ public class AppProperties {
         }
     }
 
-    public static class Backup {
-        private String strategy = "mongodb-atlas-scheduled-snapshots";
-        private String retention = "managed-by-provider";
-
-        public String getStrategy() {
-            return strategy;
-        }
-
-        public void setStrategy(String strategy) {
-            this.strategy = strategy;
-        }
-
-        public String getRetention() {
-            return retention;
-        }
-
-        public void setRetention(String retention) {
-            this.retention = retention;
-        }
-    }
 }

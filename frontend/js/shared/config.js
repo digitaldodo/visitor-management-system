@@ -1,6 +1,5 @@
 export const API_BASE_URL =
   window.API_BASE_URL ||
-  window.VISITOR_API_BASE_URL ||
   "http://localhost:8080/api/v1";
 
 export const ROLE_PORTALS = {

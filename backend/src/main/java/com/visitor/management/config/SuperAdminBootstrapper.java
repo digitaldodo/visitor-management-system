@@ -41,10 +41,10 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
             return;
         }
 
-        String name = required("SUPER_ADMIN_NAME");
         String username = required("SUPER_ADMIN_USERNAME").toLowerCase(Locale.ROOT);
         String email = required("SUPER_ADMIN_EMAIL").toLowerCase(Locale.ROOT);
         String password = required("SUPER_ADMIN_PASSWORD");
+        String name = displayName(username);
 
         validate(name, username, email, password);
 
@@ -78,7 +78,7 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
 
     private void validate(String name, String username, String email, String password) {
         if (name.trim().length() < 2 || name.trim().length() > 120) {
-            throw new IllegalStateException("SUPER_ADMIN_NAME must be 2-120 characters.");
+            throw new IllegalStateException("SUPER_ADMIN_USERNAME must produce a valid display name.");
         }
         if (!USERNAME_PATTERN.matcher(username).matches()) {
             throw new IllegalStateException("SUPER_ADMIN_USERNAME must be 3-32 characters and use only letters, numbers, dots, underscores, or hyphens.");
@@ -101,5 +101,26 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
                 || normalized.contains("changeme")
                 || normalized.contains("change-me")
                 || normalized.contains("placeholder");
+    }
+
+    private String displayName(String username) {
+        String normalized = username.replaceAll("[._-]+", " ").trim();
+        if (normalized.isBlank()) {
+            return username;
+        }
+        StringBuilder result = new StringBuilder();
+        for (String part : normalized.split("\\s+")) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (!result.isEmpty()) {
+                result.append(' ');
+            }
+            result.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                result.append(part.substring(1).toLowerCase(Locale.ROOT));
+            }
+        }
+        return result.toString();
     }
 }

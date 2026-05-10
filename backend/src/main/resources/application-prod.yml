@@ -16,7 +16,7 @@ server:
 
 springdoc:
   swagger-ui:
-    enabled: ${SWAGGER_UI_ENABLED:false}
+    enabled: false
 
 management:
   endpoint:

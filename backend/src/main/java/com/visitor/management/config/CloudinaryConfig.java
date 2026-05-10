@@ -14,10 +14,6 @@ public class CloudinaryConfig {
     public Cloudinary cloudinary(AppProperties properties) {
         AppProperties.Cloudinary cloudinary = properties.getCloudinary();
 
-        if (hasText(cloudinary.getUrl())) {
-            return new Cloudinary(cloudinary.getUrl());
-        }
-
         if (hasText(cloudinary.getCloudName()) && hasText(cloudinary.getApiKey()) && hasText(cloudinary.getApiSecret())) {
             Map<String, Object> config = new HashMap<>();
             config.put("cloud_name", cloudinary.getCloudName());
