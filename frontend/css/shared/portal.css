@@ -27,30 +27,18 @@
 .brand {
   align-items: center;
   display: flex;
-  gap: 0.75rem;
+  min-height: 3.8rem;
   min-width: 0;
-  padding-right: 3rem;
+  padding: 0.15rem 3rem 0.15rem 0;
 }
 
-.brand > span:last-child {
-  min-width: 0;
+.brand .brand-logo--full {
+  height: auto;
+  width: min(13.5rem, 100%);
 }
 
-.brand strong {
-  display: block;
-  font-size: 0.98rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.brand small {
-  color: #a9b5c7;
-  display: block;
-  font-size: 0.78rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.brand .brand-logo--icon {
+  display: none;
 }
 
 .sidebar__collapse {
@@ -157,7 +145,24 @@
 }
 
 .topbar__title {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.topbar__brand {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 0.15rem;
+}
+
+.topbar__brand .brand-logo--full {
+  height: auto;
+  width: 10.25rem;
+}
+
+.topbar__brand .brand-logo--icon {
+  display: none;
 }
 
 .topbar__tagline {
@@ -515,7 +520,17 @@
   justify-items: center;
   min-height: 12rem;
   padding: 2rem;
+  position: relative;
   text-align: center;
+}
+
+.empty-state::before {
+  background: url("../../assets/branding/logo-dark.png") left center / auto 3rem no-repeat;
+  content: "";
+  height: 3rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.2;
+  width: 3rem;
 }
 
 .empty-state--inline {
@@ -912,6 +927,14 @@
     display: none;
   }
 
+  .portal-shell[data-sidebar-state="collapsed"] .brand .brand-logo--full {
+    display: none;
+  }
+
+  .portal-shell[data-sidebar-state="collapsed"] .brand .brand-logo--icon {
+    display: block;
+  }
+
   .portal-shell[data-sidebar-state="collapsed"] .nav-link {
     font-size: 0;
     gap: 0;
@@ -974,6 +997,18 @@
     align-items: flex-start;
     gap: 0.7rem;
     min-height: auto;
+  }
+
+  .topbar__brand .brand-logo--full {
+    display: none;
+  }
+
+  .topbar__brand .brand-logo--icon {
+    display: block;
+    height: 2.35rem;
+    object-fit: cover;
+    object-position: left center;
+    width: 2.35rem;
   }
 
   .topbar__title h1 {

@@ -165,17 +165,30 @@ svg {
   position: relative;
 }
 
-.brand__mark {
-  align-items: center;
-  background: linear-gradient(135deg, var(--color-primary), var(--role-accent, var(--color-info)));
-  border-radius: 12px;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
-  color: #ffffff;
-  display: inline-flex;
+.logo-link {
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.logo-link:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.brand-logo {
+  background: transparent;
+  display: block;
   flex: 0 0 auto;
-  font-weight: 900;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.brand-logo--icon {
+  aspect-ratio: 1;
   height: 2.5rem;
-  justify-content: center;
+  object-position: center;
   width: 2.5rem;
 }
 

@@ -104,7 +104,7 @@ function passCard(pass) {
     <article class="visitor-pass-card" data-pass-card data-visitor-id="${escapeHtml(pass.visitorId)}">
       <div class="visitor-pass">
         <div class="visitor-pass__brand">
-          <span class="brand__mark">AF</span>
+          <img class="visitor-pass__logo" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
           <div>
             <strong>AccessFlow Visitor Pass</strong>
             <small>${escapeHtml(pass.passCode)}</small>

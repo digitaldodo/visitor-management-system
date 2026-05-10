@@ -5,7 +5,6 @@
   --role-accent-soft: #99f6e4;
 }
 
-.employee-shell .brand__mark,
 .employee-shell .button--primary {
   background: linear-gradient(180deg, var(--role-accent), #115e59);
 }

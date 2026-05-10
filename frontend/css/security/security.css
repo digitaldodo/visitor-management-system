@@ -5,7 +5,6 @@
   --role-accent-soft: #bae6fd;
 }
 
-.security-shell .brand__mark,
 .security-shell .button--primary {
   background: linear-gradient(180deg, var(--role-accent), #075985);
 }
@@ -61,6 +60,15 @@
   display: flex;
   gap: 0.75rem;
   padding: 0.85rem;
+}
+
+.visitor-pass__logo {
+  aspect-ratio: 1;
+  background: transparent;
+  display: block;
+  height: 2.4rem;
+  object-fit: contain;
+  width: 2.4rem;
 }
 
 .visitor-pass__brand small {
