@@ -275,7 +275,7 @@ Expected error envelope:
 - `accessflow-api`: Docker-backed Spring Boot web service from `backend/`
 - `accessflow-web`: static site from `frontend/`
 
-The Blueprint uses Render's current static-site syntax: static frontends are declared as `type: web` with `runtime: static`. Do not change the frontend service back to `type: static`; Render rejects that older shape with `unknown type "static"`.
+The Blueprint uses Render's current static-site syntax: static frontends are declared as `type: web` with `runtime: static`. Do not change the frontend back to the old standalone static service type; Render rejects that older shape with `unknown type "static"`.
 
 ### 1. Create MongoDB Atlas
 

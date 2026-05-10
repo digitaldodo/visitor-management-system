@@ -1,27 +1,27 @@
 # AccessFlow Render Blueprint
-# Current Render Blueprint spec:
-# - Static sites use type: web with runtime: static.
-# - Docker-backed Spring Boot services use type: web with runtime: docker.
-# - autoDeployTrigger replaces the older autoDeploy field.
+# Free-tier compatible split deployment:
+# - Backend: Spring Boot API as a Docker web service.
+# - Frontend: Vanilla HTML/CSS/JS as a Render static site.
+# Render static sites use type: web with runtime set to static.
 version: "1"
 
-# Preview environments stay off for free-tier friendliness. Enable manually if needed.
 previews:
   generation: off
 
 services:
-  # Backend: Spring Boot API, built from backend/Dockerfile with Java 21.
+  # ---------------------------------------------------------------------------
+  # Backend: AccessFlow Spring Boot API
+  # ---------------------------------------------------------------------------
   - type: web
-    runtime: docker
     name: accessflow-api
+    runtime: docker
+    rootDir: backend
     plan: free
     region: oregon
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    dockerCommand: sh -c 'java $JAVA_OPTS -jar /app/app.jar'
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/v1/health/ready
     autoDeployTrigger: commit
-    maxShutdownDelaySeconds: 60
     buildFilter:
       paths:
         - backend/**
@@ -30,10 +30,13 @@ services:
         - frontend/**
         - README.md
     envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: prod
-      - key: JAVA_OPTS
-        value: "-XX:MaxRAMPercentage=75 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
+      # Required secrets
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+      # Public URLs and CORS
       - key: BACKEND_PUBLIC_URL
         value: https://accessflow-api.onrender.com
       - key: FRONTEND_PUBLIC_URL
@@ -41,20 +44,22 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: https://accessflow-web.onrender.com
 
-      # Required production secrets and credentials. Render prompts for these
-      # during first Blueprint creation and preserves existing values on sync.
-      - key: MONGODB_URI
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: SUPER_ADMIN_NAME
-        sync: false
-      - key: SUPER_ADMIN_USERNAME
-        sync: false
-      - key: SUPER_ADMIN_EMAIL
-        sync: false
-      - key: SUPER_ADMIN_PASSWORD
-        sync: false
+      # Spring Boot production runtime
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JAVA_OPTS
+        value: "-XX:MaxRAMPercentage=75 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
+
+      # JWT configuration
+      - key: JWT_ISSUER
+        value: visitor-management
+      - key: JWT_EXPIRATION_MINUTES
+        value: 60
+      - key: JWT_REFRESH_EXPIRATION_DAYS
+        value: 7
+
+      # Cloudinary configuration
+      # Provide either CLOUDINARY_URL or the individual Cloudinary values.
       - key: CLOUDINARY_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
@@ -63,40 +68,49 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: CLOUDINARY_FOLDER
+        value: visitor-management
+
+      # SendGrid configuration
+      - key: SENDGRID_ENABLED
+        value: "true"
       - key: SENDGRID_API_KEY
         sync: false
       - key: SENDGRID_FROM_EMAIL
         sync: false
+      - key: SENDGRID_FROM_NAME
+        value: AccessFlow Security
 
-      # Non-secret production defaults.
-      - key: JWT_ISSUER
-        value: visitor-management
-      - key: JWT_EXPIRATION_MINUTES
-        value: 60
-      - key: JWT_REFRESH_EXPIRATION_DAYS
-        value: 7
+      # SUPER_ADMIN bootstrap configuration
+      - key: SUPER_ADMIN_NAME
+        sync: false
+      - key: SUPER_ADMIN_USERNAME
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+      # Operational defaults
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT_REQUESTS_PER_MINUTE
         value: 180
-      - key: CLOUDINARY_FOLDER
-        value: visitor-management
-      - key: SENDGRID_ENABLED
-        value: "true"
-      - key: SENDGRID_FROM_NAME
-        value: AccessFlow Security
       - key: SWAGGER_UI_ENABLED
         value: "false"
 
-  # Frontend: pure static HTML/CSS/JavaScript served by Render's CDN.
+  # ---------------------------------------------------------------------------
+  # Frontend: AccessFlow static web app
+  # ---------------------------------------------------------------------------
   - type: web
-    runtime: static
     name: accessflow-web
+    runtime: static
+    rootDir: frontend
+    staticPublishPath: .
     autoDeployTrigger: commit
-    staticPublishPath: ./frontend
     buildCommand: |
       test -n "$API_BASE_URL"
-      printf 'window.API_BASE_URL = "%s";\nwindow.VISITOR_API_BASE_URL = window.API_BASE_URL;\n' "$API_BASE_URL" > frontend/assets/js/env.js
+      printf 'window.API_BASE_URL = "%s";\nwindow.VISITOR_API_BASE_URL = window.API_BASE_URL;\nwindow.ACCESSFLOW_SITE_URL = "%s";\n' "$API_BASE_URL" "$FRONTEND_PUBLIC_URL" > assets/js/env.js
     buildFilter:
       paths:
         - frontend/**
@@ -114,7 +128,45 @@ services:
       - path: /js/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /auth
+        destination: /index.html
+      - type: rewrite
+        source: /login
+        destination: /index.html
+      - type: rewrite
+        source: /admin
+        destination: /pages/admin/index.html
+      - type: rewrite
+        source: /admin/*
+        destination: /pages/admin/index.html
+      - type: rewrite
+        source: /employee
+        destination: /pages/employee/index.html
+      - type: rewrite
+        source: /employee/*
+        destination: /pages/employee/index.html
+      - type: rewrite
+        source: /security
+        destination: /pages/security/index.html
+      - type: rewrite
+        source: /security/*
+        destination: /pages/security/index.html
+      - type: rewrite
+        source: /forgot-password
+        destination: /pages/forgot-password/index.html
+      - type: rewrite
+        source: /verify-otp
+        destination: /pages/verify-otp/index.html
+      - type: rewrite
+        source: /reset-password
+        destination: /pages/reset-password/index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
+      # Public frontend runtime configuration
       - key: API_BASE_URL
         value: https://accessflow-api.onrender.com/api/v1
       - key: FRONTEND_PUBLIC_URL
