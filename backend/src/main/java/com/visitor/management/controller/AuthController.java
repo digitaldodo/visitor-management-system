@@ -40,7 +40,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ApiResponse<UserProfileResponse> register(@Valid @RequestBody RegisterRequest request, Authentication authentication) {
-        return ApiResponse.ok("Account registered.", authService.register(request, authentication));
+        return ApiResponse.ok("Visitor account registered.", authService.register(request, authentication));
     }
 
     @PostMapping("/refresh")
@@ -58,12 +58,12 @@ public class AuthController {
     public ResponseEntity<ApiResponse<ForgotPasswordResponse>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         return ResponseEntity
                 .status(HttpStatus.ACCEPTED)
-                .body(ApiResponse.ok("If the account exists, an OTP has been sent.", authService.forgotPassword(request)));
+                .body(ApiResponse.ok("If the account exists, a verification code has been sent.", authService.forgotPassword(request)));
     }
 
     @PostMapping("/verify-otp")
     public ApiResponse<VerifyOtpResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
-        return ApiResponse.ok("OTP verified.", authService.verifyOtp(request));
+        return ApiResponse.ok("Code verified.", authService.verifyOtp(request));
     }
 
     @PostMapping("/reset-password")

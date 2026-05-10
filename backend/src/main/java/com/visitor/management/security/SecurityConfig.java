@@ -86,10 +86,11 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/v1/auth/reset-password"
                         ).permitAll()
-                        .requestMatchers("/api/v1/notifications/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD")
+                        .requestMatchers("/api/v1/notifications/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR")
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")
                         .requestMatchers("/api/v1/security/**").hasRole("SECURITY_GUARD")
+                        .requestMatchers("/api/v1/visitor/**").hasRole("VISITOR")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

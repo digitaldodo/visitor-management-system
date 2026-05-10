@@ -28,8 +28,37 @@ function initAuthTabs() {
 
 function setAuthTab(target) {
   $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target));
-  $("#login-form")?.classList.toggle("is-hidden", target !== "login");
+  $("#login-form")?.classList.toggle("is-hidden", target === "register");
   $("#register-form")?.classList.toggle("is-hidden", target !== "register");
+  updateLoginAudience(target === "security" ? "security" : target === "visitor" ? "visitor" : "employee");
+}
+
+function updateLoginAudience(audience) {
+  const form = $("#login-form");
+  const input = form?.querySelector("input[name='audience']");
+  if (input) {
+    input.value = audience;
+  }
+  const copy = {
+    employee: {
+      eyebrow: "Employee access",
+      title: "Sign in to your workspace",
+      description: "Use your organization-issued AccessFlow account.",
+    },
+    security: {
+      eyebrow: "Security access",
+      title: "Sign in to reception operations",
+      description: "Use your assigned security account to manage check-ins.",
+    },
+    visitor: {
+      eyebrow: "Visitor access",
+      title: "Sign in to track your visit",
+      description: "Use your visitor account to view approvals and access passes.",
+    },
+  }[audience];
+  $("#login-eyebrow").textContent = copy.eyebrow;
+  $("#login-title").textContent = copy.title;
+  $("#login-description").textContent = copy.description;
 }
 
 function initPasswordToggles() {
@@ -68,6 +97,10 @@ function initLoginForm() {
         throw new Error("Token role claims are missing or do not match the account.");
       }
 
+      if (!roleAllowedForAudience(role, data.audience)) {
+        throw new Error("Use the correct access option for this account.");
+      }
+
       setSession(session);
       showToast("Signed in", `${formatStatus(role)} portal ready.`);
       redirectToPortal(role, false);
@@ -92,12 +125,11 @@ function initRegisterForm() {
         username: data.username,
         email: data.email,
         password: data.password,
-        role: data.role,
-        department: data.department || null,
+        phone: data.phone || null,
       });
       showToast("Account created", "You can sign in now.");
       form.reset();
-      setAuthTab("login");
+      setAuthTab("visitor");
     });
   });
 }
@@ -152,4 +184,14 @@ function validatePassword(value) {
     && /\d/.test(value || "")
     && /[^A-Za-z0-9]/.test(value || "")
     && String(value || "").length >= 12;
+}
+
+function roleAllowedForAudience(role, audience) {
+  if (audience === "security") {
+    return role === "SECURITY_GUARD";
+  }
+  if (audience === "visitor") {
+    return role === "VISITOR";
+  }
+  return ["EMPLOYEE", "ADMIN", "SUPER_ADMIN"].includes(role);
 }

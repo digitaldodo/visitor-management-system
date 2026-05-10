@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AccessFlow visitor portal" />
+    <title>AccessFlow | Visitor Portal</title>
+    <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
+    <link rel="stylesheet" href="../../css/visitor/visitor.css?v=20260511" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="portal-shell visitor-shell" data-sidebar-state="expanded">
+      <aside class="sidebar" aria-label="Visitor navigation">
+        <a class="brand logo-link" href="#visits" aria-label="Visitor portal home">
+          <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
+          <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
+        </a>
+        <button class="icon-button sidebar__collapse" id="sidebar-collapse" type="button" aria-label="Collapse sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7 1.4-1.4L10.8 12l5.6-5.6Z"/></svg>
+        </button>
+        <p class="sidebar__tagline">Visitor access made simple and secure.</p>
+        <nav class="nav-list" id="sidebar-nav">
+          <a class="nav-link is-active" href="#visits" data-route="visits">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Z"/></svg></span>
+            My Visits
+          </a>
+          <a class="nav-link" href="#request" data-route="request">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7Z"/></svg></span>
+            Request Visit
+          </a>
+        </nav>
+        <div class="sidebar__footer">
+          <div class="sidebar__status">
+            <span class="status-dot" id="api-status-dot" aria-hidden="true"></span>
+            <span id="api-status-text">API checking</span>
+          </div>
+          <span class="sidebar__product">AccessFlow visitor portal</span>
+        </div>
+      </aside>
+
+      <div class="shell-content">
+        <header class="topbar">
+          <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
+          </button>
+          <a class="topbar__brand logo-link" href="#visits" aria-label="Visitor dashboard home">
+            <img class="brand-logo brand-logo--full brand-logo--dark" src="../../assets/branding/logo-dark.png" alt="AccessFlow" />
+            <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-dark.png" alt="AccessFlow" />
+          </a>
+          <div class="topbar__title">
+            <p class="eyebrow">Visitor Access</p>
+            <h1>My Visits</h1>
+            <p class="topbar__tagline">Track approvals and open approved access passes.</p>
+          </div>
+          <div class="topbar__actions">
+            <span class="user-chip" id="user-chip">Signed in</span>
+            <button class="button button--ghost" id="refresh-health" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3Z"/></svg>
+              <span>Refresh</span>
+            </button>
+            <button class="icon-button" id="logout-button" type="button" aria-label="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h8v2H7v14h6v2H5Zm10.6 4.4L20.2 12l-4.6 4.6-1.4-1.4 2.2-2.2H10v-2h6.4l-2.2-2.2Z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <main class="portal-main" id="main-content" tabindex="-1">
+          <section class="metric-grid" id="metric-grid" aria-label="Visitor metrics"></section>
+          <section class="portal-grid">
+            <article class="panel" id="visits">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Access Status</p>
+                  <h2>Visit Requests</h2>
+                </div>
+              </div>
+              <div class="work-list visitor-visit-list" id="visitor-visits-list"></div>
+            </article>
+
+            <article class="panel" id="request">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">New Visit</p>
+                  <h2>Request Access</h2>
+                </div>
+              </div>
+              <form class="visitor-request-form" id="visitor-request-form" novalidate>
+                <label class="form-field">
+                  <span>Phone</span>
+                  <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" required />
+                </label>
+                <label class="form-field">
+                  <span>Company</span>
+                  <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
+                </label>
+                <label class="form-field">
+                  <span>Host name or ID</span>
+                  <input name="hostEmployee" type="text" placeholder="Who are you visiting?" required />
+                </label>
+                <label class="form-field">
+                  <span>Purpose</span>
+                  <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
+                </label>
+                <button class="button button--primary" type="submit">Submit request</button>
+              </form>
+            </article>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <div class="backdrop" id="sidebar-backdrop"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/visitor/dashboard.js?v=20260511"></script>
+  </body>
+</html>

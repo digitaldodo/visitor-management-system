@@ -7,12 +7,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface VisitorRepository extends MongoRepository<Visitor, String> {
     Optional<Visitor> findByQrCode(String qrCode);
 
     Page<Visitor> findAllByHostEmployeeId(String hostEmployeeId, Pageable pageable);
+
+    List<Visitor> findAllByEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 
     long countByStatus(VisitorStatus status);
 

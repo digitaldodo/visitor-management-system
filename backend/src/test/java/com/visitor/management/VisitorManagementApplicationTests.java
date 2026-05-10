@@ -74,6 +74,7 @@ class VisitorManagementApplicationTests {
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(userRepository.findById("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -143,6 +144,74 @@ class VisitorManagementApplicationTests {
         mockMvc.perform(get("/api/v1/security/overview")
                         .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void publicRegistrationCreatesOnlyVisitorAccounts() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Visitor User",
+                                  "username": "visitor.user",
+                                  "email": "visitor@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("VISITOR"));
+    }
+
+    @Test
+    void publicRegistrationRejectsInternalRoleInjection() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Internal User",
+                                  "username": "internal.user",
+                                  "email": "internal@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "EMPLOYEE"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanCreateSecurityGuardInternally() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Security User",
+                                  "username": "security.user",
+                                  "email": "security.user@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "SECURITY_GUARD",
+                                  "department": "Front Desk"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SECURITY_GUARD"));
+    }
+
+    @Test
+    void adminCannotCreateAdminInternally() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Admin User",
+                                  "username": "admin.user",
+                                  "email": "admin.user@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "ADMIN"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

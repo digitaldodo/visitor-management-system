@@ -34,7 +34,7 @@ public class SendGridEmailService implements EmailService {
                 "Your AccessFlow password reset code",
                 plainTextBody(recipientName, otp),
                 htmlBody(recipientName, otp),
-                "Password reset OTP"
+                "Password reset verification code"
         );
     }
 
@@ -133,7 +133,7 @@ public class SendGridEmailService implements EmailService {
 
                 Hi %s,
 
-                Your one-time password is %s.
+                Your verification code is %s.
 
                 This code expires in 5 minutes. If you did not request a password reset, do not share this code and contact your administrator.
                 """.formatted(safeName(recipientName), otp);
@@ -159,7 +159,7 @@ public class SendGridEmailService implements EmailService {
                             <tr>
                               <td style="padding:28px;">
                                 <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Hi %s,</p>
-                                <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Use this one-time password to continue resetting your AccessFlow account password.</p>
+                                <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Use this verification code to continue resetting your AccessFlow account password.</p>
                                 <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1d4ed8;font-size:32px;font-weight:800;letter-spacing:8px;padding:18px 20px;text-align:center;">%s</div>
                                 <p style="margin:20px 0 0;font-size:14px;line-height:1.5;color:#475467;">This code expires in 5 minutes.</p>
                                 <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#b42318;"><strong>Security warning:</strong> If you did not request this reset, do not share this code and contact your administrator immediately.</p>

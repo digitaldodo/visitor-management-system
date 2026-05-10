@@ -1,5 +1,8 @@
 package com.visitor.management.controller;
 
+import com.visitor.management.dto.AdminPasswordResetRequest;
+import com.visitor.management.dto.AdminUserCreateRequest;
+import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
@@ -7,13 +10,12 @@ import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
-import com.visitor.management.entity.User;
-import com.visitor.management.repository.UserRepository;
 import com.visitor.management.service.AnalyticsService;
+import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -40,18 +42,18 @@ public class AdminController {
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
     private final AnalyticsService analyticsService;
-    private final UserRepository userRepository;
+    private final AdminUserService adminUserService;
 
     public AdminController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             AnalyticsService analyticsService,
-            UserRepository userRepository
+            AdminUserService adminUserService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.analyticsService = analyticsService;
-        this.userRepository = userRepository;
+        this.adminUserService = adminUserService;
     }
 
     @GetMapping("/overview")
@@ -68,12 +70,32 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<List<Map<String, Object>>> users() {
-        List<Map<String, Object>> users = userRepository.findAll(Sort.by(Sort.Direction.ASC, "fullName"))
-                .stream()
-                .map(this::userRow)
-                .toList();
-        return ApiResponse.ok("Admin user management loaded.", users);
+    public ApiResponse<List<AdminUserResponse>> users() {
+        return ApiResponse.ok("Admin user management loaded.", adminUserService.listUsers());
+    }
+
+    @PostMapping("/users")
+    public ApiResponse<AdminUserResponse> createUser(@Valid @RequestBody AdminUserCreateRequest request, Authentication authentication) {
+        return ApiResponse.ok("Internal account created.", adminUserService.createUser(request, authentication));
+    }
+
+    @PatchMapping("/users/{id}/disable")
+    public ApiResponse<AdminUserResponse> disableUser(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Account disabled.", adminUserService.disableUser(id, authentication));
+    }
+
+    @PatchMapping("/users/{id}/enable")
+    public ApiResponse<AdminUserResponse> enableUser(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Account enabled.", adminUserService.enableUser(id, authentication));
+    }
+
+    @PatchMapping("/users/{id}/reset-password")
+    public ApiResponse<AdminUserResponse> resetPassword(
+            @PathVariable String id,
+            @Valid @RequestBody AdminPasswordResetRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Password reset.", adminUserService.resetPassword(id, request, authentication));
     }
 
     @GetMapping("/reports")
@@ -133,15 +155,4 @@ public class AdminController {
         return ApiResponse.ok("Visitor deleted.", null);
     }
 
-    private Map<String, Object> userRow(User user) {
-        return Map.of(
-                "name", blankToDefault(blankToDefault(user.getFullName(), user.getEmail()), "Unknown user"),
-                "role", user.getRoles(),
-                "status", user.isActive() ? "ACTIVE" : "DISABLED"
-        );
-    }
-
-    private String blankToDefault(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
-    }
 }

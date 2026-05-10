@@ -79,20 +79,8 @@ public class AuthService {
     }
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
-        Role requestedRole = request.role();
-
-        if (requestedRole == Role.SUPER_ADMIN) {
-            throw new BadRequestException("SUPER_ADMIN accounts are created only by the secure environment bootstrap process.");
-        }
-
-        if (!adminExists()) {
-            throw new BadRequestException("Initial SUPER_ADMIN bootstrap must complete before account registration.");
-        }
-
-        if (requestedRole == Role.ADMIN) {
-            requireSuperAdmin(authentication);
-        } else if (requestedRole == Role.SECURITY_GUARD) {
-            requireAdminOrSuperAdmin(authentication);
+        if (request.role() != null && request.role() != Role.VISITOR) {
+            throw new BadRequestException("Public registration is available only for visitor accounts.");
         }
 
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
@@ -111,9 +99,9 @@ public class AuthService {
         user.setUsername(username);
         user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setDepartment(trimToNull(request.department()));
+        user.setDepartment(null);
         user.setPhone(trimToNull(request.phone()));
-        user.setRoles(Set.of(requestedRole));
+        user.setRoles(Set.of(Role.VISITOR));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
 
@@ -266,28 +254,6 @@ public class AuthService {
         );
     }
 
-    private boolean adminExists() {
-        return userRepository.existsByRolesIn(List.of(Role.SUPER_ADMIN, Role.ADMIN));
-    }
-
-    private void requireSuperAdmin(Authentication authentication) {
-        if (!hasRole(authentication, Role.SUPER_ADMIN)) {
-            throw new UnauthorizedException("A SUPER_ADMIN account is required for this registration.");
-        }
-    }
-
-    private void requireAdminOrSuperAdmin(Authentication authentication) {
-        if (!hasRole(authentication, Role.SUPER_ADMIN) && !hasRole(authentication, Role.ADMIN)) {
-            throw new UnauthorizedException("An ADMIN account is required for this registration.");
-        }
-    }
-
-    private boolean hasRole(Authentication authentication, Role role) {
-        String authorityName = "ROLE_" + role.name();
-        return authentication != null
-                && authentication.getAuthorities().stream().anyMatch(authority -> authorityName.equals(authority.getAuthority()));
-    }
-
     private void revoke(RefreshToken refreshToken) {
         if (!refreshToken.isRevoked()) {
             refreshToken.setRevokedAt(Instant.now());
@@ -386,6 +352,6 @@ public class AuthService {
     }
 
     private UnauthorizedException invalidOtp() {
-        return new UnauthorizedException("Invalid or expired OTP.");
+        return new UnauthorizedException("Invalid or expired verification code.");
     }
 }

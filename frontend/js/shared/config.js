@@ -7,6 +7,7 @@ export const ROLE_PORTALS = {
   ADMIN: "./pages/admin/index.html",
   EMPLOYEE: "./pages/employee/index.html",
   SECURITY_GUARD: "./pages/security/index.html",
+  VISITOR: "./pages/visitor/index.html",
 };
 
 export const ROLE_PORTALS_FROM_PORTAL = {
@@ -14,6 +15,7 @@ export const ROLE_PORTALS_FROM_PORTAL = {
   ADMIN: "../admin/index.html",
   EMPLOYEE: "../employee/index.html",
   SECURITY_GUARD: "../security/index.html",
+  VISITOR: "../visitor/index.html",
 };
 
 export const LOGIN_FROM_PORTAL = "../../index.html";

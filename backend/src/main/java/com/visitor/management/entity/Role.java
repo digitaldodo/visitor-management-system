@@ -4,5 +4,6 @@ public enum Role {
     SUPER_ADMIN,
     ADMIN,
     EMPLOYEE,
-    SECURITY_GUARD
+    SECURITY_GUARD,
+    VISITOR
 }

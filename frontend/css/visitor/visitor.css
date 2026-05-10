@@ -1,0 +1,75 @@
+@import url("../shared/portal.css");
+
+:root {
+  --role-accent: #2563eb;
+  --role-accent-soft: #bfdbfe;
+}
+
+.visitor-shell .button--primary {
+  background: linear-gradient(180deg, var(--role-accent), var(--color-primary-strong));
+}
+
+.visitor-shell .nav-link__icon {
+  color: var(--role-accent-soft);
+}
+
+.visitor-request-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.visitor-visit-card {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.visitor-visit-card__header,
+.visitor-visit-card__footer {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.visitor-visit-card h3,
+.visitor-visit-card p {
+  margin: 0;
+}
+
+.visitor-visit-card p {
+  color: var(--color-muted);
+}
+
+.visitor-visit-card dl {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.visitor-visit-card dt {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.visitor-visit-card dd {
+  margin: 0.15rem 0 0;
+}
+
+@media (max-width: 760px) {
+  .visitor-visit-card__header,
+  .visitor-visit-card__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .visitor-visit-card dl {
+    grid-template-columns: 1fr;
+  }
+}

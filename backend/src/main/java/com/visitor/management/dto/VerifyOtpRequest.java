@@ -6,6 +6,6 @@ import jakarta.validation.constraints.Size;
 
 public record VerifyOtpRequest(
         @NotBlank @Size(min = 3, max = 160) String identifier,
-        @NotBlank @Pattern(regexp = "\\d{6}", message = "OTP must be a 6-digit code.") String otp
+        @NotBlank @Pattern(regexp = "\\d{6}", message = "Verification code must be 6 digits.") String otp
 ) {
 }

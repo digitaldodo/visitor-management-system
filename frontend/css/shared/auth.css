@@ -230,6 +230,10 @@ body {
   padding: 0.35rem;
 }
 
+.auth-tabs--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .auth-tab {
   background: transparent;
   border: 0;
@@ -574,5 +578,9 @@ body {
 
   .auth-form h2 {
     font-size: 1.55rem;
+  }
+
+  .auth-tabs--three {
+    grid-template-columns: 1fr;
   }
 }

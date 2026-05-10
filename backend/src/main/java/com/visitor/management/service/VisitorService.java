@@ -10,6 +10,7 @@ import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.dto.VisitorVisitRequest;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorAuditLog;
 import com.visitor.management.entity.User;
@@ -104,6 +105,45 @@ public class VisitorService {
 
     public VisitorResponse create(VisitorCreateRequest request) {
         return create(request, null);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse createForVisitorAccount(VisitorVisitRequest request, User account) {
+        Instant now = Instant.now();
+        Visitor visitor = new Visitor();
+        visitor.setFullName(requiredTrim(account.getFullName(), "Account name is required."));
+        visitor.setPhone(requiredTrim(request.phone() != null ? request.phone() : account.getPhone(), "Phone is required."));
+        visitor.setEmail(account.getEmail());
+        visitor.setCompanyName(trimToNull(request.companyName()));
+        visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
+        visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), null));
+        visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
+        visitor.setStatus(VisitorStatus.PENDING);
+        visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
+        visitor.setCreatedAt(now);
+        visitor.setUpdatedAt(now);
+        enforceActiveVisitorRules(visitor);
+        addHistory(visitor, VisitorStatus.PENDING, "SELF_SERVICE_REQUEST", account.getId(), "Visitor submitted an access request.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), null, VisitorStatus.PENDING, "SELF_SERVICE_REQUEST", account.getId(), "Visitor submitted an access request.", now);
+        visitorNotificationService.visitorApprovalRequested(saved);
+        return toResponse(saved);
+    }
+
+    public List<VisitorResponse> visitsForVisitorAccount(User account) {
+        return visitorRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(account.getEmail())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public VisitorPassResponse passForVisitorAccount(String id, User account) {
+        Visitor visitor = find(id);
+        if (visitor.getEmail() == null || !visitor.getEmail().equalsIgnoreCase(account.getEmail())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        requirePassReady(visitor);
+        return toPassResponse(visitor);
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)

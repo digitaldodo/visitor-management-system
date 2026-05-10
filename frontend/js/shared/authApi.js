@@ -12,6 +12,7 @@ export function registerAccount(payload) {
   return request("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
+    auth: false,
   });
 }
 

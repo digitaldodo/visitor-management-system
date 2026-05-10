@@ -6,7 +6,7 @@
     <meta name="description" content="AccessFlow account access for smart, secure, seamless visitor management." />
     <title>AccessFlow | Smart. Secure. Seamless Visitor Management.</title>
     <link rel="icon" href="./assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511b" />
+    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511c" />
   </head>
   <body>
     <main class="auth-layout" id="auth-view">
@@ -23,7 +23,7 @@
           <div class="auth-copy__signals" aria-label="AccessFlow platform highlights">
             <div class="auth-signal">
               <strong>3</strong>
-              <span>Guided roles</span>
+              <span>Access paths</span>
             </div>
             <div class="auth-signal">
               <strong>24/7</strong>
@@ -55,17 +55,19 @@
       </section>
 
       <section class="auth-card" aria-label="Account access">
-        <div class="auth-tabs" role="tablist" aria-label="Authentication views">
-          <button class="auth-tab is-active" type="button" data-auth-tab="login">Sign in</button>
-          <button class="auth-tab" type="button" data-auth-tab="register">Register</button>
+        <div class="auth-tabs auth-tabs--three" role="tablist" aria-label="Access options">
+          <button class="auth-tab is-active" type="button" data-auth-tab="employee">Employee Login</button>
+          <button class="auth-tab" type="button" data-auth-tab="security">Security Login</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">Visitor Registration</button>
         </div>
 
         <form class="auth-form" id="login-form" novalidate>
           <div class="auth-form__header">
-            <p class="eyebrow">AccessFlow</p>
-            <h2>Sign in</h2>
-            <p>Continue to your AccessFlow workspace.</p>
+            <p class="eyebrow" id="login-eyebrow">Employee access</p>
+            <h2 id="login-title">Sign in to your workspace</h2>
+            <p id="login-description">Use your organization-issued AccessFlow account.</p>
           </div>
+          <input name="audience" type="hidden" value="employee" />
           <label class="form-field">
             <span>Username or email</span>
             <input name="identifier" type="text" autocomplete="username" placeholder="username or email@company.com" required />
@@ -81,9 +83,9 @@
 
         <form class="auth-form is-hidden" id="register-form" novalidate>
           <div class="auth-form__header">
-            <p class="eyebrow">AccessFlow</p>
-            <h2>Create your account</h2>
-            <p>Get the right workspace tools for your role.</p>
+            <p class="eyebrow">Visitor access</p>
+            <h2>Create visitor account</h2>
+            <p>Register to request visits, track approvals, and access approved passes.</p>
           </div>
           <label class="form-field">
             <span>Full name</span>
@@ -103,18 +105,11 @@
             <button class="password-toggle" type="button" aria-label="Show password">Show</button>
           </label>
           <label class="form-field">
-            <span>Role</span>
-            <select name="role" required>
-              <option value="EMPLOYEE">Employee</option>
-              <option value="ADMIN">Admin</option>
-              <option value="SECURITY_GUARD">Security Guard</option>
-            </select>
-          </label>
-          <label class="form-field">
-            <span>Department</span>
-            <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
+            <span>Phone</span>
+            <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" />
           </label>
           <button class="button button--primary auth-submit" type="submit">Create account</button>
+          <button class="link-button" type="button" data-auth-tab="visitor">Already registered? Sign in as a visitor</button>
         </form>
         <footer class="auth-footer">AccessFlow · Secure visitor operations</footer>
       </section>
@@ -122,6 +117,6 @@
 
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <script src="./assets/js/env.js"></script>
-    <script type="module" src="./js/auth.js?v=20260511b"></script>
+    <script type="module" src="./js/auth.js?v=20260511c"></script>
   </body>
 </html>

@@ -6,22 +6,24 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["analytics", "users", "reports", "monitoring", "visitors"];
+let currentSession;
 
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
 
-  const session = requireRole("ADMIN");
-  if (!session) {
+  currentSession = requireRole("ADMIN");
+  if (!currentSession) {
     return;
   }
 
-  initPortalShell(session, { allowedRoutes: ROUTES });
+  initPortalShell(currentSession, { allowedRoutes: ROUTES });
   initVisitorModule("[data-admin-visitors]", {
     basePath: "/admin",
     title: "Full Visitor Access",
     eyebrow: "Visitor Records",
     canDelete: true,
   });
+  initAdminUserForm();
   await loadAdminPortal();
 });
 
@@ -41,7 +43,7 @@ async function loadAdminPortal() {
     ]);
 
     renderAnalytics(analytics.data);
-    renderWorkList("#user-management-list", users.data, (user) => workCard(user.name, user.role, user.status), "No users found", "User records will appear here after accounts are created.");
+    renderUsers(users.data || []);
     renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No reports ready", "Generated operational reports will appear here.");
     renderMonitoring(monitoring.data);
   } catch (error) {
@@ -51,6 +53,119 @@ async function loadAdminPortal() {
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
     showToast("Admin access blocked", error.message);
   }
+}
+
+function initAdminUserForm() {
+  const form = document.querySelector("#admin-user-form");
+  if (!form) {
+    return;
+  }
+
+  const roleSelect = form.querySelector("select[name='role']");
+  if (roleSelect && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+    roleSelect.querySelector("option[value='ADMIN']")?.remove();
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const payload = {
+      fullName: trim(data.fullName),
+      username: trim(data.username),
+      email: trim(data.email),
+      password: data.password,
+      role: data.role,
+      department: trim(data.department),
+    };
+    const error = validateInternalUser(payload);
+    if (error) {
+      showToast("Check account", error);
+      return;
+    }
+
+    setFormLoading(form, true);
+    try {
+      await request("/admin/users", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      form.reset();
+      showToast("Account created", "Share the temporary password through your approved internal process.");
+      await loadAdminPortal();
+    } catch (error) {
+      showToast("Account creation failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+
+  document.querySelector("#user-management-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-user-action]");
+    if (!button) {
+      return;
+    }
+    const id = button.dataset.userId;
+    const action = button.dataset.userAction;
+    const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
+    if (action === "reset-password" && !password) {
+      return;
+    }
+
+    button.toggleAttribute("disabled", true);
+    try {
+      await request(`/admin/users/${encodeURIComponent(id)}/${action}`, {
+        method: "PATCH",
+        body: action === "reset-password" ? JSON.stringify({ newPassword: password }) : JSON.stringify({}),
+      });
+      showToast("Account updated", "User access controls were updated.");
+      await loadAdminPortal();
+    } catch (error) {
+      showToast("Update failed", error.message);
+    } finally {
+      button.toggleAttribute("disabled", false);
+    }
+  });
+}
+
+function renderUsers(users) {
+  const list = document.querySelector("#user-management-list");
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = users.length ? users.map(userCard).join("") : `
+    <article class="empty-state empty-state--inline">
+      <h3>No users found</h3>
+      <p>Internal accounts will appear here after administrators create them.</p>
+    </article>
+  `;
+}
+
+function userCard(user) {
+  const role = (user.roles || []).join(", ");
+  const disabled = !user.active || user.accountStatus === "DISABLED";
+  const canManageAdmin = !(user.roles || []).includes("ADMIN") || (currentSession?.roles || []).includes("SUPER_ADMIN");
+  const canManage = !(user.roles || []).includes("SUPER_ADMIN") && canManageAdmin;
+  return `
+    <article class="admin-user-card">
+      <div class="admin-user-card__header">
+        <div>
+          <h3>${escapeHtml(user.fullName || user.email || "Unknown user")}</h3>
+          <p>${escapeHtml(user.email || "No email")} · ${escapeHtml(user.username || "No username")}</p>
+        </div>
+        <span class="status-badge status-badge--${disabled ? "rejected" : "approved"}">${disabled ? "Disabled" : "Active"}</span>
+      </div>
+      <dl>
+        <div><dt>Access</dt><dd>${escapeHtml(role)}</dd></div>
+        <div><dt>Department</dt><dd>${escapeHtml(user.department || "Not set")}</dd></div>
+        <div><dt>Account ID</dt><dd>${escapeHtml(user.id || "")}</dd></div>
+      </dl>
+      <div class="admin-user-card__actions">
+        <button class="button button--ghost" type="button" data-user-action="reset-password" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Reset password</button>
+        <button class="button ${disabled ? "button--primary" : "button--ghost"}" type="button" data-user-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>${disabled ? "Enable account" : "Disable account"}</button>
+      </div>
+    </article>
+  `;
 }
 
 function renderMonitoring(data) {
@@ -214,4 +329,39 @@ function maxValue(data) {
 
 function chartEmpty(message) {
   return `<div class="empty-state empty-state--inline"><h3>No chart data</h3><p>${escapeHtml(message)}</p></div>`;
+}
+
+function validateInternalUser(payload) {
+  if (!payload.fullName || payload.fullName.length < 2) {
+    return "Enter the person's full name.";
+  }
+  if (!/^[A-Za-z0-9._-]{3,32}$/.test(payload.username || "")) {
+    return "Use a valid username.";
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email || "")) {
+    return "Use a valid work email.";
+  }
+  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
+    return "Choose an internal access type.";
+  }
+  if (!/[a-z]/.test(payload.password || "")
+      || !/[A-Z]/.test(payload.password || "")
+      || !/\d/.test(payload.password || "")
+      || !/[^A-Za-z0-9]/.test(payload.password || "")
+      || String(payload.password || "").length < 12) {
+    return "Temporary password must be 12+ characters with uppercase, lowercase, number, and symbol.";
+  }
+  return "";
+}
+
+function setFormLoading(form, loading) {
+  const button = form.querySelector("button[type='submit']");
+  button?.toggleAttribute("disabled", loading);
+  button?.classList.toggle("is-loading", loading);
+  button?.toggleAttribute("aria-busy", loading);
+}
+
+function trim(value) {
+  const next = String(value || "").trim();
+  return next || null;
 }
