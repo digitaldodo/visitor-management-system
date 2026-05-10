@@ -22,6 +22,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     title: "Full Visitor Access",
     eyebrow: "Visitor Records",
     canDelete: true,
+    showOrganizationCodeField: (currentSession.roles || []).includes("SUPER_ADMIN"),
+    requireOrganizationCode: (currentSession.roles || []).includes("SUPER_ADMIN"),
+    organizationCode: currentSession.organizationCode,
   });
   initAdminUserForm();
   await loadAdminPortal();
@@ -62,8 +65,16 @@ function initAdminUserForm() {
   }
 
   const roleSelect = form.querySelector("select[name='role']");
+  const companyField = form.querySelector("[data-company-code-field]");
+  const companyInput = form.querySelector("input[name='companyCode']");
   if (roleSelect && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
+  }
+  if (companyInput && currentSession?.organizationCode) {
+    companyInput.value = currentSession.organizationCode;
+  }
+  if (companyField && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+    companyField.classList.add("is-hidden");
   }
 
   form.addEventListener("submit", async (event) => {
@@ -75,6 +86,7 @@ function initAdminUserForm() {
       email: trim(data.email),
       password: data.password,
       role: data.role,
+      companyCode: trim(data.companyCode) || currentSession?.organizationCode || null,
       department: trim(data.department),
     };
     const error = validateInternalUser(payload);
@@ -165,6 +177,7 @@ function userCard(user) {
       </div>
       <dl>
         <div><dt>Access</dt><dd>${escapeHtml(role)}</dd></div>
+        <div><dt>Organization</dt><dd>${escapeHtml(user.organizationName || user.organizationCode || "Platform")}</dd></div>
         <div><dt>Department</dt><dd>${escapeHtml(user.department || "Not set")}</dd></div>
         <div><dt>Account ID</dt><dd>${escapeHtml(user.id || "")}</dd></div>
       </dl>
@@ -382,6 +395,9 @@ function validateInternalUser(payload) {
   }
   if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
+  }
+  if ((currentSession?.roles || []).includes("SUPER_ADMIN") && !payload.companyCode) {
+    return "Enter the organization code for this account.";
   }
   if (!/[a-z]/.test(payload.password || "")
       || !/[A-Z]/.test(payload.password || "")

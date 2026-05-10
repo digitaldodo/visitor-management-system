@@ -17,7 +17,9 @@ export function initPortalShell(session, options = {}) {
   initNotifications();
   $("#refresh-health")?.addEventListener("click", () => refreshHealth(true));
 
-  setText("#user-chip", `${session.fullName || session.email} · ${formatRole(session.roles?.[0])}`);
+  const organization = session.organizationName || session.organizationCode;
+  const context = organization ? `${organization} · ` : "";
+  setText("#user-chip", `${session.fullName || session.email} · ${context}${formatRole(session.roles?.[0])}`);
   refreshHealth(false);
 }
 

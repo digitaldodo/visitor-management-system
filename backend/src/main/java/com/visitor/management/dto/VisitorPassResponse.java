@@ -8,6 +8,8 @@ public record VisitorPassResponse(
         String visitorId,
         String fullName,
         String companyName,
+        String organizationName,
+        String organizationCode,
         String purposeOfVisit,
         String hostEmployee,
         String photoUrl,

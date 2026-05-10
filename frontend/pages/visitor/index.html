@@ -51,7 +51,7 @@
           <div class="topbar__title">
             <p class="eyebrow">Visitor Access</p>
             <h1>My Visits</h1>
-            <p class="topbar__tagline">Track approvals and open approved access passes.</p>
+            <p class="topbar__tagline" id="organization-context">Track approvals and open approved access passes.</p>
           </div>
           <div class="topbar__actions">
             <span class="user-chip" id="user-chip">Signed in</span>
@@ -91,8 +91,10 @@
                   <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" required />
                 </label>
                 <label class="form-field">
-                  <span>Company</span>
-                  <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
+                  <span>Organization</span>
+                  <select name="companyCode" data-organization-select required>
+                    <option value="">Select organization</option>
+                  </select>
                 </label>
                 <label class="form-field">
                   <span>Host name or ID</span>

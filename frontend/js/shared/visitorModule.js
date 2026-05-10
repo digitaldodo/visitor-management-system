@@ -213,6 +213,12 @@ function template(options) {
       <input name="hostEmployeeId" type="text" placeholder="host@company.com" />
     </label>
   `;
+  const organizationCodeField = options.showOrganizationCodeField ? `
+      <label class="form-field">
+        <span>Organization Code</span>
+        <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" value="${escapeHtml(options.organizationCode || "")}" />
+      </label>
+  ` : "";
 
   return `
     <div class="panel__header">
@@ -239,6 +245,7 @@ function template(options) {
         <span>Company Name</span>
         <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
       </label>
+      ${organizationCodeField}
       <label class="form-field form-field--wide">
         <span>Purpose of Visit</span>
         <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
@@ -429,6 +436,7 @@ function openDetail(root, visitor) {
         ${detail("Phone", visitor.phone)}
         ${detail("Email", visitor.email || "Unlisted")}
         ${detail("Company", visitor.companyName || "Unlisted")}
+        ${detail("Organization", visitor.organizationName || visitor.organizationCode || "Unlisted")}
         ${detail("Purpose", visitor.purposeOfVisit)}
         ${detail("Host Employee", visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}
         ${detail("Scheduled Start", formatDate(visitor.scheduledStartTime))}
@@ -487,6 +495,7 @@ function formPayload(form, options) {
     phone: trim(data.phone),
     email: trim(data.email),
     companyName: trim(data.companyName),
+    companyCode: trim(data.companyCode) || options.organizationCode || null,
     purposeOfVisit: trim(data.purposeOfVisit),
   };
   if (options.showHostFields !== false) {
@@ -508,6 +517,9 @@ function validate(payload, options, state) {
   }
   if (!payload.purposeOfVisit || payload.purposeOfVisit.length < 2) {
     return "Enter the purpose of visit.";
+  }
+  if (options.requireOrganizationCode && !payload.companyCode) {
+    return "Enter the organization code.";
   }
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
     return "Enter the host employee.";

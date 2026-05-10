@@ -10,6 +10,8 @@ public record QrVerificationResponse(
         String visitorId,
         String fullName,
         String companyName,
+        String organizationName,
+        String organizationCode,
         String hostEmployee,
         VisitorStatus status,
         String passCode,

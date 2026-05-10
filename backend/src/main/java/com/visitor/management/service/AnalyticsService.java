@@ -1,7 +1,10 @@
 package com.visitor.management.service;
 
 import com.mongodb.client.MongoCollection;
+import com.visitor.management.entity.Role;
+import com.visitor.management.entity.User;
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.repository.UserRepository;
 import org.bson.Document;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -23,21 +26,29 @@ public class AnalyticsService {
     private static final String VISITORS_COLLECTION = "visitors";
 
     private final MongoTemplate mongoTemplate;
+    private final UserRepository userRepository;
 
-    public AnalyticsService(MongoTemplate mongoTemplate) {
+    public AnalyticsService(MongoTemplate mongoTemplate, UserRepository userRepository) {
         this.mongoTemplate = mongoTemplate;
+        this.userRepository = userRepository;
     }
 
     @Cacheable("adminAnalytics")
     public Map<String, Object> adminDashboard() {
+        return adminDashboard(null);
+    }
+
+    public Map<String, Object> adminDashboard(String actorId) {
+        String organizationId = scopeOrganizationId(actorId);
         Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant todayEnd = todayStart.plusSeconds(24 * 60 * 60);
+        Document scope = scopeFilter(organizationId);
 
-        long totalVisitors = count(new Document());
-        long activeVisitors = count(statusFilter(VisitorStatus.CHECKED_IN));
-        long pendingApprovals = count(statusFilter(VisitorStatus.PENDING));
-        long todayCheckIns = count(new Document("checkInTime", range(todayStart, todayEnd)));
-        long rejectedVisitors = count(statusFilter(VisitorStatus.REJECTED));
+        long totalVisitors = count(scope);
+        long activeVisitors = count(withScope(statusFilter(VisitorStatus.CHECKED_IN), organizationId));
+        long pendingApprovals = count(withScope(statusFilter(VisitorStatus.PENDING), organizationId));
+        long todayCheckIns = count(withScope(new Document("checkInTime", range(todayStart, todayEnd)), organizationId));
+        long rejectedVisitors = count(withScope(statusFilter(VisitorStatus.REJECTED), organizationId));
 
         List<Map<String, Object>> widgets = List.of(
                 widget("Total visitors", totalVisitors, "All registered visitor records"),
@@ -49,19 +60,19 @@ public class AnalyticsService {
 
         return Map.of(
                 "widgets", widgets,
-                "employeeAnalytics", employeeAnalytics(),
-                "dailyVisitors", dailyVisitors(),
-                "monthlyTrends", monthlyTrends(),
-                "peakHours", peakHours(),
-                "approvalRates", approvalRates()
+                "employeeAnalytics", employeeAnalytics(organizationId),
+                "dailyVisitors", dailyVisitors(organizationId),
+                "monthlyTrends", monthlyTrends(organizationId),
+                "peakHours", peakHours(organizationId),
+                "approvalRates", approvalRates(organizationId)
         );
     }
 
-    private List<Map<String, Object>> dailyVisitors() {
+    private List<Map<String, Object>> dailyVisitors(String organizationId) {
         LocalDate startDate = LocalDate.now(ZoneOffset.UTC).minusDays(13);
         Instant start = startDate.atStartOfDay().toInstant(ZoneOffset.UTC);
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", new Document("checkInTime", new Document("$gte", Date.from(start)))),
+                new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
                 new Document("$group", new Document("_id", dateString("$checkInTime", "%Y-%m-%d")).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -75,11 +86,11 @@ public class AnalyticsService {
         return series;
     }
 
-    private List<Map<String, Object>> monthlyTrends() {
+    private List<Map<String, Object>> monthlyTrends(String organizationId) {
         YearMonth startMonth = YearMonth.now(ZoneOffset.UTC).minusMonths(11);
         Instant start = startMonth.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", new Document("createdAt", new Document("$gte", Date.from(start)))),
+                new Document("$match", withScope(new Document("createdAt", new Document("$gte", Date.from(start))), organizationId)),
                 new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m")).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -93,10 +104,10 @@ public class AnalyticsService {
         return series;
     }
 
-    private List<Map<String, Object>> peakHours() {
+    private List<Map<String, Object>> peakHours(String organizationId) {
         Instant start = LocalDate.now(ZoneOffset.UTC).minusDays(29).atStartOfDay().toInstant(ZoneOffset.UTC);
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", new Document("checkInTime", new Document("$gte", Date.from(start)))),
+                new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
                 new Document("$group", new Document("_id", dateString("$checkInTime", "%H")).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -109,16 +120,16 @@ public class AnalyticsService {
         return series;
     }
 
-    private List<Map<String, Object>> approvalRates() {
+    private List<Map<String, Object>> approvalRates(String organizationId) {
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", new Document("status", new Document("$in", List.of(
+                new Document("$match", withScope(new Document("status", new Document("$in", List.of(
                         VisitorStatus.APPROVED.name(),
                         VisitorStatus.CHECKED_IN.name(),
                         VisitorStatus.CHECKED_OUT.name(),
                         VisitorStatus.REJECTED.name(),
                         VisitorStatus.PENDING.name(),
                         VisitorStatus.EXPIRED.name()
-                )))),
+                ))), organizationId)),
                 new Document("$group", new Document("_id", "$status").append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -139,9 +150,13 @@ public class AnalyticsService {
         );
     }
 
-    private List<Map<String, Object>> employeeAnalytics() {
+    private List<Map<String, Object>> employeeAnalytics(String organizationId) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Document document : collection().aggregate(List.of(
+        List<Document> pipeline = new ArrayList<>();
+        if (organizationId != null) {
+            pipeline.add(new Document("$match", new Document("organizationId", organizationId)));
+        }
+        pipeline.addAll(List.of(
                 new Document("$group", new Document("_id", new Document("id", "$hostEmployeeId").append("name", "$hostEmployee"))
                         .append("total", new Document("$sum", 1))
                         .append("active", new Document("$sum", conditionalStatus(VisitorStatus.CHECKED_IN)))
@@ -149,7 +164,8 @@ public class AnalyticsService {
                         .append("rejected", new Document("$sum", conditionalStatus(VisitorStatus.REJECTED)))),
                 new Document("$sort", new Document("total", -1)),
                 new Document("$limit", 8)
-        ))) {
+        ));
+        for (Document document : collection().aggregate(pipeline)) {
             Document id = document.get("_id", Document.class);
             String name = id == null ? "Unassigned" : firstPresent(id.get("name"), id.get("id"));
             rows.add(Map.of(
@@ -169,6 +185,19 @@ public class AnalyticsService {
 
     private long count(Document filter) {
         return collection().countDocuments(filter);
+    }
+
+    private Document withScope(Document filter, String organizationId) {
+        if (organizationId == null) {
+            return filter;
+        }
+        Document scoped = new Document(filter);
+        scoped.append("organizationId", organizationId);
+        return scoped;
+    }
+
+    private Document scopeFilter(String organizationId) {
+        return organizationId == null ? new Document() : new Document("organizationId", organizationId);
     }
 
     private Document statusFilter(VisitorStatus status) {
@@ -220,5 +249,16 @@ public class AnalyticsService {
         }
         String fallbackValue = fallback == null ? null : String.valueOf(fallback);
         return fallbackValue == null || fallbackValue.isBlank() ? "Unassigned" : fallbackValue;
+    }
+
+    private String scopeOrganizationId(String actorId) {
+        if (actorId == null) {
+            return null;
+        }
+        User user = userRepository.findById(actorId).orElse(null);
+        if (user == null || user.getRoles().contains(Role.SUPER_ADMIN)) {
+            return null;
+        }
+        return user.getOrganizationId();
     }
 }

@@ -44,8 +44,11 @@ public class VisitorPortalController {
         return ApiResponse.ok("Visitor overview loaded.", Map.of(
                 "name", account.getFullName(),
                 "email", account.getEmail(),
+                "organizationName", account.getOrganizationName() == null ? "" : account.getOrganizationName(),
+                "organizationCode", account.getOrganizationCode() == null ? "" : account.getOrganizationCode(),
                 "pending", pending,
-                "activePasses", approved
+                "activePasses", approved,
+                "totalRequests", visits.size()
         ));
     }
 

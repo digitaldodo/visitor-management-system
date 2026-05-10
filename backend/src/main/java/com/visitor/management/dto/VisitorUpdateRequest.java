@@ -9,6 +9,7 @@ public record VisitorUpdateRequest(
         @Size(min = 7, max = 32) String phone,
         @Email @Size(max = 160) String email,
         @Size(max = 120) String companyName,
+        @Size(max = 24) String companyCode,
         @Size(min = 2, max = 160) String purposeOfVisit,
         @Size(max = 120) String hostEmployee,
         @Size(max = 80) String hostEmployeeId,

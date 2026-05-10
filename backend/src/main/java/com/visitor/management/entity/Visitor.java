@@ -28,6 +28,13 @@ public class Visitor {
     @Indexed
     private String companyName;
 
+    @Indexed
+    private String organizationId;
+
+    private String organizationCode;
+
+    private String organizationName;
+
     private String purposeOfVisit;
 
     @Indexed
@@ -128,6 +135,30 @@ public class Visitor {
 
     public void setCompanyName(String companyName) {
         this.companyName = companyName;
+    }
+
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
+    }
+
+    public String getOrganizationCode() {
+        return organizationCode;
+    }
+
+    public void setOrganizationCode(String organizationCode) {
+        this.organizationCode = organizationCode;
+    }
+
+    public String getOrganizationName() {
+        return organizationName;
+    }
+
+    public void setOrganizationName(String organizationName) {
+        this.organizationName = organizationName;
     }
 
     public String getPurposeOfVisit() {

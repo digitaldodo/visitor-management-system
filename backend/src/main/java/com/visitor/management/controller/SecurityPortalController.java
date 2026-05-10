@@ -16,6 +16,7 @@ import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -44,15 +45,15 @@ public class SecurityPortalController {
     }
 
     @GetMapping("/overview")
-    public ApiResponse<Map<String, Object>> overview() {
+    public ApiResponse<Map<String, Object>> overview(Authentication authentication) {
         return ApiResponse.ok("Security overview loaded.", Map.of(
                 "area", "SECURITY_GUARD",
-                "metrics", visitorService.metrics()
+                "metrics", visitorService.metrics(authentication.getName())
         ));
     }
 
     @GetMapping("/checkins")
-    public ApiResponse<PageResponse<VisitorResponse>> checkins(@Valid @ModelAttribute SearchRequest request) {
+    public ApiResponse<PageResponse<VisitorResponse>> checkins(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         SearchRequest checkedIn = new SearchRequest(
                 request.query(),
                 request.page(),
@@ -64,7 +65,7 @@ public class SecurityPortalController {
                 request.from(),
                 request.to()
         );
-        return ApiResponse.ok("Security check-in records loaded.", visitorService.search(checkedIn));
+        return ApiResponse.ok("Security check-in records loaded.", visitorService.search(checkedIn, authentication.getName()));
     }
 
     @GetMapping("/photo-capture")
@@ -76,12 +77,12 @@ public class SecurityPortalController {
     }
 
     @PostMapping("/qr-verification")
-    public ApiResponse<QrVerificationResponse> qrVerification(@Valid @RequestBody QrVerificationRequest request) {
-        return ApiResponse.ok("Security QR verification completed.", visitorService.verifyQrPayload(request.qrPayload()));
+    public ApiResponse<QrVerificationResponse> qrVerification(@Valid @RequestBody QrVerificationRequest request, Authentication authentication) {
+        return ApiResponse.ok("Security QR verification completed.", visitorService.verifyQrPayload(request.qrPayload(), authentication.getName()));
     }
 
     @GetMapping("/badges")
-    public ApiResponse<PageResponse<VisitorResponse>> badges(@Valid @ModelAttribute SearchRequest request) {
+    public ApiResponse<PageResponse<VisitorResponse>> badges(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         SearchRequest approved = new SearchRequest(
                 request.query(),
                 request.page(),
@@ -93,11 +94,11 @@ public class SecurityPortalController {
                 request.from(),
                 request.to()
         );
-        return ApiResponse.ok("Security badge queue loaded.", visitorService.search(approved));
+        return ApiResponse.ok("Security badge queue loaded.", visitorService.search(approved, authentication.getName()));
     }
 
     @GetMapping("/queue")
-    public ApiResponse<PageResponse<VisitorResponse>> queue(@Valid @ModelAttribute SearchRequest request) {
+    public ApiResponse<PageResponse<VisitorResponse>> queue(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         SearchRequest scheduled = new SearchRequest(
                 request.query(),
                 request.page(),
@@ -109,32 +110,32 @@ public class SecurityPortalController {
                 request.from(),
                 request.to()
         );
-        return ApiResponse.ok("Security live visitor queue loaded.", visitorService.search(scheduled));
+        return ApiResponse.ok("Security live visitor queue loaded.", visitorService.search(scheduled, authentication.getName()));
     }
 
     @GetMapping("/visitors")
-    public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request) {
-        return ApiResponse.ok("Security visitor records loaded.", visitorService.search(request));
+    public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
+        return ApiResponse.ok("Security visitor records loaded.", visitorService.search(request, authentication.getName()));
     }
 
     @GetMapping("/visitors/{id}")
-    public ApiResponse<VisitorResponse> visitor(@PathVariable String id) {
-        return ApiResponse.ok("Security visitor loaded.", visitorService.get(id));
+    public ApiResponse<VisitorResponse> visitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Security visitor loaded.", visitorService.get(id, authentication.getName()));
     }
 
     @GetMapping("/visitors/{id}/pass")
-    public ApiResponse<VisitorPassResponse> visitorPass(@PathVariable String id) {
-        return ApiResponse.ok("Visitor pass generated.", visitorService.pass(id));
+    public ApiResponse<VisitorPassResponse> visitorPass(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor pass generated.", visitorService.pass(id, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/badge-printed")
-    public ApiResponse<VisitorPassResponse> markBadgePrinted(@PathVariable String id) {
-        return ApiResponse.ok("Badge print recorded.", visitorService.markBadgePrinted(id));
+    public ApiResponse<VisitorPassResponse> markBadgePrinted(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Badge print recorded.", visitorService.markBadgePrinted(id, authentication.getName()));
     }
 
     @PostMapping("/visitors")
-    public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request) {
-        return ApiResponse.ok("Visitor registered.", visitorService.create(request));
+    public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request, Authentication authentication) {
+        return ApiResponse.ok("Visitor registered.", visitorService.create(request, authentication.getName()));
     }
 
     @PostMapping(value = "/visitors/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -143,17 +144,17 @@ public class SecurityPortalController {
     }
 
     @PutMapping("/visitors/{id}")
-    public ApiResponse<VisitorResponse> updateVisitor(@PathVariable String id, @Valid @RequestBody VisitorUpdateRequest request) {
-        return ApiResponse.ok("Visitor updated.", visitorService.update(id, request));
+    public ApiResponse<VisitorResponse> updateVisitor(@PathVariable String id, @Valid @RequestBody VisitorUpdateRequest request, Authentication authentication) {
+        return ApiResponse.ok("Visitor updated.", visitorService.update(id, request, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-in")
-    public ApiResponse<VisitorResponse> checkInVisitor(@PathVariable String id) {
-        return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id));
+    public ApiResponse<VisitorResponse> checkInVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-out")
-    public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id) {
-        return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id));
+    public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
     }
 }

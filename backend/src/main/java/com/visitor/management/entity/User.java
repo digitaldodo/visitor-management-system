@@ -30,6 +30,14 @@ public class User {
 
     private String phone;
 
+    @Indexed
+    private String organizationId;
+
+    private String organizationName;
+
+    @Indexed
+    private String organizationCode;
+
     private Set<Role> roles = new HashSet<>();
 
     private boolean active = true;
@@ -98,6 +106,30 @@ public class User {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
+    }
+
+    public String getOrganizationName() {
+        return organizationName;
+    }
+
+    public void setOrganizationName(String organizationName) {
+        this.organizationName = organizationName;
+    }
+
+    public String getOrganizationCode() {
+        return organizationCode;
+    }
+
+    public void setOrganizationCode(String organizationCode) {
+        this.organizationCode = organizationCode;
     }
 
     public Set<Role> getRoles() {

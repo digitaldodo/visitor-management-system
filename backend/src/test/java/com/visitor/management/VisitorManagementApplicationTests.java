@@ -6,7 +6,9 @@ import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.NotificationRepository;
+import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.entity.Notification;
+import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
@@ -63,6 +65,9 @@ class VisitorManagementApplicationTests {
     private NotificationRepository notificationRepository;
 
     @MockitoBean
+    private OrganizationRepository organizationRepository;
+
+    @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
 
     @MockitoBean
@@ -73,6 +78,10 @@ class VisitorManagementApplicationTests {
 
     @BeforeEach
     void setUpUsers() {
+        Organization organization = organization();
+        when(organizationRepository.findById("org-acme")).thenReturn(Optional.of(organization));
+        when(organizationRepository.findByCompanyCodeIgnoreCase("ACME")).thenReturn(Optional.of(organization));
+        when(organizationRepository.findByCompanyNameIgnoreCase("Acme Corp")).thenReturn(Optional.of(organization));
         when(userRepository.findById("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
@@ -115,7 +124,8 @@ class VisitorManagementApplicationTests {
                                   "username": "employee.user",
                                   "email": "employee.user@example.com",
                                   "password": "SecurePass123!",
-                                  "role": "EMPLOYEE"
+                                  "role": "EMPLOYEE",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized());
@@ -134,6 +144,7 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "identifier": "employee-id",
+                                  "companyCode": "ACME",
                                   "password": "SecurePass123!"
                                 }
                                 """))
@@ -201,7 +212,8 @@ class VisitorManagementApplicationTests {
                                   "fullName": "Visitor User",
                                   "username": "visitor.user",
                                   "email": "visitor@example.com",
-                                  "password": "SecurePass123!"
+                                  "password": "SecurePass123!",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -217,7 +229,8 @@ class VisitorManagementApplicationTests {
                                   "fullName": "Direct Visitor",
                                   "username": "direct.visitor",
                                   "email": "direct.visitor@example.com",
-                                  "password": "SecurePass123!"
+                                  "password": "SecurePass123!",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -234,7 +247,8 @@ class VisitorManagementApplicationTests {
                                   "fullName": "Tokenless Visitor",
                                   "username": "tokenless.visitor",
                                   "email": "tokenless.visitor@example.com",
-                                  "password": "SecurePass123!"
+                                  "password": "SecurePass123!",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -269,6 +283,7 @@ class VisitorManagementApplicationTests {
                                   "email": "security.user@example.com",
                                   "password": "SecurePass123!",
                                   "role": "SECURITY_GUARD",
+                                  "companyCode": "ACME",
                                   "department": "Front Desk"
                                 }
                                 """))
@@ -287,7 +302,8 @@ class VisitorManagementApplicationTests {
                                   "username": "admin.user",
                                   "email": "admin.user@example.com",
                                   "password": "SecurePass123!",
-                                  "role": "ADMIN"
+                                  "role": "ADMIN",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -304,7 +320,8 @@ class VisitorManagementApplicationTests {
                                   "username": "visitor.internal",
                                   "email": "visitor.internal@example.com",
                                   "password": "SecurePass123!",
-                                  "role": "VISITOR"
+                                  "role": "VISITOR",
+                                  "companyCode": "ACME"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -361,6 +378,7 @@ class VisitorManagementApplicationTests {
                                   "phone": "+919876543210",
                                   "email": "priya@example.com",
                                   "companyName": "Acme Corp",
+                                  "companyCode": "ACME",
                                   "purposeOfVisit": "Vendor meeting",
                                   "hostEmployee": "Aarav Mehta",
                                   "photoUrl": "https://res.cloudinary.com/accessflow-test/image/upload/v1/visitor.jpg",
@@ -384,6 +402,7 @@ class VisitorManagementApplicationTests {
                                   "phone": "+919876543211",
                                   "email": "sana@example.com",
                                   "companyName": "Acme Corp",
+                                  "companyCode": "ACME",
                                   "purposeOfVisit": "Project review",
                                   "scheduledStartTime": "2099-05-12T04:30:00Z",
                                   "scheduledEndTime": "2099-05-12T06:30:00Z",
@@ -422,7 +441,21 @@ class VisitorManagementApplicationTests {
         user.setPasswordHash(passwordEncoder.encode("SecurePass123!"));
         user.setRoles(Set.of(role));
         user.setActive(true);
+        if (role != Role.SUPER_ADMIN) {
+            user.setOrganizationId("org-acme");
+            user.setOrganizationName("Acme Corp");
+            user.setOrganizationCode("ACME");
+        }
         return user;
+    }
+
+    private Organization organization() {
+        Organization organization = new Organization();
+        organization.setId("org-acme");
+        organization.setCompanyName("Acme Corp");
+        organization.setCompanyCode("ACME");
+        organization.setActiveStatus(true);
+        return organization;
     }
 
     private Visitor visitor(String id, VisitorStatus status) {
@@ -433,6 +466,10 @@ class VisitorManagementApplicationTests {
         visitor.setPurposeOfVisit("Meeting");
         visitor.setHostEmployeeId("employee-id");
         visitor.setHostEmployee("Employee User");
+        visitor.setOrganizationId("org-acme");
+        visitor.setOrganizationName("Acme Corp");
+        visitor.setOrganizationCode("ACME");
+        visitor.setCompanyName("Acme Corp");
         visitor.setStatus(status);
         visitor.setQrCode("VST-TEST");
         return visitor;

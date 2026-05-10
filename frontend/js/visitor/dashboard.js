@@ -3,6 +3,7 @@ import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
 import { formatDate, formatStatus } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
+import { listOrganizations } from "../shared/organizationApi.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["visits", "request"];
@@ -16,6 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   initPortalShell(session, { allowedRoutes: ROUTES });
+  await initOrganizations(session);
   initRequestForm();
   await loadVisitorPortal();
 });
@@ -29,7 +31,9 @@ async function loadVisitorPortal() {
     renderMetrics([
       { label: "Pending", value: overview.data.pending, note: "Awaiting host approval" },
       { label: "Active passes", value: overview.data.activePasses, note: "Approved or checked in" },
+      { label: "Total requests", value: overview.data.totalRequests, note: "Submitted for this visitor account" },
     ]);
+    setOrganizationContext(overview.data);
     renderVisits(visits.data || []);
   } catch (error) {
     renderMetrics([]);
@@ -49,7 +53,7 @@ function initRequestForm() {
     const data = Object.fromEntries(new FormData(form).entries());
     const payload = {
       phone: trim(data.phone),
-      companyName: trim(data.companyName),
+      companyCode: trim(data.companyCode),
       hostEmployee: trim(data.hostEmployee),
       purposeOfVisit: trim(data.purposeOfVisit),
     };
@@ -104,7 +108,8 @@ function visitCard(visit) {
       </div>
       <dl>
         <div><dt>Requested</dt><dd>${escapeHtml(formatDate(visit.createdAt))}</dd></div>
-        <div><dt>Company</dt><dd>${escapeHtml(visit.companyName || "Not provided")}</dd></div>
+        <div><dt>Organization</dt><dd>${escapeHtml(visit.organizationName || visit.organizationCode || "Not provided")}</dd></div>
+        <div><dt>Visitor company</dt><dd>${escapeHtml(visit.companyName || "Not provided")}</dd></div>
         <div><dt>Pass code</dt><dd>${escapeHtml(visit.qrCode || "Available after approval")}</dd></div>
         <div><dt>Expires</dt><dd>${escapeHtml(visit.qrExpiresAt ? formatDate(visit.qrExpiresAt) : "Not issued")}</dd></div>
       </dl>
@@ -119,6 +124,9 @@ function validateVisitRequest(payload) {
   if (!payload.phone || payload.phone.length < 7) {
     return "Enter a reachable phone number.";
   }
+  if (!payload.companyCode) {
+    return "Choose the organization you are visiting.";
+  }
   if (!payload.hostEmployee || payload.hostEmployee.length < 2) {
     return "Enter the host you are visiting.";
   }
@@ -126,6 +134,38 @@ function validateVisitRequest(payload) {
     return "Enter the purpose of your visit.";
   }
   return "";
+}
+
+async function initOrganizations(session) {
+  const select = document.querySelector("[data-organization-select]");
+  if (!select) {
+    return;
+  }
+
+  try {
+    const response = await listOrganizations();
+    const organizations = response.data || [];
+    select.innerHTML = `<option value="">Select organization</option>${organizations.map((organization) => `
+      <option value="${escapeHtml(organization.companyCode)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
+    `).join("")}`;
+    if (session.organizationCode) {
+      select.value = session.organizationCode;
+    }
+  } catch (error) {
+    select.innerHTML = `<option value="">Organizations unavailable</option>`;
+    showToast("Organizations unavailable", error.message);
+  }
+}
+
+function setOrganizationContext(data = {}) {
+  const element = document.querySelector("#organization-context");
+  if (!element) {
+    return;
+  }
+  const organization = data.organizationName || data.organizationCode;
+  element.textContent = organization
+    ? `Request and track access for ${organization}.`
+    : "Track approvals and open approved access passes.";
 }
 
 function setFormLoading(form, loading) {
