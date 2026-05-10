@@ -1,10 +1,14 @@
 import { login, registerAccount } from "./shared/authApi.js";
+import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
+import { formatStatus } from "./shared/formatters.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
 import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAppErrorBoundary();
+
   if (redirectAuthenticatedFromLogin()) {
     return;
   }
@@ -65,7 +69,7 @@ function initLoginForm() {
       }
 
       setSession(session);
-      showToast("Signed in", `${formatRole(role)} portal ready.`);
+      showToast("Signed in", `${formatStatus(role)} portal ready.`);
       redirectToPortal(role, false);
     });
   });
@@ -112,6 +116,7 @@ async function withLoading(form, action) {
   const button = form.querySelector(".auth-submit");
   button?.classList.add("is-loading");
   button?.setAttribute("disabled", "true");
+  button?.setAttribute("aria-busy", "true");
 
   try {
     await action();
@@ -120,6 +125,7 @@ async function withLoading(form, action) {
   } finally {
     button?.classList.remove("is-loading");
     button?.removeAttribute("disabled");
+    button?.removeAttribute("aria-busy");
   }
 }
 
@@ -146,8 +152,4 @@ function validatePassword(value) {
     && /\d/.test(value || "")
     && /[^A-Za-z0-9]/.test(value || "")
     && String(value || "").length >= 12;
-}
-
-function formatRole(role) {
-  return String(role || "USER").replaceAll("_", " ");
 }

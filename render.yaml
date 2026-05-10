@@ -46,12 +46,8 @@ services:
   - type: static
     name: visitor-management-web
     rootDir: frontend
-    buildCommand: printf 'window.VISITOR_API_BASE_URL = "%s";\n' "$VISITOR_API_BASE_URL" > assets/js/env.js
+    buildCommand: test -n "$VISITOR_API_BASE_URL" && printf 'window.VISITOR_API_BASE_URL = "%s";\n' "$VISITOR_API_BASE_URL" > assets/js/env.js
     staticPublishPath: .
     envVars:
       - key: VISITOR_API_BASE_URL
         sync: false
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html

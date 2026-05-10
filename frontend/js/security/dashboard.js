@@ -1,6 +1,8 @@
 import { request } from "../shared/httpClient.js";
+import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { formatDate } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
-import { initPortalShell, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
+import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { getVisitorPass, markBadgePrinted, verifyQrPayload } from "../shared/visitorApi.js";
 import { showToast } from "../shared/toast.js";
@@ -8,6 +10,8 @@ import { showToast } from "../shared/toast.js";
 const ROUTES = ["queue", "check-in", "photo", "qr", "badges"];
 
 document.addEventListener("DOMContentLoaded", async () => {
+  initAppErrorBoundary();
+
   const session = requireRole("SECURITY_GUARD");
   if (!session) {
     return;
@@ -27,6 +31,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadSecurityPortal(showErrors = true) {
+  if (showErrors) {
+    renderMetrics([]);
+    renderLoadingList("#queue-list");
+    renderLoadingList("#checkins-list");
+    renderLoadingList("#photo-list");
+    renderLoadingList("#badge-list");
+  }
+
   try {
     const [overview, queue, checkins, photo, badges] = await Promise.all([
       request("/security/overview"),
@@ -37,11 +49,17 @@ async function loadSecurityPortal(showErrors = true) {
     ]);
 
     renderMetrics(overview.data.metrics);
-    renderWorkList("#queue-list", queue.data.items || [], (visitor) => workCard(visitor.fullName, visitor.purposeOfVisit, visitor.status));
-    renderWorkList("#checkins-list", checkins.data.items || [], (checkin) => workCard(checkin.fullName, checkin.hostEmployee, checkin.status));
+    renderWorkList("#queue-list", queue.data.items || [], (visitor) => workCard(visitor.fullName, visitor.purposeOfVisit, visitor.status), "No visitors in queue", "Approved visitors waiting for arrival will appear here.");
+    renderWorkList("#checkins-list", checkins.data.items || [], (checkin) => workCard(checkin.fullName, checkin.hostEmployee, checkin.status), "No active check-ins", "Checked-in visitors will appear here.");
     await renderBadgeList(badges.data.items || []);
-    renderWorkList("#photo-list", Object.entries(photo.data), ([label, value]) => workCard(label, value));
+    renderWorkList("#photo-list", Object.entries(photo.data), ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
   } catch (error) {
+    if (showErrors) {
+      renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", error.message);
+      renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", error.message);
+      renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", error.message);
+      renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", error.message);
+    }
     if (showErrors) {
       showToast("Security access blocked", error.message);
     }
@@ -72,7 +90,13 @@ async function renderBadgeList(visitors) {
     }
   }));
 
-  list.innerHTML = passes.filter(Boolean).map(passCard).join("");
+  const validPasses = passes.filter(Boolean);
+  list.innerHTML = validPasses.length ? validPasses.map(passCard).join("") : `
+    <article class="badge-empty">
+      <h3>Badges unavailable</h3>
+      <p>Approved passes could not be loaded. Refresh and try again.</p>
+    </article>
+  `;
 }
 
 function passCard(pass) {
@@ -149,12 +173,20 @@ async function verifyScannedValue(value) {
     showToast("Scan needed", "Scan or paste a visitor QR payload.");
     return;
   }
+  const submit = document.querySelector("#qr-verify-form button[type='submit']");
+  submit?.toggleAttribute("disabled", true);
+  submit?.classList.add("is-loading");
+  submit?.setAttribute("aria-busy", "true");
   try {
     const response = await verifyQrPayload("/security", trimmed);
     renderVerification(response.data);
     showToast(response.data.valid ? "Pass valid" : "Pass rejected", response.data.message);
   } catch (error) {
     showToast("Verification failed", error.message);
+  } finally {
+    submit?.toggleAttribute("disabled", false);
+    submit?.classList.remove("is-loading");
+    submit?.removeAttribute("aria-busy");
   }
 }
 
@@ -194,9 +226,15 @@ async function startCameraScan() {
   }
 
   const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-  video.srcObject = stream;
-  video.classList.remove("is-hidden");
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    video.srcObject = stream;
+    video.classList.remove("is-hidden");
+  } catch {
+    showToast("Camera unavailable", "Allow camera access or paste the QR payload manually.");
+    return;
+  }
 
   const scan = async () => {
     const codes = await detector.detect(video).catch(() => []);
@@ -211,14 +249,4 @@ async function startCameraScan() {
     window.requestAnimationFrame(scan);
   };
   window.requestAnimationFrame(scan);
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not recorded";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

@@ -1,4 +1,5 @@
 import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./visitorApi.js";
+import { formatDate } from "./formatters.js";
 import { showToast } from "./toast.js";
 
 const STATUS_LABELS = {
@@ -27,6 +28,7 @@ export function initVisitorModule(selector, options) {
     photoPreviewUrl: "",
     photoAccepted: false,
     stream: null,
+    loading: false,
   };
 
   root.classList.add("visitor-system");
@@ -128,6 +130,12 @@ export function initVisitorModule(selector, options) {
   });
 
   async function mutate(type, id) {
+    const buttons = Array.from(root.querySelectorAll("[data-visitor-id]")).filter((button) => button.dataset.visitorId === id);
+    buttons.forEach((button) => {
+      button.toggleAttribute("disabled", true);
+      button.classList.add("is-loading");
+      button.setAttribute("aria-busy", "true");
+    });
     try {
       if (type === "check-in") {
         await checkInVisitor(options.basePath, id);
@@ -144,6 +152,12 @@ export function initVisitorModule(selector, options) {
       await load();
     } catch (error) {
       showToast("Action failed", error.message);
+    } finally {
+      buttons.forEach((button) => {
+        button.toggleAttribute("disabled", false);
+        button.classList.remove("is-loading");
+        button.removeAttribute("aria-busy");
+      });
     }
   }
 
@@ -155,6 +169,10 @@ export function initVisitorModule(selector, options) {
   }
 
   async function load(showSkeleton = true) {
+    if (state.loading && !showSkeleton) {
+      return;
+    }
+    state.loading = true;
     if (showSkeleton) {
       renderSkeleton(root);
     }
@@ -173,8 +191,11 @@ export function initVisitorModule(selector, options) {
       renderPagination(root, state, response.data.totalItems || 0);
     } catch (error) {
       state.items = [];
-      renderRows(root, state, options);
+      renderRows(root, state, options, error.message);
+      renderPagination(root, state, 0);
       showToast("Visitors unavailable", error.message);
+    } finally {
+      state.loading = false;
     }
   }
 
@@ -314,7 +335,7 @@ function renderSkeleton(root) {
   `).join("");
 }
 
-function renderRows(root, state, options) {
+function renderRows(root, state, options, errorMessage = "") {
   const rows = root.querySelector("[data-visitor-rows]");
   const empty = root.querySelector("[data-visitor-empty]");
   if (!rows || !empty) {
@@ -322,6 +343,13 @@ function renderRows(root, state, options) {
   }
 
   empty.classList.toggle("is-hidden", state.items.length > 0);
+  if (errorMessage) {
+    empty.querySelector("h3").textContent = "Visitor records unavailable";
+    empty.querySelector("p").textContent = errorMessage;
+  } else {
+    empty.querySelector("h3").textContent = "No visitor records";
+    empty.querySelector("p").textContent = "Register a visitor or adjust the search filters.";
+  }
   rows.innerHTML = state.items.map((visitor) => row(visitor, options)).join("");
 }
 
@@ -635,21 +663,12 @@ function setFormLoading(form, loading) {
   const button = form.querySelector(".visitor-form__submit");
   button?.classList.toggle("is-loading", loading);
   button?.toggleAttribute("disabled", loading);
+  button?.toggleAttribute("aria-busy", loading);
 }
 
 function statusBadge(status) {
   const label = STATUS_LABELS[status] || status;
   return `<span class="status-badge status-badge--${String(status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(label)}</span>`;
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not recorded";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function debounce(callback, delay) {

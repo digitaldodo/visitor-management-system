@@ -5,6 +5,7 @@ import { LOGIN_FROM_PORTAL } from "./config.js";
 import { clearSession, getRefreshToken } from "./session.js";
 import { showToast } from "./toast.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
+import { formatDate, formatStatus } from "./formatters.js";
 
 let notificationPollTimer;
 let latestNotificationSeenAt = "";
@@ -26,22 +27,38 @@ export function renderMetrics(metrics = []) {
     return;
   }
 
-  grid.innerHTML = metrics.map((metric) => `
+  grid.innerHTML = metrics.length ? metrics.map((metric) => `
     <article class="metric-card">
       <span class="metric-card__label">${escapeHtml(metric.label)}</span>
       <strong>${escapeHtml(metric.value)}</strong>
       <small>${escapeHtml(metric.note)}</small>
     </article>
-  `).join("");
+  `).join("") : emptyMarkup("No metrics yet", "Dashboard metrics will appear after visitor activity starts.");
 }
 
-export function renderWorkList(selector, items, mapper) {
+export function renderLoadingList(selector, count = 3) {
   const list = $(selector);
   if (!list) {
     return;
   }
 
-  list.innerHTML = items.map(mapper).join("");
+  list.innerHTML = Array.from({ length: count }).map(() => `
+    <article class="work-card work-card--skeleton" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </article>
+  `).join("");
+}
+
+export function renderWorkList(selector, items = [], mapper, emptyTitle = "Nothing to show", emptyMessage = "New activity will appear here.") {
+  const list = $(selector);
+  if (!list) {
+    return;
+  }
+
+  const safeItems = Array.isArray(items) ? items : [];
+  list.innerHTML = safeItems.length ? safeItems.map(mapper).join("") : emptyMarkup(emptyTitle, emptyMessage);
 }
 
 export function workCard(title, detail, meta = "") {
@@ -71,6 +88,9 @@ function initSidebar() {
   const mobileQuery = window.matchMedia("(max-width: 760px)");
 
   toggle?.addEventListener("click", () => {
+    if (!shell) {
+      return;
+    }
     if (mobileQuery.matches) {
       const isOpen = shell.dataset.sidebarState === "open";
       shell.dataset.sidebarState = isOpen ? "closed" : "open";
@@ -81,17 +101,24 @@ function initSidebar() {
   });
 
   collapse?.addEventListener("click", () => {
+    if (!shell) {
+      return;
+    }
     const isCollapsed = shell.dataset.sidebarState === "collapsed";
     shell.dataset.sidebarState = isCollapsed ? "expanded" : "collapsed";
     collapse.setAttribute("aria-label", isCollapsed ? "Collapse sidebar" : "Expand sidebar");
   });
 
   backdrop?.addEventListener("click", () => {
-    shell.dataset.sidebarState = "closed";
+    if (shell) {
+      shell.dataset.sidebarState = "closed";
+    }
   });
 
   mobileQuery.addEventListener("change", () => {
-    shell.dataset.sidebarState = mobileQuery.matches ? "closed" : "expanded";
+    if (shell) {
+      shell.dataset.sidebarState = mobileQuery.matches ? "closed" : "expanded";
+    }
   });
 }
 
@@ -104,7 +131,10 @@ function initRouteTabs(allowedRoutes) {
       links.forEach((item) => item.classList.remove("is-active"));
       link.classList.add("is-active");
       if (window.matchMedia("(max-width: 760px)").matches) {
-        $(".portal-shell").dataset.sidebarState = "closed";
+        const shell = $(".portal-shell");
+        if (shell) {
+          shell.dataset.sidebarState = "closed";
+        }
       }
     });
   });
@@ -243,7 +273,7 @@ function notificationItem(item) {
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.message)}</small>
       </span>
-      <time>${escapeHtml(formatNotificationTime(item.createdAt))}</time>
+      <time>${escapeHtml(formatDate(item.createdAt, { dateStyle: "short", timeStyle: "short" }))}</time>
     </button>
   `;
 }
@@ -303,15 +333,14 @@ function setHealthOffline(message) {
 }
 
 function formatRole(role) {
-  return String(role || "USER").replaceAll("_", " ");
+  return formatStatus(role || "USER");
 }
 
-function formatNotificationTime(value) {
-  if (!value) {
-    return "";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+function emptyMarkup(title, message) {
+  return `
+    <article class="empty-state empty-state--inline">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(message)}</p>
+    </article>
+  `;
 }

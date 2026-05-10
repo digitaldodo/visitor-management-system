@@ -1,4 +1,5 @@
 import { forgotPassword, resetPassword, verifyOtp } from "./shared/authApi.js";
+import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
 import { showToast } from "./shared/toast.js";
 
@@ -9,6 +10,7 @@ const RESET_TOKEN_EXPIRES_KEY = "passwordResetTokenExpiresAt";
 const RESEND_READY_KEY = "passwordResetResendReadyAt";
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAppErrorBoundary();
   initPasswordToggles();
   initForgotPasswordPage();
   initVerifyOtpPage();
@@ -203,6 +205,7 @@ async function withLoading(form, action) {
   const button = form.querySelector(".auth-submit");
   button?.classList.add("is-loading");
   button?.setAttribute("disabled", "true");
+  button?.setAttribute("aria-busy", "true");
 
   try {
     await action();
@@ -211,6 +214,7 @@ async function withLoading(form, action) {
   } finally {
     button?.classList.remove("is-loading");
     button?.removeAttribute("disabled");
+    button?.removeAttribute("aria-busy");
   }
 }
 
@@ -247,5 +251,6 @@ function secondsFromNow(seconds) {
 }
 
 function isPast(value) {
-  return !value || new Date(value).getTime() <= Date.now();
+  const time = new Date(value).getTime();
+  return !value || Number.isNaN(time) || time <= Date.now();
 }

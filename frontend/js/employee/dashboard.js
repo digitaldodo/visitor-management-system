@@ -1,6 +1,8 @@
 import { request } from "../shared/httpClient.js";
+import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { formatDate, formatStatus, formatTime, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
-import { initPortalShell, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
+import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/visitorApi.js";
 import { showToast } from "../shared/toast.js";
@@ -9,6 +11,8 @@ const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "his
 let approvalPollTimer;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  initAppErrorBoundary();
+
   const session = requireRole("EMPLOYEE");
   if (!session) {
     return;
@@ -30,6 +34,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadEmployeePortal() {
+  renderMetrics([]);
+  renderLoadingList("#approvals-list");
+  renderLoadingList("#notifications-list");
+  renderLoadingList("#scheduled-list");
+
   try {
     const [overview, notifications, scheduled] = await Promise.all([
       request("/employee/overview"),
@@ -39,9 +48,12 @@ async function loadEmployeePortal() {
 
     renderMetrics(overview.data.metrics);
     await loadApprovals(false);
-    renderWorkList("#notifications-list", notifications.data, (notification) => workCard(notification.title, notification.message));
+    renderWorkList("#notifications-list", notifications.data, (notification) => workCard(notification.title, notification.message), "No employee notices", "Visitor updates and reminders will appear here.");
     renderScheduledVisitors(scheduled.data || []);
   } catch (error) {
+    renderWorkList("#approvals-list", [], (item) => item, "Approvals unavailable", error.message);
+    renderWorkList("#notifications-list", [], (item) => item, "Notifications unavailable", error.message);
+    renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", error.message);
     showToast("Employee access blocked", error.message);
   }
 }
@@ -280,41 +292,7 @@ function setFormLoading(form, loading) {
   const button = form.querySelector("button[type='submit']");
   button?.toggleAttribute("disabled", loading);
   button?.classList.toggle("is-loading", loading);
-}
-
-function formatStatus(status) {
-  return String(status || "").replaceAll("_", " ");
-}
-
-function formatDate(value) {
-  if (!value) {
-    return "Not recorded";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function formatTime(value) {
-  if (!value) {
-    return "Not recorded";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function toIsoInstant(value) {
-  if (!value) {
-    return null;
-  }
-  return new Date(value).toISOString();
-}
-
-function toDatetimeLocal(date) {
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  button?.toggleAttribute("aria-busy", loading);
 }
 
 function trim(value) {

@@ -1,12 +1,15 @@
 import { request } from "../shared/httpClient.js";
+import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
 import { requireRole } from "../shared/roleGuard.js";
-import { initPortalShell, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
+import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["analytics", "users", "reports", "monitoring", "visitors"];
 
 document.addEventListener("DOMContentLoaded", async () => {
+  initAppErrorBoundary();
+
   const session = requireRole("ADMIN");
   if (!session) {
     return;
@@ -23,6 +26,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadAdminPortal() {
+  renderDashboardCards([]);
+  renderLoadingList("#user-management-list");
+  renderLoadingList("#reports-list");
+  renderLoadingList("#monitoring-list");
+  renderEmployeeAnalytics([]);
+
   try {
     const [analytics, users, reports, monitoring] = await Promise.all([
       request("/admin/analytics"),
@@ -32,10 +41,14 @@ async function loadAdminPortal() {
     ]);
 
     renderAnalytics(analytics.data);
-    renderWorkList("#user-management-list", users.data, (user) => workCard(user.name, user.role, user.status));
-    renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status));
+    renderWorkList("#user-management-list", users.data, (user) => workCard(user.name, user.role, user.status), "No users found", "User records will appear here after accounts are created.");
+    renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No reports ready", "Generated operational reports will appear here.");
     renderMonitoring(monitoring.data);
   } catch (error) {
+    renderAnalytics({});
+    renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
+    renderWorkList("#reports-list", [], (item) => item, "Reports unavailable", error.message);
+    renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
     showToast("Admin access blocked", error.message);
   }
 }
@@ -44,7 +57,7 @@ function renderMonitoring(data) {
   renderWorkList("#monitoring-list", Object.entries(data), ([name, status]) => {
     const value = typeof status === "object" ? Object.entries(status).map(([key, count]) => `${key}: ${count}`).join(", ") : status;
     return workCard(name, value);
-  });
+  }, "No monitoring signals", "System signals will appear after the API responds.");
 }
 
 function renderAnalytics(data) {
@@ -59,6 +72,16 @@ function renderAnalytics(data) {
 function renderDashboardCards(widgets) {
   const grid = document.querySelector("#metric-grid");
   if (!grid) {
+    return;
+  }
+
+  if (!widgets.length) {
+    grid.innerHTML = `
+      <article class="empty-state empty-state--inline">
+        <h3>No analytics yet</h3>
+        <p>Visitor metrics will appear after activity starts.</p>
+      </article>
+    `;
     return;
   }
 
@@ -81,6 +104,9 @@ function renderChart(selector, markup) {
 }
 
 function barChart(data, suffix) {
+  if (!data.length) {
+    return chartEmpty("No daily visitor data yet.");
+  }
   const max = maxValue(data);
   const bars = data.map((item, index) => {
     const height = Math.max(4, Math.round((Number(item.value) / max) * 150));
@@ -96,6 +122,9 @@ function barChart(data, suffix) {
 }
 
 function lineChart(data) {
+  if (!data.length) {
+    return chartEmpty("No monthly trend data yet.");
+  }
   const max = maxValue(data);
   const points = data.map((item, index) => {
     const x = 22 + index * 46;
@@ -112,6 +141,9 @@ function lineChart(data) {
 
 function compactBars(data) {
   const filtered = data.filter((_, index) => index % 2 === 0);
+  if (!filtered.length) {
+    return chartEmpty("No peak-hour activity yet.");
+  }
   const max = maxValue(filtered);
   return `
     <div class="hour-chart">
@@ -127,6 +159,9 @@ function compactBars(data) {
 }
 
 function approvalRateChart(data) {
+  if (!data.length) {
+    return chartEmpty("No approval decisions yet.");
+  }
   return `
     <div class="approval-rate-chart">
       ${data.map((item) => `
@@ -167,7 +202,7 @@ function renderEmployeeAnalytics(items) {
             <td data-label="Pending">${escapeHtml(item.pending)}</td>
             <td data-label="Rejected">${escapeHtml(item.rejected)}</td>
           </tr>
-        `).join("") : `<tr><td colspan="5">No employee visitor activity yet.</td></tr>`}
+        `).join("") : `<tr><td colspan="5"><div class="empty-state empty-state--inline"><h3>No employee activity</h3><p>Host-level analytics will appear after visitor records are created.</p></div></td></tr>`}
       </tbody>
     </table>
   `;
@@ -175,4 +210,8 @@ function renderEmployeeAnalytics(items) {
 
 function maxValue(data) {
   return Math.max(1, ...data.map((item) => Number(item.value) || 0));
+}
+
+function chartEmpty(message) {
+  return `<div class="empty-state empty-state--inline"><h3>No chart data</h3><p>${escapeHtml(message)}</p></div>`;
 }

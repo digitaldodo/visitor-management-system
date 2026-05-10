@@ -93,7 +93,7 @@ svg {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(23, 107, 101, 0.25);
+  outline: 3px solid rgba(37, 99, 235, 0.32);
   outline-offset: 2px;
 }
 
@@ -162,6 +162,7 @@ svg {
 .auth-submit.is-loading {
   opacity: 0.68;
   pointer-events: none;
+  position: relative;
 }
 
 .brand__mark {

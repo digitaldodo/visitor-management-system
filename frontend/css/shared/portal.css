@@ -421,6 +421,27 @@
   padding: 0.9rem;
 }
 
+.work-card--skeleton span {
+  animation: shimmer 1.4s infinite linear;
+  background: linear-gradient(90deg, #e7edf3 0%, #f7fafc 48%, #e7edf3 100%);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  display: block;
+  height: 0.8rem;
+}
+
+.work-card--skeleton span:first-child {
+  width: 56%;
+}
+
+.work-card--skeleton span:nth-child(2) {
+  width: 82%;
+}
+
+.work-card--skeleton span:last-child {
+  width: 36%;
+}
+
 .work-card h3 {
   font-size: 1rem;
   overflow-wrap: anywhere;
@@ -495,6 +516,14 @@
   min-height: 12rem;
   padding: 2rem;
   text-align: center;
+}
+
+.empty-state--inline {
+  box-shadow: none;
+  grid-column: 1 / -1;
+  min-height: 7rem;
+  padding: 1rem;
+  width: 100%;
 }
 
 .empty-state h3 {
@@ -622,6 +651,15 @@
   padding: 0.85rem;
   text-align: left;
   vertical-align: middle;
+}
+
+.visitor-table td code {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
 }
 
 .visitor-table th {
@@ -935,6 +973,15 @@
   .topbar {
     align-items: flex-start;
     gap: 0.7rem;
+    min-height: auto;
+  }
+
+  .topbar__title h1 {
+    font-size: 1.28rem;
+  }
+
+  .topbar__tagline {
+    display: none;
   }
 
   .topbar__menu {
@@ -1014,6 +1061,12 @@
     gap: 0.35rem;
     grid-template-columns: minmax(7rem, 35%) minmax(0, 1fr);
     padding: 0.75rem;
+  }
+
+  .visitor-table td code {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .visitor-table td::before {
