@@ -94,6 +94,10 @@ Never commit real `.env` files or service credentials. Use `.env.example` as a s
 | `JWT_EXPIRATION_MINUTES` | No | Access token lifetime |
 | `JWT_REFRESH_EXPIRATION_DAYS` | No | Refresh token lifetime |
 | `CORS_ALLOWED_ORIGINS` | Production | Comma-separated frontend origins |
+| `SUPER_ADMIN_NAME` | First deploy | Initial super admin full name, used only when no admin exists |
+| `SUPER_ADMIN_USERNAME` | First deploy | Initial super admin username, used only when no admin exists |
+| `SUPER_ADMIN_EMAIL` | First deploy | Initial super admin email, used only when no admin exists |
+| `SUPER_ADMIN_PASSWORD` | First deploy | Initial super admin password, BCrypt-hashed before storage |
 | `CLOUDINARY_URL` | Production | Cloudinary connection URL |
 | `CLOUDINARY_FOLDER` | No | Upload folder prefix |
 | `CLOUDINARY_CLOUD_NAME` | Alternative | Used when `CLOUDINARY_URL` is not set |
@@ -131,17 +135,18 @@ The backend uses layered packages:
 
 JWT role mapping and strict portal ownership are ready for:
 
+- `SUPER_ADMIN`
 - `ADMIN`
 - `EMPLOYEE`
 - `SECURITY_GUARD`
 
 Each protected API namespace is guarded separately:
 
-- `/api/v1/admin/**` requires `ADMIN`
+- `/api/v1/admin/**` requires `SUPER_ADMIN` or `ADMIN`
 - `/api/v1/employee/**` requires `EMPLOYEE`
 - `/api/v1/security/**` requires `SECURITY_GUARD`
 
-Admins receive full visitor access through admin-owned endpoints instead of crossing into employee or security APIs. Authentication, authorization, DTO patterns, validation, pagination/search DTOs, and deployment wiring are implemented as the foundation.
+Super admins receive full admin portal access and can create admin accounts. Admins receive visitor oversight, reports, and employee/security management through admin-owned endpoints instead of crossing into employee or security APIs. Authentication, authorization, DTO patterns, validation, pagination/search DTOs, and deployment wiring are implemented as the foundation.
 
 ## Enterprise Operations
 
@@ -161,15 +166,18 @@ Admins receive full visitor access through admin-owned endpoints instead of cros
 
 `frontend/index.html` is the authentication entry point. After login, the app validates that the JWT `roles` claim matches the returned session roles and redirects to the matching mini-application:
 
+- `SUPER_ADMIN` -> `frontend/pages/admin/index.html`
 - `ADMIN` -> `frontend/pages/admin/index.html`
 - `EMPLOYEE` -> `frontend/pages/employee/index.html`
 - `SECURITY_GUARD` -> `frontend/pages/security/index.html`
 
 Each portal owns its sidebar, dashboard layout, route list, role guard invocation, role API calls, and role CSS. Shared utilities live under `frontend/js/shared/` and shared styling under `frontend/css/shared/`.
 
-## First Admin Setup
+## Super Admin Bootstrap
 
-AccessFlow does not ship with preset accounts or default passwords. After deploying against an empty MongoDB Atlas database, register the first account from the login screen with the `ADMIN` role. After that first admin exists, additional privileged accounts must be created by an authenticated admin; normal employee registrations remain self-service.
+AccessFlow does not ship with preset accounts or default passwords. On startup, if no `SUPER_ADMIN` or `ADMIN` exists, the backend creates one `SUPER_ADMIN` from Render environment variables only: `SUPER_ADMIN_NAME`, `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD`.
+
+The bootstrap password is hashed with BCrypt before storage, is never logged, and is never exposed to the frontend. If an admin already exists, startup does not recreate the bootstrap account. `SUPER_ADMIN` accounts cannot be created through the public registration API.
 
 ## API Endpoints
 
@@ -180,7 +188,7 @@ Interactive/OpenAPI documentation is available from the backend at `/v3/api-docs
 | Method | Endpoint | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/health` | Public | Backend health response |
-| `POST` | `/auth/register` | Public / Admin-gated by role | Register first admin, employees, or admin-created privileged users |
+| `POST` | `/auth/register` | Public / Admin-gated by role | Register employees or admin-created privileged users; `SUPER_ADMIN` is bootstrap-only |
 | `POST` | `/auth/login` | Public | Login with BCrypt password verification |
 | `POST` | `/auth/refresh` | Public | Rotate refresh token and issue a new access token |
 | `POST` | `/auth/logout` | Public | Revoke refresh token |
@@ -284,6 +292,7 @@ Use Render's **New > Blueprint** flow, connect this repository, and let Render r
 - `MONGODB_URI`
 - `JWT_SECRET` with at least 32 random characters
 - `BACKEND_PUBLIC_URL` to the deployed backend origin
+- `SUPER_ADMIN_NAME`, `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` for first-start bootstrap
 - `CLOUDINARY_URL`, or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`
 - `CORS_ALLOWED_ORIGINS` to the deployed frontend URL
 - `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` when `SENDGRID_ENABLED=true`

@@ -34,8 +34,8 @@ export function requireRole(requiredRole) {
 
   const sessionRoles = session.roles || [];
   const tokenRoles = getTokenRoles(session.accessToken);
-  const hasRequiredSessionRole = sessionRoles.includes(requiredRole);
-  const hasRequiredTokenRole = tokenRoles.includes(requiredRole);
+  const hasRequiredSessionRole = hasEffectiveRole(sessionRoles, requiredRole);
+  const hasRequiredTokenRole = hasEffectiveRole(tokenRoles, requiredRole);
 
   if (hasRequiredSessionRole && hasRequiredTokenRole) {
     return session;
@@ -50,4 +50,8 @@ export function requireRole(requiredRole) {
   clearSession();
   redirectToLogin();
   return null;
+}
+
+function hasEffectiveRole(roles, requiredRole) {
+  return roles.includes(requiredRole) || (requiredRole === "ADMIN" && roles.includes("SUPER_ADMIN"));
 }

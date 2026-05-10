@@ -80,14 +80,19 @@ public class AuthService {
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
         Role requestedRole = request.role();
-        boolean firstUser = userRepository.count() == 0;
 
-        if (firstUser && requestedRole != Role.ADMIN) {
-            throw new BadRequestException("The first account must be an ADMIN account.");
+        if (requestedRole == Role.SUPER_ADMIN) {
+            throw new BadRequestException("SUPER_ADMIN accounts are created only by the secure environment bootstrap process.");
         }
 
-        if (!firstUser && requestedRole != Role.EMPLOYEE) {
-            requireAdmin(authentication);
+        if (!adminExists()) {
+            throw new BadRequestException("Initial SUPER_ADMIN bootstrap must complete before account registration.");
+        }
+
+        if (requestedRole == Role.ADMIN) {
+            requireSuperAdmin(authentication);
+        } else if (requestedRole == Role.SECURITY_GUARD) {
+            requireAdminOrSuperAdmin(authentication);
         }
 
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
@@ -261,10 +266,26 @@ public class AuthService {
         );
     }
 
-    private void requireAdmin(Authentication authentication) {
-        if (authentication == null || authentication.getAuthorities().stream().noneMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()))) {
+    private boolean adminExists() {
+        return userRepository.existsByRolesIn(List.of(Role.SUPER_ADMIN, Role.ADMIN));
+    }
+
+    private void requireSuperAdmin(Authentication authentication) {
+        if (!hasRole(authentication, Role.SUPER_ADMIN)) {
+            throw new UnauthorizedException("A SUPER_ADMIN account is required for this registration.");
+        }
+    }
+
+    private void requireAdminOrSuperAdmin(Authentication authentication) {
+        if (!hasRole(authentication, Role.SUPER_ADMIN) && !hasRole(authentication, Role.ADMIN)) {
             throw new UnauthorizedException("An ADMIN account is required for this registration.");
         }
+    }
+
+    private boolean hasRole(Authentication authentication, Role role) {
+        String authorityName = "ROLE_" + role.name();
+        return authentication != null
+                && authentication.getAuthorities().stream().anyMatch(authority -> authorityName.equals(authority.getAuthority()));
     }
 
     private void revoke(RefreshToken refreshToken) {

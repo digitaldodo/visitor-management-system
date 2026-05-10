@@ -34,7 +34,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
 public class AdminController {
 
     private final VisitorService visitorService;

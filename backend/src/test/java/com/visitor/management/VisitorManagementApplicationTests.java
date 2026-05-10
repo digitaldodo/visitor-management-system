@@ -69,6 +69,7 @@ class VisitorManagementApplicationTests {
 
     @BeforeEach
     void setUpUsers() {
+        when(userRepository.findById("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(userRepository.findById("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
@@ -127,6 +128,10 @@ class VisitorManagementApplicationTests {
 
     @Test
     void roleOwnedNamespacesAllowMatchingRoles() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/overview")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/api/v1/admin/overview")
                         .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
                 .andExpect(status().isOk());
