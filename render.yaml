@@ -64,10 +64,10 @@ services:
     name: accessflow-web
     rootDir: frontend
     autoDeploy: true
-    buildCommand: test -n "$VISITOR_API_BASE_URL" && printf 'window.VISITOR_API_BASE_URL = "%s";\n' "$VISITOR_API_BASE_URL" > assets/js/env.js
+    buildCommand: test -n "$API_BASE_URL" && printf 'window.API_BASE_URL = "%s";\nwindow.VISITOR_API_BASE_URL = window.API_BASE_URL;\n' "$API_BASE_URL" > assets/js/env.js
     staticPublishPath: .
     envVars:
-      - key: VISITOR_API_BASE_URL
+      - key: API_BASE_URL
         sync: false
       - key: FRONTEND_PUBLIC_URL
         sync: false

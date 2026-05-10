@@ -45,6 +45,9 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isLocalOrigin)) {
             missing.add("CORS_ALLOWED_ORIGINS must contain deployed frontend origins only");
         }
+        if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isWildcardOrigin)) {
+            missing.add("CORS_ALLOWED_ORIGINS must not use wildcards in production");
+        }
 
         AppProperties.Cloudinary cloudinary = properties.getCloudinary();
         boolean hasCloudinaryUrl = hasText(cloudinary.getUrl()) && !hasPlaceholder(cloudinary.getUrl());
@@ -85,6 +88,10 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
 
     private boolean isLocalOrigin(String origin) {
         return origin != null && (origin.contains("localhost") || origin.contains("127.0.0.1"));
+    }
+
+    private boolean isWildcardOrigin(String origin) {
+        return origin != null && origin.trim().equals("*");
     }
 
     private boolean hasPlaceholder(String value) {

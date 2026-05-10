@@ -2,6 +2,9 @@ spring:
   data:
     mongodb:
       auto-index-creation: false
+  web:
+    resources:
+      add-mappings: false
 
 server:
   compression:
