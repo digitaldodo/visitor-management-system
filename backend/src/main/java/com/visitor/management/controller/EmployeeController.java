@@ -3,6 +3,7 @@ package com.visitor.management.controller;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.PageResponse;
+import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
@@ -56,11 +57,16 @@ public class EmployeeController {
     }
 
     @GetMapping("/pre-approvals")
-    public ApiResponse<List<Map<String, String>>> preApprovals() {
-        return ApiResponse.ok("Employee pre-approvals loaded.", List.of(
-                Map.of("visitor", "Sana Khan", "date", "2026-05-12", "status", "Approved"),
-                Map.of("visitor", "Arjun Bose", "date", "2026-05-13", "status", "Draft")
-        ));
+    public ApiResponse<List<VisitorResponse>> preApprovals(Authentication authentication) {
+        return ApiResponse.ok("Employee pre-approvals loaded.", visitorService.upcomingPreApprovals(authentication.getName()));
+    }
+
+    @PostMapping("/pre-approvals")
+    public ApiResponse<VisitorResponse> createPreApproval(
+            @Valid @RequestBody PreApprovalRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor pre-approved.", visitorService.preApprove(request, authentication.getName()));
     }
 
     @GetMapping("/notifications")
@@ -72,11 +78,8 @@ public class EmployeeController {
     }
 
     @GetMapping("/scheduled-visitors")
-    public ApiResponse<List<Map<String, String>>> scheduledVisitors() {
-        return ApiResponse.ok("Employee scheduled visitors loaded.", List.of(
-                Map.of("visitor", "Sana Khan", "time", "10:30", "status", "Approved"),
-                Map.of("visitor", "Arjun Bose", "time", "14:00", "status", "Pending")
-        ));
+    public ApiResponse<List<VisitorResponse>> scheduledVisitors(Authentication authentication) {
+        return ApiResponse.ok("Employee scheduled visitors loaded.", visitorService.upcomingPreApprovals(authentication.getName()));
     }
 
     @GetMapping("/history")

@@ -41,6 +41,20 @@ public class Visitor {
     private Instant checkOutTime;
 
     @Indexed
+    private Instant scheduledStartTime;
+
+    @Indexed
+    private Instant scheduledEndTime;
+
+    private String scheduledTimezone;
+
+    @Indexed
+    private Instant approvalExpiresAt;
+
+    @Indexed
+    private boolean preApproved;
+
+    @Indexed
     private VisitorStatus status = VisitorStatus.PENDING;
 
     private String photoUrl;
@@ -152,6 +166,46 @@ public class Visitor {
 
     public void setCheckOutTime(Instant checkOutTime) {
         this.checkOutTime = checkOutTime;
+    }
+
+    public Instant getScheduledStartTime() {
+        return scheduledStartTime;
+    }
+
+    public void setScheduledStartTime(Instant scheduledStartTime) {
+        this.scheduledStartTime = scheduledStartTime;
+    }
+
+    public Instant getScheduledEndTime() {
+        return scheduledEndTime;
+    }
+
+    public void setScheduledEndTime(Instant scheduledEndTime) {
+        this.scheduledEndTime = scheduledEndTime;
+    }
+
+    public String getScheduledTimezone() {
+        return scheduledTimezone;
+    }
+
+    public void setScheduledTimezone(String scheduledTimezone) {
+        this.scheduledTimezone = scheduledTimezone;
+    }
+
+    public Instant getApprovalExpiresAt() {
+        return approvalExpiresAt;
+    }
+
+    public void setApprovalExpiresAt(Instant approvalExpiresAt) {
+        this.approvalExpiresAt = approvalExpiresAt;
+    }
+
+    public boolean isPreApproved() {
+        return preApproved;
+    }
+
+    public void setPreApproved(boolean preApproved) {
+        this.preApproved = preApproved;
     }
 
     public VisitorStatus getStatus() {

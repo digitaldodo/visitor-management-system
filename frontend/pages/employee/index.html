@@ -107,10 +107,50 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Planning</p>
-                  <h2>Pre-approvals</h2>
+                  <h2>Schedule Visitor</h2>
                 </div>
               </div>
-              <div class="work-list" id="pre-approvals-list"></div>
+              <form class="preapproval-form" id="preapproval-form" novalidate>
+                <label class="form-field">
+                  <span>Full Name</span>
+                  <input name="fullName" type="text" autocomplete="name" placeholder="Sana Khan" required />
+                </label>
+                <label class="form-field">
+                  <span>Phone</span>
+                  <input name="phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210" required />
+                </label>
+                <label class="form-field">
+                  <span>Email</span>
+                  <input name="email" type="email" autocomplete="email" placeholder="sana@company.com" />
+                </label>
+                <label class="form-field">
+                  <span>Company</span>
+                  <input name="companyName" type="text" autocomplete="organization" placeholder="Acme Corp" />
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Purpose</span>
+                  <input name="purposeOfVisit" type="text" placeholder="Project review" required />
+                </label>
+                <label class="form-field">
+                  <span>Start</span>
+                  <input name="scheduledStartTime" type="datetime-local" required />
+                </label>
+                <label class="form-field">
+                  <span>End</span>
+                  <input name="scheduledEndTime" type="datetime-local" required />
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Note</span>
+                  <input name="note" type="text" maxlength="240" placeholder="Reception instructions" />
+                </label>
+                <div class="preapproval-form__footer form-field--wide">
+                  <span id="preapproval-timezone">Timezone detected</span>
+                  <button class="button button--primary" type="submit">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3v18H4V4h3Zm11 8H6v10h12Zm-7 8-3-3 1.4-1.4 1.6 1.6 4.6-4.6L17 12Z"/></svg>
+                    <span>Pre-approve</span>
+                  </button>
+                </div>
+              </form>
             </article>
 
             <article class="panel" id="scheduled">

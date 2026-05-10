@@ -140,6 +140,32 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void employeeCanPreApproveScheduledVisitor() throws Exception {
+        mockMvc.perform(post("/api/v1/employee/pre-approvals")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Sana Khan",
+                                  "phone": "+919876543211",
+                                  "email": "sana@example.com",
+                                  "companyName": "Acme Corp",
+                                  "purposeOfVisit": "Project review",
+                                  "scheduledStartTime": "2099-05-12T04:30:00Z",
+                                  "scheduledEndTime": "2099-05-12T06:30:00Z",
+                                  "timezone": "Asia/Calcutta",
+                                  "note": "Pre-cleared for reception"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fullName").value("Sana Khan"))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.preApproved").value(true))
+                .andExpect(jsonPath("$.data.scheduledTimezone").value("Asia/Calcutta"))
+                .andExpect(jsonPath("$.data.qrCode").exists());
+    }
+
+    @Test
     void checkoutRequiresCheckedInVisitor() throws Exception {
         Visitor visitor = visitor("visitor-id", VisitorStatus.PENDING);
         when(visitorRepository.findById("visitor-id")).thenReturn(Optional.of(visitor));

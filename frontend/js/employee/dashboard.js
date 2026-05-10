@@ -2,7 +2,7 @@ import { request } from "../shared/httpClient.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveVisitor, rejectVisitor } from "../shared/visitorApi.js";
+import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/visitorApi.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history"];
@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     canDelete: false,
   });
   initApprovalActions();
+  initPreApprovalForm();
   await loadEmployeePortal();
   approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
   window.addEventListener("beforeunload", () => window.clearInterval(approvalPollTimer));
@@ -30,21 +31,56 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadEmployeePortal() {
   try {
-    const [overview, preApprovals, notifications, scheduled] = await Promise.all([
+    const [overview, notifications, scheduled] = await Promise.all([
       request("/employee/overview"),
-      request("/employee/pre-approvals"),
       request("/employee/notifications"),
       request("/employee/scheduled-visitors"),
     ]);
 
     renderMetrics(overview.data.metrics);
     await loadApprovals(false);
-    renderWorkList("#pre-approvals-list", preApprovals.data, (approval) => workCard(approval.visitor, approval.date, approval.status));
     renderWorkList("#notifications-list", notifications.data, (notification) => workCard(notification.title, notification.message));
-    renderWorkList("#scheduled-list", scheduled.data, (visitor) => workCard(visitor.visitor, visitor.time, visitor.status));
+    renderScheduledVisitors(scheduled.data || []);
   } catch (error) {
     showToast("Employee access blocked", error.message);
   }
+}
+
+function initPreApprovalForm() {
+  const form = document.querySelector("#preapproval-form");
+  if (!form) {
+    return;
+  }
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const timezoneLabel = document.querySelector("#preapproval-timezone");
+  if (timezoneLabel) {
+    timezoneLabel.textContent = `Times use ${timezone}`;
+  }
+  setScheduleMinimums(form);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = preApprovalPayload(form, timezone);
+    const error = validatePreApproval(payload);
+    if (error) {
+      showToast("Check schedule", error);
+      return;
+    }
+
+    setFormLoading(form, true);
+    try {
+      await preApproveVisitor(payload);
+      form.reset();
+      setScheduleMinimums(form);
+      showToast("Visitor pre-approved", "Security can verify the visitor during the scheduled window.");
+      await loadEmployeePortal();
+    } catch (error) {
+      showToast("Pre-approval failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
 }
 
 async function loadApprovals(showToastOnSuccess) {
@@ -101,6 +137,42 @@ function initApprovalActions() {
   });
 }
 
+function renderScheduledVisitors(items) {
+  const list = document.querySelector("#scheduled-list");
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = items.length ? items.map(scheduledCard).join("") : `
+    <article class="approval-empty">
+      <h3>No upcoming visitors</h3>
+      <p>Pre-approved visitors will appear here after scheduling.</p>
+    </article>
+  `;
+}
+
+function scheduledCard(visitor) {
+  const windowText = `${formatDate(visitor.scheduledStartTime)} - ${formatTime(visitor.scheduledEndTime)}`;
+  const company = visitor.companyName || "Unlisted company";
+  const status = formatStatus(visitor.status);
+  return `
+    <article class="scheduled-card">
+      <div>
+        <h3>${escapeHtml(visitor.fullName)}</h3>
+        <p>${escapeHtml(company)} · ${escapeHtml(visitor.purposeOfVisit)}</p>
+      </div>
+      <dl>
+        <div><dt>Window</dt><dd>${escapeHtml(windowText)}</dd></div>
+        <div><dt>Pass</dt><dd>${escapeHtml(visitor.qrCode || "Pending")}</dd></div>
+      </dl>
+      <div class="scheduled-card__footer">
+        <span>${escapeHtml(visitor.scheduledTimezone || "UTC")}</span>
+        <span class="status-badge status-badge--${String(visitor.status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(status)}</span>
+      </div>
+    </article>
+  `;
+}
+
 function approvalCard(visitor) {
   return `
     <article class="approval-card">
@@ -151,6 +223,65 @@ function setApprovalLoading(card, loading) {
   });
 }
 
+function preApprovalPayload(form, timezone) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  return {
+    fullName: trim(data.fullName),
+    phone: trim(data.phone),
+    email: trim(data.email),
+    companyName: trim(data.companyName),
+    purposeOfVisit: trim(data.purposeOfVisit),
+    scheduledStartTime: toIsoInstant(data.scheduledStartTime),
+    scheduledEndTime: toIsoInstant(data.scheduledEndTime),
+    timezone,
+    note: trim(data.note),
+  };
+}
+
+function validatePreApproval(payload) {
+  if (!payload.fullName || payload.fullName.length < 2) {
+    return "Enter the visitor full name.";
+  }
+  if (!payload.phone || payload.phone.length < 7) {
+    return "Enter a valid phone number.";
+  }
+  if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    return "Enter a valid email address.";
+  }
+  if (!payload.purposeOfVisit || payload.purposeOfVisit.length < 2) {
+    return "Enter the purpose of visit.";
+  }
+  const start = new Date(payload.scheduledStartTime);
+  const end = new Date(payload.scheduledEndTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "Choose a valid start and end time.";
+  }
+  if (start <= new Date()) {
+    return "Choose a future start time.";
+  }
+  if (end <= start) {
+    return "Choose an end time after the start.";
+  }
+  if (end - start < 15 * 60 * 1000) {
+    return "The visit window must be at least 15 minutes.";
+  }
+  return "";
+}
+
+function setScheduleMinimums(form) {
+  const start = form.querySelector("[name='scheduledStartTime']");
+  const end = form.querySelector("[name='scheduledEndTime']");
+  const min = toDatetimeLocal(new Date(Date.now() + 5 * 60 * 1000));
+  start?.setAttribute("min", min);
+  end?.setAttribute("min", min);
+}
+
+function setFormLoading(form, loading) {
+  const button = form.querySelector("button[type='submit']");
+  button?.toggleAttribute("disabled", loading);
+  button?.classList.toggle("is-loading", loading);
+}
+
 function formatStatus(status) {
   return String(status || "").replaceAll("_", " ");
 }
@@ -163,4 +294,30 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatTime(value) {
+  if (!value) {
+    return "Not recorded";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function toIsoInstant(value) {
+  if (!value) {
+    return null;
+  }
+  return new Date(value).toISOString();
+}
+
+function toDatetimeLocal(date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function trim(value) {
+  const next = String(value || "").trim();
+  return next || null;
 }

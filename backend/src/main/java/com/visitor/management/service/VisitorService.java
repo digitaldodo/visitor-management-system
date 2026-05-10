@@ -2,6 +2,7 @@ package com.visitor.management.service;
 
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
+import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
@@ -9,12 +10,14 @@ import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorAuditLog;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.entity.VisitorStatusHistoryEntry;
 import com.visitor.management.exception.BadRequestException;
+import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.UserRepository;
@@ -32,8 +35,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +52,8 @@ public class VisitorService {
 
     private static final String QR_PAYLOAD_PREFIX = "AFVP:";
     private static final long PASS_VALID_HOURS = 12;
+    private static final long MIN_VISIT_WINDOW_MINUTES = 15;
+    private static final long MAX_VISIT_WINDOW_HOURS = 24;
 
     private static final Set<String> SORT_FIELDS = Set.of(
             "createdAt",
@@ -56,6 +63,8 @@ public class VisitorService {
             "hostEmployee",
             "checkInTime",
             "checkOutTime",
+            "scheduledStartTime",
+            "scheduledEndTime",
             "status"
     );
 
@@ -66,6 +75,8 @@ public class VisitorService {
     private final PaginationService paginationService;
     private final JwtService jwtService;
     private final QrCodeService qrCodeService;
+    private final AppProperties appProperties;
+    private final VisitorNotificationService visitorNotificationService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -74,7 +85,9 @@ public class VisitorService {
             MongoTemplate mongoTemplate,
             PaginationService paginationService,
             JwtService jwtService,
-            QrCodeService qrCodeService
+            QrCodeService qrCodeService,
+            AppProperties appProperties,
+            VisitorNotificationService visitorNotificationService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -83,6 +96,8 @@ public class VisitorService {
         this.paginationService = paginationService;
         this.jwtService = jwtService;
         this.qrCodeService = qrCodeService;
+        this.appProperties = appProperties;
+        this.visitorNotificationService = visitorNotificationService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -102,11 +117,50 @@ public class VisitorService {
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
         visitor.setStatus(VisitorStatus.PENDING);
+        visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
+        enforceActiveVisitorRules(visitor);
         addHistory(visitor, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), null, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
+        return toResponse(saved);
+    }
+
+    public VisitorResponse preApprove(PreApprovalRequest request, String hostEmployeeId) {
+        Instant now = Instant.now();
+        Instant start = request.scheduledStartTime();
+        Instant end = request.scheduledEndTime();
+        String timezone = resolveTimezone(request.timezone());
+        validateScheduleWindow(start, end, now);
+
+        Visitor visitor = new Visitor();
+        visitor.setFullName(requiredTrim(request.fullName(), "Full name is required."));
+        visitor.setPhone(requiredTrim(request.phone(), "Phone is required."));
+        visitor.setEmail(trimToNull(request.email()));
+        visitor.setCompanyName(trimToNull(request.companyName()));
+        visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
+        visitor.setHostEmployeeId(requiredTrim(hostEmployeeId, "Host employee is required."));
+        visitor.setHostEmployee(resolveHostEmployeeName(null, hostEmployeeId));
+        visitor.setScheduledStartTime(start);
+        visitor.setScheduledEndTime(end);
+        visitor.setScheduledTimezone(timezone);
+        visitor.setPreApproved(true);
+        visitor.setStatus(VisitorStatus.APPROVED);
+        visitor.setApprovedAt(now);
+        visitor.setApprovedBy(hostEmployeeId);
+        visitor.setQrCode(generatePassCode());
+        visitor.setQrIssuedAt(now);
+        visitor.setQrExpiresAt(end);
+        visitor.setCreatedAt(now);
+        visitor.setUpdatedAt(now);
+        enforceActiveVisitorRules(visitor);
+
+        String note = trimToNull(request.note());
+        addHistory(visitor, VisitorStatus.APPROVED, "PRE_APPROVED", hostEmployeeId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), null, VisitorStatus.APPROVED, "PRE_APPROVED", hostEmployeeId, note, now);
+        visitorNotificationService.visitorPreApproved(saved);
         return toResponse(saved);
     }
 
@@ -142,6 +196,22 @@ public class VisitorService {
         return search(request, hostEmployeeId);
     }
 
+    public List<VisitorResponse> upcomingPreApprovals(String hostEmployeeId) {
+        Instant now = Instant.now();
+        Query query = new Query()
+                .addCriteria(Criteria.where("hostEmployeeId").is(hostEmployeeId))
+                .addCriteria(Criteria.where("preApproved").is(true))
+                .addCriteria(Criteria.where("status").in(VisitorStatus.APPROVED, VisitorStatus.CHECKED_IN))
+                .addCriteria(Criteria.where("scheduledEndTime").gte(now))
+                .with(Sort.by(Sort.Direction.ASC, "scheduledStartTime"))
+                .limit(25);
+
+        return mongoTemplate.find(query, Visitor.class)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public VisitorResponse approve(String id, ApprovalDecisionRequest request, String actorId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, actorId);
@@ -159,7 +229,7 @@ public class VisitorService {
         visitor.setRejectionReason(null);
         visitor.setQrCode(generatePassCode());
         visitor.setQrIssuedAt(now);
-        visitor.setQrExpiresAt(now.plusSeconds(PASS_VALID_HOURS * 60 * 60));
+        visitor.setQrExpiresAt(resolveQrExpiry(visitor, now));
         visitor.setUpdatedAt(now);
         String note = trimToNull(request == null ? null : request.note());
         addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
@@ -252,8 +322,14 @@ public class VisitorService {
         if (visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
             return invalidVerification("QR pass has expired.");
         }
+        if (visitor.getScheduledStartTime() != null && Instant.now().isBefore(visitor.getScheduledStartTime())) {
+            return invalidVerification("QR pass is not active until the scheduled start time.");
+        }
 
-        if (visitor.getStatus() == VisitorStatus.REJECTED || visitor.getStatus() == VisitorStatus.CHECKED_OUT || visitor.getStatus() == VisitorStatus.PENDING) {
+        if (visitor.getStatus() == VisitorStatus.REJECTED
+                || visitor.getStatus() == VisitorStatus.CHECKED_OUT
+                || visitor.getStatus() == VisitorStatus.PENDING
+                || visitor.getStatus() == VisitorStatus.EXPIRED) {
             return new QrVerificationResponse(
                     false,
                     "Visitor pass is not valid for entry in the current status.",
@@ -282,6 +358,7 @@ public class VisitorService {
 
     public VisitorResponse checkIn(String id) {
         Visitor visitor = find(id);
+        Instant now = Instant.now();
         if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
             throw new BadRequestException("Visitor is already checked in.");
         }
@@ -291,8 +368,8 @@ public class VisitorService {
         if (visitor.getStatus() != VisitorStatus.APPROVED) {
             throw new BadRequestException("Only approved visitors can be checked in.");
         }
+        requireVisitorWithinAllowedWindow(visitor, now);
 
-        Instant now = Instant.now();
         VisitorStatus from = visitor.getStatus();
         visitor.setCheckInTime(now);
         visitor.setCheckOutTime(null);
@@ -329,7 +406,7 @@ public class VisitorService {
                 Map.of("label", "Pending", "value", visitorRepository.countByStatus(VisitorStatus.PENDING), "note", "Awaiting approval"),
                 Map.of("label", "Approved", "value", visitorRepository.countByStatus(VisitorStatus.APPROVED), "note", "Passes generated"),
                 Map.of("label", "On site", "value", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN), "note", "Currently checked in"),
-                Map.of("label", "Checked out", "value", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT), "note", "Completed visits")
+                Map.of("label", "Expired", "value", visitorRepository.countByStatus(VisitorStatus.EXPIRED), "note", "Window elapsed")
         );
     }
 
@@ -339,8 +416,22 @@ public class VisitorService {
                 "approved", visitorRepository.countByStatus(VisitorStatus.APPROVED),
                 "rejected", visitorRepository.countByStatus(VisitorStatus.REJECTED),
                 "checkedIn", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN),
-                "checkedOut", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT)
+                "checkedOut", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT),
+                "expired", visitorRepository.countByStatus(VisitorStatus.EXPIRED)
         );
+    }
+
+    public int expireDueVisitors() {
+        Instant now = Instant.now();
+        Query query = new Query(new Criteria().orOperator(
+                Criteria.where("status").is(VisitorStatus.PENDING).and("approvalExpiresAt").lte(now),
+                Criteria.where("status").is(VisitorStatus.APPROVED).and("scheduledEndTime").lte(now),
+                Criteria.where("status").is(VisitorStatus.APPROVED).and("qrExpiresAt").lte(now)
+        ));
+
+        List<Visitor> dueVisitors = mongoTemplate.find(query, Visitor.class);
+        dueVisitors.forEach(visitor -> expireVisitor(visitor, now));
+        return dueVisitors.size();
     }
 
     private Query queryFor(SearchRequest request, String forcedHostEmployeeId) {
@@ -466,6 +557,11 @@ public class VisitorService {
                 visitor.getHostEmployeeId(),
                 visitor.getCheckInTime(),
                 visitor.getCheckOutTime(),
+                visitor.getScheduledStartTime(),
+                visitor.getScheduledEndTime(),
+                visitor.getScheduledTimezone(),
+                visitor.getApprovalExpiresAt(),
+                visitor.isPreApproved(),
                 visitor.getStatus(),
                 visitor.getQrCode(),
                 visitor.getQrIssuedAt(),
@@ -563,6 +659,7 @@ public class VisitorService {
         if (visitor.getQrCode() == null || visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
             throw new BadRequestException("Visitor pass is missing or expired.");
         }
+        requireVisitorWithinAllowedWindow(visitor, Instant.now());
     }
 
     private String normalizeQrPayload(String scannedPayload) {
@@ -575,5 +672,99 @@ public class VisitorService {
 
     private QrVerificationResponse invalidVerification(String message) {
         return new QrVerificationResponse(false, message, null, null, null, null, null, null, null);
+    }
+
+    private void validateScheduleWindow(Instant start, Instant end, Instant now) {
+        if (!start.isAfter(now)) {
+            throw new BadRequestException("Scheduled start time must be in the future.");
+        }
+        if (!end.isAfter(start)) {
+            throw new BadRequestException("Scheduled end time must be after the start time.");
+        }
+        long windowSeconds = end.getEpochSecond() - start.getEpochSecond();
+        if (windowSeconds < MIN_VISIT_WINDOW_MINUTES * 60) {
+            throw new BadRequestException("Scheduled visits must be at least 15 minutes long.");
+        }
+        if (windowSeconds > MAX_VISIT_WINDOW_HOURS * 60 * 60) {
+            throw new BadRequestException("Scheduled visits cannot exceed 24 hours.");
+        }
+    }
+
+    private String resolveTimezone(String timezone) {
+        String value = trimToNull(timezone);
+        if (value == null) {
+            return ZoneOffset.UTC.getId();
+        }
+        try {
+            return ZoneId.of(value).getId();
+        } catch (DateTimeException ex) {
+            throw new BadRequestException("Timezone is invalid.");
+        }
+    }
+
+    private Instant resolveQrExpiry(Visitor visitor, Instant now) {
+        if (visitor.getScheduledEndTime() != null) {
+            return visitor.getScheduledEndTime();
+        }
+        return now.plusSeconds(PASS_VALID_HOURS * 60 * 60);
+    }
+
+    private void requireVisitorWithinAllowedWindow(Visitor visitor, Instant now) {
+        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
+            throw new BadRequestException("Visitor pass is not active until the scheduled start time.");
+        }
+        if (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime())) {
+            throw new BadRequestException("Visitor pass has expired for the scheduled visit window.");
+        }
+    }
+
+    private void enforceActiveVisitorRules(Visitor candidate) {
+        if (candidate.getHostEmployeeId() == null) {
+            return;
+        }
+
+        List<VisitorStatus> activeStatuses = List.of(VisitorStatus.PENDING, VisitorStatus.APPROVED, VisitorStatus.CHECKED_IN);
+        Query activeForHost = new Query()
+                .addCriteria(Criteria.where("hostEmployeeId").is(candidate.getHostEmployeeId()))
+                .addCriteria(Criteria.where("status").in(activeStatuses));
+        long activeCount = mongoTemplate.count(activeForHost, Visitor.class);
+        if (activeCount >= appProperties.getVisitors().getMaxActivePerEmployee()) {
+            throw new ConflictException("Host employee has reached the active visitor limit.");
+        }
+
+        List<Criteria> identities = new ArrayList<>();
+        if (candidate.getPhone() != null) {
+            identities.add(Criteria.where("phone").is(candidate.getPhone()));
+        }
+        if (candidate.getEmail() != null) {
+            identities.add(Criteria.where("email").is(candidate.getEmail()));
+        }
+        if (identities.isEmpty()) {
+            return;
+        }
+
+        Query duplicate = new Query()
+                .addCriteria(Criteria.where("hostEmployeeId").is(candidate.getHostEmployeeId()))
+                .addCriteria(Criteria.where("status").in(activeStatuses))
+                .addCriteria(new Criteria().orOperator(identities.toArray(Criteria[]::new)));
+        if (mongoTemplate.exists(duplicate, Visitor.class)) {
+            throw new ConflictException("This visitor already has an active visit with the host employee.");
+        }
+    }
+
+    private void expireVisitor(Visitor visitor, Instant now) {
+        VisitorStatus from = visitor.getStatus();
+        visitor.setStatus(VisitorStatus.EXPIRED);
+        visitor.setQrCode(null);
+        visitor.setQrIssuedAt(null);
+        visitor.setQrExpiresAt(null);
+        visitor.setUpdatedAt(now);
+        String note = from == VisitorStatus.PENDING
+                ? "Pending approval expired automatically."
+                : "Scheduled visitor pass expired automatically.";
+        addHistory(visitor, VisitorStatus.EXPIRED, "AUTO_EXPIRED", null, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.EXPIRED, "AUTO_EXPIRED", null, note, now);
+        visitorNotificationService.visitorExpired(saved, note);
     }
 }

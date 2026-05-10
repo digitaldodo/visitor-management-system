@@ -7,6 +7,7 @@ const STATUS_LABELS = {
   REJECTED: "Rejected",
   CHECKED_IN: "Checked in",
   CHECKED_OUT: "Checked out",
+  EXPIRED: "Expired",
 };
 
 export function initVisitorModule(selector, options) {
@@ -257,6 +258,7 @@ function template(options) {
         <option value="REJECTED">Rejected</option>
         <option value="CHECKED_IN">Checked in</option>
         <option value="CHECKED_OUT">Checked out</option>
+        <option value="EXPIRED">Expired</option>
       </select>
       <select data-visitor-size aria-label="Rows per page">
         <option value="10">10 rows</option>
@@ -401,6 +403,9 @@ function openDetail(root, visitor) {
         ${detail("Company", visitor.companyName || "Unlisted")}
         ${detail("Purpose", visitor.purposeOfVisit)}
         ${detail("Host Employee", visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}
+        ${detail("Scheduled Start", formatDate(visitor.scheduledStartTime))}
+        ${detail("Scheduled End", formatDate(visitor.scheduledEndTime))}
+        ${detail("Timezone", visitor.scheduledTimezone || "Not scheduled")}
         ${detail("Check-in Time", formatDate(visitor.checkInTime))}
         ${detail("Check-out Time", formatDate(visitor.checkOutTime))}
         ${photoDetail(visitor.photoUrl)}

@@ -29,6 +29,9 @@ public class AppProperties {
     @Valid
     private Seed seed = new Seed();
 
+    @Valid
+    private Visitors visitors = new Visitors();
+
     public Cors getCors() {
         return cors;
     }
@@ -67,6 +70,14 @@ public class AppProperties {
 
     public void setSeed(Seed seed) {
         this.seed = seed;
+    }
+
+    public Visitors getVisitors() {
+        return visitors;
+    }
+
+    public void setVisitors(Visitors visitors) {
+        this.visitors = visitors;
     }
 
     public static class Cors {
@@ -233,6 +244,41 @@ public class AppProperties {
 
         public void setTestAccounts(boolean testAccounts) {
             this.testAccounts = testAccounts;
+        }
+    }
+
+    public static class Visitors {
+        @Min(1)
+        private int maxActivePerEmployee = 10;
+
+        @Min(5)
+        private long pendingApprovalTtlMinutes = 240;
+
+        @Min(10000)
+        private long expirySweepDelayMs = 60000;
+
+        public int getMaxActivePerEmployee() {
+            return maxActivePerEmployee;
+        }
+
+        public void setMaxActivePerEmployee(int maxActivePerEmployee) {
+            this.maxActivePerEmployee = maxActivePerEmployee;
+        }
+
+        public long getPendingApprovalTtlMinutes() {
+            return pendingApprovalTtlMinutes;
+        }
+
+        public void setPendingApprovalTtlMinutes(long pendingApprovalTtlMinutes) {
+            this.pendingApprovalTtlMinutes = pendingApprovalTtlMinutes;
+        }
+
+        public long getExpirySweepDelayMs() {
+            return expirySweepDelayMs;
+        }
+
+        public void setExpirySweepDelayMs(long expirySweepDelayMs) {
+            this.expirySweepDelayMs = expirySweepDelayMs;
         }
     }
 }

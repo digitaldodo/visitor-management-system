@@ -581,6 +581,12 @@
   color: #425064;
 }
 
+.status-badge--expired {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+
 .status-badge--cancelled {
   background: #fbeded;
   border-color: #e4b8b8;

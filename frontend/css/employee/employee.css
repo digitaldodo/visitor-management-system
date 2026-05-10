@@ -126,6 +126,74 @@
   margin: 0;
 }
 
+.preapproval-form {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 1rem;
+}
+
+.preapproval-form__footer {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.preapproval-form__footer > span {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.scheduled-card {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.scheduled-card h3,
+.scheduled-card p,
+.scheduled-card dl {
+  margin: 0;
+}
+
+.scheduled-card p,
+.scheduled-card dt,
+.scheduled-card__footer span:first-child {
+  color: var(--color-muted);
+}
+
+.scheduled-card dl {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scheduled-card dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.scheduled-card dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.scheduled-card__footer {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
 @media (max-width: 760px) {
   .approval-card {
     grid-template-columns: 1fr;
@@ -139,5 +207,16 @@
 
   .approval-meta {
     grid-template-columns: 1fr;
+  }
+
+  .preapproval-form,
+  .scheduled-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .preapproval-form__footer,
+  .scheduled-card__footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -17,6 +17,13 @@ export function createVisitor(basePath, payload) {
   });
 }
 
+export function preApproveVisitor(payload) {
+  return request("/employee/pre-approvals", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function uploadVisitorPhoto(basePath, file) {
   const formData = new FormData();
   formData.append("file", file);
