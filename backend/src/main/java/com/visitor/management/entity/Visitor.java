@@ -36,6 +36,7 @@ public class Visitor {
     @Indexed
     private String hostEmployee;
 
+    @Indexed
     private Instant checkInTime;
 
     private Instant checkOutTime;
@@ -83,6 +84,7 @@ public class Visitor {
     private Instant badgePrintedAt;
 
     @CreatedDate
+    @Indexed
     private Instant createdAt;
 
     @LastModifiedDate

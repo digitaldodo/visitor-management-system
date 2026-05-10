@@ -21,3 +21,254 @@
 .admin-shell .metric-card {
   background: linear-gradient(180deg, #ffffff 0%, #fffcf5 100%);
 }
+
+.analytics-board {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-metric-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.admin-metric-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fffaf1 100%);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-xs);
+  display: grid;
+  gap: 0.28rem;
+  min-height: 9rem;
+  min-width: 0;
+  padding: 1rem;
+  position: relative;
+}
+
+.admin-metric-card__icon {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: var(--role-accent);
+  display: inline-flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+
+.admin-metric-card__icon svg {
+  fill: currentColor;
+  height: 1.1rem;
+  width: 1.1rem;
+}
+
+.admin-metric-card strong {
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
+.admin-metric-card small {
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
+.analytics-chart-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chart-panel {
+  min-height: 22rem;
+}
+
+.chart-stage {
+  min-height: 16.5rem;
+  overflow: hidden;
+}
+
+.chart-svg {
+  display: block;
+  height: auto;
+  max-height: 17rem;
+  overflow: visible;
+  width: 100%;
+}
+
+.chart-svg text {
+  fill: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.bar-chart rect {
+  fill: #2563eb;
+}
+
+.bar-chart rect:nth-of-type(2n) {
+  fill: var(--role-accent);
+}
+
+.line-chart polyline {
+  fill: none;
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
+.line-chart circle {
+  fill: #ffffff;
+  stroke: var(--role-accent);
+  stroke-width: 4;
+}
+
+.hour-chart,
+.approval-rate-chart {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.hour-chart__row {
+  align-items: center;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 3.8rem minmax(0, 1fr) 2.5rem;
+}
+
+.hour-chart__row span,
+.hour-chart__row strong,
+.approval-rate-chart span,
+.approval-rate-chart small {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.hour-chart__row div,
+.approval-rate-chart div {
+  background: #f1f5f9;
+  border-radius: 999px;
+  height: 0.72rem;
+  overflow: hidden;
+}
+
+.hour-chart__row i,
+.approval-rate-chart i {
+  background: linear-gradient(90deg, #2563eb, var(--role-accent));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.approval-rate-chart {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.approval-rate-chart article {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.85rem;
+}
+
+.approval-rate-chart strong {
+  font-size: 1.35rem;
+}
+
+.employee-analytics-table {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.employee-analytics-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.employee-analytics-table th,
+.employee-analytics-table td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.employee-analytics-table th {
+  background: #f8fafc;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.employee-analytics-table tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 1180px) {
+  .admin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-metric-grid,
+  .approval-rate-chart {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-panel {
+    min-height: 19rem;
+  }
+
+  .hour-chart__row {
+    grid-template-columns: 3.3rem minmax(0, 1fr) 2rem;
+  }
+
+  .employee-analytics-table {
+    border: 0;
+    overflow: visible;
+  }
+
+  .employee-analytics-table table,
+  .employee-analytics-table thead,
+  .employee-analytics-table tbody,
+  .employee-analytics-table tr,
+  .employee-analytics-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .employee-analytics-table thead {
+    display: none;
+  }
+
+  .employee-analytics-table tr {
+    background: #fcfcfd;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+
+  .employee-analytics-table td {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: minmax(6rem, 36%) minmax(0, 1fr);
+  }
+
+  .employee-analytics-table td::before {
+    color: var(--color-muted);
+    content: attr(data-label);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+}

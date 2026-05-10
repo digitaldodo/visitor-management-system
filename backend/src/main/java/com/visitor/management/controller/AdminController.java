@@ -7,6 +7,7 @@ import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
@@ -35,10 +36,12 @@ public class AdminController {
 
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final AnalyticsService analyticsService;
 
-    public AdminController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService) {
+    public AdminController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService, AnalyticsService analyticsService) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
+        this.analyticsService = analyticsService;
     }
 
     @GetMapping("/overview")
@@ -47,6 +50,11 @@ public class AdminController {
                 "area", "ADMIN",
                 "metrics", visitorService.metrics()
         ));
+    }
+
+    @GetMapping("/analytics")
+    public ApiResponse<Map<String, Object>> analytics() {
+        return ApiResponse.ok("Admin analytics loaded.", analyticsService.adminDashboard());
     }
 
     @GetMapping("/users")
