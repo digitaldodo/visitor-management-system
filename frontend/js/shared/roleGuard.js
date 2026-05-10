@@ -41,7 +41,7 @@ export function requireRole(requiredRole) {
     return session;
   }
 
-  const fallbackRole = tokenRoles.find((role) => ROLE_PORTALS_FROM_PORTAL[role]) || sessionRoles.find((role) => ROLE_PORTALS_FROM_PORTAL[role]);
+  const fallbackRole = resolvePortalRole(tokenRoles) || resolvePortalRole(sessionRoles);
   if (fallbackRole) {
     redirectToPortal(fallbackRole, true);
     return null;
@@ -54,4 +54,9 @@ export function requireRole(requiredRole) {
 
 function hasEffectiveRole(roles, requiredRole) {
   return roles.includes(requiredRole) || (requiredRole === "ADMIN" && roles.includes("SUPER_ADMIN"));
+}
+
+function resolvePortalRole(roles = []) {
+  const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+  return priority.find((role) => roles.includes(role) && ROLE_PORTALS_FROM_PORTAL[role]) || null;
 }

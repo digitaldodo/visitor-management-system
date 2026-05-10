@@ -89,7 +89,10 @@ class VisitorManagementApplicationTests {
         when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(user("employee-target-id", Role.EMPLOYEE)));
         when(userRepository.findById("admin-target-id")).thenReturn(Optional.of(user("admin-target-id", Role.ADMIN)));
         when(userRepository.findById("super-admin-target-id")).thenReturn(Optional.of(user("super-admin-target-id", Role.SUPER_ADMIN)));
+        when(userRepository.findByUsernameIgnoreCase("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
+        when(userRepository.findByUsernameIgnoreCase("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findByUsernameIgnoreCase("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
+        when(userRepository.findByUsernameIgnoreCase("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
         when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -145,12 +148,107 @@ class VisitorManagementApplicationTests {
                                 {
                                   "identifier": "employee-id",
                                   "companyCode": "ACME",
+                                  "portalAudience": "employee",
                                   "password": "SecurePass123!"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.data.roles[0]").value("EMPLOYEE"));
+    }
+
+    @Test
+    void superAdminCanLoginThroughAnyInternalPortal() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "super-admin-id",
+                                  "portalAudience": "admin",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "super-admin-id",
+                                  "portalAudience": "employee",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "super-admin-id",
+                                  "portalAudience": "security",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+    }
+
+    @Test
+    void nonSuperAdminRolesCannotLoginThroughOtherInternalPortals() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "admin-id",
+                                  "companyCode": "ACME",
+                                  "portalAudience": "employee",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "employee-id",
+                                  "companyCode": "ACME",
+                                  "portalAudience": "admin",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "security-id",
+                                  "companyCode": "ACME",
+                                  "portalAudience": "employee",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminCanLoginThroughAdminPortalOnly() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "admin-id",
+                                  "companyCode": "ACME",
+                                  "portalAudience": "admin",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"));
     }
 
     @Test

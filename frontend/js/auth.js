@@ -32,7 +32,7 @@ function setAuthTab(target) {
   $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target || (target === "visitor" && tab.dataset.authTab === "register")));
   $("#login-form")?.classList.toggle("is-hidden", target === "register");
   $("#register-form")?.classList.toggle("is-hidden", target !== "register");
-  updateLoginAudience(target === "security" ? "security" : target === "visitor" ? "visitor" : "employee");
+  updateLoginAudience(normalizeAudience(target));
 }
 
 function updateLoginAudience(audience) {
@@ -42,6 +42,11 @@ function updateLoginAudience(audience) {
     input.value = audience;
   }
   const copy = {
+    admin: {
+      eyebrow: "Admin access",
+      title: "Sign in to administration",
+      description: "Use your administrator credentials to manage people, reporting, and organization controls.",
+    },
     employee: {
       eyebrow: "Employee access",
       title: "Sign in to your workplace portal",
@@ -91,10 +96,15 @@ function initLoginForm() {
     }
 
     await withLoading(form, async () => {
-      const response = await login({ identifier: data.identifier, password: data.password, companyCode: data.companyCode || null });
+      const response = await login({
+        identifier: data.identifier,
+        password: data.password,
+        companyCode: data.companyCode || null,
+        portalAudience: data.audience,
+      });
       const session = response.data;
       const tokenRoles = getTokenRoles(session.accessToken);
-      const role = session.roles?.find((candidate) => tokenRoles.includes(candidate));
+      const role = resolveAuthenticatedRole(session.roles, tokenRoles);
 
       if (!role) {
         throw new Error("Token role claims are missing or do not match the account.");
@@ -206,14 +216,29 @@ function validatePassword(value) {
     && String(value || "").length >= 12;
 }
 
+function normalizeAudience(target) {
+  if (target === "admin" || target === "security" || target === "visitor") {
+    return target;
+  }
+  return "employee";
+}
+
+function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
+  const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+  return priority.find((role) => sessionRoles.includes(role) && tokenRoles.includes(role)) || null;
+}
+
 function roleAllowedForAudience(role, audience) {
-  if (audience === "security") {
-    return role === "SECURITY_GUARD";
+  if (role === "SUPER_ADMIN") {
+    return ["admin", "employee", "security"].includes(audience);
   }
-  if (audience === "visitor") {
-    return role === "VISITOR";
-  }
-  return ["EMPLOYEE", "ADMIN", "SUPER_ADMIN"].includes(role);
+  const allowedAudienceByRole = {
+    ADMIN: "admin",
+    EMPLOYEE: "employee",
+    SECURITY_GUARD: "security",
+    VISITOR: "visitor",
+  };
+  return allowedAudienceByRole[role] === audience;
 }
 
 function escapeHtml(value) {

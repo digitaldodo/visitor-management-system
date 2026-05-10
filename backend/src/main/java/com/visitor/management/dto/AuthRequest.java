@@ -8,6 +8,7 @@ public record AuthRequest(
         @Size(max = 160) String identifier,
         @Size(max = 160) String email,
         @Size(max = 24) String companyCode,
+        @Size(max = 32) String portalAudience,
         @NotBlank @Size(min = 8, max = 128) String password
 ) {
     public String loginIdentifier() {

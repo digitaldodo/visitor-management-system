@@ -118,6 +118,7 @@ public class AuthService {
                 .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
                 .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password."));
         validateOrganizationLogin(user, request.companyCode());
+        validatePortalAudience(user, request.portalAudience());
 
         return issueTokens(user);
     }
@@ -309,6 +310,32 @@ public class AuthService {
         if (requestedCode == null || user.getOrganizationCode() == null || !user.getOrganizationCode().equalsIgnoreCase(requestedCode)) {
             throw new UnauthorizedException("Company code is required for this organization account.");
         }
+    }
+
+    private void validatePortalAudience(User user, String portalAudience) {
+        String audience = normalizePortalAudience(portalAudience);
+        if (audience == null) {
+            return;
+        }
+
+        boolean allowed = switch (audience) {
+            case "admin" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.ADMIN);
+            case "employee" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.EMPLOYEE);
+            case "security" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.SECURITY_GUARD);
+            case "visitor" -> user.getRoles().contains(Role.VISITOR);
+            default -> false;
+        };
+
+        if (!allowed) {
+            throw new UnauthorizedException("Use the correct access option for this account.");
+        }
+    }
+
+    private String normalizePortalAudience(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     private String trimToNull(String value) {

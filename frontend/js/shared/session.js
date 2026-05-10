@@ -1,4 +1,5 @@
 const SESSION_KEY = "visitor_management_session";
+const ROLE_PRIORITY = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
 
 export function getSession() {
   try {
@@ -27,7 +28,8 @@ export function getRefreshToken() {
 }
 
 export function getPrimaryRole() {
-  return getSession()?.roles?.[0] || null;
+  const roles = getSession()?.roles || [];
+  return ROLE_PRIORITY.find((role) => roles.includes(role)) || roles[0] || null;
 }
 
 export function isAuthenticated() {
