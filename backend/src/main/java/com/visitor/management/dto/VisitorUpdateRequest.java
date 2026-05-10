@@ -13,6 +13,7 @@ public record VisitorUpdateRequest(
         @Size(max = 120) String hostEmployee,
         @Size(max = 80) String hostEmployeeId,
         @Size(max = 500) String photoUrl,
+        @Size(max = 255) String photoPublicId,
         VisitorStatus status
 ) {
 }

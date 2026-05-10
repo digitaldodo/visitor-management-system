@@ -124,7 +124,9 @@ class VisitorManagementApplicationTests {
                                   "email": "priya@example.com",
                                   "companyName": "Acme Corp",
                                   "purposeOfVisit": "Vendor meeting",
-                                  "hostEmployee": "Aarav Mehta"
+                                  "hostEmployee": "Aarav Mehta",
+                                  "photoUrl": "https://res.cloudinary.com/demo/image/upload/v1/visitor.jpg",
+                                  "photoPublicId": "visitor-management/visitor-photos/visitor-test"
                                 }
                                 """))
                 .andExpect(status().isOk())

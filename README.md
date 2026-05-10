@@ -180,6 +180,7 @@ Base URL: `/api/v1`
 | `GET` | `/admin/visitors` | `ADMIN` | Search, filter, and paginate all visitor records |
 | `GET` | `/admin/visitors/{id}` | `ADMIN` | Visitor detail |
 | `POST` | `/admin/visitors` | `ADMIN` | Register visitor |
+| `POST` | `/admin/visitors/photo` | `ADMIN` | Upload a validated visitor photo to Cloudinary |
 | `PUT` | `/admin/visitors/{id}` | `ADMIN` | Update visitor |
 | `PATCH` | `/admin/visitors/{id}/check-in` | `ADMIN` | Check visitor in |
 | `PATCH` | `/admin/visitors/{id}/check-out` | `ADMIN` | Check visitor out |
@@ -193,6 +194,7 @@ Base URL: `/api/v1`
 | `GET` | `/employee/visitors` | `EMPLOYEE` | Search, filter, and paginate host-scoped visitor records |
 | `GET` | `/employee/visitors/{id}` | `EMPLOYEE` | Host-scoped visitor detail |
 | `POST` | `/employee/visitors` | `EMPLOYEE` | Register visitor for current employee |
+| `POST` | `/employee/visitors/photo` | `EMPLOYEE` | Upload a validated visitor photo to Cloudinary |
 | `PUT` | `/employee/visitors/{id}` | `EMPLOYEE` | Update current employee's visitor |
 | `GET` | `/security/overview` | `SECURITY_GUARD` | Security dashboard metrics |
 | `GET` | `/security/checkins` | `SECURITY_GUARD` | Visitor check-in/check-out queue |
@@ -203,6 +205,7 @@ Base URL: `/api/v1`
 | `GET` | `/security/visitors` | `SECURITY_GUARD` | Search, filter, and paginate visitor records |
 | `GET` | `/security/visitors/{id}` | `SECURITY_GUARD` | Visitor detail |
 | `POST` | `/security/visitors` | `SECURITY_GUARD` | Register visitor |
+| `POST` | `/security/visitors/photo` | `SECURITY_GUARD` | Upload a validated visitor photo to Cloudinary |
 | `PUT` | `/security/visitors/{id}` | `SECURITY_GUARD` | Update visitor |
 | `PATCH` | `/security/visitors/{id}/check-in` | `SECURITY_GUARD` | Check visitor in |
 | `PATCH` | `/security/visitors/{id}/check-out` | `SECURITY_GUARD` | Check visitor out |
@@ -256,7 +259,7 @@ After creating the services, set:
 ## Next Implementation Milestones
 
 1. Add email delivery for password reset links.
-2. Add Cloudinary upload service for visitor photos.
+2. Add audit logs for visitor photo capture and profile updates.
 3. Add audit logs and report export generation.
 4. Add webcam, QR, and badge-printer device integrations.
 5. Add advanced approvals around pre-registered visitors.

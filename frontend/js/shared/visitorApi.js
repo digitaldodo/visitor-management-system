@@ -17,6 +17,15 @@ export function createVisitor(basePath, payload) {
   });
 }
 
+export function uploadVisitorPhoto(basePath, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`${basePath}/visitors/photo`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export function checkInVisitor(basePath, id) {
   return request(`${basePath}/visitors/${id}/check-in`, {
     method: "PATCH",

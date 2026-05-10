@@ -9,6 +9,10 @@ spring:
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/visitor_management}
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      max-request-size: 3MB
 
 app:
   cors:

@@ -5,10 +5,13 @@ import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
+import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestPart;
 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +34,11 @@ import java.util.Map;
 public class AdminController {
 
     private final VisitorService visitorService;
+    private final CloudinaryUploadService cloudinaryUploadService;
 
-    public AdminController(VisitorService visitorService) {
+    public AdminController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService) {
         this.visitorService = visitorService;
+        this.cloudinaryUploadService = cloudinaryUploadService;
     }
 
     @GetMapping("/overview")
@@ -84,6 +91,11 @@ public class AdminController {
     @PostMapping("/visitors")
     public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request) {
         return ApiResponse.ok("Visitor registered.", visitorService.create(request));
+    }
+
+    @PostMapping(value = "/visitors/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VisitorPhotoUploadResponse> uploadVisitorPhoto(@RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok("Visitor photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));
     }
 
     @PutMapping("/visitors/{id}")

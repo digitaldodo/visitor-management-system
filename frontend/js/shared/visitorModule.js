@@ -1,4 +1,4 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors } from "./visitorApi.js";
+import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./visitorApi.js";
 import { showToast } from "./toast.js";
 
 const STATUS_LABELS = {
@@ -21,6 +21,10 @@ export function initVisitorModule(selector, options) {
     status: "",
     totalPages: 0,
     items: [],
+    photoBlob: null,
+    photoPreviewUrl: "",
+    photoAccepted: false,
+    stream: null,
   };
 
   root.classList.add("visitor-system");
@@ -30,11 +34,12 @@ export function initVisitorModule(selector, options) {
   const searchInput = root.querySelector("[data-visitor-search]");
   const statusFilter = root.querySelector("[data-visitor-status]");
   const pageSize = root.querySelector("[data-visitor-size]");
+  initCamera(root, state);
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = formPayload(form, options);
-    const error = validate(payload, options);
+    const error = validate(payload, options, state);
     if (error) {
       showToast("Check visitor details", error);
       return;
@@ -42,8 +47,12 @@ export function initVisitorModule(selector, options) {
 
     setFormLoading(form, true);
     try {
+      const photo = await uploadVisitorPhoto(options.basePath, state.photoBlob);
+      payload.photoUrl = photo.data.url;
+      payload.photoPublicId = photo.data.publicId;
       await createVisitor(options.basePath, payload);
       form.reset();
+      resetPhotoState(root, state);
       showToast("Visitor registered", "The visitor record is ready for check-in.");
       state.page = 0;
       await load();
@@ -81,6 +90,22 @@ export function initVisitorModule(selector, options) {
     const type = action.dataset.visitorAction;
     if (type === "detail") {
       openDetail(root, state.items.find((item) => item.id === id));
+      return;
+    }
+    if (type === "capture-photo") {
+      await capturePhoto(root, state);
+      return;
+    }
+    if (type === "accept-photo") {
+      acceptPhoto(root, state);
+      return;
+    }
+    if (type === "retake-photo") {
+      retakePhoto(root, state);
+      return;
+    }
+    if (type === "close-photo-preview") {
+      closePhotoPreview(root);
       return;
     }
     if (type === "close-modal") {
@@ -187,10 +212,23 @@ function template(options) {
         <input name="purposeOfVisit" type="text" placeholder="Vendor meeting" required />
       </label>
       ${hostFields}
-      <label class="form-field form-field--wide">
-        <span>Photo URL</span>
-        <input name="photoUrl" type="url" placeholder="https://res.cloudinary.com/.../visitor.jpg" />
-      </label>
+      <section class="visitor-camera form-field--wide" aria-label="Visitor photo capture">
+        <div class="visitor-camera__stage">
+          <video data-camera-video autoplay playsinline muted></video>
+          <img data-camera-still alt="Captured visitor preview" class="is-hidden" />
+          <div class="visitor-camera__empty" data-camera-empty>Camera unavailable</div>
+        </div>
+        <div class="visitor-camera__controls">
+          <div>
+            <strong>Visitor photo</strong>
+            <span data-camera-status>Starting camera...</span>
+          </div>
+          <button class="button button--ghost" type="button" data-visitor-action="capture-photo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6h2l1.2-2h3.6L15 6h2a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Zm5 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/></svg>
+            Capture
+          </button>
+        </div>
+      </section>
       <button class="button button--primary visitor-form__submit" type="submit">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
         Register Visitor
@@ -239,6 +277,7 @@ function template(options) {
     </div>
     <div class="visitor-pagination" data-visitor-pagination></div>
     <div class="visitor-modal is-hidden" data-visitor-modal></div>
+    <div class="visitor-modal is-hidden" data-photo-modal></div>
   `;
 }
 
@@ -353,7 +392,7 @@ function openDetail(root, visitor) {
         ${detail("Host Employee", visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}
         ${detail("Check-in Time", formatDate(visitor.checkInTime))}
         ${detail("Check-out Time", formatDate(visitor.checkOutTime))}
-        ${detail("Photo URL", visitor.photoUrl || "Not captured")}
+        ${photoDetail(visitor.photoUrl)}
         ${detail("QR Code", visitor.qrCode)}
       </dl>
     </div>
@@ -368,6 +407,18 @@ function detail(label, value) {
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
 }
 
+function photoDetail(photoUrl) {
+  if (!photoUrl) {
+    return detail("Photo", "Not captured");
+  }
+  return `
+    <div class="visitor-detail__photo">
+      <dt>Photo</dt>
+      <dd><img src="${escapeHtml(photoUrl)}" alt="Visitor photo" loading="lazy" /></dd>
+    </div>
+  `;
+}
+
 function formPayload(form, options) {
   const data = Object.fromEntries(new FormData(form).entries());
   const payload = {
@@ -376,7 +427,6 @@ function formPayload(form, options) {
     email: trim(data.email),
     companyName: trim(data.companyName),
     purposeOfVisit: trim(data.purposeOfVisit),
-    photoUrl: trim(data.photoUrl),
   };
   if (options.showHostFields !== false) {
     payload.hostEmployee = trim(data.hostEmployee);
@@ -385,7 +435,7 @@ function formPayload(form, options) {
   return payload;
 }
 
-function validate(payload, options) {
+function validate(payload, options, state) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the visitor full name.";
   }
@@ -401,7 +451,151 @@ function validate(payload, options) {
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
     return "Enter the host employee.";
   }
+  if (!state.photoBlob || !state.photoAccepted) {
+    return "Capture the visitor photo.";
+  }
   return "";
+}
+
+async function initCamera(root, state) {
+  const video = root.querySelector("[data-camera-video]");
+  const status = root.querySelector("[data-camera-status]");
+  const empty = root.querySelector("[data-camera-empty]");
+
+  if (!video || !navigator.mediaDevices?.getUserMedia) {
+    setCameraStatus(status, empty, "Camera is not supported on this browser.", true);
+    return;
+  }
+
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width: { ideal: 960 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    });
+    video.srcObject = state.stream;
+    setCameraStatus(status, empty, "Camera ready. Capture is required.", false);
+  } catch (error) {
+    setCameraStatus(status, empty, "Allow camera access to register visitors.", true);
+  }
+}
+
+async function capturePhoto(root, state) {
+  const video = root.querySelector("[data-camera-video]");
+  const status = root.querySelector("[data-camera-status]");
+  if (!video || !video.videoWidth) {
+    showToast("Camera not ready", "Allow camera access and try again.");
+    return;
+  }
+
+  const blob = await compressedFrame(video);
+  if (!blob) {
+    showToast("Capture failed", "The photo could not be captured.");
+    return;
+  }
+
+  if (state.photoPreviewUrl) {
+    URL.revokeObjectURL(state.photoPreviewUrl);
+  }
+  state.photoBlob = blob;
+  state.photoAccepted = false;
+  state.photoPreviewUrl = URL.createObjectURL(blob);
+  status.textContent = `Captured photo ready (${Math.round(blob.size / 1024)} KB).`;
+  openPhotoPreview(root, state.photoPreviewUrl);
+}
+
+function openPhotoPreview(root, imageUrl) {
+  const modal = root.querySelector("[data-photo-modal]");
+  if (!modal) {
+    return;
+  }
+  modal.classList.remove("is-hidden");
+  modal.innerHTML = `
+    <div class="visitor-modal__dialog visitor-photo-preview" role="dialog" aria-modal="true" aria-label="Visitor photo preview">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Photo Preview</p>
+          <h2>Confirm visitor photo</h2>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close photo preview" data-visitor-action="close-photo-preview">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
+        </button>
+      </div>
+      <img src="${escapeHtml(imageUrl)}" alt="Captured visitor preview" />
+      <div class="visitor-photo-preview__actions">
+        <button class="button button--ghost" type="button" data-visitor-action="retake-photo">Retake</button>
+        <button class="button button--primary" type="button" data-visitor-action="accept-photo">Use Photo</button>
+      </div>
+    </div>
+  `;
+}
+
+function acceptPhoto(root, state) {
+  const preview = root.querySelector("[data-camera-still]");
+  const video = root.querySelector("[data-camera-video]");
+  const modalImage = root.querySelector("[data-photo-modal] img");
+  if (preview && modalImage) {
+    preview.src = modalImage.src;
+    preview.classList.remove("is-hidden");
+    video?.classList.add("is-hidden");
+  }
+  state.photoAccepted = true;
+  closePhotoPreview(root);
+}
+
+function retakePhoto(root, state) {
+  const preview = root.querySelector("[data-camera-still]");
+  const video = root.querySelector("[data-camera-video]");
+  const status = root.querySelector("[data-camera-status]");
+  preview?.classList.add("is-hidden");
+  video?.classList.remove("is-hidden");
+  state.photoBlob = null;
+  state.photoAccepted = false;
+  status.textContent = "Camera ready. Capture is required.";
+  closePhotoPreview(root);
+}
+
+function closePhotoPreview(root) {
+  root.querySelector("[data-photo-modal]")?.classList.add("is-hidden");
+}
+
+function resetPhotoState(root, state) {
+  const preview = root.querySelector("[data-camera-still]");
+  const video = root.querySelector("[data-camera-video]");
+  const status = root.querySelector("[data-camera-status]");
+  preview?.classList.add("is-hidden");
+  preview?.removeAttribute("src");
+  video?.classList.remove("is-hidden");
+  state.photoBlob = null;
+  state.photoAccepted = false;
+  if (state.photoPreviewUrl) {
+    URL.revokeObjectURL(state.photoPreviewUrl);
+    state.photoPreviewUrl = "";
+  }
+  if (status) {
+    status.textContent = "Camera ready. Capture is required.";
+  }
+}
+
+function compressedFrame(video) {
+  const canvas = document.createElement("canvas");
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  const context = canvas.getContext("2d");
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+}
+
+function setCameraStatus(status, empty, message, unavailable) {
+  if (status) {
+    status.textContent = message;
+  }
+  empty?.classList.toggle("is-hidden", !unavailable);
 }
 
 function setFormLoading(form, loading) {

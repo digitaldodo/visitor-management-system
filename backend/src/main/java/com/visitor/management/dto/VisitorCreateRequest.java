@@ -12,6 +12,7 @@ public record VisitorCreateRequest(
         @NotBlank @Size(min = 2, max = 160) String purposeOfVisit,
         @Size(max = 120) String hostEmployee,
         @Size(max = 80) String hostEmployeeId,
-        @Size(max = 500) String photoUrl
+        @NotBlank @Size(max = 500) String photoUrl,
+        @NotBlank @Size(max = 255) String photoPublicId
 ) {
 }

@@ -77,7 +77,8 @@ public class VisitorService {
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
         visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), forcedHostEmployeeId));
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
-        visitor.setPhotoUrl(trimToNull(request.photoUrl()));
+        visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
+        visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
         visitor.setStatus(VisitorStatus.SCHEDULED);
         visitor.setQrCode(generateQrCode());
         visitor.setCreatedAt(now);
@@ -242,6 +243,7 @@ public class VisitorService {
         setIfPresent(request.hostEmployeeId(), value -> visitor.setHostEmployeeId(trimToNull(value)));
         setIfPresent(request.hostEmployee(), value -> visitor.setHostEmployee(trimToNull(value)));
         setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(trimToNull(value)));
+        setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(trimToNull(value)));
         if (request.status() != null) {
             applyDirectStatusUpdate(visitor, request.status());
         }

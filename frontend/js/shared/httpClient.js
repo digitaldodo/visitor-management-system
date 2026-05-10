@@ -3,11 +3,15 @@ import { clearSession, getAccessToken, getRefreshToken, setSession } from "./ses
 
 export async function request(path, options = {}) {
   const { auth = true, retry = true, headers: customHeaders = {}, ...fetchOptions } = options;
+  const isFormData = typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
   const headers = {
     Accept: "application/json",
-    "Content-Type": "application/json",
     ...customHeaders,
   };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (auth) {
     const token = getAccessToken();
