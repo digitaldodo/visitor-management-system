@@ -1,0 +1,37 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+backend/.mvn/apache-maven-*/
+backend/.mvn/*.zip
+backend/.mvn/*.tar.gz
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Node/static tooling, if added later
+node_modules/
+dist/
+build/
+
+# Test and coverage output
+coverage/
+.nyc_output/

@@ -1,0 +1,8 @@
+app:
+  seed:
+    test-accounts: ${APP_SEED_TEST_ACCOUNTS:false}
+
+management:
+  health:
+    mongo:
+      enabled: false

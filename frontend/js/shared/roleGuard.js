@@ -1,0 +1,53 @@
+import { LOGIN_FROM_PORTAL, ROLE_PORTALS, ROLE_PORTALS_FROM_PORTAL } from "./config.js";
+import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticated } from "./session.js";
+
+export function redirectToPortal(role, fromPortal = false) {
+  const target = fromPortal ? ROLE_PORTALS_FROM_PORTAL[role] : ROLE_PORTALS[role];
+  window.location.assign(target || (fromPortal ? LOGIN_FROM_PORTAL : "./index.html"));
+}
+
+export function redirectToLogin() {
+  window.location.assign(LOGIN_FROM_PORTAL);
+}
+
+export function redirectAuthenticatedFromLogin() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+
+  const role = getPrimaryRole();
+  if (ROLE_PORTALS[role]) {
+    redirectToPortal(role, false);
+    return true;
+  }
+
+  clearSession();
+  return false;
+}
+
+export function requireRole(requiredRole) {
+  const session = getSession();
+  if (!session || !isAuthenticated()) {
+    redirectToLogin();
+    return null;
+  }
+
+  const sessionRoles = session.roles || [];
+  const tokenRoles = getTokenRoles(session.accessToken);
+  const hasRequiredSessionRole = sessionRoles.includes(requiredRole);
+  const hasRequiredTokenRole = tokenRoles.includes(requiredRole);
+
+  if (hasRequiredSessionRole && hasRequiredTokenRole) {
+    return session;
+  }
+
+  const fallbackRole = tokenRoles.find((role) => ROLE_PORTALS_FROM_PORTAL[role]) || sessionRoles.find((role) => ROLE_PORTALS_FROM_PORTAL[role]);
+  if (fallbackRole) {
+    redirectToPortal(fallbackRole, true);
+    return null;
+  }
+
+  clearSession();
+  redirectToLogin();
+  return null;
+}

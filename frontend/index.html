@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Visitor Management System account access" />
+    <title>VisitorOS | Sign in</title>
+    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511" />
+  </head>
+  <body>
+    <main class="auth-layout" id="auth-view">
+      <section class="auth-copy" aria-label="Authentication overview">
+        <span class="brand__mark">V</span>
+        <h1>VisitorOS</h1>
+        <p>Secure role-owned portals for administrators, employees, and security guards.</p>
+        <div class="auth-copy__panel">
+          <strong>Independent portal access</strong>
+          <span>Login redirects to the correct workspace based on the JWT role claim.</span>
+        </div>
+      </section>
+
+      <section class="auth-card" aria-label="Account access">
+        <div class="auth-tabs" role="tablist" aria-label="Authentication views">
+          <button class="auth-tab is-active" type="button" data-auth-tab="login">Login</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">Register</button>
+        </div>
+
+        <form class="auth-form" id="login-form" novalidate>
+          <div>
+            <p class="eyebrow">Welcome back</p>
+            <h2>Sign in</h2>
+          </div>
+          <label class="form-field">
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" placeholder="admin@visitor.local" required />
+          </label>
+          <label class="form-field form-field--password">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" placeholder="Enter password" required />
+            <button class="password-toggle" type="button" aria-label="Show password">Show</button>
+          </label>
+          <button class="button button--primary auth-submit" type="submit">Login</button>
+          <button class="link-button" id="forgot-password-button" type="button">Forgot password?</button>
+        </form>
+
+        <form class="auth-form is-hidden" id="register-form" novalidate>
+          <div>
+            <p class="eyebrow">New account</p>
+            <h2>Create access</h2>
+          </div>
+          <label class="form-field">
+            <span>Full name</span>
+            <input name="fullName" type="text" autocomplete="name" placeholder="Jane Cooper" required />
+          </label>
+          <label class="form-field">
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" placeholder="jane@company.com" required />
+          </label>
+          <label class="form-field form-field--password">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" required />
+            <button class="password-toggle" type="button" aria-label="Show password">Show</button>
+          </label>
+          <label class="form-field">
+            <span>Role</span>
+            <select name="role" required>
+              <option value="EMPLOYEE">Employee</option>
+              <option value="ADMIN">Admin</option>
+              <option value="SECURITY_GUARD">Security Guard</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Department</span>
+            <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
+          </label>
+          <button class="button button--primary auth-submit" type="submit">Create account</button>
+        </form>
+      </section>
+    </main>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <script src="./assets/js/env.js"></script>
+    <script type="module" src="./js/auth.js?v=20260511"></script>
+  </body>
+</html>

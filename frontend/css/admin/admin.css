@@ -1,0 +1,18 @@
+@import url("../shared/portal.css");
+
+:root {
+  --role-accent: #d96c4a;
+}
+
+.admin-shell .brand__mark,
+.admin-shell .button--primary {
+  background: var(--role-accent);
+}
+
+.admin-shell .button--primary:hover {
+  background: #b94f30;
+}
+
+.admin-shell .nav-link__icon {
+  color: #ffb08f;
+}

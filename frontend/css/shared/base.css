@@ -1,0 +1,174 @@
+:root {
+  color-scheme: light;
+  --color-bg: #f6f8fb;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eef4f6;
+  --color-text: #17212f;
+  --color-muted: #657083;
+  --color-line: #dbe2ea;
+  --color-primary: #176b65;
+  --color-primary-strong: #0e4f4a;
+  --color-accent: #d96c4a;
+  --color-info: #315b8f;
+  --color-warning: #b9811f;
+  --color-success: #287a4e;
+  --color-danger: #b44747;
+  --shadow-soft: 0 16px 40px rgba(23, 33, 47, 0.08);
+  --radius-card: 8px;
+  --radius-control: 8px;
+  --sidebar-width: 276px;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+svg {
+  display: block;
+  fill: currentColor;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(23, 107, 101, 0.25);
+  outline-offset: 2px;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.eyebrow {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0 0 0.15rem;
+  text-transform: uppercase;
+}
+
+.button,
+.icon-button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  gap: 0.5rem;
+  justify-content: center;
+  min-height: 2.5rem;
+}
+
+.button {
+  font-weight: 800;
+  padding: 0 0.9rem;
+}
+
+.button--primary {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.button--primary:hover {
+  background: var(--color-primary-strong);
+}
+
+.button--ghost,
+.icon-button {
+  background: var(--color-surface);
+  border-color: var(--color-line);
+  color: var(--color-text);
+}
+
+.icon-button {
+  padding: 0;
+  width: 2.5rem;
+}
+
+.button.is-loading,
+.auth-submit.is-loading {
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.brand__mark {
+  align-items: center;
+  background: var(--color-primary);
+  border-radius: var(--radius-control);
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 800;
+  height: 2.5rem;
+  justify-content: center;
+  width: 2.5rem;
+}
+
+.status-dot {
+  background: var(--color-warning);
+  border-radius: 50%;
+  display: inline-block;
+  height: 0.65rem;
+  width: 0.65rem;
+}
+
+.status-dot.is-online {
+  background: var(--color-success);
+}
+
+.status-dot.is-offline {
+  background: var(--color-danger);
+}
+
+.toast-stack {
+  bottom: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  position: fixed;
+  right: 1rem;
+  width: min(24rem, calc(100vw - 2rem));
+  z-index: 60;
+}
+
+.toast {
+  background: var(--color-text);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  color: #ffffff;
+  padding: 0.9rem 1rem;
+}
+
+.toast strong {
+  display: block;
+}

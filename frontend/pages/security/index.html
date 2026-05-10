@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="VisitorOS security portal" />
+    <title>VisitorOS | Security</title>
+    <link rel="stylesheet" href="../../css/security/security.css?v=20260511" />
+  </head>
+  <body>
+    <div class="portal-shell security-shell" data-sidebar-state="closed">
+      <aside class="sidebar" aria-label="Security navigation">
+        <a class="brand" href="#queue" aria-label="Security portal home">
+          <span class="brand__mark">S</span>
+          <span>
+            <strong>Security Portal</strong>
+            <small>VisitorOS</small>
+          </span>
+        </a>
+
+        <nav class="nav-list" id="sidebar-nav">
+          <a class="nav-link is-active" href="#queue" data-route="queue">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v2H4Zm0 4h16v2H4Zm0 4h10v2H4Z"/></svg></span>
+            Live Queue
+          </a>
+          <a class="nav-link" href="#check-in" data-route="check-in">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z"/></svg></span>
+            Check-in/out
+          </a>
+          <a class="nav-link" href="#photo" data-route="photo">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h4l2-2h4l2 2h4v14H4Zm8 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/></svg></span>
+            Webcam Capture
+          </a>
+          <a class="nav-link" href="#qr" data-route="qr">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4Zm2 2v3h3V6Zm7-2h7v7h-7Zm2 2v3h3V6ZM4 13h7v7H4Zm2 2v3h3v-3Zm8-2h2v2h-2Zm4 0h2v4h-2Zm-4 4h4v3h-2v-1h-2Z"/></svg></span>
+            QR Verification
+          </a>
+          <a class="nav-link" href="#badges" data-route="badges">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
+            Badge Printing
+          </a>
+        </nav>
+
+        <div class="sidebar__footer">
+          <span class="status-dot" id="api-status-dot" aria-hidden="true"></span>
+          <span id="api-status-text">API checking</span>
+        </div>
+      </aside>
+
+      <div class="shell-content">
+        <header class="topbar">
+          <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
+          </button>
+          <div>
+            <p class="eyebrow">Front Desk</p>
+            <h1>Security Dashboard</h1>
+          </div>
+          <div class="topbar__actions">
+            <span class="user-chip" id="user-chip">Signed in</span>
+            <button class="button button--ghost" id="refresh-health" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3Z"/></svg>
+              Refresh
+            </button>
+            <button class="icon-button" id="logout-button" type="button" aria-label="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h8v2H7v14h6v2H5Zm10.6 4.4L20.2 12l-4.6 4.6-1.4-1.4 2.2-2.2H10v-2h6.4l-2.2-2.2Z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <main class="portal-main">
+          <section class="metric-grid" id="metric-grid" aria-label="Security metrics"></section>
+
+          <section class="panel" data-security-visitors></section>
+
+          <section class="portal-grid">
+            <article class="panel" id="queue">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Live Desk</p>
+                  <h2>Visitor Queue</h2>
+                </div>
+                <button class="button button--primary" type="button">Check In</button>
+              </div>
+              <div class="work-list" id="queue-list"></div>
+            </article>
+
+            <aside class="panel" id="photo">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Identity</p>
+                  <h2>Webcam Photo Capture</h2>
+                </div>
+              </div>
+              <div class="camera-frame">Camera Ready</div>
+              <div class="work-list" id="photo-list"></div>
+            </aside>
+          </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="check-in">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Access</p>
+                  <h2>Check-in / Check-out</h2>
+                </div>
+              </div>
+              <div class="work-list" id="checkins-list"></div>
+            </article>
+
+            <article class="panel" id="qr">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Verification</p>
+                  <h2>QR Verification</h2>
+                </div>
+              </div>
+              <div class="work-list" id="qr-list"></div>
+            </article>
+          </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="badges">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Print Station</p>
+                  <h2>Badge Printing</h2>
+                </div>
+              </div>
+              <div class="work-list" id="badge-list"></div>
+            </article>
+
+            <aside class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">System</p>
+                  <h2>Backend Status</h2>
+                </div>
+              </div>
+              <div class="health-card" id="health-card"></div>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <div class="backdrop" id="sidebar-backdrop"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/security/dashboard.js?v=20260511"></script>
+  </body>
+</html>

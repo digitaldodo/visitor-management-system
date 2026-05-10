@@ -1,0 +1,151 @@
+@import url("./base.css");
+
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
+  min-height: 100vh;
+}
+
+.auth-copy {
+  background: #111923;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(2rem, 7vw, 6rem);
+}
+
+.auth-copy h1 {
+  font-size: clamp(2.4rem, 6vw, 4.75rem);
+  line-height: 1;
+  margin: 1.5rem 0 1rem;
+}
+
+.auth-copy p {
+  color: #b9c2cf;
+  font-size: 1.1rem;
+  max-width: 36rem;
+}
+
+.auth-copy__panel {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 2rem;
+  max-width: 28rem;
+  padding: 1rem;
+}
+
+.auth-copy__panel span {
+  color: #b9c2cf;
+}
+
+.auth-card {
+  align-self: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  justify-self: center;
+  margin: 1.5rem;
+  max-width: 28rem;
+  padding: 1rem;
+  width: calc(100% - 3rem);
+}
+
+.auth-tabs {
+  background: #edf4f2;
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 1rem;
+  padding: 0.35rem;
+}
+
+.auth-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-muted);
+  font-weight: 800;
+  min-height: 2.5rem;
+}
+
+.auth-tab.is-active {
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px rgba(23, 33, 47, 0.08);
+  color: var(--color-text);
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-form h2 {
+  font-size: 1.65rem;
+  margin: 0;
+}
+
+.form-field {
+  color: var(--color-muted);
+  display: grid;
+  font-size: 0.88rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.form-field input,
+.form-field select {
+  background: #f9fbfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  min-height: 2.85rem;
+  padding: 0 0.8rem;
+  width: 100%;
+}
+
+.form-field--password input {
+  padding-right: 4.5rem;
+}
+
+.password-toggle,
+.link-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.password-toggle {
+  bottom: 0.72rem;
+  font-size: 0.82rem;
+  position: absolute;
+  right: 0.7rem;
+}
+
+.link-button {
+  padding: 0;
+  text-align: left;
+}
+
+@media (max-width: 760px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-copy {
+    min-height: 18rem;
+    padding: 2rem 1rem;
+  }
+
+  .auth-card {
+    margin: -2rem 1rem 1rem;
+    width: auto;
+  }
+}

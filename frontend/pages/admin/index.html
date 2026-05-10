@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="VisitorOS admin portal" />
+    <title>VisitorOS | Admin</title>
+    <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511" />
+  </head>
+  <body>
+    <div class="portal-shell admin-shell" data-sidebar-state="closed">
+      <aside class="sidebar" aria-label="Admin navigation">
+        <a class="brand" href="#analytics" aria-label="Admin portal home">
+          <span class="brand__mark">A</span>
+          <span>
+            <strong>Admin Portal</strong>
+            <small>VisitorOS</small>
+          </span>
+        </a>
+
+        <nav class="nav-list" id="sidebar-nav">
+          <a class="nav-link is-active" href="#analytics" data-route="analytics">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h16v2H4Zm2-8h3v6H6Zm5-6h3v12h-3Zm5 3h3v9h-3Z"/></svg></span>
+            Analytics
+          </a>
+          <a class="nav-link" href="#users" data-route="users">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3ZM3 20a5 5 0 0 1 10 0Zm8.5 0a5 5 0 0 1 9.5 0Z"/></svg></span>
+            User Management
+          </a>
+          <a class="nav-link" href="#reports" data-route="reports">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5Zm4 5h6v2H9Zm0 4h6v2H9Zm0 4h3v2H9Z"/></svg></span>
+            Reports
+          </a>
+          <a class="nav-link" href="#monitoring" data-route="monitoring">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h4l2-6 4 12 2-6h4v2h-2.6L14 23 10 11 8.5 15H4Z"/></svg></span>
+            System Monitoring
+          </a>
+          <a class="nav-link" href="#visitors" data-route="visitors">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Z"/></svg></span>
+            Visitor Access
+          </a>
+        </nav>
+
+        <div class="sidebar__footer">
+          <span class="status-dot" id="api-status-dot" aria-hidden="true"></span>
+          <span id="api-status-text">API checking</span>
+        </div>
+      </aside>
+
+      <div class="shell-content">
+        <header class="topbar">
+          <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
+          </button>
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Admin Dashboard</h1>
+          </div>
+          <div class="topbar__actions">
+            <span class="user-chip" id="user-chip">Signed in</span>
+            <button class="button button--ghost" id="refresh-health" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3Z"/></svg>
+              Refresh
+            </button>
+            <button class="icon-button" id="logout-button" type="button" aria-label="Logout">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h8v2H7v14h6v2H5Zm10.6 4.4L20.2 12l-4.6 4.6-1.4-1.4 2.2-2.2H10v-2h6.4l-2.2-2.2Z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <main class="portal-main">
+          <section class="metric-grid" id="metric-grid" aria-label="Admin analytics"></section>
+
+          <section class="portal-grid">
+            <article class="panel" id="users">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Directory</p>
+                  <h2>User Management</h2>
+                </div>
+                <button class="button button--primary" type="button">Create User</button>
+              </div>
+              <div class="work-list" id="user-management-list"></div>
+            </article>
+
+            <aside class="panel" id="monitoring">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">System</p>
+                  <h2>Monitoring</h2>
+                </div>
+              </div>
+              <div class="health-card" id="health-card"></div>
+              <div class="work-list" id="monitoring-list"></div>
+            </aside>
+          </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="reports">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Exports</p>
+                  <h2>Reports</h2>
+                </div>
+              </div>
+              <div class="work-list" id="reports-list"></div>
+            </article>
+
+            <article class="panel" id="visitors" data-admin-visitors></article>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <div class="backdrop" id="sidebar-backdrop"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/admin/dashboard.js?v=20260511"></script>
+  </body>
+</html>

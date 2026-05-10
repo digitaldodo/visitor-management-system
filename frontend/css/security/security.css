@@ -1,0 +1,30 @@
+@import url("../shared/portal.css");
+
+:root {
+  --role-accent: #315b8f;
+}
+
+.security-shell .brand__mark,
+.security-shell .button--primary {
+  background: var(--role-accent);
+}
+
+.security-shell .button--primary:hover {
+  background: #24466f;
+}
+
+.security-shell .nav-link__icon {
+  color: #9bc4ff;
+}
+
+.camera-frame {
+  align-items: center;
+  aspect-ratio: 16 / 9;
+  background: #101820;
+  border-radius: var(--radius-card);
+  color: #dbeafe;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  min-height: 12rem;
+}

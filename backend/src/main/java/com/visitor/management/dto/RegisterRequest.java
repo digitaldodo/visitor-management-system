@@ -1,0 +1,17 @@
+package com.visitor.management.dto;
+
+import com.visitor.management.entity.Role;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+public record RegisterRequest(
+        @NotBlank @Size(min = 2, max = 120) String fullName,
+        @Email @NotBlank @Size(max = 160) String email,
+        @NotBlank @Size(min = 8, max = 128) String password,
+        @NotNull Role role,
+        @Size(max = 80) String department,
+        @Size(max = 32) String phone
+) {
+}
