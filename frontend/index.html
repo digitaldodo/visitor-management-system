@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="AccessFlow account access for smart, secure, seamless visitor management." />
+    <meta name="description" content="AccessFlow secure visitor access for enterprise workplaces." />
     <title>AccessFlow | Smart. Secure. Seamless Visitor Management.</title>
     <link rel="icon" href="./assets/branding/favicon.ico" sizes="any" />
     <link rel="stylesheet" href="./css/shared/auth.css?v=20260511c" />
@@ -16,14 +16,14 @@
             <img class="brand-logo brand-logo--full brand-logo--light" src="./assets/branding/logo-light.png" alt="AccessFlow" />
           </a>
           <div class="auth-copy__headline">
-            <p class="eyebrow">Visitor operations</p>
-            <h1>Smart. Secure. Seamless.</h1>
-            <p>Welcoming visitor management for teams that need clear approvals, protected sign-ins, and reliable oversight.</p>
+            <p class="eyebrow">Enterprise visitor access</p>
+            <h1>Secure workplace entry starts here.</h1>
+            <p>Register a visit, follow approval status, and receive approved access passes through a controlled workplace entry process.</p>
           </div>
           <div class="auth-copy__signals" aria-label="AccessFlow platform highlights">
             <div class="auth-signal">
               <strong>3</strong>
-              <span>Access paths</span>
+              <span>Request lifecycle</span>
             </div>
             <div class="auth-signal">
               <strong>24/7</strong>
@@ -37,18 +37,18 @@
           <div class="auth-copy__panel">
             <div>
               <span class="auth-copy__panel-dot"></span>
-              <strong>Admin</strong>
-              <span>Oversight and access control</span>
+              <strong>Visitor</strong>
+              <span>Registration and pass status</span>
             </div>
             <div>
               <span class="auth-copy__panel-dot"></span>
-              <strong>Employee</strong>
-              <span>Approvals and guest planning</span>
+              <strong>Host review</strong>
+              <span>Internal approval workflow</span>
             </div>
             <div>
               <span class="auth-copy__panel-dot"></span>
-              <strong>Security</strong>
-              <span>Safe check-ins and badges</span>
+              <strong>Front desk</strong>
+              <span>QR verification and check-in</span>
             </div>
           </div>
         </div>
@@ -56,15 +56,15 @@
 
       <section class="auth-card" aria-label="Account access">
         <div class="auth-tabs auth-tabs--three" role="tablist" aria-label="Access options">
-          <button class="auth-tab is-active" type="button" data-auth-tab="employee">Employee Login</button>
+          <button class="auth-tab is-active" type="button" data-auth-tab="register">Visitor Registration</button>
+          <button class="auth-tab" type="button" data-auth-tab="employee">Employee Login</button>
           <button class="auth-tab" type="button" data-auth-tab="security">Security Login</button>
-          <button class="auth-tab" type="button" data-auth-tab="register">Visitor Registration</button>
         </div>
 
-        <form class="auth-form" id="login-form" novalidate>
+        <form class="auth-form is-hidden" id="login-form" novalidate>
           <div class="auth-form__header">
             <p class="eyebrow" id="login-eyebrow">Employee access</p>
-            <h2 id="login-title">Sign in to your workspace</h2>
+            <h2 id="login-title">Sign in to your workplace portal</h2>
             <p id="login-description">Use your organization-issued AccessFlow account.</p>
           </div>
           <input name="audience" type="hidden" value="employee" />
@@ -81,11 +81,11 @@
           <button class="link-button" id="forgot-password-button" type="button">Forgot password?</button>
         </form>
 
-        <form class="auth-form is-hidden" id="register-form" novalidate>
+        <form class="auth-form" id="register-form" novalidate>
           <div class="auth-form__header">
             <p class="eyebrow">Visitor access</p>
-            <h2>Create visitor account</h2>
-            <p>Register to request visits, track approvals, and access approved passes.</p>
+            <h2>Register as a visitor</h2>
+            <p>Create a visitor account to request visits, track approvals, and access approved QR passes.</p>
           </div>
           <label class="form-field">
             <span>Full name</span>
@@ -97,7 +97,7 @@
           </label>
           <label class="form-field">
             <span>Email</span>
-            <input name="email" type="email" autocomplete="email" placeholder="user@company.com" required />
+            <input name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
           </label>
           <label class="form-field form-field--password">
             <span>Password</span>
@@ -108,7 +108,7 @@
             <span>Phone</span>
             <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" />
           </label>
-          <button class="button button--primary auth-submit" type="submit">Create account</button>
+          <button class="button button--primary auth-submit" type="submit">Create visitor account</button>
           <button class="link-button" type="button" data-auth-tab="visitor">Already registered? Sign in as a visitor</button>
         </form>
         <footer class="auth-footer">AccessFlow · Secure visitor operations</footer>

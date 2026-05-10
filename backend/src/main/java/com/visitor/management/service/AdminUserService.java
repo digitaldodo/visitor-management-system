@@ -3,6 +3,7 @@ package com.visitor.management.service;
 import com.visitor.management.dto.AdminPasswordResetRequest;
 import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
+import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
@@ -100,6 +101,20 @@ public class AdminUserService {
         validateStrongPassword(request.newPassword());
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setPasswordChangedAt(Instant.now());
+        User saved = userRepository.save(user);
+        revokeAllRefreshTokens(saved.getId());
+        return toResponse(saved);
+    }
+
+    public AdminUserResponse updateRole(String id, AdminUserRoleUpdateRequest request, Authentication authentication) {
+        User user = findUser(id);
+        validateMutableAccount(user, authentication);
+        Role role = request.role();
+        validateAssignableRole(role, authentication);
+        if (user.getRoles().contains(role) && user.getRoles().size() == 1) {
+            return toResponse(user);
+        }
+        user.setRoles(Set.of(role));
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
         return toResponse(saved);

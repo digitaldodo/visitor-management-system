@@ -241,11 +241,23 @@
 }
 
 .admin-user-card__header,
-.admin-user-card__actions {
+.admin-user-card__actions,
+.admin-user-card__role {
   align-items: center;
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
+}
+
+.admin-user-card__role {
+  background: #f8fafc;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 0.75rem;
+}
+
+.admin-user-card__role .form-field {
+  flex: 1 1 16rem;
 }
 
 .admin-user-card h3,
@@ -350,7 +362,8 @@
 
   .admin-user-form__footer,
   .admin-user-card__header,
-  .admin-user-card__actions {
+  .admin-user-card__actions,
+  .admin-user-card__role {
     align-items: stretch;
     flex-direction: column;
   }

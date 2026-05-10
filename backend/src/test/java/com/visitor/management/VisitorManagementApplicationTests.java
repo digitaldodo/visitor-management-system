@@ -73,6 +73,9 @@ class VisitorManagementApplicationTests {
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(userRepository.findById("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
+        when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(user("employee-target-id", Role.EMPLOYEE)));
+        when(userRepository.findById("admin-target-id")).thenReturn(Optional.of(user("admin-target-id", Role.ADMIN)));
+        when(userRepository.findById("super-admin-target-id")).thenReturn(Optional.of(user("super-admin-target-id", Role.SUPER_ADMIN)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -209,6 +212,63 @@ class VisitorManagementApplicationTests {
                                   "email": "admin.user@example.com",
                                   "password": "SecurePass123!",
                                   "role": "ADMIN"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCannotCreateVisitorInternally() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Visitor User",
+                                  "username": "visitor.internal",
+                                  "email": "visitor.internal@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "VISITOR"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanChangeEmployeeToSecurityGuardInternally() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/employee-target-id/role")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "role": "SECURITY_GUARD"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SECURITY_GUARD"));
+    }
+
+    @Test
+    void adminCannotMutateAdminAccountRole() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/admin-target-id/role")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "role": "EMPLOYEE"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCannotMutateSuperAdminAccountRole() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/super-admin-target-id/role")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "role": "EMPLOYEE"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());

@@ -106,16 +106,22 @@ function initAdminUserForm() {
     }
     const id = button.dataset.userId;
     const action = button.dataset.userAction;
+    const roleSelect = button.closest(".admin-user-card")?.querySelector("[data-role-select]");
     const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
     if (action === "reset-password" && !password) {
       return;
     }
+    const requestBody = action === "reset-password"
+      ? { newPassword: password }
+      : action === "role"
+        ? { role: roleSelect?.value }
+        : {};
 
     button.toggleAttribute("disabled", true);
     try {
       await request(`/admin/users/${encodeURIComponent(id)}/${action}`, {
         method: "PATCH",
-        body: action === "reset-password" ? JSON.stringify({ newPassword: password }) : JSON.stringify({}),
+        body: JSON.stringify(requestBody),
       });
       showToast("Account updated", "User access controls were updated.");
       await loadAdminPortal();
@@ -143,9 +149,11 @@ function renderUsers(users) {
 
 function userCard(user) {
   const role = (user.roles || []).join(", ");
+  const primaryRole = (user.roles || [])[0] || "";
   const disabled = !user.active || user.accountStatus === "DISABLED";
   const canManageAdmin = !(user.roles || []).includes("ADMIN") || (currentSession?.roles || []).includes("SUPER_ADMIN");
   const canManage = !(user.roles || []).includes("SUPER_ADMIN") && canManageAdmin;
+  const roleOptions = internalRoleOptions(primaryRole);
   return `
     <article class="admin-user-card">
       <div class="admin-user-card__header">
@@ -160,12 +168,43 @@ function userCard(user) {
         <div><dt>Department</dt><dd>${escapeHtml(user.department || "Not set")}</dd></div>
         <div><dt>Account ID</dt><dd>${escapeHtml(user.id || "")}</dd></div>
       </dl>
+      <div class="admin-user-card__role">
+        <label class="form-field">
+          <span>Portal access</span>
+          <select data-role-select ${canManage ? "" : "disabled"}>
+            ${roleOptions}
+          </select>
+        </label>
+        <button class="button button--ghost" type="button" data-user-action="role" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Update access</button>
+      </div>
       <div class="admin-user-card__actions">
         <button class="button button--ghost" type="button" data-user-action="reset-password" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Reset password</button>
         <button class="button ${disabled ? "button--primary" : "button--ghost"}" type="button" data-user-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>${disabled ? "Enable account" : "Disable account"}</button>
       </div>
     </article>
   `;
+}
+
+function internalRoleOptions(selectedRole) {
+  const roles = [
+    ["EMPLOYEE", "Employee portal"],
+    ["SECURITY_GUARD", "Security portal"],
+  ];
+  if ((currentSession?.roles || []).includes("SUPER_ADMIN")) {
+    roles.push(["ADMIN", "Administration portal"]);
+  }
+  if (selectedRole && !roles.some(([role]) => role === selectedRole)) {
+    roles.push([selectedRole, formatInternalRole(selectedRole)]);
+  }
+  return roles.map(([role, label]) => `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+}
+
+function formatInternalRole(role) {
+  return String(role || "")
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function renderMonitoring(data) {
