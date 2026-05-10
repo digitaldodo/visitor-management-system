@@ -1,22 +1,30 @@
 :root {
   color-scheme: light;
-  --color-bg: #f6f8fb;
+  --color-bg: #f7f8fb;
   --color-surface: #ffffff;
-  --color-surface-alt: #eef4f6;
-  --color-text: #17212f;
-  --color-muted: #657083;
-  --color-line: #dbe2ea;
-  --color-primary: #176b65;
-  --color-primary-strong: #0e4f4a;
-  --color-accent: #d96c4a;
-  --color-info: #315b8f;
-  --color-warning: #b9811f;
-  --color-success: #287a4e;
-  --color-danger: #b44747;
-  --shadow-soft: 0 16px 40px rgba(23, 33, 47, 0.08);
-  --radius-card: 8px;
-  --radius-control: 8px;
-  --sidebar-width: 276px;
+  --color-surface-raised: #ffffff;
+  --color-surface-alt: #f1f5f9;
+  --color-text: #101828;
+  --color-muted: #667085;
+  --color-subtle: #98a2b3;
+  --color-line: #e4e7ec;
+  --color-line-strong: #d0d5dd;
+  --color-primary: #2563eb;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-soft: #eff6ff;
+  --color-accent: #f59e0b;
+  --color-info: #0891b2;
+  --color-warning: #b54708;
+  --color-success: #067647;
+  --color-danger: #b42318;
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-soft: 0 14px 36px rgba(16, 24, 40, 0.08);
+  --shadow-pop: 0 24px 60px rgba(16, 24, 40, 0.14);
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-pill: 999px;
+  --sidebar-width: 286px;
+  --sidebar-collapsed-width: 88px;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -50,6 +58,10 @@ select {
   cursor: pointer;
 }
 
+button {
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -72,9 +84,9 @@ svg {
 }
 
 .eyebrow {
-  color: var(--color-muted);
-  font-size: 0.75rem;
-  font-weight: 800;
+  color: var(--color-primary);
+  font-size: 0.72rem;
+  font-weight: 850;
   letter-spacing: 0;
   margin: 0 0 0.15rem;
   text-transform: uppercase;
@@ -89,20 +101,25 @@ svg {
   gap: 0.5rem;
   justify-content: center;
   min-height: 2.5rem;
+  white-space: nowrap;
 }
 
 .button {
-  font-weight: 800;
-  padding: 0 0.9rem;
+  box-shadow: var(--shadow-xs);
+  font-weight: 750;
+  padding: 0 0.95rem;
 }
 
 .button--primary {
-  background: var(--color-primary);
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
+  border-color: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
 
 .button--primary:hover {
   background: var(--color-primary-strong);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+  transform: translateY(-1px);
 }
 
 .button--ghost,
@@ -110,6 +127,12 @@ svg {
   background: var(--color-surface);
   border-color: var(--color-line);
   color: var(--color-text);
+}
+
+.button--ghost:hover,
+.icon-button:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-line-strong);
 }
 
 .icon-button {
@@ -125,11 +148,13 @@ svg {
 
 .brand__mark {
   align-items: center;
-  background: var(--color-primary);
-  border-radius: var(--radius-control);
+  background: linear-gradient(135deg, var(--color-primary), var(--role-accent, var(--color-info)));
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
   color: #ffffff;
   display: inline-flex;
-  font-weight: 800;
+  flex: 0 0 auto;
+  font-weight: 900;
   height: 2.5rem;
   justify-content: center;
   width: 2.5rem;
@@ -162,13 +187,23 @@ svg {
 }
 
 .toast {
-  background: var(--color-text);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
+  background: rgba(16, 24, 40, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pop);
   color: #ffffff;
-  padding: 0.9rem 1rem;
+  padding: 0.95rem 1rem;
+  backdrop-filter: blur(16px);
 }
 
 .toast strong {
   display: block;
+  font-size: 0.92rem;
+}
+
+.toast span {
+  color: rgba(255, 255, 255, 0.78);
+  display: block;
+  font-size: 0.86rem;
+  margin-top: 0.12rem;
 }

@@ -276,17 +276,17 @@ function renderRows(root, state, options) {
 function row(visitor, options) {
   return `
     <tr>
-      <td>
+      <td data-label="Visitor">
         <strong>${escapeHtml(visitor.fullName)}</strong>
         <small>${escapeHtml(visitor.phone)}${visitor.email ? ` · ${escapeHtml(visitor.email)}` : ""}</small>
       </td>
-      <td>${escapeHtml(visitor.companyName || "Unlisted")}</td>
-      <td>${escapeHtml(visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}</td>
-      <td>${statusBadge(visitor.status)}</td>
-      <td>${formatDate(visitor.checkInTime)}</td>
-      <td>${formatDate(visitor.checkOutTime)}</td>
-      <td><code>${escapeHtml(visitor.qrCode)}</code></td>
-      <td>
+      <td data-label="Company">${escapeHtml(visitor.companyName || "Unlisted")}</td>
+      <td data-label="Host">${escapeHtml(visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}</td>
+      <td data-label="Status">${statusBadge(visitor.status)}</td>
+      <td data-label="Check-in">${formatDate(visitor.checkInTime)}</td>
+      <td data-label="Check-out">${formatDate(visitor.checkOutTime)}</td>
+      <td data-label="QR Code"><code>${escapeHtml(visitor.qrCode)}</code></td>
+      <td data-label="Actions">
         <div class="table-actions">
           <button class="icon-button" type="button" title="View details" data-visitor-action="detail" data-visitor-id="${escapeHtml(visitor.id)}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7s-9-4.5-10-7c1-2.5 5-7 10-7Zm0 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z"/></svg>

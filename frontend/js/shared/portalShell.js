@@ -61,15 +61,32 @@ export function escapeHtml(value) {
 function initSidebar() {
   const shell = $(".portal-shell");
   const toggle = $("#sidebar-toggle");
+  const collapse = $("#sidebar-collapse");
   const backdrop = $("#sidebar-backdrop");
+  const mobileQuery = window.matchMedia("(max-width: 760px)");
 
   toggle?.addEventListener("click", () => {
-    const isOpen = shell.dataset.sidebarState === "open";
-    shell.dataset.sidebarState = isOpen ? "closed" : "open";
+    if (mobileQuery.matches) {
+      const isOpen = shell.dataset.sidebarState === "open";
+      shell.dataset.sidebarState = isOpen ? "closed" : "open";
+    } else {
+      const isCollapsed = shell.dataset.sidebarState === "collapsed";
+      shell.dataset.sidebarState = isCollapsed ? "expanded" : "collapsed";
+    }
+  });
+
+  collapse?.addEventListener("click", () => {
+    const isCollapsed = shell.dataset.sidebarState === "collapsed";
+    shell.dataset.sidebarState = isCollapsed ? "expanded" : "collapsed";
+    collapse.setAttribute("aria-label", isCollapsed ? "Collapse sidebar" : "Expand sidebar");
   });
 
   backdrop?.addEventListener("click", () => {
     shell.dataset.sidebarState = "closed";
+  });
+
+  mobileQuery.addEventListener("change", () => {
+    shell.dataset.sidebarState = mobileQuery.matches ? "closed" : "expanded";
   });
 }
 
@@ -81,7 +98,9 @@ function initRouteTabs(allowedRoutes) {
     link.addEventListener("click", () => {
       links.forEach((item) => item.classList.remove("is-active"));
       link.classList.add("is-active");
-      $(".portal-shell").dataset.sidebarState = "closed";
+      if (window.matchMedia("(max-width: 760px)").matches) {
+        $(".portal-shell").dataset.sidebarState = "closed";
+      }
     });
   });
 

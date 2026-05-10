@@ -1,30 +1,38 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #315b8f;
+  --role-accent: #0369a1;
+  --role-accent-soft: #bae6fd;
 }
 
 .security-shell .brand__mark,
 .security-shell .button--primary {
-  background: var(--role-accent);
+  background: linear-gradient(180deg, var(--role-accent), #075985);
 }
 
 .security-shell .button--primary:hover {
-  background: #24466f;
+  background: #075985;
 }
 
 .security-shell .nav-link__icon {
-  color: #9bc4ff;
+  color: var(--role-accent-soft);
 }
 
 .camera-frame {
   align-items: center;
   aspect-ratio: 16 / 9;
-  background: #101820;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(186, 230, 253, 0.18), transparent 34%),
+    #101828;
   border-radius: var(--radius-card);
   color: #dbeafe;
   display: flex;
+  font-weight: 800;
   justify-content: center;
   margin-bottom: 1rem;
   min-height: 12rem;
+}
+
+.security-shell .metric-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
 }

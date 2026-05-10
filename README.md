@@ -1,6 +1,8 @@
-# Visitor Management System
+# AccessFlow
 
-Production-ready monorepo boilerplate for a Visitor Management System using a vanilla HTML/CSS/JavaScript frontend, Spring Boot backend, MongoDB Atlas, Cloudinary, and Render deployment.
+Smart. Secure. Seamless Visitor Management.
+
+Production-ready monorepo for AccessFlow, a premium enterprise visitor management platform using a vanilla HTML/CSS/JavaScript frontend, Spring Boot backend, MongoDB Atlas, Cloudinary, and Render deployment.
 
 ## Structure
 

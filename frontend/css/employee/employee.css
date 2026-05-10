@@ -1,14 +1,19 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #176b65;
+  --role-accent: #0f766e;
+  --role-accent-soft: #99f6e4;
 }
 
 .employee-shell .brand__mark,
 .employee-shell .button--primary {
-  background: var(--role-accent);
+  background: linear-gradient(180deg, var(--role-accent), #115e59);
 }
 
 .employee-shell .nav-link__icon {
-  color: #75c5bd;
+  color: var(--role-accent-soft);
+}
+
+.employee-shell .metric-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fffd 100%);
 }

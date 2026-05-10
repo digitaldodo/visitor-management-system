@@ -1,18 +1,23 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #d96c4a;
+  --role-accent: #b45309;
+  --role-accent-soft: #fcd34d;
 }
 
 .admin-shell .brand__mark,
 .admin-shell .button--primary {
-  background: var(--role-accent);
+  background: linear-gradient(180deg, var(--role-accent), #92400e);
 }
 
 .admin-shell .button--primary:hover {
-  background: #b94f30;
+  background: #92400e;
 }
 
 .admin-shell .nav-link__icon {
-  color: #ffb08f;
+  color: var(--role-accent-soft);
+}
+
+.admin-shell .metric-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fffcf5 100%);
 }

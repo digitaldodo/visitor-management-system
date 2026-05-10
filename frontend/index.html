@@ -3,19 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Visitor Management System account access" />
-    <title>VisitorOS | Sign in</title>
+    <meta name="description" content="AccessFlow account access for smart, secure, seamless visitor management." />
+    <title>AccessFlow | Smart. Secure. Seamless Visitor Management.</title>
     <link rel="stylesheet" href="./css/shared/auth.css?v=20260511" />
   </head>
   <body>
     <main class="auth-layout" id="auth-view">
       <section class="auth-copy" aria-label="Authentication overview">
-        <span class="brand__mark">V</span>
-        <h1>VisitorOS</h1>
-        <p>Secure role-owned portals for administrators, employees, and security guards.</p>
+        <span class="brand__mark">AF</span>
+        <h1>AccessFlow</h1>
+        <p class="auth-copy__tagline">Smart. Secure. Seamless Visitor Management.</p>
+        <p>Enterprise-grade visitor operations for administrators, employees, and security teams.</p>
+        <div class="auth-copy__signals" aria-label="AccessFlow platform highlights">
+          <div class="auth-signal">
+            <strong>3</strong>
+            <span>Role-owned portals</span>
+          </div>
+          <div class="auth-signal">
+            <strong>24/7</strong>
+            <span>Operational visibility</span>
+          </div>
+          <div class="auth-signal">
+            <strong>JWT</strong>
+            <span>Protected access</span>
+          </div>
+        </div>
         <div class="auth-copy__panel">
-          <strong>Independent portal access</strong>
-          <span>Login redirects to the correct workspace based on the JWT role claim.</span>
+          <strong>Smart. Secure. Seamless Visitor Management.</strong>
+          <span>Login routes each user into the correct AccessFlow workspace based on verified role claims.</span>
         </div>
       </section>
 
@@ -27,7 +42,7 @@
 
         <form class="auth-form" id="login-form" novalidate>
           <div>
-            <p class="eyebrow">Welcome back</p>
+            <p class="eyebrow">AccessFlow</p>
             <h2>Sign in</h2>
           </div>
           <label class="form-field">
@@ -45,7 +60,7 @@
 
         <form class="auth-form is-hidden" id="register-form" novalidate>
           <div>
-            <p class="eyebrow">New account</p>
+            <p class="eyebrow">AccessFlow</p>
             <h2>Create access</h2>
           </div>
           <label class="form-field">
@@ -75,6 +90,7 @@
           </label>
           <button class="button button--primary auth-submit" type="submit">Create account</button>
         </form>
+        <footer class="auth-footer">AccessFlow · Smart. Secure. Seamless Visitor Management.</footer>
       </section>
     </main>
 

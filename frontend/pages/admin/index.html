@@ -3,20 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="VisitorOS admin portal" />
-    <title>VisitorOS | Admin</title>
+    <meta name="description" content="AccessFlow admin portal" />
+    <title>AccessFlow | Admin Portal</title>
     <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511" />
   </head>
   <body>
-    <div class="portal-shell admin-shell" data-sidebar-state="closed">
+    <div class="portal-shell admin-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Admin navigation">
         <a class="brand" href="#analytics" aria-label="Admin portal home">
-          <span class="brand__mark">A</span>
+          <span class="brand__mark">AF</span>
           <span>
-            <strong>Admin Portal</strong>
-            <small>VisitorOS</small>
+            <strong>AccessFlow</strong>
+            <small>Admin Portal</small>
           </span>
         </a>
+        <button class="icon-button sidebar__collapse" id="sidebar-collapse" type="button" aria-label="Collapse sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7 1.4-1.4L10.8 12l5.6-5.6Z"/></svg>
+        </button>
+        <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
           <a class="nav-link is-active" href="#analytics" data-route="analytics">
@@ -42,8 +46,11 @@
         </nav>
 
         <div class="sidebar__footer">
-          <span class="status-dot" id="api-status-dot" aria-hidden="true"></span>
-          <span id="api-status-text">API checking</span>
+          <div class="sidebar__status">
+            <span class="status-dot" id="api-status-dot" aria-hidden="true"></span>
+            <span id="api-status-text">API checking</span>
+          </div>
+          <span class="sidebar__product">AccessFlow enterprise control plane</span>
         </div>
       </aside>
 
@@ -52,15 +59,16 @@
           <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
           </button>
-          <div>
-            <p class="eyebrow">Administration</p>
+          <div class="topbar__title">
+            <p class="eyebrow">Executive Command Center</p>
             <h1>Admin Dashboard</h1>
+            <p class="topbar__tagline">Smart. Secure. Seamless Visitor Management.</p>
           </div>
           <div class="topbar__actions">
             <span class="user-chip" id="user-chip">Signed in</span>
             <button class="button button--ghost" id="refresh-health" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3Z"/></svg>
-              Refresh
+              <span>Refresh</span>
             </button>
             <button class="icon-button" id="logout-button" type="button" aria-label="Logout">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h8v2H7v14h6v2H5Zm10.6 4.4L20.2 12l-4.6 4.6-1.4-1.4 2.2-2.2H10v-2h6.4l-2.2-2.2Z"/></svg>
