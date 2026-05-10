@@ -61,31 +61,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(
-                                "/api/v1/health/**",
-                                "/api/versions",
-                                "/actuator/health/**",
-                                "/actuator/info",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/v1/auth/register",
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/refresh",
-                                "/api/v1/auth/logout",
-                                "/api/v1/auth/forgot-password",
-                                "/api/v1/auth/verify-otp",
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/refresh",
-                                "/api/auth/logout",
-                                "/api/auth/forgot-password",
-                                "/api/auth/verify-otp",
-                                "/api/auth/reset-password",
-                                "/api/v1/auth/reset-password"
-                        ).permitAll()
+                        .requestMatchers(PublicEndpointRequestMatchers.publicAnyMethodPaths()).permitAll()
+                        .requestMatchers(HttpMethod.POST, PublicEndpointRequestMatchers.publicPostAuthPaths()).permitAll()
                         .requestMatchers("/api/v1/notifications/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR")
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")

@@ -79,10 +79,6 @@ public class AuthService {
     }
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
-        if (request.role() != null && request.role() != Role.VISITOR) {
-            throw new BadRequestException("Public registration is available only for visitor accounts.");
-        }
-
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new ConflictException("An account with this email already exists.");
         }

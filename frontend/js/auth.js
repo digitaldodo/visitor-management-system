@@ -27,7 +27,7 @@ function initAuthTabs() {
 }
 
 function setAuthTab(target) {
-  $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target));
+  $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target || (target === "visitor" && tab.dataset.authTab === "register")));
   $("#login-form")?.classList.toggle("is-hidden", target === "register");
   $("#register-form")?.classList.toggle("is-hidden", target !== "register");
   updateLoginAudience(target === "security" ? "security" : target === "visitor" ? "visitor" : "employee");
@@ -42,18 +42,18 @@ function updateLoginAudience(audience) {
   const copy = {
     employee: {
       eyebrow: "Employee access",
-      title: "Sign in to your workspace",
-      description: "Use your organization-issued AccessFlow account.",
+      title: "Sign in to your workplace portal",
+      description: "Use your organization-issued credentials for host approvals and visit planning.",
     },
     security: {
       eyebrow: "Security access",
-      title: "Sign in to reception operations",
-      description: "Use your assigned security account to manage check-ins.",
+      title: "Sign in to front desk operations",
+      description: "Use your assigned credentials to verify passes and manage check-ins.",
     },
     visitor: {
       eyebrow: "Visitor access",
       title: "Sign in to track your visit",
-      description: "Use your visitor account to view approvals and access passes.",
+      description: "Use your visitor account to view approval status and approved QR passes.",
     },
   }[audience];
   $("#login-eyebrow").textContent = copy.eyebrow;
@@ -127,7 +127,7 @@ function initRegisterForm() {
         password: data.password,
         phone: data.phone || null,
       });
-      showToast("Account created", "You can sign in now.");
+      showToast("Visitor account created", "You can sign in to request or track visits.");
       form.reset();
       setAuthTab("visitor");
     });

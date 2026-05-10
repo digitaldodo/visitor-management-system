@@ -63,8 +63,8 @@
             <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-dark.png" alt="AccessFlow" />
           </a>
           <div class="topbar__title">
-            <p class="eyebrow">Executive Command Center</p>
-            <h1>Admin Dashboard</h1>
+            <p class="eyebrow">Access control</p>
+            <h1>Administration Portal</h1>
             <p class="topbar__tagline">Smart. Secure. Seamless Visitor Management.</p>
           </div>
           <div class="topbar__actions">
@@ -141,7 +141,7 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Directory</p>
-                  <h2>User Management</h2>
+                  <h2>Internal Account Management</h2>
                 </div>
               </div>
               <form class="admin-user-form" id="admin-user-form" novalidate>
@@ -162,11 +162,11 @@
                   <input name="password" type="password" autocomplete="new-password" placeholder="12+ characters" required />
                 </label>
                 <label class="form-field">
-                  <span>Access type</span>
+                  <span>Portal access</span>
                   <select name="role" required>
-                    <option value="EMPLOYEE">Employee workspace</option>
-                    <option value="SECURITY_GUARD">Security operations</option>
-                    <option value="ADMIN">Admin console</option>
+                    <option value="EMPLOYEE">Employee portal</option>
+                    <option value="SECURITY_GUARD">Security portal</option>
+                    <option value="ADMIN">Administration portal</option>
                   </select>
                 </label>
                 <label class="form-field">
@@ -174,7 +174,7 @@
                   <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
                 </label>
                 <div class="admin-user-form__footer">
-                  <p>Visitor accounts are created only through public visitor registration.</p>
+                  <p>Visitor accounts are created only through public visitor registration. Workforce access is issued internally.</p>
                   <button class="button button--primary" type="submit">Create internal account</button>
                 </div>
               </form>

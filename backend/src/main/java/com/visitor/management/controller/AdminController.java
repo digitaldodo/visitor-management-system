@@ -3,6 +3,7 @@ package com.visitor.management.controller;
 import com.visitor.management.dto.AdminPasswordResetRequest;
 import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
+import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
@@ -96,6 +97,15 @@ public class AdminController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Password reset.", adminUserService.resetPassword(id, request, authentication));
+    }
+
+    @PatchMapping("/users/{id}/role")
+    public ApiResponse<AdminUserResponse> updateUserRole(
+            @PathVariable String id,
+            @Valid @RequestBody AdminUserRoleUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Account access updated.", adminUserService.updateRole(id, request, authentication));
     }
 
     @GetMapping("/reports")
