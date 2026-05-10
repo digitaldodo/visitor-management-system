@@ -10,27 +10,47 @@
   <body>
     <main class="auth-layout" id="auth-view">
       <section class="auth-copy" aria-label="Authentication overview">
-        <span class="brand__mark">AF</span>
-        <h1>AccessFlow</h1>
-        <p class="auth-copy__tagline">Smart. Secure. Seamless Visitor Management.</p>
-        <p>Enterprise-grade visitor operations for administrators, employees, and security teams.</p>
-        <div class="auth-copy__signals" aria-label="AccessFlow platform highlights">
-          <div class="auth-signal">
-            <strong>3</strong>
-            <span>Role-owned portals</span>
+        <div class="auth-copy__inner">
+          <div class="auth-copy__brand">
+            <span class="brand__mark">AF</span>
+            <span>AccessFlow</span>
           </div>
-          <div class="auth-signal">
-            <strong>24/7</strong>
-            <span>Operational visibility</span>
+          <div class="auth-copy__headline">
+            <p class="eyebrow">Visitor operations</p>
+            <h1>Smart. Secure. Seamless.</h1>
+            <p>Role-based visitor management for fast-moving teams that need clear approvals, secure check-ins, and reliable oversight.</p>
           </div>
-          <div class="auth-signal">
-            <strong>JWT</strong>
-            <span>Protected access</span>
+          <div class="auth-copy__signals" aria-label="AccessFlow platform highlights">
+            <div class="auth-signal">
+              <strong>3</strong>
+              <span>Role portals</span>
+            </div>
+            <div class="auth-signal">
+              <strong>24/7</strong>
+              <span>Visibility</span>
+            </div>
+            <div class="auth-signal">
+              <strong>JWT</strong>
+              <span>Secure access</span>
+            </div>
           </div>
-        </div>
-        <div class="auth-copy__panel">
-          <strong>Smart. Secure. Seamless Visitor Management.</strong>
-          <span>Login routes each user into the correct AccessFlow workspace based on verified role claims.</span>
+          <div class="auth-copy__panel">
+            <div>
+              <span class="auth-copy__panel-dot"></span>
+              <strong>Admin</strong>
+              <span>Reports and role control</span>
+            </div>
+            <div>
+              <span class="auth-copy__panel-dot"></span>
+              <strong>Employee</strong>
+              <span>Approvals and pre-visits</span>
+            </div>
+            <div>
+              <span class="auth-copy__panel-dot"></span>
+              <strong>Security</strong>
+              <span>Check-ins and badges</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -41,9 +61,10 @@
         </div>
 
         <form class="auth-form" id="login-form" novalidate>
-          <div>
+          <div class="auth-form__header">
             <p class="eyebrow">AccessFlow</p>
             <h2>Sign in</h2>
+            <p>Continue to your workspace.</p>
           </div>
           <label class="form-field">
             <span>Username or email</span>
@@ -59,9 +80,10 @@
         </form>
 
         <form class="auth-form is-hidden" id="register-form" novalidate>
-          <div>
+          <div class="auth-form__header">
             <p class="eyebrow">AccessFlow</p>
             <h2>Create access</h2>
+            <p>Create an account for your assigned role.</p>
           </div>
           <label class="form-field">
             <span>Full name</span>
