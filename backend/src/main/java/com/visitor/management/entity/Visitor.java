@@ -62,6 +62,12 @@ public class Visitor {
     @Indexed(unique = true, sparse = true)
     private String qrCode;
 
+    private Instant qrIssuedAt;
+
+    private Instant qrExpiresAt;
+
+    private Instant badgePrintedAt;
+
     @CreatedDate
     private Instant createdAt;
 
@@ -226,6 +232,30 @@ public class Visitor {
 
     public void setQrCode(String qrCode) {
         this.qrCode = qrCode;
+    }
+
+    public Instant getQrIssuedAt() {
+        return qrIssuedAt;
+    }
+
+    public void setQrIssuedAt(Instant qrIssuedAt) {
+        this.qrIssuedAt = qrIssuedAt;
+    }
+
+    public Instant getQrExpiresAt() {
+        return qrExpiresAt;
+    }
+
+    public void setQrExpiresAt(Instant qrExpiresAt) {
+        this.qrExpiresAt = qrExpiresAt;
+    }
+
+    public Instant getBadgePrintedAt() {
+        return badgePrintedAt;
+    }
+
+    public void setBadgePrintedAt(Instant badgePrintedAt) {
+        this.badgePrintedAt = badgePrintedAt;
     }
 
     public Instant getCreatedAt() {

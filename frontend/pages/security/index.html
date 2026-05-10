@@ -123,7 +123,18 @@
                   <h2>QR Verification</h2>
                 </div>
               </div>
-              <div class="work-list" id="qr-list"></div>
+              <form class="qr-verify-form" id="qr-verify-form">
+                <label class="form-field">
+                  <span>Scan payload</span>
+                  <input id="qr-payload-input" type="text" autocomplete="off" placeholder="Scan badge QR or paste payload" />
+                </label>
+                <div class="qr-verify-form__actions">
+                  <button class="button button--ghost" id="qr-camera-button" type="button">Camera Scan</button>
+                  <button class="button button--primary" type="submit">Verify</button>
+                </div>
+              </form>
+              <video class="qr-scan-video is-hidden" id="qr-scan-video" autoplay playsinline muted></video>
+              <div id="qr-result"></div>
             </article>
           </section>
 

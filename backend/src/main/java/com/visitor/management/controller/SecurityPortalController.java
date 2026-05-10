@@ -2,8 +2,11 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.PageResponse;
+import com.visitor.management.dto.QrVerificationRequest;
+import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
@@ -25,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -73,20 +75,25 @@ public class SecurityPortalController {
         ));
     }
 
-    @GetMapping("/qr-verification")
-    public ApiResponse<List<Map<String, String>>> qrVerification() {
-        return ApiResponse.ok("Security QR verification loaded.", List.of(
-                Map.of("code", "VST-1029", "status", "Valid"),
-                Map.of("code", "VST-1030", "status", "Pending scan")
-        ));
+    @PostMapping("/qr-verification")
+    public ApiResponse<QrVerificationResponse> qrVerification(@Valid @RequestBody QrVerificationRequest request) {
+        return ApiResponse.ok("Security QR verification completed.", visitorService.verifyQrPayload(request.qrPayload()));
     }
 
     @GetMapping("/badges")
-    public ApiResponse<Map<String, String>> badges() {
-        return ApiResponse.ok("Security badge printing loaded.", Map.of(
-                "printer", "READY",
-                "lastBadge", "VST-1028"
-        ));
+    public ApiResponse<PageResponse<VisitorResponse>> badges(@Valid @ModelAttribute SearchRequest request) {
+        SearchRequest approved = new SearchRequest(
+                request.query(),
+                request.page(),
+                request.size(),
+                request.sortBy(),
+                request.direction(),
+                VisitorStatus.APPROVED,
+                request.hostEmployeeId(),
+                request.from(),
+                request.to()
+        );
+        return ApiResponse.ok("Security badge queue loaded.", visitorService.search(approved));
     }
 
     @GetMapping("/queue")
@@ -113,6 +120,16 @@ public class SecurityPortalController {
     @GetMapping("/visitors/{id}")
     public ApiResponse<VisitorResponse> visitor(@PathVariable String id) {
         return ApiResponse.ok("Security visitor loaded.", visitorService.get(id));
+    }
+
+    @GetMapping("/visitors/{id}/pass")
+    public ApiResponse<VisitorPassResponse> visitorPass(@PathVariable String id) {
+        return ApiResponse.ok("Visitor pass generated.", visitorService.pass(id));
+    }
+
+    @PatchMapping("/visitors/{id}/badge-printed")
+    public ApiResponse<VisitorPassResponse> markBadgePrinted(@PathVariable String id) {
+        return ApiResponse.ok("Badge print recorded.", visitorService.markBadgePrinted(id));
     }
 
     @PostMapping("/visitors")

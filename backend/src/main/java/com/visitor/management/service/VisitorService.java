@@ -2,8 +2,10 @@ package com.visitor.management.service;
 
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
+import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
@@ -17,6 +19,9 @@ import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
+import com.visitor.management.security.JwtService;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +45,9 @@ import java.util.regex.Pattern;
 @Service
 public class VisitorService {
 
+    private static final String QR_PAYLOAD_PREFIX = "AFVP:";
+    private static final long PASS_VALID_HOURS = 12;
+
     private static final Set<String> SORT_FIELDS = Set.of(
             "createdAt",
             "updatedAt",
@@ -56,19 +64,25 @@ public class VisitorService {
     private final VisitorAuditLogRepository visitorAuditLogRepository;
     private final MongoTemplate mongoTemplate;
     private final PaginationService paginationService;
+    private final JwtService jwtService;
+    private final QrCodeService qrCodeService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
             UserRepository userRepository,
             VisitorAuditLogRepository visitorAuditLogRepository,
             MongoTemplate mongoTemplate,
-            PaginationService paginationService
+            PaginationService paginationService,
+            JwtService jwtService,
+            QrCodeService qrCodeService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
         this.visitorAuditLogRepository = visitorAuditLogRepository;
         this.mongoTemplate = mongoTemplate;
         this.paginationService = paginationService;
+        this.jwtService = jwtService;
+        this.qrCodeService = qrCodeService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -143,7 +157,9 @@ public class VisitorService {
         visitor.setRejectedAt(null);
         visitor.setRejectedBy(null);
         visitor.setRejectionReason(null);
-        visitor.setQrCode(generateQrCode());
+        visitor.setQrCode(generatePassCode());
+        visitor.setQrIssuedAt(now);
+        visitor.setQrExpiresAt(now.plusSeconds(PASS_VALID_HOURS * 60 * 60));
         visitor.setUpdatedAt(now);
         String note = trimToNull(request == null ? null : request.note());
         addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
@@ -167,6 +183,9 @@ public class VisitorService {
         visitor.setRejectedBy(actorId);
         visitor.setRejectionReason(note);
         visitor.setQrCode(null);
+        visitor.setQrIssuedAt(null);
+        visitor.setQrExpiresAt(null);
+        visitor.setBadgePrintedAt(null);
         visitor.setUpdatedAt(now);
         addHistory(visitor, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
@@ -191,6 +210,74 @@ public class VisitorService {
     public void delete(String id) {
         Visitor visitor = find(id);
         visitorRepository.delete(visitor);
+    }
+
+    public VisitorPassResponse pass(String id) {
+        Visitor visitor = find(id);
+        requirePassReady(visitor);
+        return toPassResponse(visitor);
+    }
+
+    public VisitorPassResponse markBadgePrinted(String id) {
+        Visitor visitor = find(id);
+        requirePassReady(visitor);
+        Instant now = Instant.now();
+        visitor.setBadgePrintedAt(now);
+        addHistory(visitor, visitor.getStatus(), "BADGE_PRINTED", null, "Badge printed.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "BADGE_PRINTED", null, "Badge printed.", now);
+        return toPassResponse(saved);
+    }
+
+    public QrVerificationResponse verifyQrPayload(String scannedPayload) {
+        String token = normalizeQrPayload(scannedPayload);
+        Claims claims;
+        try {
+            claims = jwtService.parseClaims(token);
+        } catch (JwtException | IllegalArgumentException ex) {
+            return invalidVerification("QR pass is invalid or expired.");
+        }
+
+        if (!"visitor-pass".equals(claims.get("type", String.class))) {
+            return invalidVerification("QR pass type is invalid.");
+        }
+
+        String visitorId = claims.getSubject();
+        String passCode = claims.get("passCode", String.class);
+        Visitor visitor = visitorRepository.findById(visitorId).orElse(null);
+        if (visitor == null || visitor.getQrCode() == null || !visitor.getQrCode().equals(passCode)) {
+            return invalidVerification("QR pass does not match an active visitor pass.");
+        }
+
+        if (visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
+            return invalidVerification("QR pass has expired.");
+        }
+
+        if (visitor.getStatus() == VisitorStatus.REJECTED || visitor.getStatus() == VisitorStatus.CHECKED_OUT || visitor.getStatus() == VisitorStatus.PENDING) {
+            return new QrVerificationResponse(
+                    false,
+                    "Visitor pass is not valid for entry in the current status.",
+                    visitor.getId(),
+                    visitor.getFullName(),
+                    visitor.getCompanyName(),
+                    visitor.getHostEmployee(),
+                    visitor.getStatus(),
+                    visitor.getQrCode(),
+                    visitor.getQrExpiresAt()
+            );
+        }
+
+        return new QrVerificationResponse(
+                true,
+                visitor.getStatus() == VisitorStatus.CHECKED_IN ? "Visitor pass is valid. Visitor is already checked in." : "Visitor pass is valid for check-in.",
+                visitor.getId(),
+                visitor.getFullName(),
+                visitor.getCompanyName(),
+                visitor.getHostEmployee(),
+                visitor.getStatus(),
+                visitor.getQrCode(),
+                visitor.getQrExpiresAt()
+        );
     }
 
     public VisitorResponse checkIn(String id) {
@@ -358,7 +445,7 @@ public class VisitorService {
                 .orElse(hostEmployeeId);
     }
 
-    private String generateQrCode() {
+    private String generatePassCode() {
         String qrCode;
         do {
             qrCode = "VST-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
@@ -381,6 +468,9 @@ public class VisitorService {
                 visitor.getCheckOutTime(),
                 visitor.getStatus(),
                 visitor.getQrCode(),
+                visitor.getQrIssuedAt(),
+                visitor.getQrExpiresAt(),
+                visitor.getBadgePrintedAt(),
                 visitor.getApprovedAt(),
                 visitor.getRejectedAt(),
                 visitor.getApprovedBy(),
@@ -398,6 +488,25 @@ public class VisitorService {
                         .toList(),
                 visitor.getCreatedAt(),
                 visitor.getUpdatedAt()
+        );
+    }
+
+    private VisitorPassResponse toPassResponse(Visitor visitor) {
+        String payload = QR_PAYLOAD_PREFIX + jwtService.generateVisitorPassToken(visitor.getId(), visitor.getQrCode(), visitor.getQrExpiresAt());
+        return new VisitorPassResponse(
+                visitor.getId(),
+                visitor.getFullName(),
+                visitor.getCompanyName(),
+                visitor.getPurposeOfVisit(),
+                visitor.getHostEmployee(),
+                visitor.getPhotoUrl(),
+                visitor.getStatus(),
+                visitor.getQrCode(),
+                payload,
+                qrCodeService.dataUri(payload),
+                visitor.getQrIssuedAt(),
+                visitor.getQrExpiresAt(),
+                visitor.getApprovedAt()
         );
     }
 
@@ -445,5 +554,26 @@ public class VisitorService {
         log.setNote(note);
         log.setCreatedAt(timestamp);
         visitorAuditLogRepository.save(log);
+    }
+
+    private void requirePassReady(Visitor visitor) {
+        if (visitor.getStatus() != VisitorStatus.APPROVED && visitor.getStatus() != VisitorStatus.CHECKED_IN) {
+            throw new BadRequestException("A visitor pass is available only after approval.");
+        }
+        if (visitor.getQrCode() == null || visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
+            throw new BadRequestException("Visitor pass is missing or expired.");
+        }
+    }
+
+    private String normalizeQrPayload(String scannedPayload) {
+        String value = requiredTrim(scannedPayload, "QR payload is required.");
+        if (value.startsWith(QR_PAYLOAD_PREFIX)) {
+            return value.substring(QR_PAYLOAD_PREFIX.length());
+        }
+        return value;
+    }
+
+    private QrVerificationResponse invalidVerification(String message) {
+        return new QrVerificationResponse(false, message, null, null, null, null, null, null, null);
     }
 }

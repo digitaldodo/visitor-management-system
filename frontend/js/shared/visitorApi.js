@@ -40,6 +40,23 @@ export function rejectVisitor(basePath, id, note = "") {
   });
 }
 
+export function getVisitorPass(basePath, id) {
+  return request(`${basePath}/visitors/${id}/pass`);
+}
+
+export function markBadgePrinted(basePath, id) {
+  return request(`${basePath}/visitors/${id}/badge-printed`, {
+    method: "PATCH",
+  });
+}
+
+export function verifyQrPayload(basePath, qrPayload) {
+  return request(`${basePath}/qr-verification`, {
+    method: "POST",
+    body: JSON.stringify({ qrPayload }),
+  });
+}
+
 
 export function checkInVisitor(basePath, id) {
   return request(`${basePath}/visitors/${id}/check-in`, {

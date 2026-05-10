@@ -201,11 +201,13 @@ Base URL: `/api/v1`
 | `GET` | `/security/overview` | `SECURITY_GUARD` | Security dashboard metrics |
 | `GET` | `/security/checkins` | `SECURITY_GUARD` | Visitor check-in/check-out queue |
 | `GET` | `/security/photo-capture` | `SECURITY_GUARD` | Webcam photo capture authorization |
-| `GET` | `/security/qr-verification` | `SECURITY_GUARD` | QR verification data |
-| `GET` | `/security/badges` | `SECURITY_GUARD` | Badge printing status |
+| `POST` | `/security/qr-verification` | `SECURITY_GUARD` | Validate a scanned signed visitor pass QR payload |
+| `GET` | `/security/badges` | `SECURITY_GUARD` | Approved visitor badge queue |
 | `GET` | `/security/queue` | `SECURITY_GUARD` | Live visitor queue |
 | `GET` | `/security/visitors` | `SECURITY_GUARD` | Search, filter, and paginate visitor records |
 | `GET` | `/security/visitors/{id}` | `SECURITY_GUARD` | Visitor detail |
+| `GET` | `/security/visitors/{id}/pass` | `SECURITY_GUARD` | Generate a printable badge payload with QR image |
+| `PATCH` | `/security/visitors/{id}/badge-printed` | `SECURITY_GUARD` | Record badge print timestamp |
 | `POST` | `/security/visitors` | `SECURITY_GUARD` | Register visitor |
 | `POST` | `/security/visitors/photo` | `SECURITY_GUARD` | Upload a validated visitor photo to Cloudinary |
 | `PUT` | `/security/visitors/{id}` | `SECURITY_GUARD` | Update visitor |

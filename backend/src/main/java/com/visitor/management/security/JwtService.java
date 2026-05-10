@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -60,6 +61,21 @@ public class JwtService {
         }
 
         return builder.signWith(secretKey).compact();
+    }
+
+    public String generateVisitorPassToken(String visitorId, String passCode, Instant expiresAt) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(visitorId)
+                .issuer(jwtProperties.getIssuer())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiresAt))
+                .claims(Map.of(
+                        "type", "visitor-pass",
+                        "passCode", passCode
+                ))
+                .signWith(secretKey)
+                .compact();
     }
 
     public Claims parseClaims(String token) {
