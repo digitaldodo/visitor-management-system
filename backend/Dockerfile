@@ -13,4 +13,4 @@ COPY --from=build /workspace/target/visitor-management-backend-0.0.1-SNAPSHOT.ja
 USER accessflow
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

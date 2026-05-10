@@ -36,7 +36,7 @@ root/
 - Backend: Spring Boot 3.5, Java 21, Maven
 - Database: MongoDB Atlas via `MONGODB_URI`
 - Storage: Cloudinary via `CLOUDINARY_URL` or individual Cloudinary credentials
-- Deployment: Render static site and Java web service
+- Deployment: Render static site and Docker-backed Spring Boot web service
 
 ## Local Development
 
@@ -160,7 +160,7 @@ Super admins receive full admin portal access and can create admin accounts. Adm
 - Caching: admin analytics and status summaries are cached and evicted on visitor lifecycle mutations.
 - MongoDB: core visitor, notification, and audit query paths have explicit indexes; Atlas scheduled snapshots are the expected production backup mechanism.
 - Logging: production logs are single-line structured console logs with request IDs for Render log drains.
-- Deployment: `render.yaml` starts the backend with the `prod` profile, JVM memory tuning, response compression, and readiness health checks.
+- Deployment: `render.yaml` builds the backend with the Java 21 Dockerfile, starts it with the `prod` profile, JVM memory tuning, response compression, and readiness health checks.
 
 ## Frontend Portal Architecture
 
@@ -272,8 +272,10 @@ Expected error envelope:
 
 `render.yaml` defines:
 
-- `accessflow-api`: Java web service from `backend/`
+- `accessflow-api`: Docker-backed Spring Boot web service from `backend/`
 - `accessflow-web`: static site from `frontend/`
+
+The Blueprint uses Render's current static-site syntax: static frontends are declared as `type: web` with `runtime: static`. Do not change the frontend service back to `type: static`; Render rejects that older shape with `unknown type "static"`.
 
 ### 1. Create MongoDB Atlas
 
@@ -285,7 +287,7 @@ Create a Cloudinary project and copy either `CLOUDINARY_URL` or all three indivi
 
 ### 3. Create Render Services
 
-Use Render's **New > Blueprint** flow, connect this repository, and let Render read `render.yaml`. The backend uses Java 21, auto-deploys from the connected branch, and runs with the `prod` Spring profile through `SPRING_PROFILES_ACTIVE=prod`. The static frontend publishes the `frontend/` folder directly; do not add a catch-all rewrite because the portals are real static pages under `/pages/...`.
+Use Render's **New > Blueprint** flow, connect this repository, and let Render read `render.yaml`. The backend builds from `backend/Dockerfile` with Java 21, auto-deploys from the connected branch, and runs with the `prod` Spring profile through `SPRING_PROFILES_ACTIVE=prod`. The static frontend publishes the `frontend/` folder directly; do not add a catch-all rewrite because the portals are real static pages under `/pages/...`.
 
 ### 4. Set Backend Environment Variables
 
@@ -301,7 +303,7 @@ The backend now fails startup in the `prod` profile when required production val
 
 ### 5. Set Frontend Environment Variables
 
-Set `API_BASE_URL` on the Render static site to the deployed backend URL including `/api/v1`, for example:
+`render.yaml` provides a default `API_BASE_URL` for the `accessflow-api` service name. If you rename the backend service or Render assigns a different URL, update `API_BASE_URL` on the static site to the deployed backend URL including `/api/v1`, for example:
 
 ```text
 https://accessflow-api.onrender.com/api/v1
