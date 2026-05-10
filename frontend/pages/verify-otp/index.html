@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="AccessFlow OTP verification." />
-    <title>AccessFlow | Verify OTP</title>
+    <meta name="description" content="AccessFlow account verification." />
+    <title>AccessFlow | Verify Code</title>
     <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
     <link rel="stylesheet" href="../../css/shared/auth.css?v=20260511" />
   </head>
@@ -18,29 +18,29 @@
           <div class="auth-copy__headline">
             <p class="eyebrow">Account recovery</p>
             <h1>Verify your identity.</h1>
-            <p>One-time verification for password recovery.</p>
+            <p>Enter the code we sent to keep your account recovery protected.</p>
           </div>
         </div>
       </section>
 
-      <section class="auth-card" aria-label="OTP verification">
+      <section class="auth-card" aria-label="Account verification">
         <form class="auth-form" id="verify-otp-form" novalidate>
           <div>
             <p class="eyebrow">Account recovery</p>
-            <h2>Verify OTP</h2>
+            <h2>Verify code</h2>
           </div>
           <label class="form-field">
-            <span>6-digit OTP</span>
+            <span>6-digit code</span>
             <input class="otp-input" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required />
           </label>
           <div class="otp-meta">
             <span id="otp-countdown">05:00</span>
-            <button class="link-button" id="resend-otp-button" type="button" disabled>Resend OTP</button>
+            <button class="link-button" id="resend-otp-button" type="button" disabled>Resend code</button>
           </div>
-          <button class="button button--primary auth-submit" type="submit">Verify OTP</button>
+          <button class="button button--primary auth-submit" type="submit">Verify code</button>
           <a class="link-button link-button--anchor" href="../forgot-password/index.html">Use another account</a>
         </form>
-        <footer class="auth-footer">AccessFlow · OTP verification</footer>
+        <footer class="auth-footer">AccessFlow · Account verification</footer>
       </section>
     </main>
 

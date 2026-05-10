@@ -39,7 +39,7 @@ function initForgotPasswordPage() {
       sessionStorage.setItem(RESET_IDENTIFIER_KEY, identifier);
       sessionStorage.setItem(OTP_EXPIRES_KEY, response.data?.expiresAt || minutesFromNow(5));
       sessionStorage.setItem(RESEND_READY_KEY, secondsFromNow(60));
-      showToast("Request accepted", response.message || "If the account exists, an OTP has been sent.");
+      showToast("Request accepted", response.message || "If the account exists, a verification code has been sent.");
       window.location.href = "../verify-otp/index.html";
     });
   });
@@ -71,7 +71,7 @@ function initVerifyOtpPage() {
       sessionStorage.setItem(RESEND_READY_KEY, secondsFromNow(60));
       otpInput.value = "";
       startOtpTimers();
-      showToast("Request accepted", response.message || "If the account exists, an OTP has been sent.");
+      showToast("Request accepted", response.message || "If the account exists, a verification code has been sent.");
     });
   });
 
@@ -79,7 +79,7 @@ function initVerifyOtpPage() {
     event.preventDefault();
     const otp = otpInput.value.trim();
     if (!/^\d{6}$/.test(otp)) {
-      showToast("Check the OTP", "Enter the 6-digit code.");
+      showToast("Check the code", "Enter the 6-digit code.");
       return;
     }
 
@@ -87,7 +87,7 @@ function initVerifyOtpPage() {
       const response = await verifyOtp(identifier, otp);
       sessionStorage.setItem(RESET_TOKEN_KEY, response.data.resetToken);
       sessionStorage.setItem(RESET_TOKEN_EXPIRES_KEY, response.data.expiresAt);
-      showToast("OTP verified", "Create a new password.");
+      showToast("Code verified", "Create a new password.");
       window.location.href = "../reset-password/index.html";
     });
   });
@@ -102,7 +102,7 @@ function initResetPasswordPage() {
   const resetToken = sessionStorage.getItem(RESET_TOKEN_KEY);
   const resetTokenExpiresAt = sessionStorage.getItem(RESET_TOKEN_EXPIRES_KEY);
   if (!resetToken || isPast(resetTokenExpiresAt)) {
-    showToast("Session expired", "Verify the OTP again.");
+    showToast("Session expired", "Verify your account again.");
     window.location.href = "../forgot-password/index.html";
     return;
   }
@@ -158,7 +158,7 @@ function updateOtpTimers() {
   if (resendButton) {
     const resendLeft = Math.max(0, new Date(resendReadyAt).getTime() - Date.now());
     resendButton.disabled = resendLeft > 0;
-    resendButton.textContent = resendLeft > 0 ? `Resend in ${Math.ceil(resendLeft / 1000)}s` : "Resend OTP";
+    resendButton.textContent = resendLeft > 0 ? `Resend in ${Math.ceil(resendLeft / 1000)}s` : "Resend code";
   }
 }
 
