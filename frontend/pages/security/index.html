@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../../css/security/security.css?v=20260511" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell security-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Security navigation">
         <a class="brand" href="#queue" aria-label="Security portal home">
@@ -76,7 +77,7 @@
           </div>
         </header>
 
-        <main class="portal-main">
+        <main class="portal-main" id="main-content" tabindex="-1">
           <section class="metric-grid" id="metric-grid" aria-label="Security metrics"></section>
 
           <section class="panel" data-security-visitors></section>
@@ -166,6 +167,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/security/dashboard.js?v=20260511"></script>
+    <script type="module" src="../../js/security/dashboard.js?v=20260511-enterprise"></script>
   </body>
 </html>

@@ -3,6 +3,7 @@ package com.visitor.management.service;
 import com.mongodb.client.MongoCollection;
 import com.visitor.management.entity.VisitorStatus;
 import org.bson.Document;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,7 @@ public class AnalyticsService {
         this.mongoTemplate = mongoTemplate;
     }
 
+    @Cacheable("adminAnalytics")
     public Map<String, Object> adminDashboard() {
         Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant todayEnd = todayStart.plusSeconds(24 * 60 * 60);

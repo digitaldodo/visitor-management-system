@@ -5,8 +5,8 @@ services:
     plan: free
     rootDir: backend
     buildCommand: bash ./mvnw -B clean package -DskipTests
-    startCommand: java -jar target/visitor-management-backend-0.0.1-SNAPSHOT.jar
-    healthCheckPath: /actuator/health
+    startCommand: java -XX:MaxRAMPercentage=75 -XX:+UseG1GC -Dspring.profiles.active=prod -jar target/visitor-management-backend-0.0.1-SNAPSHOT.jar
+    healthCheckPath: /api/v1/health/ready
     envVars:
       - key: JAVA_VERSION
         value: 21
@@ -22,6 +22,10 @@ services:
         value: 7
       - key: APP_SEED_TEST_ACCOUNTS
         value: false
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_REQUESTS_PER_MINUTE
+        value: 180
       - key: CLOUDINARY_URL
         sync: false
       - key: CLOUDINARY_FOLDER
@@ -36,6 +40,8 @@ services:
         sync: false
       - key: SENDGRID_FROM_NAME
         value: AccessFlow Security
+      - key: SWAGGER_UI_ENABLED
+        value: false
 
   - type: static
     name: visitor-management-web

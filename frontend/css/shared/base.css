@@ -47,6 +47,24 @@ body {
   margin: 0;
 }
 
+.skip-link {
+  background: #111827;
+  border-radius: 0 0 8px 0;
+  color: #ffffff;
+  font-weight: 800;
+  left: 0;
+  padding: 0.75rem 1rem;
+  position: fixed;
+  top: 0;
+  transform: translateY(-120%);
+  transition: transform 160ms ease;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 button,
 input,
 select {

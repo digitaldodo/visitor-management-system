@@ -365,6 +365,14 @@
   padding: 1rem;
 }
 
+@supports (content-visibility: auto) {
+  .portal-main > section,
+  .portal-main > .panel {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 720px;
+  }
+}
+
 .panel:hover,
 .metric-card:hover {
   box-shadow: var(--shadow-soft);

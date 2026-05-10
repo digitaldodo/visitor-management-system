@@ -1,0 +1,12 @@
+.git
+.github
+logs
+target
+backend/target
+frontend/node_modules
+frontend/dist
+frontend/build
+*.log
+.env
+.env.*
+!/.env.example

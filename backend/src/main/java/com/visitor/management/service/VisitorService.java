@@ -25,6 +25,8 @@ import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.security.JwtService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -104,6 +106,7 @@ public class VisitorService {
         return create(request, null);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse create(VisitorCreateRequest request, String forcedHostEmployeeId) {
         Instant now = Instant.now();
         Visitor visitor = new Visitor();
@@ -128,6 +131,7 @@ public class VisitorService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse preApprove(PreApprovalRequest request, String hostEmployeeId) {
         Instant now = Instant.now();
         Instant start = request.scheduledStartTime();
@@ -213,6 +217,7 @@ public class VisitorService {
                 .toList();
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse approve(String id, ApprovalDecisionRequest request, String actorId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, actorId);
@@ -240,6 +245,7 @@ public class VisitorService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse reject(String id, ApprovalDecisionRequest request, String actorId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, actorId);
@@ -266,12 +272,14 @@ public class VisitorService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse update(String id, VisitorUpdateRequest request) {
         Visitor visitor = find(id);
         applyUpdate(visitor, request);
         return toResponse(visitorRepository.save(visitor));
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse updateForHost(String id, VisitorUpdateRequest request, String hostEmployeeId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, hostEmployeeId);
@@ -280,6 +288,7 @@ public class VisitorService {
         return toResponse(visitorRepository.save(visitor));
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public void delete(String id) {
         Visitor visitor = find(id);
         visitorRepository.delete(visitor);
@@ -359,6 +368,7 @@ public class VisitorService {
         );
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse checkIn(String id) {
         Visitor visitor = find(id);
         Instant now = Instant.now();
@@ -385,6 +395,7 @@ public class VisitorService {
         return toResponse(saved);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse checkOut(String id) {
         Visitor visitor = find(id);
         if (visitor.getStatus() != VisitorStatus.CHECKED_IN) {
@@ -414,6 +425,7 @@ public class VisitorService {
         );
     }
 
+    @Cacheable("statusSummary")
     public Map<String, Object> statusSummary() {
         return Map.of(
                 "pending", visitorRepository.countByStatus(VisitorStatus.PENDING),
@@ -425,6 +437,7 @@ public class VisitorService {
         );
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public int expireDueVisitors() {
         Instant now = Instant.now();
         Query query = new Query(new Criteria().orOperator(

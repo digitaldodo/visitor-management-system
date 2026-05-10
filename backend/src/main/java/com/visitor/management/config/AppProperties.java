@@ -32,6 +32,15 @@ public class AppProperties {
     @Valid
     private Visitors visitors = new Visitors();
 
+    @Valid
+    private RateLimit rateLimit = new RateLimit();
+
+    @Valid
+    private SecurityHeaders securityHeaders = new SecurityHeaders();
+
+    @Valid
+    private Backup backup = new Backup();
+
     public Cors getCors() {
         return cors;
     }
@@ -78,6 +87,30 @@ public class AppProperties {
 
     public void setVisitors(Visitors visitors) {
         this.visitors = visitors;
+    }
+
+    public RateLimit getRateLimit() {
+        return rateLimit;
+    }
+
+    public void setRateLimit(RateLimit rateLimit) {
+        this.rateLimit = rateLimit;
+    }
+
+    public SecurityHeaders getSecurityHeaders() {
+        return securityHeaders;
+    }
+
+    public void setSecurityHeaders(SecurityHeaders securityHeaders) {
+        this.securityHeaders = securityHeaders;
+    }
+
+    public Backup getBackup() {
+        return backup;
+    }
+
+    public void setBackup(Backup backup) {
+        this.backup = backup;
     }
 
     public static class Cors {
@@ -279,6 +312,62 @@ public class AppProperties {
 
         public void setExpirySweepDelayMs(long expirySweepDelayMs) {
             this.expirySweepDelayMs = expirySweepDelayMs;
+        }
+    }
+
+    public static class RateLimit {
+        private boolean enabled = true;
+
+        @Min(1)
+        private int requestsPerMinute = 180;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getRequestsPerMinute() {
+            return requestsPerMinute;
+        }
+
+        public void setRequestsPerMinute(int requestsPerMinute) {
+            this.requestsPerMinute = requestsPerMinute;
+        }
+    }
+
+    public static class SecurityHeaders {
+        private String contentSecurityPolicy = "default-src 'self'; img-src 'self' data: https: blob:; media-src 'self' blob:; connect-src 'self' https:; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
+        public String getContentSecurityPolicy() {
+            return contentSecurityPolicy;
+        }
+
+        public void setContentSecurityPolicy(String contentSecurityPolicy) {
+            this.contentSecurityPolicy = contentSecurityPolicy;
+        }
+    }
+
+    public static class Backup {
+        private String strategy = "mongodb-atlas-scheduled-snapshots";
+        private String retention = "managed-by-provider";
+
+        public String getStrategy() {
+            return strategy;
+        }
+
+        public void setStrategy(String strategy) {
+            this.strategy = strategy;
+        }
+
+        public String getRetention() {
+            return retention;
+        }
+
+        public void setRetention(String retention) {
+            this.retention = retention;
         }
     }
 }

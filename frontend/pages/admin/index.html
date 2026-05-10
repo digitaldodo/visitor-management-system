@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511-analytics" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell admin-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Admin navigation">
         <a class="brand" href="#analytics" aria-label="Admin portal home">
@@ -76,7 +77,7 @@
           </div>
         </header>
 
-        <main class="portal-main">
+        <main class="portal-main" id="main-content" tabindex="-1">
           <section class="analytics-board" id="analytics" aria-label="Admin analytics dashboard">
             <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Admin analytics"></section>
 
@@ -177,6 +178,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/admin/dashboard.js?v=20260511-analytics"></script>
+    <script type="module" src="../../js/admin/dashboard.js?v=20260511-enterprise"></script>
   </body>
 </html>

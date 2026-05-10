@@ -6,9 +6,14 @@ server:
 spring:
   application:
     name: visitor-management-backend
+  profiles:
+    default: local
+  cache:
+    type: simple
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/visitor_management}
+      auto-index-creation: false
   servlet:
     multipart:
       max-file-size: 3MB
@@ -42,19 +47,41 @@ app:
     expiry-sweep-delay-ms: ${VISITOR_EXPIRY_SWEEP_DELAY_MS:60000}
   notifications:
     email-retry-delay-ms: ${NOTIFICATION_EMAIL_RETRY_DELAY_MS:120000}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:180}
+  backup:
+    strategy: ${BACKUP_STRATEGY:mongodb-atlas-scheduled-snapshots}
+    retention: ${BACKUP_RETENTION:managed-by-provider}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,loggers
   endpoint:
     health:
       probes:
         enabled: true
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+info:
+  app:
+    name: AccessFlow Visitor Management
+    version: 1.0.0
 
 logging:
   level:
     root: INFO
-    com.visitor.management: DEBUG
+    com.visitor.management: INFO
     org.mongodb.driver.cluster: WARN
