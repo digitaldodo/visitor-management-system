@@ -1,5 +1,7 @@
 package com.visitor.management.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -12,6 +14,8 @@ import java.util.List;
 @Component
 @Profile("prod")
 public class ProductionEnvironmentValidator implements ApplicationRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(ProductionEnvironmentValidator.class);
 
     private static final String LOCAL_MONGO_URI = "mongodb://localhost:27017/visitor_management";
     private static final String LOCAL_JWT_SECRET = "local-development-secret-key-change-me-32";
@@ -27,6 +31,7 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         List<String> missing = new ArrayList<>();
+        List<String> degraded = new ArrayList<>();
 
         require("MONGODB_URI", missing);
         require("JWT_SECRET", missing);
@@ -57,19 +62,22 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
                 && !hasPlaceholder(cloudinary.getApiKey())
                 && !hasPlaceholder(cloudinary.getApiSecret());
         if (!hasCloudinaryParts) {
-            missing.add("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET with real Cloudinary values");
+            degraded.add("Cloudinary visitor photo uploads are disabled until CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are configured");
         }
 
         AppProperties.SendGrid sendgrid = properties.getSendgrid();
         if (!hasText(sendgrid.getApiKey()) || hasPlaceholder(sendgrid.getApiKey())) {
-            missing.add("SENDGRID_API_KEY with a real SendGrid key");
+            degraded.add("SendGrid email delivery is disabled until SENDGRID_API_KEY is configured");
         }
         if (!hasText(sendgrid.getFromEmail()) || hasPlaceholder(sendgrid.getFromEmail())) {
-            missing.add("SENDGRID_FROM_EMAIL with a verified sender");
+            degraded.add("SendGrid email delivery is disabled until SENDGRID_FROM_EMAIL is configured with a verified sender");
         }
 
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Production environment is incomplete: " + String.join(", ", missing));
+        }
+        if (!degraded.isEmpty()) {
+            log.warn("Production environment is starting with degraded optional integrations: {}", String.join("; ", degraded));
         }
     }
 

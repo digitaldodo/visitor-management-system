@@ -54,7 +54,7 @@ Use `.env.example` as the shape reference. Do not commit real secrets.
 - `accessflow-api`: Docker web service built from `backend/Dockerfile`
 - `accessflow-web`: static site published from `frontend/`
 
-The frontend build writes `frontend/assets/js/env.js` from `API_BASE_URL`. The backend Docker image starts with the Spring `prod` profile and reads `FRONTEND_URL` for CORS.
+The frontend build writes `frontend/assets/js/env.js` from `API_BASE_URL`. The backend Docker image starts with the Spring `prod` profile, binds to `0.0.0.0:${PORT:-10000}` for Render, and reads `FRONTEND_URL` for CORS.
 
 Set the secret values in Render before the first backend deploy. The initial super admin is created only when no `SUPER_ADMIN` or `ADMIN` user exists. The display name is derived from `SUPER_ADMIN_USERNAME`.
 

@@ -4,6 +4,8 @@ import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -21,6 +23,8 @@ import java.util.regex.Pattern;
 @Profile("!test")
 public class SuperAdminBootstrapper implements ApplicationRunner {
 
+    private static final Logger log = LoggerFactory.getLogger(SuperAdminBootstrapper.class);
+
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9._-]{3,32}$");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,128}$");
@@ -37,31 +41,36 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (adminExists()) {
-            return;
+        try {
+            if (adminExists()) {
+                return;
+            }
+
+            String username = required("SUPER_ADMIN_USERNAME").toLowerCase(Locale.ROOT);
+            String email = required("SUPER_ADMIN_EMAIL").toLowerCase(Locale.ROOT);
+            String password = required("SUPER_ADMIN_PASSWORD");
+            String name = displayName(username);
+
+            validate(name, username, email, password);
+
+            if (userRepository.existsByUsernameIgnoreCase(username) || userRepository.existsByEmailIgnoreCase(email)) {
+                throw new IllegalStateException("Initial SUPER_ADMIN username or email already exists without an admin role.");
+            }
+
+            User user = new User();
+            user.setFullName(name.trim());
+            user.setUsername(username);
+            user.setEmail(email);
+            user.setPasswordHash(passwordEncoder.encode(password));
+            user.setRoles(Set.of(Role.SUPER_ADMIN));
+            user.setActive(true);
+            user.setAccountStatus(AccountStatus.ACTIVE);
+            user.setPasswordChangedAt(Instant.now());
+            userRepository.save(user);
+            log.info("Initial AccessFlow SUPER_ADMIN account bootstrapped for {}.", email);
+        } catch (RuntimeException ex) {
+            log.error("AccessFlow SUPER_ADMIN bootstrap did not complete during startup: {}", ex.getMessage());
         }
-
-        String username = required("SUPER_ADMIN_USERNAME").toLowerCase(Locale.ROOT);
-        String email = required("SUPER_ADMIN_EMAIL").toLowerCase(Locale.ROOT);
-        String password = required("SUPER_ADMIN_PASSWORD");
-        String name = displayName(username);
-
-        validate(name, username, email, password);
-
-        if (userRepository.existsByUsernameIgnoreCase(username) || userRepository.existsByEmailIgnoreCase(email)) {
-            throw new IllegalStateException("Initial SUPER_ADMIN username or email already exists without an admin role.");
-        }
-
-        User user = new User();
-        user.setFullName(name.trim());
-        user.setUsername(username);
-        user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(password));
-        user.setRoles(Set.of(Role.SUPER_ADMIN));
-        user.setActive(true);
-        user.setAccountStatus(AccountStatus.ACTIVE);
-        user.setPasswordChangedAt(Instant.now());
-        userRepository.save(user);
     }
 
     private boolean adminExists() {

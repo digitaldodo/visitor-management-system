@@ -5,8 +5,12 @@ spring:
   web:
     resources:
       add-mappings: false
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 server:
+  port: ${PORT:10000}
+  address: ${SERVER_ADDRESS:0.0.0.0}
   compression:
     enabled: true
     mime-types: application/json,text/html,text/xml,text/plain,text/css,text/javascript,application/javascript
@@ -19,6 +23,9 @@ springdoc:
     enabled: false
 
 management:
+  health:
+    mongo:
+      enabled: false
   endpoint:
     health:
       show-details: never
