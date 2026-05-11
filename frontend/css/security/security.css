@@ -21,8 +21,8 @@
   align-items: center;
   aspect-ratio: 16 / 9;
   background:
-    radial-gradient(circle at 50% 42%, rgba(186, 230, 253, 0.18), transparent 34%),
-    linear-gradient(180deg, rgba(10, 22, 34, 0.98), rgba(7, 16, 27, 0.98));
+    radial-gradient(circle at 50% 42%, rgba(186, 230, 253, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(12, 28, 43, 0.98), rgba(8, 18, 31, 0.98));
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   color: #dbeafe;
@@ -34,12 +34,12 @@
 }
 
 .security-shell .metric-card {
-  background: linear-gradient(180deg, rgba(10, 25, 41, 0.98) 0%, rgba(8, 17, 29, 0.98) 100%);
+  background: linear-gradient(180deg, rgba(11, 31, 51, 0.98) 0%, rgba(8, 18, 31, 0.98) 100%);
 }
 
 .visitor-pass-card,
 .qr-result {
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(11, 18, 31, 0.6);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -67,7 +67,7 @@
 }
 
 .visitor-pass {
-  background: rgba(7, 16, 27, 0.95);
+  background: rgba(8, 16, 29, 0.96);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: var(--radius-card);
   overflow: hidden;
@@ -157,7 +157,7 @@
 }
 
 .badge-empty {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(11, 18, 31, 0.52);
   border: 1px dashed rgba(186, 230, 253, 0.24);
   border-radius: var(--radius-card);
   padding: 1rem;
@@ -175,7 +175,7 @@
 }
 
 .security-monitor-card {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(11, 18, 31, 0.58);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 1rem;
@@ -262,8 +262,8 @@
 }
 
 .qr-result__guidance {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   color: #f8fafc;
   font-size: 0.92rem;
@@ -293,7 +293,7 @@
 .qr-result__photo-placeholder {
   align-items: center;
   aspect-ratio: 4 / 5;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px dashed rgba(148, 163, 184, 0.28);
   border-radius: var(--radius-card);
   color: var(--color-muted);
@@ -323,8 +323,8 @@
 }
 
 .work-card--alert {
-  background: rgba(180, 83, 9, 0.12);
-  border-color: rgba(247, 201, 168, 0.22);
+  background: rgba(180, 83, 9, 0.18);
+  border-color: rgba(247, 201, 168, 0.26);
 }
 
 @media (max-width: 900px) {
