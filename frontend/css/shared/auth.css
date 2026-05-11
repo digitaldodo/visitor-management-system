@@ -19,6 +19,13 @@ body {
   overflow-x: hidden;
 }
 
+:root {
+  --marketing-shell-max: 88rem;
+  --auth-shell-max: 74rem;
+  --marketing-gutter: clamp(0.85rem, 2vw, 1.5rem);
+  --marketing-section-gap: clamp(1rem, 2vw, 1.35rem);
+}
+
 h1,
 h2,
 h3 {
@@ -27,7 +34,10 @@ h3 {
 }
 
 .page-shell {
-  padding: 1.25rem;
+  margin: 0 auto;
+  max-width: calc(var(--marketing-shell-max) + (var(--marketing-gutter) * 2));
+  padding: var(--marketing-gutter);
+  width: 100%;
 }
 
 .site-header,
@@ -45,11 +55,12 @@ h3 {
 .site-header {
   align-items: center;
   border-radius: 24px;
-  display: flex;
-  gap: 1.5rem;
+  display: grid;
+  gap: 1rem 1.5rem;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
   justify-content: space-between;
   margin: 0 auto;
-  max-width: 1240px;
+  max-width: var(--marketing-shell-max);
   padding: 0.95rem 1.15rem;
   position: sticky;
   top: 1rem;
@@ -61,6 +72,7 @@ h3 {
 .auth-copy__brand {
   display: inline-flex;
   max-width: 11rem;
+  min-width: 0;
   padding: 0.15rem;
 }
 
@@ -74,12 +86,15 @@ h3 {
   align-items: center;
   display: flex;
   gap: 1.5rem;
+  justify-content: center;
+  min-width: 0;
 }
 
 .site-header__nav a {
   color: #9baccc;
   font-size: 0.94rem;
   font-weight: 700;
+  min-width: 0;
 }
 
 .site-header__nav a:hover {
@@ -130,9 +145,9 @@ h3 {
 
 .landing-page {
   display: grid;
-  gap: 1.35rem;
-  margin: 1.35rem auto 0;
-  max-width: 1240px;
+  gap: var(--marketing-section-gap);
+  margin: var(--marketing-section-gap) auto 0;
+  max-width: var(--marketing-shell-max);
 }
 
 .hero-section,
@@ -167,7 +182,8 @@ h3 {
     linear-gradient(145deg, rgba(6, 10, 20, 0.98) 0%, rgba(10, 17, 30, 0.97) 50%, rgba(7, 12, 24, 0.98) 100%);
   display: grid;
   gap: clamp(2rem, 3.5vw, 3.25rem);
-  grid-template-columns: minmax(0, 1.08fr) minmax(19rem, 0.92fr);
+  grid-template-columns: minmax(0, 1.16fr) minmax(22rem, 0.84fr);
+  align-items: start;
   padding: clamp(2.4rem, 4.6vw, 3.8rem);
 }
 
@@ -184,6 +200,8 @@ h3 {
   display: grid;
   gap: 1.7rem;
   align-content: center;
+  max-width: 40rem;
+  min-width: 0;
 }
 
 .hero-copy__intro {
@@ -202,10 +220,10 @@ h3 {
 
 .hero-copy h1 {
   color: #f8fbff;
-  font-size: clamp(2.8rem, 5vw, 4.9rem);
-  line-height: 0.96;
+  font-size: clamp(2.65rem, 5vw, 4.8rem);
+  line-height: 0.98;
   margin: 0;
-  max-width: 10ch;
+  max-width: 11ch;
 }
 
 .hero-copy__lede,
@@ -215,9 +233,20 @@ h3 {
 .auth-form__header p:not(.eyebrow),
 .auth-copy p {
   color: #9baccc;
-  font-size: 1rem;
-  line-height: 1.75;
+  font-size: clamp(0.98rem, 1.25vw, 1.05rem);
+  line-height: 1.72;
   margin: 0;
+}
+
+.hero-copy__lede,
+.cta-section__copy,
+.trust-copy,
+.section-heading {
+  min-width: 0;
+}
+
+.hero-copy__lede {
+  max-width: 58ch;
 }
 
 .button--hero {
@@ -259,7 +288,7 @@ h3 {
   border-radius: 24px;
   display: grid;
   gap: 0.9rem;
-  max-width: 36rem;
+  max-width: min(100%, 36rem);
   padding: 1.2rem 1.3rem;
 }
 
@@ -312,12 +341,13 @@ h3 {
 }
 
 .hero-stage {
-  align-content: center;
+  align-content: start;
   display: grid;
   gap: 1.25rem;
   grid-template-columns: 1fr;
-  justify-self: end;
-  max-width: 23rem;
+  justify-self: stretch;
+  max-width: min(100%, 27rem);
+  min-width: 0;
   width: 100%;
 }
 
@@ -330,6 +360,7 @@ h3 {
   display: grid;
   gap: 1.15rem;
   min-height: 100%;
+  min-width: 0;
   padding: 1.35rem;
 }
 
@@ -374,6 +405,7 @@ h3 {
 .dashboard-mockup__body {
   display: grid;
   gap: 1rem;
+  min-width: 0;
 }
 
 .dashboard-flow {
@@ -387,6 +419,7 @@ h3 {
   border-radius: 18px;
   display: grid;
   gap: 0.45rem;
+  min-width: 0;
   padding: 1rem;
 }
 
@@ -434,7 +467,7 @@ h3 {
   border-top: 1px solid rgba(148, 163, 184, 0.1);
   display: grid;
   gap: 0.9rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.75rem), 1fr));
   padding-top: 1rem;
 }
 
@@ -460,6 +493,7 @@ h3 {
   color: #e7edf8;
   display: grid;
   gap: 1.15rem;
+  min-width: 0;
   padding: 1.25rem;
 }
 
@@ -467,9 +501,9 @@ h3 {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(148, 163, 184, 0.08);
   border-radius: 16px;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.28rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.4rem), 1fr));
   padding: 0.28rem;
 }
 
@@ -478,16 +512,12 @@ h3 {
   border: 0;
   border-radius: 10px;
   color: #90a3c2;
-  flex: 1 1 calc(50% - 0.4rem);
   font-size: 0.76rem;
   font-weight: 800;
   min-height: 2.35rem;
+  min-width: 0;
   padding: 0.5rem 0.62rem;
   text-align: center;
-}
-
-.auth-tabs--five .auth-tab {
-  flex-basis: calc(33.333% - 0.4rem);
 }
 
 .auth-tab:hover {
@@ -504,6 +534,7 @@ h3 {
 .auth-form {
   display: grid;
   gap: 0.92rem;
+  min-width: 0;
 }
 
 .auth-form__header {
@@ -529,7 +560,7 @@ h3 {
 .auth-form__split {
   display: grid;
   gap: 0.8rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr));
 }
 
 .form-field {
@@ -662,7 +693,7 @@ h3 {
 }
 
 .feature-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
 }
 
 .feature-card {
@@ -730,7 +761,7 @@ h3 {
 }
 
 .role-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 
 .role-card {
@@ -750,7 +781,7 @@ h3 {
   align-items: start;
   display: grid;
   gap: 1.2rem;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
 }
 
 .trust-copy {
@@ -772,7 +803,7 @@ h3 {
     linear-gradient(145deg, rgba(9, 15, 27, 0.96), rgba(6, 10, 20, 0.98));
   display: grid;
   gap: 1.2rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, auto);
   padding: clamp(1.9rem, 3vw, 2.6rem);
 }
 
@@ -797,12 +828,12 @@ h3 {
   align-items: stretch;
   display: grid;
   gap: 1.25rem;
-  grid-template-columns: minmax(0, 1fr) minmax(21rem, 28rem);
+  grid-template-columns: minmax(0, 1.04fr) minmax(19rem, 27rem);
   margin: 0 auto;
-  max-width: 1160px;
+  max-width: var(--auth-shell-max);
   min-height: 100vh;
   min-height: 100svh;
-  padding: 1.5rem;
+  padding: clamp(0.85rem, 2vw, 1.5rem);
 }
 
 .auth-copy {
@@ -817,6 +848,7 @@ h3 {
   display: grid;
   gap: 1.2rem;
   max-width: 29rem;
+  min-width: 0;
   position: relative;
   z-index: 1;
 }
@@ -907,15 +939,7 @@ h3 {
 
   .hero-stage {
     justify-self: stretch;
-    max-width: none;
-  }
-
-  .feature-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .role-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: min(100%, 36rem);
   }
 
   .trust-layout {
@@ -927,14 +951,10 @@ h3 {
   }
 }
 
-@media (max-width: 920px) {
-  .page-shell {
-    padding: 1rem;
-  }
-
+@media (max-width: 1040px) {
   .site-header {
-    flex-wrap: wrap;
-    justify-content: center;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
   }
 
   .site-header__nav,
@@ -943,14 +963,23 @@ h3 {
     justify-content: center;
   }
 
+  .site-header__nav a {
+    text-align: center;
+  }
+
   .hero-note__grid,
-  .auth-form__split,
   .dashboard-summary {
     grid-template-columns: 1fr;
   }
 
   .auth-layout--compact {
     grid-template-columns: 1fr;
+  }
+
+  .auth-layout--compact .auth-card {
+    justify-self: stretch;
+    max-width: 36rem;
+    width: 100%;
   }
 }
 
@@ -964,11 +993,16 @@ h3 {
   .site-header__brand,
   .site-header__nav,
   .site-header__actions,
+  .site-header__nav a,
   .hero-actions .button,
   .cta-section__actions,
   .cta-section__actions .button,
   .site-footer {
     width: 100%;
+  }
+
+  .site-header__nav {
+    gap: 0.7rem;
   }
 
   .site-header__actions .button,
@@ -992,16 +1026,6 @@ h3 {
   .hero-copy {
     gap: 1.35rem;
   }
-
-  .role-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-tabs--five .auth-tab,
-  .auth-tab {
-    flex-basis: calc(50% - 0.4rem);
-  }
-
   .site-footer {
     align-items: flex-start;
     flex-direction: column;
@@ -1054,9 +1078,8 @@ h3 {
     padding: 1rem;
   }
 
-  .auth-tabs--five .auth-tab,
   .auth-tab {
-    flex-basis: 100%;
+    min-height: 2.65rem;
   }
 
   .auth-form__actions {

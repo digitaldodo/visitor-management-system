@@ -87,7 +87,7 @@ function initSidebar() {
   const toggle = $("#sidebar-toggle");
   const collapse = $("#sidebar-collapse");
   const backdrop = $("#sidebar-backdrop");
-  const mobileQuery = window.matchMedia("(max-width: 760px)");
+  const mobileQuery = window.matchMedia("(max-width: 1024px)");
 
   toggle?.addEventListener("click", () => {
     if (!shell) {
@@ -132,7 +132,7 @@ function initRouteTabs(allowedRoutes) {
     link.addEventListener("click", () => {
       links.forEach((item) => item.classList.remove("is-active"));
       link.classList.add("is-active");
-      if (window.matchMedia("(max-width: 760px)").matches) {
+      if (window.matchMedia("(max-width: 1024px)").matches) {
         const shell = $(".portal-shell");
         if (shell) {
           shell.dataset.sidebarState = "closed";

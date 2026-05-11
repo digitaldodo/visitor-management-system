@@ -49,6 +49,7 @@
 .visitor-pass-card__summary {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
 }
@@ -97,6 +98,7 @@
   display: grid;
   gap: 0.85rem;
   grid-template-columns: 5.5rem minmax(0, 1fr) 7rem;
+  min-width: 0;
   padding: 0.85rem;
 }
 
@@ -146,6 +148,7 @@
 .visitor-pass-card__actions,
 .qr-verify-form__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   justify-content: flex-end;
 }
@@ -165,7 +168,7 @@
 .security-monitor-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
 }
 
 .security-monitor-card {
@@ -178,6 +181,7 @@
 .security-monitor-card__header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
   margin-bottom: 0.85rem;
@@ -226,7 +230,7 @@
 .qr-result__identity {
   display: grid;
   gap: 0.85rem;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
+  grid-template-columns: minmax(6.5rem, 7.5rem) minmax(0, 1fr);
 }
 
 .qr-result__identity img {
@@ -248,8 +252,7 @@
   border-color: #f7c9a8;
 }
 
-@media (max-width: 760px) {
-  .security-monitor-grid,
+@media (max-width: 900px) {
   .visitor-pass__body {
     grid-template-columns: 1fr;
   }
