@@ -20,19 +20,31 @@ document.addEventListener("DOMContentLoaded", () => {
   initLoginForm();
   initRegisterForm();
   initForgotPassword();
+  setAuthTab("register", { scroll: false });
 });
 
 function initAuthTabs() {
   $$("[data-auth-tab]").forEach((tab) => {
-    tab.addEventListener("click", () => setAuthTab(tab.dataset.authTab));
+    tab.addEventListener("click", () => setAuthTab(tab.dataset.authTab, { scroll: false }));
+  });
+
+  $$("[data-auth-target]").forEach((trigger) => {
+    trigger.addEventListener("click", () => setAuthTab(trigger.dataset.authTarget));
   });
 }
 
-function setAuthTab(target) {
-  $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target || (target === "visitor" && tab.dataset.authTab === "register")));
+function setAuthTab(target, options = {}) {
+  const { scroll = true } = options;
+  $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target));
   $("#login-form")?.classList.toggle("is-hidden", target === "register");
   $("#register-form")?.classList.toggle("is-hidden", target !== "register");
-  updateLoginAudience(normalizeAudience(target));
+  if (target !== "register") {
+    updateLoginAudience(normalizeAudience(target));
+  }
+
+  if (scroll) {
+    $("#access-hub")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 }
 
 function updateLoginAudience(audience) {
