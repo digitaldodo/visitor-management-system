@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="AccessFlow is an enterprise visitor management platform for secure registrations, approvals, QR access, and workplace check-ins."
+      content="AccessFlow is a dark-mode enterprise visitor management platform for approvals, secure access, and workplace visitor operations."
     />
-    <title>AccessFlow | Enterprise Visitor Operations</title>
+    <title>AccessFlow | Secure Workplace Visitor Operations</title>
     <link rel="icon" href="./assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511e" />
+    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511f" />
   </head>
   <body>
     <div class="page-shell">
       <header class="site-header">
         <a class="site-header__brand logo-link" href="./index.html" aria-label="AccessFlow home">
-          <img class="brand-logo brand-logo--full" src="./assets/branding/logo-dark.png" alt="AccessFlow" />
+          <img class="brand-logo brand-logo--full" src="./assets/branding/logo-light.png" alt="AccessFlow" />
         </a>
         <nav class="site-header__nav" aria-label="Primary">
           <a href="#platform">Platform</a>
@@ -25,7 +25,7 @@
         </nav>
         <div class="site-header__actions">
           <button class="button button--ghost" type="button" data-auth-target="visitor">Sign in</button>
-          <button class="button button--primary" type="button" data-auth-target="register">Start visitor registration</button>
+          <button class="button button--primary" type="button" data-auth-target="register">Register visitor</button>
         </div>
       </header>
 
@@ -34,9 +34,9 @@
           <div class="hero-copy">
             <div class="hero-copy__intro">
               <p class="eyebrow">Enterprise visitor management</p>
-              <h1>Secure workplace visitor operations with faster approvals and cleaner arrivals.</h1>
+              <h1>Secure visitor operations for modern workplaces.</h1>
               <p class="hero-copy__lede">
-                AccessFlow gives teams one trusted system for visitor registration, employee approvals, QR passes, front desk verification, and live visitor visibility across every site.
+                AccessFlow gives teams one calm, controlled system for visitor intake, host approvals, QR-based access, and front desk verification.
               </p>
             </div>
 
@@ -45,115 +45,89 @@
               <button class="button button--ghost button--hero" type="button" data-auth-target="employee">Open employee portal</button>
             </div>
 
-            <div class="hero-badges" aria-label="Core outcomes">
-              <span>Visitor registration</span>
-              <span>QR access passes</span>
-              <span>Approval workflows</span>
-              <span>Live security monitoring</span>
+            <div class="hero-proof" aria-label="Core highlights">
+              <span>Approval-based access</span>
+              <span>QR pass verification</span>
+              <span>Live visitor visibility</span>
             </div>
 
-            <div class="hero-metrics" aria-label="Operational highlights">
-              <article class="metric-card">
-                <strong>Unified arrival flow</strong>
-                <span>From pre-approval to exit confirmation in one operational timeline.</span>
+            <div class="hero-signals" aria-label="Operational summary">
+              <article class="signal-card">
+                <strong>Faster arrivals</strong>
+                <span>Guide each guest from request to entry with less friction.</span>
               </article>
-              <article class="metric-card">
-                <strong>Front desk ready</strong>
-                <span>Quick check-in, pass validation, badge visibility, and host alerts.</span>
+              <article class="signal-card">
+                <strong>Trusted entry</strong>
+                <span>Keep approvals, identity checks, and check-ins in one flow.</span>
               </article>
-              <article class="metric-card">
-                <strong>Multi-site control</strong>
-                <span>Organization-aware access with consistent workflows across locations.</span>
+              <article class="signal-card">
+                <strong>Site oversight</strong>
+                <span>Track active visitors and keep every location aligned.</span>
               </article>
             </div>
           </div>
 
           <div class="hero-stage">
-            <div class="hero-stage__visual">
-              <div class="hero-stage__glow"></div>
-              <article class="dashboard-mockup" aria-label="Visitor operations preview">
-                <div class="dashboard-mockup__top">
-                  <div>
-                    <span class="dashboard-label">Today at HQ</span>
-                    <h2>Operational command for every arrival.</h2>
-                  </div>
-                  <span class="dashboard-chip">Active monitoring</span>
-                </div>
-
-                <div class="dashboard-grid">
-                  <section class="dashboard-panel dashboard-panel--signal">
-                    <div class="dashboard-panel__header">
-                      <span class="panel-title">Approval queue</span>
-                      <span class="panel-count">14</span>
-                    </div>
-                    <div class="signal-list">
-                      <div>
-                        <strong>Vendor briefing</strong>
-                        <span>Host confirmed, pass issued</span>
-                      </div>
-                      <div>
-                        <strong>Candidate interview</strong>
-                        <span>Awaiting employee review</span>
-                      </div>
-                      <div>
-                        <strong>Executive guest</strong>
-                        <span>Security escort assigned</span>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section class="dashboard-panel">
-                    <div class="dashboard-panel__header">
-                      <span class="panel-title">Arrival windows</span>
-                      <span class="panel-kicker">Live status</span>
-                    </div>
-                    <div class="timeline-bars">
-                      <span style="--bar-size: 92%"></span>
-                      <span style="--bar-size: 76%"></span>
-                      <span style="--bar-size: 58%"></span>
-                      <span style="--bar-size: 83%"></span>
-                    </div>
-                    <div class="timeline-legend">
-                      <span>Registered</span>
-                      <span>Approved</span>
-                      <span>Checked in</span>
-                    </div>
-                  </section>
-
-                  <section class="dashboard-panel dashboard-panel--wide">
-                    <div class="dashboard-panel__header">
-                      <span class="panel-title">Security lane</span>
-                      <span class="panel-kicker">Entry verified</span>
-                    </div>
-                    <div class="lane-cards">
-                      <div class="lane-card">
-                        <span class="lane-card__icon">QR</span>
-                        <strong>Pass scanned</strong>
-                        <span>Visitor badge printed in under 15 seconds.</span>
-                      </div>
-                      <div class="lane-card">
-                        <span class="lane-card__icon">ID</span>
-                        <strong>Identity matched</strong>
-                        <span>Front desk confirms guest and visit purpose before entry.</span>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </article>
-
-              <article class="floating-card floating-card--device" aria-label="Mobile pass preview">
-                <span class="floating-card__eyebrow">Mobile pass</span>
-                <strong>Guest QR issued</strong>
-                <span>Shareable pass for approved workplace access.</span>
-              </article>
-              <article class="floating-card floating-card--status" aria-label="Operations status">
-                <span class="status-dot is-online"></span>
+            <article class="dashboard-mockup" aria-label="AccessFlow preview">
+              <div class="dashboard-mockup__header">
                 <div>
-                  <strong>Security desk online</strong>
-                  <span>Check-in lane synced across entrances.</span>
+                  <span class="dashboard-label">Today at HQ</span>
+                  <h2>One operating view for arrivals, approvals, and secure entry.</h2>
                 </div>
-              </article>
-            </div>
+                <span class="dashboard-chip">Live lane status</span>
+              </div>
+
+              <div class="dashboard-mockup__body">
+                <section class="dashboard-panel">
+                  <div class="dashboard-panel__header">
+                    <span class="panel-title">Approval queue</span>
+                    <span class="panel-meta">14 pending</span>
+                  </div>
+                  <div class="signal-list">
+                    <div>
+                      <strong>Candidate interview</strong>
+                      <span>Awaiting employee review</span>
+                    </div>
+                    <div>
+                      <strong>Vendor briefing</strong>
+                      <span>Pass prepared for scheduled arrival</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="dashboard-panel dashboard-panel--stack">
+                  <div class="dashboard-panel__header">
+                    <span class="panel-title">Security lane</span>
+                    <span class="panel-meta panel-meta--success">Verified</span>
+                  </div>
+                  <div class="lane-list">
+                    <div>
+                      <strong>QR pass scanned</strong>
+                      <span>Badge issued after access verification.</span>
+                    </div>
+                    <div>
+                      <strong>Host notified</strong>
+                      <span>Visitor moved into approved arrival window.</span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="dashboard-mockup__footer">
+                <div>
+                  <span>Registered</span>
+                  <strong>124</strong>
+                </div>
+                <div>
+                  <span>Approved</span>
+                  <strong>108</strong>
+                </div>
+                <div>
+                  <span>On site</span>
+                  <strong>38</strong>
+                </div>
+              </div>
+            </article>
 
             <section class="auth-card auth-card--hub" id="access-hub" aria-label="Account access">
               <div class="auth-card__top">
@@ -165,38 +139,41 @@
               </div>
 
               <div class="auth-tabs auth-tabs--five" role="tablist" aria-label="Access options">
-                <button class="auth-tab is-active" type="button" data-auth-tab="register">Register</button>
-                <button class="auth-tab" type="button" data-auth-tab="visitor">Visitor login</button>
+                <button class="auth-tab" type="button" data-auth-tab="register">Register</button>
+                <button class="auth-tab is-active" type="button" data-auth-tab="visitor">Visitor login</button>
                 <button class="auth-tab" type="button" data-auth-tab="employee">Employee</button>
                 <button class="auth-tab" type="button" data-auth-tab="security">Security</button>
                 <button class="auth-tab" type="button" data-auth-tab="admin">Admin</button>
               </div>
 
-              <form class="auth-form is-hidden" id="login-form" novalidate>
+              <form class="auth-form" id="login-form" novalidate>
                 <div class="auth-form__header">
-                  <p class="eyebrow" id="login-eyebrow">Employee access</p>
-                  <h3 id="login-title">Sign in to your workplace portal</h3>
-                  <p id="login-description">Use your organization-issued AccessFlow account.</p>
+                  <p class="eyebrow" id="login-eyebrow">Visitor access</p>
+                  <h3 id="login-title">Sign in to track your visit</h3>
+                  <p id="login-description">Use your visitor account to view approval status and approved QR passes.</p>
                 </div>
-                <input name="audience" type="hidden" value="employee" />
+                <input name="audience" type="hidden" value="visitor" />
                 <label class="form-field">
                   <span>Username or email</span>
                   <input name="identifier" type="text" autocomplete="username" placeholder="username or email@company.com" required />
-                </label>
-                <label class="form-field" data-company-code-field>
-                  <span>Organization code</span>
-                  <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
                 </label>
                 <label class="form-field form-field--password">
                   <span>Password</span>
                   <input name="password" type="password" autocomplete="current-password" placeholder="Enter password" required />
                   <button class="password-toggle" type="button" aria-label="Show password">Show</button>
                 </label>
+                <label class="form-field is-hidden" data-company-code-field>
+                  <span>Organization code</span>
+                  <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
+                </label>
                 <button class="button button--primary auth-submit" type="submit">Sign in securely</button>
-                <button class="link-button" id="forgot-password-button" type="button">Forgot password?</button>
+                <div class="auth-form__actions">
+                  <button class="link-button" type="button" data-auth-target="register">Need an account? Register</button>
+                  <button class="link-button" id="forgot-password-button" type="button">Forgot password?</button>
+                </div>
               </form>
 
-              <form class="auth-form" id="register-form" novalidate>
+              <form class="auth-form is-hidden" id="register-form" novalidate>
                 <div class="auth-form__header">
                   <p class="eyebrow">Visitor onboarding</p>
                   <h3>Create a visitor account</h3>
@@ -248,297 +225,141 @@
               </form>
 
               <div class="auth-card__footer">
-                <span>Secure login</span>
-                <span>Approval-based access</span>
-                <span>Live visitor visibility</span>
+                <span>Encrypted login</span>
+                <span>Approval workflows</span>
+                <span>Verified entry</span>
               </div>
             </section>
           </div>
         </section>
 
-        <section class="section-block section-block--surface" id="platform">
+        <section class="section-block" id="platform">
           <div class="section-heading">
-            <p class="eyebrow">Platform capabilities</p>
-            <h2>Purpose-built for visitor operations, security teams, and workplace admins.</h2>
-            <p>
-              Every part of the arrival journey is designed to feel clear for visitors and controlled for enterprise teams.
-            </p>
+            <p class="eyebrow">Platform</p>
+            <h2>Three focused capabilities that keep workplace visits clear and controlled.</h2>
+            <p>AccessFlow brings visitor intake, secure entry, and operating oversight into one enterprise-ready system.</p>
           </div>
 
           <div class="feature-grid">
             <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6zM9 11h6M9 15h6M9 7h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Visitor registration</h3>
-              <p>Collect the essentials with a clean intake flow built for meetings, interviews, vendors, and deliveries.</p>
+              <span class="feature-icon">01</span>
+              <h3>Intake and approvals</h3>
+              <p>Register visitors, route requests to hosts, and keep approvals moving before guests reach the building.</p>
+              <ul class="feature-list">
+                <li>Visitor registration</li>
+                <li>Employee approvals</li>
+                <li>Arrival preparation</li>
+              </ul>
             </article>
             <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h8M8 12h8M8 17h5M5 4h14v16H5z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>QR access passes</h3>
-              <p>Issue scannable passes that move visitors from approval to entry without desk-side confusion.</p>
+              <span class="feature-icon">02</span>
+              <h3>Secure access operations</h3>
+              <p>Issue QR passes, verify guests at the desk, and handle check-in or check-out without operational noise.</p>
+              <ul class="feature-list">
+                <li>QR access passes</li>
+                <li>Security check-in and check-out</li>
+                <li>Badge generation</li>
+              </ul>
             </article>
             <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20a8 8 0 1 0-8-8M12 12l3-3M12 12l4 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Employee approvals</h3>
-              <p>Hosts review expected guests quickly so workplace entry stays coordinated and accountable.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M7 4v5M17 4v5M6 13h5M6 17h8M5 6h14v14H5z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Security check-in and check-out</h3>
-              <p>Manage arrivals, exits, and desk-side confirmations with a predictable front desk workflow.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l8-4 8 4-8 4-8-4Zm2 4v4l6 4 6-4v-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Organization management</h3>
-              <p>Keep workplace entities, visitor rules, and portal access aligned across your operating structure.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16.5 9 11l4 3 7-8M4 20h16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Real-time tracking</h3>
-              <p>See who is expected, who is waiting, who has entered, and who is still on site right now.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6h10v12H7zM10 10h4M10 14h4M4 8h3M17 8h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Badge generation</h3>
-              <p>Print or display recognizable visitor badges that help teams identify access status instantly.</p>
-            </article>
-            <article class="feature-card">
-              <span class="feature-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7M4 19h16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-              <h3>Visitor analytics</h3>
-              <p>Review visitor volume, approval patterns, and desk activity to improve arrival performance over time.</p>
+              <span class="feature-icon">03</span>
+              <h3>Oversight across sites</h3>
+              <p>Give admins cleaner visibility across organizations, active visitors, and workplace traffic patterns.</p>
+              <ul class="feature-list">
+                <li>Organization management</li>
+                <li>Real-time tracking</li>
+                <li>Visitor analytics</li>
+              </ul>
             </article>
           </div>
         </section>
 
-        <section class="story-stack">
-          <article class="story-section">
-            <div class="story-copy">
-              <p class="eyebrow">Pre-arrival orchestration</p>
-              <h2>Turn incoming guests into planned workplace arrivals.</h2>
-              <p>
-                AccessFlow helps visitors share the right details, routes requests to the right hosts, and keeps approvals moving before anyone reaches the building.
-              </p>
-              <ul class="story-points">
-                <li>Capture visit purpose, host details, and organization context in one flow.</li>
-                <li>Give employees a simple approval experience that fits real workplace operations.</li>
-                <li>Reduce front desk surprises with clearer arrival expectations.</li>
-              </ul>
-            </div>
-            <div class="story-visual story-visual--approval">
-              <div class="visual-window">
-                <div class="visual-window__row">
-                  <span class="visual-pill">Registration received</span>
-                  <span class="visual-tag">Host notified</span>
-                </div>
-                <div class="visual-stack">
-                  <article>
-                    <strong>Board meeting guest</strong>
-                    <span>Purpose confirmed, escort required</span>
-                  </article>
-                  <article>
-                    <strong>Vendor installation</strong>
-                    <span>Employee approval pending</span>
-                  </article>
-                  <article>
-                    <strong>Candidate interview</strong>
-                    <span>Pass auto-prepared after approval</span>
-                  </article>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="story-section story-section--reverse">
-            <div class="story-copy">
-              <p class="eyebrow">Arrival control</p>
-              <h2>Make check-in fast for trusted visitors and deliberate for everyone else.</h2>
-              <p>
-                Security teams can validate passes, review status, and confirm on-site activity without shifting between disconnected tools or manual lists.
-              </p>
-              <ul class="story-points">
-                <li>Scan QR passes to verify access before entry.</li>
-                <li>See approval state, host ownership, and visit intent at the desk.</li>
-                <li>Track check-in and check-out with a clean, auditable visit record.</li>
-              </ul>
-            </div>
-            <div class="story-visual story-visual--checkpoint">
-              <div class="visual-window visual-window--checkpoint">
-                <div class="scanner-ring"></div>
-                <div class="checkpoint-card">
-                  <strong>Visitor pass validated</strong>
-                  <span>Approved for 10:30 AM arrival window</span>
-                </div>
-                <div class="checkpoint-feed">
-                  <span>Desk entry confirmed</span>
-                  <span>Badge assigned</span>
-                  <span>Host alerted</span>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="story-section">
-            <div class="story-copy">
-              <p class="eyebrow">Operational visibility</p>
-              <h2>Run visitor programs with better oversight across every location.</h2>
-              <p>
-                Admin teams can standardize their visitor process, monitor active visits, and review trends without making the experience heavier for employees or guests.
-              </p>
-              <ul class="story-points">
-                <li>Organize workplace access around real organizations and operating teams.</li>
-                <li>Monitor active visitors throughout the day and across entrances.</li>
-                <li>Use analytics to spot traffic peaks, approval bottlenecks, and repeat visitor patterns.</li>
-              </ul>
-            </div>
-            <div class="story-visual story-visual--analytics">
-              <div class="visual-window visual-window--analytics">
-                <div class="analytics-stat">
-                  <span>Visitors on site</span>
-                  <strong>38</strong>
-                </div>
-                <div class="analytics-chart">
-                  <span style="--column-size: 42%"></span>
-                  <span style="--column-size: 76%"></span>
-                  <span style="--column-size: 58%"></span>
-                  <span style="--column-size: 88%"></span>
-                  <span style="--column-size: 66%"></span>
-                </div>
-                <div class="analytics-summary">
-                  <article>
-                    <strong>Most active site</strong>
-                    <span>North lobby</span>
-                  </article>
-                  <article>
-                    <strong>Fastest approvals</strong>
-                    <span>Employee pre-approved visits</span>
-                  </article>
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
-
         <section class="section-block section-block--workflow" id="workflow">
           <div class="section-heading">
-            <p class="eyebrow">Role-based workflow</p>
-            <h2>Every participant sees the part of the journey that matters to them.</h2>
-            <p>AccessFlow keeps the handoff between visitor, host, security, and admin structured from the first request to final exit.</p>
+            <p class="eyebrow">Workflow</p>
+            <h2>Each role sees the next decision, not the whole system.</h2>
+            <p>Visitors, employees, security teams, and admins stay aligned without sharing the same crowded interface.</p>
           </div>
 
           <div class="role-grid">
             <article class="role-card">
               <span class="role-card__label">Visitor</span>
-              <h3>Request, prepare, and arrive confidently.</h3>
-              <p>Create an account, register a visit, watch approval progress, and carry your QR pass into the building.</p>
+              <h3>Register, track approval, and arrive with a verified pass.</h3>
             </article>
             <article class="role-card">
               <span class="role-card__label">Employee</span>
-              <h3>Review visitors without slowing down your day.</h3>
-              <p>Approve expected guests, confirm visit purpose, and stay aware of who is arriving to meet you.</p>
+              <h3>Review expected guests and confirm entry with less back-and-forth.</h3>
             </article>
             <article class="role-card">
-              <span class="role-card__label">Security guard</span>
-              <h3>Verify access and manage the entry lane.</h3>
-              <p>Check status, validate passes, track arrivals and exits, and keep the workplace entry process organized.</p>
+              <span class="role-card__label">Security</span>
+              <h3>Validate access, monitor arrivals, and manage the desk lane clearly.</h3>
             </article>
             <article class="role-card">
               <span class="role-card__label">Admin</span>
-              <h3>Oversee the program across sites and teams.</h3>
-              <p>Manage organizations, monitor visitor activity, and maintain a trusted operating standard for workplace access.</p>
+              <h3>Oversee the visitor program across organizations, teams, and locations.</h3>
             </article>
           </div>
         </section>
 
         <section class="section-block section-block--trust" id="trust">
-          <div class="section-heading">
-            <p class="eyebrow">Security and trust</p>
-            <h2>Designed to help teams feel in control before, during, and after every visit.</h2>
-            <p>Trust is built through clear approvals, verified arrivals, and dependable visitor visibility across the day.</p>
-          </div>
-
           <div class="trust-layout">
+            <div class="trust-copy">
+              <p class="eyebrow">Security and trust</p>
+              <h2>Built for teams that need confidence at the front desk and visibility after entry.</h2>
+              <p>AccessFlow helps organizations keep workplace entry deliberate, documented, and easier to operate at scale.</p>
+            </div>
+
             <article class="trust-panel">
               <div class="trust-panel__header">
-                <div>
-                  <span class="dashboard-label">Security posture</span>
-                  <h3>Enterprise-ready visitor controls with a human-centered experience.</h3>
-                </div>
+                <span class="dashboard-label">Control model</span>
                 <span class="dashboard-chip">Always visible</span>
               </div>
-              <div class="trust-panel__body">
-                <div class="trust-rail">
-                  <div>
-                    <strong>Encrypted sign-in</strong>
-                    <span>Protected account access for workplace teams and visitors.</span>
-                  </div>
-                  <div>
-                    <strong>Approval workflows</strong>
-                    <span>Entry stays tied to the right host and the right visit context.</span>
-                  </div>
-                  <div>
-                    <strong>QR verification</strong>
-                    <span>Faster arrival confirmation without losing control at the desk.</span>
-                  </div>
-                  <div>
-                    <strong>Audit history</strong>
-                    <span>Review the full journey from request through check-out.</span>
-                  </div>
-                  <div>
-                    <strong>Active visitor monitoring</strong>
-                    <span>Know who is on site and what stage of the visit they are in.</span>
-                  </div>
+              <div class="trust-rail">
+                <div>
+                  <strong>Encrypted sign-in</strong>
+                  <span>Protected access for visitors and internal workplace teams.</span>
+                </div>
+                <div>
+                  <strong>Approval-based entry</strong>
+                  <span>Keep each visit tied to the right host and visit context.</span>
+                </div>
+                <div>
+                  <strong>QR verification and audit history</strong>
+                  <span>Confirm arrivals quickly and preserve the full visit record.</span>
+                </div>
+                <div>
+                  <strong>Active visitor monitoring</strong>
+                  <span>Know who is on site, where they are in the flow, and when they leave.</span>
                 </div>
               </div>
             </article>
-
-            <div class="trust-cards">
-              <article class="trust-card">
-                <h3>Controlled entry experience</h3>
-                <p>Visitors move through a guided process while workplace teams keep clear decision points.</p>
-              </article>
-              <article class="trust-card">
-                <h3>Operational confidence</h3>
-                <p>Front desk and security teams can act quickly because approvals, passes, and status are visible together.</p>
-              </article>
-              <article class="trust-card">
-                <h3>Program consistency</h3>
-                <p>Standardize how sites manage arrivals, access, and departures without relying on ad hoc spreadsheets.</p>
-              </article>
-            </div>
           </div>
         </section>
 
         <section class="cta-section">
-          <div>
+          <div class="cta-section__copy">
             <p class="eyebrow">Ready to launch</p>
-            <h2>Give your workplace a visitor system that looks as mature as your operations.</h2>
-            <p>AccessFlow helps teams welcome guests professionally while keeping approvals and entry tightly coordinated.</p>
+            <h2>Give your workplace a visitor system that feels operationally mature from the first screen.</h2>
+            <p>AccessFlow combines premium visitor experience with the controls enterprise teams expect.</p>
           </div>
+
           <div class="cta-section__actions">
-            <button class="button button--primary button--hero" type="button" data-auth-target="register">Register a visitor</button>
+            <button class="button button--primary button--hero" type="button" data-auth-target="register">Register visitor</button>
             <button class="button button--ghost button--hero" type="button" data-auth-target="admin">Open admin access</button>
           </div>
+
+          <footer class="site-footer">
+            <a class="site-footer__brand logo-link" href="./index.html" aria-label="AccessFlow home">
+              <img class="brand-logo brand-logo--full" src="./assets/branding/logo-light.png" alt="AccessFlow" />
+            </a>
+            <p>AccessFlow · Secure visitor operations for enterprise workplaces.</p>
+          </footer>
         </section>
       </main>
     </div>
 
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <script src="./assets/js/env.js"></script>
-    <script type="module" src="./js/auth.js?v=20260511e"></script>
+    <script type="module" src="./js/auth.js?v=20260511f"></script>
   </body>
 </html>

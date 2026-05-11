@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLoginForm();
   initRegisterForm();
   initForgotPassword();
-  setAuthTab("register", { scroll: false });
+  setAuthTab("visitor", { scroll: false });
 });
 
 function initAuthTabs() {
