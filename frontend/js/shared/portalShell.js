@@ -13,7 +13,7 @@ let latestNotificationSeenAt = "";
 export function initPortalShell(session, options = {}) {
   initSidebar();
   initLogout();
-  initRouteTabs(options.allowedRoutes || []);
+  initRouteNavigation(options);
   initNotifications();
   $("#refresh-health")?.addEventListener("click", () => refreshHealth(true));
 
@@ -124,8 +124,19 @@ function initSidebar() {
   });
 }
 
-function initRouteTabs(allowedRoutes) {
-    const validRoutes = new Set(allowedRoutes);
+function initRouteNavigation(options) {
+  const { allowedRoutes = [], routeMap = null, activeRoute = "", defaultHref = "" } = options;
+
+  if (routeMap) {
+    initPathRoutes(allowedRoutes, routeMap, activeRoute, defaultHref);
+    return;
+  }
+
+  initHashRoutes(allowedRoutes);
+}
+
+function initHashRoutes(allowedRoutes) {
+  const validRoutes = new Set(allowedRoutes);
   const links = $$("#sidebar-nav .nav-link");
   const firstAllowedRoute = allowedRoutes[0];
 
@@ -148,6 +159,8 @@ function initRouteTabs(allowedRoutes) {
     link.addEventListener("click", () => {
       links.forEach((item) => item.classList.remove("is-active"));
       link.classList.add("is-active");
+      links.forEach((item) => item.removeAttribute("aria-current"));
+      link.setAttribute("aria-current", "page");
       if (window.matchMedia("(max-width: 1024px)").matches) {
         const shell = $(".portal-shell");
         if (shell) {
@@ -163,11 +176,46 @@ function initRouteTabs(allowedRoutes) {
       window.location.hash = firstAllowedRoute;
       return;
     }
-    links.forEach((link) => link.classList.toggle("is-active", link.dataset.route === route));
+    links.forEach((link) => {
+      const isActive = link.dataset.route === route;
+      link.classList.toggle("is-active", isActive);
+      if (isActive) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
   };
 
   window.addEventListener("hashchange", syncHash);
   syncHash();
+}
+
+function initPathRoutes(allowedRoutes, routeMap, activeRoute, defaultHref) {
+  const validRoutes = new Set(allowedRoutes);
+  const links = $$("#sidebar-nav .nav-link");
+
+  links.forEach((link) => {
+    const route = link.dataset.route;
+    const allowed = validRoutes.has(route);
+    link.hidden = !allowed;
+    link.setAttribute("aria-hidden", String(!allowed));
+    if (allowed && routeMap[route]?.href) {
+      link.setAttribute("href", routeMap[route].href);
+    }
+    const isActive = route === activeRoute;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
+  const fallbackHref = defaultHref || routeMap[allowedRoutes[0]]?.href || "/";
+  $$("[data-default-admin-link]").forEach((link) => {
+    link.setAttribute("href", fallbackHref);
+  });
 }
 
 function initLogout() {

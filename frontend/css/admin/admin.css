@@ -21,13 +21,79 @@
   background: linear-gradient(180deg, rgba(52, 34, 16, 0.98) 0%, rgba(26, 18, 12, 0.98) 100%);
 }
 
-.analytics-board {
+.portal-main--workspace {
+  max-width: 112rem;
+}
+
+.workspace-shell,
+.workspace-stack {
   display: grid;
   gap: 1rem;
 }
 
+.workspace-hero {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.workspace-hero__copy {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 52rem;
+}
+
+.workspace-hero__copy h2,
+.panel h3 {
+  margin: 0;
+}
+
+.workspace-description {
+  color: var(--color-muted);
+  margin: 0;
+  max-width: 44rem;
+}
+
+.workspace-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.workspace-badge {
+  align-items: center;
+  background: rgba(180, 83, 9, 0.12);
+  border: 1px solid rgba(252, 211, 77, 0.22);
+  border-radius: 999px;
+  color: #f8e1a2;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  white-space: nowrap;
+}
+
+.workspace-view,
+.workspace-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.workspace-grid--split {
+  align-items: start;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+}
+
 .admin-metric-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
+}
+
+.admin-monitoring-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 
 .admin-metric-card {
@@ -69,6 +135,10 @@
 .admin-metric-card small {
   color: var(--color-muted);
   line-height: 1.35;
+}
+
+.admin-metric-card--monitor strong {
+  font-size: 1.5rem;
 }
 
 .analytics-chart-grid {
@@ -304,6 +374,10 @@
   min-height: 100%;
 }
 
+.workspace-visitor-panel {
+  min-height: 28rem;
+}
+
 .homepage-preview-card {
   background: rgba(11, 18, 31, 0.56);
   border: 1px solid var(--color-line);
@@ -489,6 +563,16 @@
 }
 
 @media (max-width: 900px) {
+  .workspace-hero,
+  .workspace-badges {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .workspace-grid--split {
+    grid-template-columns: 1fr;
+  }
+
   .chart-panel {
     min-height: 19rem;
   }
@@ -541,6 +625,8 @@
   .organization-form__footer,
   .organization-form__actions,
   .homepage-settings-form__footer,
+  .workspace-hero,
+  .workspace-badges,
   .admin-user-card__header,
   .admin-user-card__actions,
   .admin-user-card__role,

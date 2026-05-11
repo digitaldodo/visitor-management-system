@@ -6,13 +6,13 @@
     <meta name="description" content="AccessFlow admin portal" />
     <title>AccessFlow | Admin Portal</title>
     <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511-prod" />
+    <link rel="stylesheet" href="../../css/admin/admin.css?v=20260512-workspaces" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell admin-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Admin navigation">
-        <a class="brand logo-link" href="#analytics" aria-label="Admin portal home">
+        <a class="brand logo-link" href="/admin/analytics" aria-label="Admin portal home" data-default-admin-link>
           <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
           <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
         </a>
@@ -22,31 +22,31 @@
         <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
-          <a class="nav-link is-active" href="#analytics" data-route="analytics">
+          <a class="nav-link" href="/admin/analytics" data-route="analytics">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19h16v2H4Zm2-8h3v6H6Zm5-6h3v12h-3Zm5 3h3v9h-3Z"/></svg></span>
             Analytics
           </a>
-          <a class="nav-link" href="#users" data-route="users">
+          <a class="nav-link" href="/admin/users" data-route="users">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3ZM3 20a5 5 0 0 1 10 0Zm8.5 0a5 5 0 0 1 9.5 0Z"/></svg></span>
             User Management
           </a>
-          <a class="nav-link" href="#homepage-settings" data-route="homepage-settings">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H4Zm2 2v6h12V7Zm-2 10h16v2H4Z"/></svg></span>
-            Homepage Controls
-          </a>
-          <a class="nav-link" href="#organizations" data-route="organizations">
+          <a class="nav-link" href="/admin/organizations" data-route="organizations">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h7v14H4Zm9 0h7v6h-7Zm0 8h7v6h-7Z"/></svg></span>
             Organizations
           </a>
-          <a class="nav-link" href="#reports" data-route="reports">
+          <a class="nav-link" href="/admin/homepage-controls" data-route="homepage-controls">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H4Zm2 2v6h12V7Zm-2 10h16v2H4Z"/></svg></span>
+            Homepage Controls
+          </a>
+          <a class="nav-link" href="/admin/reports" data-route="reports">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5Zm4 5h6v2H9Zm0 4h6v2H9Zm0 4h3v2H9Z"/></svg></span>
             Reports
           </a>
-          <a class="nav-link" href="#monitoring" data-route="monitoring">
+          <a class="nav-link" href="/admin/monitoring" data-route="monitoring">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h4l2-6 4 12 2-6h4v2h-2.6L14 23 10 11 8.5 15H4Z"/></svg></span>
             System Monitoring
           </a>
-          <a class="nav-link" href="#visitors" data-route="visitors">
+          <a class="nav-link" href="/admin/visitor-access" data-route="visitor-access">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Z"/></svg></span>
             Visitor Access
           </a>
@@ -66,7 +66,7 @@
           <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
           </button>
-          <a class="topbar__brand logo-link" href="#analytics" aria-label="Admin dashboard home">
+          <a class="topbar__brand logo-link" href="/admin/analytics" aria-label="Admin dashboard home" data-default-admin-link>
             <img class="brand-logo brand-logo--full brand-logo--dark" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
             <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
           </a>
@@ -87,239 +87,18 @@
           </div>
         </header>
 
-        <main class="portal-main" id="main-content" tabindex="-1">
-          <section class="analytics-board" id="analytics" aria-label="Admin analytics dashboard">
-            <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Admin analytics"></section>
-
-            <section class="analytics-chart-grid" aria-label="Visitor analytics charts">
-              <article class="panel chart-panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Daily Flow</p>
-                    <h2>Daily Visitors</h2>
-                  </div>
-                </div>
-                <div class="chart-stage" id="daily-visitors-chart"></div>
-              </article>
-
-              <article class="panel chart-panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Trend</p>
-                    <h2>Monthly Visitors</h2>
-                  </div>
-                </div>
-                <div class="chart-stage" id="monthly-trends-chart"></div>
-              </article>
-
-              <article class="panel chart-panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Operations</p>
-                    <h2>Peak Hours</h2>
-                  </div>
-                </div>
-                <div class="chart-stage" id="peak-hours-chart"></div>
-              </article>
-
-              <article class="panel chart-panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Decisions</p>
-                    <h2>Approval Rates</h2>
-                  </div>
-                </div>
-                <div class="chart-stage" id="approval-rates-chart"></div>
-              </article>
-            </section>
-
-            <section class="panel employee-analytics-panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Host Performance</p>
-                  <h2>Employee-wise Analytics</h2>
-                </div>
+        <main class="portal-main portal-main--workspace" id="main-content" tabindex="-1">
+          <section class="workspace-shell" aria-label="Admin workspace">
+            <header class="workspace-hero">
+              <div class="workspace-hero__copy">
+                <p class="eyebrow" id="workspace-eyebrow">Workspace</p>
+                <h2 id="workspace-title">Administration</h2>
+                <p class="workspace-description" id="workspace-description">Focused operational workspace.</p>
               </div>
-              <div class="employee-analytics-table" id="employee-analytics-table"></div>
-            </section>
-          </section>
+              <div class="workspace-badges" id="workspace-badges" aria-label="Workspace scope"></div>
+            </header>
 
-          <section class="portal-grid">
-            <article class="panel" id="users">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Directory</p>
-                  <h2>Internal Account Management</h2>
-                </div>
-              </div>
-              <form class="admin-user-form" id="admin-user-form" novalidate>
-                <label class="form-field">
-                  <span>Full name</span>
-                  <input name="fullName" type="text" autocomplete="name" placeholder="Team member name" required />
-                </label>
-                <label class="form-field">
-                  <span>Username</span>
-                  <input name="username" type="text" autocomplete="username" placeholder="employee01" required />
-                </label>
-                <label class="form-field">
-                  <span>Email</span>
-                  <input name="email" type="email" autocomplete="email" placeholder="person@company.com" required />
-                </label>
-                <label class="form-field">
-                  <span>Temporary password</span>
-                  <input name="password" type="password" autocomplete="new-password" placeholder="12+ characters" required />
-                </label>
-                <label class="form-field">
-                  <span>Portal access</span>
-                  <select name="role" required>
-                    <option value="EMPLOYEE">Employee portal</option>
-                    <option value="SECURITY_GUARD">Security portal</option>
-                    <option value="ADMIN">Administration portal</option>
-                  </select>
-                </label>
-                <label class="form-field" data-company-code-field>
-                  <span>Organization code</span>
-                  <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
-                </label>
-                <label class="form-field">
-                  <span>Department</span>
-                  <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
-                </label>
-                <div class="admin-user-form__footer">
-                  <p>Visitor accounts are created only through public visitor registration. Workforce access is issued internally.</p>
-                  <button class="button button--primary" type="submit">Create internal account</button>
-                </div>
-              </form>
-              <div class="work-list" id="user-management-list"></div>
-            </article>
-
-            <aside class="panel" id="monitoring">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">System</p>
-                  <h2>Monitoring</h2>
-                </div>
-              </div>
-              <div class="health-card" id="health-card"></div>
-              <div class="work-list" id="monitoring-list"></div>
-            </aside>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="organizations">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Platform Tenancy</p>
-                  <h2>Organization Management</h2>
-                </div>
-              </div>
-              <form class="organization-form" id="organization-form" novalidate>
-                <input name="organizationId" type="hidden" />
-                <label class="form-field">
-                  <span>Organization name</span>
-                  <input name="companyName" type="text" autocomplete="organization" placeholder="Northstar Labs" required />
-                </label>
-                <label class="form-field">
-                  <span>Organization code</span>
-                  <input name="companyCode" type="text" autocomplete="organization" placeholder="NORTHSTAR" required />
-                </label>
-                <label class="form-field">
-                  <span>Contact email</span>
-                  <input name="contactEmail" type="email" autocomplete="email" placeholder="ops@northstar.com" />
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Address</span>
-                  <input name="address" type="text" autocomplete="street-address" placeholder="Street, city, country" />
-                </label>
-                <label class="checkbox-field form-field--wide">
-                  <input name="activeStatus" type="checkbox" checked />
-                  <span>Organization is active</span>
-                </label>
-                <div class="organization-form__footer">
-                  <p id="organization-form-meta">Create organizations for tenant onboarding and admin assignment.</p>
-                  <div class="organization-form__actions">
-                    <button class="button button--ghost" id="organization-form-reset" type="button">Clear</button>
-                    <button class="button button--primary" type="submit">Save organization</button>
-                  </div>
-                </div>
-              </form>
-              <div class="work-list" id="organizations-list"></div>
-            </article>
-
-            <aside class="panel homepage-preview-panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Preview</p>
-                  <h2>Public homepage output</h2>
-                </div>
-              </div>
-              <div class="homepage-preview" id="homepage-settings-preview"></div>
-            </aside>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="homepage-settings">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Public website</p>
-                  <h2>Homepage controls</h2>
-                </div>
-              </div>
-              <form class="homepage-settings-form" id="homepage-settings-form" novalidate>
-                <label class="checkbox-field">
-                  <input name="statsVisible" type="checkbox" />
-                  <span>Show homepage stats</span>
-                </label>
-                <label class="checkbox-field">
-                  <input name="featuredMetricsVisible" type="checkbox" />
-                  <span>Show featured metrics section</span>
-                </label>
-                <label class="checkbox-field">
-                  <input name="publicCountersVisible" type="checkbox" />
-                  <span>Show public counters in the hero area</span>
-                </label>
-                <label class="checkbox-field">
-                  <input name="announcementVisible" type="checkbox" />
-                  <span>Show homepage announcement</span>
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Announcement title</span>
-                  <input name="announcementTitle" type="text" maxlength="80" placeholder="Platform update" />
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Announcement body</span>
-                  <textarea name="announcementBody" rows="3" maxlength="240" placeholder="Use this space for scheduled maintenance, launch updates, or onboarding guidance."></textarea>
-                </label>
-                <div class="homepage-settings-form__selectors">
-                  <fieldset class="metric-selector">
-                    <legend>Featured metrics</legend>
-                    <div class="metric-selector__options" id="featured-metrics-options"></div>
-                  </fieldset>
-                  <fieldset class="metric-selector">
-                    <legend>Public counters</legend>
-                    <div class="metric-selector__options" id="public-counters-options"></div>
-                  </fieldset>
-                </div>
-                <div class="homepage-settings-form__footer">
-                  <p id="homepage-settings-meta">Homepage controls are ready to configure.</p>
-                  <button class="button button--primary" type="submit">Save homepage settings</button>
-                </div>
-              </form>
-            </article>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="reports">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Exports</p>
-                  <h2>Reports</h2>
-                </div>
-              </div>
-              <div class="work-list" id="reports-list"></div>
-            </article>
-
-            <article class="panel" id="visitors" data-admin-visitors></article>
+            <section class="workspace-view" id="workspace-view" aria-live="polite"></section>
           </section>
         </main>
       </div>
@@ -328,6 +107,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/admin/dashboard.js?v=20260511-prod"></script>
+    <script type="module" src="../../js/admin/dashboard.js?v=20260512-workspaces"></script>
   </body>
 </html>

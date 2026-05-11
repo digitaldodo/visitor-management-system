@@ -8,7 +8,79 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 
+const ROUTE_DEFINITIONS = {
+  analytics: {
+    slug: "analytics",
+    navLabel: "Analytics",
+    eyebrow: "Operations Insight",
+    title: "Analytics Workspace",
+    description: "Track visitor demand, approval patterns, and host activity in one focused operational view.",
+    badges: ["Admin access", "Organization-aware", "Performance overview"],
+  },
+  users: {
+    slug: "users",
+    navLabel: "User Management",
+    eyebrow: "Identity Operations",
+    title: "User Management Workspace",
+    description: "Create workforce accounts, adjust portal access, and keep internal identity controls contained to one place.",
+    badges: ["Admin access", "Scoped account issuance", "RBAC protected"],
+  },
+  organizations: {
+    slug: "organizations",
+    navLabel: "Organizations",
+    eyebrow: "Tenant Operations",
+    title: "Organization Management Workspace",
+    description: "Create and maintain tenant records for onboarding, assignment, and platform-level oversight.",
+    badges: ["Super admin only", "Multi-tenant control", "Platform scope"],
+  },
+  "homepage-controls": {
+    slug: "homepage-controls",
+    navLabel: "Homepage Controls",
+    eyebrow: "Public Experience",
+    title: "Homepage Controls Workspace",
+    description: "Manage public-facing homepage content and preview the output without mixing it into internal operations.",
+    badges: ["Super admin only", "Public site controls", "Preview included"],
+  },
+  reports: {
+    slug: "reports",
+    navLabel: "Reports",
+    eyebrow: "Audit Exports",
+    title: "Reports Workspace",
+    description: "Review reporting and export activity in a dedicated oversight area designed for audit workflows.",
+    badges: ["Super admin only", "Audit oversight", "Export visibility"],
+  },
+  monitoring: {
+    slug: "monitoring",
+    navLabel: "System Monitoring",
+    eyebrow: "Platform Health",
+    title: "Monitoring Workspace",
+    description: "Keep system status, service signals, and operational health visible without crowding the rest of the admin experience.",
+    badges: ["Admin access", "Service health", "Operational signals"],
+  },
+  "visitor-access": {
+    slug: "visitor-access",
+    navLabel: "Visitor Access",
+    eyebrow: "Live Operations",
+    title: "Visitor Access Workspace",
+    description: "Run live visitor operations, registration, and record management inside one dedicated operational workspace.",
+    badges: ["Admin access", "Frontline workflows", "Live records"],
+  },
+};
+
+const ROUTE_ALIASES = {
+  analytics: "analytics",
+  users: "users",
+  organizations: "organizations",
+  reports: "reports",
+  monitoring: "monitoring",
+  visitors: "visitor-access",
+  "visitor-access": "visitor-access",
+  "homepage-settings": "homepage-controls",
+  "homepage-controls": "homepage-controls",
+};
+
 let currentSession;
+let currentRoute = "";
 let homepageMetricOptions = [];
 let managedOrganizations = [];
 
@@ -21,78 +93,545 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   const allowedRoutes = resolveAllowedRoutes();
-  initPortalShell(currentSession, { allowedRoutes });
-  if (allowedRoutes.includes("visitors")) {
-    initVisitorModule("[data-admin-visitors]", {
-      basePath: "/admin",
-      title: "Full Visitor Access",
-      eyebrow: "Visitor Records",
-      canDelete: true,
-      showOrganizationCodeField: false,
-      requireOrganizationCode: false,
-      organizationCode: currentSession.organizationCode,
-    });
+  const routeContext = resolveRouteContext(allowedRoutes);
+  if (routeContext.redirectTo) {
+    window.location.replace(routeContext.redirectTo);
+    return;
   }
-  initAdminUserForm();
-  initOrganizationForm();
-  initHomepageSettingsForm();
-  await loadAdminPortal();
+
+  currentRoute = routeContext.routeKey;
+  initPortalShell(currentSession, {
+    allowedRoutes,
+    activeRoute: currentRoute,
+    routeMap: routeContext.routeMap,
+    defaultHref: routeContext.routeMap[allowedRoutes[0]]?.href,
+  });
+
+  renderWorkspaceFrame(ROUTE_DEFINITIONS[currentRoute]);
+  initWorkspace(currentRoute);
+  bindWorkspaceRefresh();
+  await loadWorkspace(currentRoute);
 });
 
-async function loadAdminPortal() {
-  const canViewReports = hasRole("SUPER_ADMIN");
-  const canManageHomepage = hasRole("SUPER_ADMIN");
-  const canManageOrganizations = hasRole("SUPER_ADMIN");
-  renderDashboardCards([]);
-  renderLoadingList("#user-management-list");
-  renderLoadingList("#monitoring-list");
-  renderEmployeeAnalytics([]);
-  if (canViewReports) {
-    renderLoadingList("#reports-list");
+function resolveRouteContext(allowedRoutes) {
+  const defaultRoute = allowedRoutes[0];
+  const normalizedPath = normalizePath(window.location.pathname);
+  const legacyMode = /\/pages\/admin\/[^/]+\.html$/i.test(normalizedPath);
+  const routeMap = buildRouteMap(legacyMode);
+  const hashRoute = resolveAlias(window.location.hash.replace("#", ""));
+
+  if (legacyMode) {
+    const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
+    return { routeKey, routeMap };
   }
-  if (canManageOrganizations) {
-    renderLoadingList("#organizations-list");
+
+  if (normalizedPath === "/admin") {
+    const targetRoute = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
+    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
   }
-  if (canManageHomepage) {
-    renderHomepageSettingsState("Loading homepage controls...");
+
+  if (normalizedPath.startsWith("/admin/")) {
+    const slug = normalizedPath.slice("/admin/".length).split("/")[0];
+    const routeKey = resolveAlias(slug);
+    if (allowedRoutes.includes(routeKey)) {
+      return { routeKey, routeMap };
+    }
+    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
   }
+
+  const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
+  return { routeKey, routeMap };
+}
+
+function buildRouteMap(legacyMode) {
+  return Object.fromEntries(
+    Object.entries(ROUTE_DEFINITIONS).map(([key, route]) => [
+      key,
+      {
+        href: legacyMode ? `./index.html#${route.slug}` : `/admin/${route.slug}`,
+      },
+    ]),
+  );
+}
+
+function normalizePath(pathname) {
+  const value = String(pathname || "/").trim() || "/";
+  const cleaned = value.replace(/\/+$/, "");
+  return cleaned || "/";
+}
+
+function resolveAlias(value) {
+  return ROUTE_ALIASES[String(value || "").trim().toLowerCase()] || "";
+}
+
+function bindWorkspaceRefresh() {
+  document.querySelector("#refresh-health")?.addEventListener("click", () => {
+    loadWorkspace(currentRoute, { preserveToasts: true });
+  });
+}
+
+function renderWorkspaceFrame(route) {
+  document.title = `AccessFlow | ${route.navLabel}`;
+  setText("#workspace-eyebrow", route.eyebrow);
+  setText("#workspace-title", route.title);
+  setText("#workspace-description", route.description);
+
+  const badges = document.querySelector("#workspace-badges");
+  if (badges) {
+    badges.innerHTML = route.badges.map((badge) => `<span class="workspace-badge">${escapeHtml(badge)}</span>`).join("");
+  }
+
+  const view = document.querySelector("#workspace-view");
+  if (view) {
+    view.innerHTML = workspaceTemplate(currentRoute);
+  }
+}
+
+function workspaceTemplate(routeKey) {
+  switch (routeKey) {
+    case "analytics":
+      return analyticsTemplate();
+    case "users":
+      return usersTemplate();
+    case "organizations":
+      return organizationsTemplate();
+    case "homepage-controls":
+      return homepageControlsTemplate();
+    case "reports":
+      return reportsTemplate();
+    case "monitoring":
+      return monitoringTemplate();
+    case "visitor-access":
+      return visitorsTemplate();
+    default:
+      return `
+        <article class="empty-state">
+          <h3>Workspace unavailable</h3>
+          <p>The requested admin workspace could not be rendered.</p>
+        </article>
+      `;
+  }
+}
+
+function analyticsTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Admin analytics"></section>
+
+      <section class="analytics-chart-grid" aria-label="Visitor analytics charts">
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Daily Flow</p>
+              <h3>Daily Visitors</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="daily-visitors-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Trend</p>
+              <h3>Monthly Visitors</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="monthly-trends-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Operations</p>
+              <h3>Peak Hours</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="peak-hours-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Decisions</p>
+              <h3>Approval Rates</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="approval-rates-chart"></div>
+        </article>
+      </section>
+
+      <section class="panel employee-analytics-panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Host Performance</p>
+            <h3>Employee-wise Analytics</h3>
+          </div>
+        </div>
+        <div class="employee-analytics-table" id="employee-analytics-table"></div>
+      </section>
+    </section>
+  `;
+}
+
+function usersTemplate() {
+  return `
+    <section class="workspace-grid workspace-grid--split">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Provisioning</p>
+            <h3>Create Internal Account</h3>
+          </div>
+        </div>
+        <form class="admin-user-form" id="admin-user-form" novalidate>
+          <label class="form-field">
+            <span>Full name</span>
+            <input name="fullName" type="text" autocomplete="name" placeholder="Team member name" required />
+          </label>
+          <label class="form-field">
+            <span>Username</span>
+            <input name="username" type="text" autocomplete="username" placeholder="employee01" required />
+          </label>
+          <label class="form-field">
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" placeholder="person@company.com" required />
+          </label>
+          <label class="form-field">
+            <span>Temporary password</span>
+            <input name="password" type="password" autocomplete="new-password" placeholder="12+ characters" required />
+          </label>
+          <label class="form-field">
+            <span>Portal access</span>
+            <select name="role" required>
+              <option value="EMPLOYEE">Employee portal</option>
+              <option value="SECURITY_GUARD">Security portal</option>
+              <option value="ADMIN">Administration portal</option>
+            </select>
+          </label>
+          <label class="form-field" data-company-code-field>
+            <span>Organization code</span>
+            <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
+          </label>
+          <label class="form-field">
+            <span>Department</span>
+            <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
+          </label>
+          <div class="admin-user-form__footer">
+            <p>Visitor accounts are created through public onboarding. Workforce access is issued internally.</p>
+            <button class="button button--primary" type="submit">Create internal account</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Directory</p>
+            <h3>Internal Account Management</h3>
+          </div>
+        </div>
+        <div class="work-list" id="user-management-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function organizationsTemplate() {
+  return `
+    <section class="workspace-grid workspace-grid--split">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Platform Tenancy</p>
+            <h3>Organization Setup</h3>
+          </div>
+        </div>
+        <form class="organization-form" id="organization-form" novalidate>
+          <input name="organizationId" type="hidden" />
+          <label class="form-field">
+            <span>Organization name</span>
+            <input name="companyName" type="text" autocomplete="organization" placeholder="Northstar Labs" required />
+          </label>
+          <label class="form-field">
+            <span>Organization code</span>
+            <input name="companyCode" type="text" autocomplete="organization" placeholder="NORTHSTAR" required />
+          </label>
+          <label class="form-field">
+            <span>Contact email</span>
+            <input name="contactEmail" type="email" autocomplete="email" placeholder="ops@northstar.com" />
+          </label>
+          <label class="form-field form-field--wide">
+            <span>Address</span>
+            <input name="address" type="text" autocomplete="street-address" placeholder="Street, city, country" />
+          </label>
+          <label class="checkbox-field form-field--wide">
+            <input name="activeStatus" type="checkbox" checked />
+            <span>Organization is active</span>
+          </label>
+          <div class="organization-form__footer">
+            <p id="organization-form-meta">Create organizations for tenant onboarding and admin assignment.</p>
+            <div class="organization-form__actions">
+              <button class="button button--ghost" id="organization-form-reset" type="button">Clear</button>
+              <button class="button button--primary" type="submit">Save organization</button>
+            </div>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Tenant Directory</p>
+            <h3>Managed Organizations</h3>
+          </div>
+        </div>
+        <div class="work-list" id="organizations-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function homepageControlsTemplate() {
+  return `
+    <section class="workspace-grid workspace-grid--split">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Public Website</p>
+            <h3>Homepage Controls</h3>
+          </div>
+        </div>
+        <form class="homepage-settings-form" id="homepage-settings-form" novalidate>
+          <label class="checkbox-field">
+            <input name="statsVisible" type="checkbox" />
+            <span>Show homepage stats</span>
+          </label>
+          <label class="checkbox-field">
+            <input name="featuredMetricsVisible" type="checkbox" />
+            <span>Show featured metrics section</span>
+          </label>
+          <label class="checkbox-field">
+            <input name="publicCountersVisible" type="checkbox" />
+            <span>Show public counters in the hero area</span>
+          </label>
+          <label class="checkbox-field">
+            <input name="announcementVisible" type="checkbox" />
+            <span>Show homepage announcement</span>
+          </label>
+          <label class="form-field form-field--wide">
+            <span>Announcement title</span>
+            <input name="announcementTitle" type="text" maxlength="80" placeholder="Platform update" />
+          </label>
+          <label class="form-field form-field--wide">
+            <span>Announcement body</span>
+            <textarea name="announcementBody" rows="3" maxlength="240" placeholder="Use this space for scheduled maintenance, launch updates, or onboarding guidance."></textarea>
+          </label>
+          <div class="homepage-settings-form__selectors">
+            <fieldset class="metric-selector">
+              <legend>Featured metrics</legend>
+              <div class="metric-selector__options" id="featured-metrics-options"></div>
+            </fieldset>
+            <fieldset class="metric-selector">
+              <legend>Public counters</legend>
+              <div class="metric-selector__options" id="public-counters-options"></div>
+            </fieldset>
+          </div>
+          <div class="homepage-settings-form__footer">
+            <p id="homepage-settings-meta">Homepage controls are ready to configure.</p>
+            <button class="button button--primary" type="submit">Save homepage settings</button>
+          </div>
+        </form>
+      </article>
+
+      <aside class="panel homepage-preview-panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Preview</p>
+            <h3>Public Homepage Output</h3>
+          </div>
+        </div>
+        <div class="homepage-preview" id="homepage-settings-preview"></div>
+      </aside>
+    </section>
+  `;
+}
+
+function reportsTemplate() {
+  return `
+    <article class="panel">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Exports</p>
+          <h3>Reports</h3>
+        </div>
+      </div>
+      <div class="work-list" id="reports-list"></div>
+    </article>
+  `;
+}
+
+function monitoringTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-monitoring-grid" id="monitoring-summary"></section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Health</p>
+              <h3>Platform Status</h3>
+            </div>
+          </div>
+          <div class="health-card" id="health-card"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Signals</p>
+              <h3>System Monitoring</h3>
+            </div>
+          </div>
+          <div class="work-list" id="monitoring-list"></div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
+function visitorsTemplate() {
+  return `<article class="panel workspace-visitor-panel" data-admin-visitors></article>`;
+}
+
+function initWorkspace(routeKey) {
+  switch (routeKey) {
+    case "users":
+      initAdminUserForm();
+      break;
+    case "organizations":
+      initOrganizationForm();
+      break;
+    case "homepage-controls":
+      initHomepageSettingsForm();
+      break;
+    case "visitor-access":
+      initVisitorModule("[data-admin-visitors]", {
+        basePath: "/admin",
+        title: "Full Visitor Access",
+        eyebrow: "Visitor Records",
+        canDelete: true,
+        showOrganizationCodeField: false,
+        requireOrganizationCode: false,
+        organizationCode: currentSession.organizationCode,
+      });
+      break;
+    default:
+      break;
+  }
+}
+
+async function loadWorkspace(routeKey, options = {}) {
+  const { preserveToasts = false } = options;
 
   try {
-    const [analytics, users, monitoring, reports, homepageSettings, organizations] = await Promise.all([
-      request("/admin/analytics"),
-      request("/admin/users"),
-      request("/admin/monitoring"),
-      canViewReports ? request("/admin/reports") : Promise.resolve({ data: [] }),
-      canManageHomepage ? getHomepageSettings() : Promise.resolve({ data: null }),
-      canManageOrganizations ? listManagedOrganizations() : Promise.resolve({ data: [] }),
-    ]);
-
-    renderAnalytics(analytics.data);
-    renderUsers(users.data || []);
-    renderMonitoring(monitoring.data);
-    if (canViewReports) {
-      renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No audit activity yet", "Structured login and access events will appear here.");
-    }
-    if (canManageHomepage) {
-      renderHomepageSettings(homepageSettings.data);
-    }
-    if (canManageOrganizations) {
-      renderOrganizations(organizations.data || []);
+    switch (routeKey) {
+      case "analytics":
+        await loadAnalyticsWorkspace();
+        break;
+      case "users":
+        await loadUsersWorkspace();
+        break;
+      case "organizations":
+        await loadOrganizationsWorkspace();
+        break;
+      case "homepage-controls":
+        await loadHomepageWorkspace();
+        break;
+      case "reports":
+        await loadReportsWorkspace();
+        break;
+      case "monitoring":
+        await loadMonitoringWorkspace();
+        break;
+      case "visitor-access":
+        break;
+      default:
+        break;
     }
   } catch (error) {
+    if (!preserveToasts) {
+      showToast("Workspace unavailable", error.message);
+    }
+  }
+}
+
+async function loadAnalyticsWorkspace() {
+  renderDashboardCards([]);
+  renderAnalyticsLoading();
+  try {
+    const analytics = await request("/admin/analytics");
+    renderAnalytics(analytics.data);
+  } catch (error) {
     renderAnalytics({});
+    showToast("Analytics unavailable", error.message);
+  }
+}
+
+async function loadUsersWorkspace() {
+  renderLoadingList("#user-management-list", 4);
+  try {
+    const users = await request("/admin/users");
+    renderUsers(users.data || []);
+  } catch (error) {
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
+    showToast("User management unavailable", error.message);
+  }
+}
+
+async function loadOrganizationsWorkspace() {
+  renderLoadingList("#organizations-list", 4);
+  try {
+    const organizations = await listManagedOrganizations();
+    renderOrganizations(organizations.data || []);
+  } catch (error) {
+    renderWorkList("#organizations-list", [], (item) => item, "Organizations unavailable", error.message);
+    showToast("Organizations unavailable", error.message);
+  }
+}
+
+async function loadHomepageWorkspace() {
+  renderHomepageSettingsState("Loading homepage controls...");
+  try {
+    const homepageSettings = await getHomepageSettings();
+    renderHomepageSettings(homepageSettings.data);
+  } catch (error) {
+    renderHomepageSettingsState(error.message);
+    showToast("Homepage controls unavailable", error.message);
+  }
+}
+
+async function loadReportsWorkspace() {
+  renderLoadingList("#reports-list", 4);
+  try {
+    const reports = await request("/admin/reports");
+    renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No audit activity yet", "Structured login and access events will appear here.");
+  } catch (error) {
+    renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
+    showToast("Reports unavailable", error.message);
+  }
+}
+
+async function loadMonitoringWorkspace() {
+  renderMonitoringSummary([]);
+  renderLoadingList("#monitoring-list", 4);
+  try {
+    const monitoring = await request("/admin/monitoring");
+    renderMonitoring(monitoring.data);
+  } catch (error) {
+    renderMonitoringSummary([]);
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
-    if (canViewReports) {
-      renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
-    }
-    if (canManageOrganizations) {
-      renderWorkList("#organizations-list", [], (item) => item, "Organizations unavailable", error.message);
-    }
-    if (canManageHomepage) {
-      renderHomepageSettingsState(error.message);
-    }
-    showToast("Admin access blocked", error.message);
+    showToast("Monitoring unavailable", error.message);
   }
 }
 
@@ -105,13 +644,13 @@ function initAdminUserForm() {
   const roleSelect = form.querySelector("select[name='role']");
   const companyField = form.querySelector("[data-company-code-field]");
   const companyInput = form.querySelector("input[name='companyCode']");
-  if (roleSelect && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+  if (roleSelect && !hasRole("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
   }
   if (companyInput && currentSession?.organizationCode) {
     companyInput.value = currentSession.organizationCode;
   }
-  if (companyField && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+  if (companyField && !hasRole("SUPER_ADMIN")) {
     companyField.classList.add("is-hidden");
   }
   const usernameInput = form.querySelector("input[name='username']");
@@ -147,7 +686,7 @@ function initAdminUserForm() {
       }
       runUsernameValidation();
       showToast("Account created", "Share the temporary password through your approved internal process.");
-      await loadAdminPortal();
+      await loadUsersWorkspace();
     } catch (error) {
       showToast("Account creation failed", error.message);
     } finally {
@@ -162,7 +701,7 @@ function initAdminUserForm() {
     }
     const id = button.dataset.userId;
     const action = button.dataset.userAction;
-    const roleSelect = button.closest(".admin-user-card")?.querySelector("[data-role-select]");
+    const roleSelectField = button.closest(".admin-user-card")?.querySelector("[data-role-select]");
     const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
     if (action === "reset-password" && !password) {
       return;
@@ -170,7 +709,7 @@ function initAdminUserForm() {
     const requestBody = action === "reset-password"
       ? { newPassword: password }
       : action === "role"
-        ? { role: roleSelect?.value }
+        ? { role: roleSelectField?.value }
         : {};
 
     button.toggleAttribute("disabled", true);
@@ -180,7 +719,7 @@ function initAdminUserForm() {
         body: JSON.stringify(requestBody),
       });
       showToast("Account updated", "User access controls were updated.");
-      await loadAdminPortal();
+      await loadUsersWorkspace();
     } catch (error) {
       showToast("Update failed", error.message);
     } finally {
@@ -197,7 +736,7 @@ function initHomepageSettingsForm() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+    if (!hasRole("SUPER_ADMIN")) {
       showToast("Settings locked", "Only SUPER_ADMIN can update homepage controls.");
       return;
     }
@@ -269,7 +808,7 @@ function initOrganizationForm() {
         showToast("Organization created", "Tenant is ready for admin and visitor setup.");
       }
       resetOrganizationForm(form);
-      await loadAdminPortal();
+      await loadOrganizationsWorkspace();
     } catch (error) {
       showToast("Organization save failed", error.message);
     } finally {
@@ -290,7 +829,7 @@ function initOrganizationForm() {
 
     if (button.dataset.organizationAction === "edit") {
       populateOrganizationForm(form, organization);
-      window.location.hash = "organizations";
+      document.querySelector("#workspace-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -308,7 +847,7 @@ function initOrganizationForm() {
         activeStatus: !organization.activeStatus,
       });
       showToast("Organization updated", organization.activeStatus ? "Organization access has been paused." : "Organization is active again.");
-      await loadAdminPortal();
+      await loadOrganizationsWorkspace();
     } catch (error) {
       showToast("Organization update failed", error.message);
     } finally {
@@ -335,7 +874,7 @@ function userCard(user) {
   const role = (user.roles || []).join(", ");
   const primaryRole = (user.roles || [])[0] || "";
   const disabled = !user.active || user.accountStatus === "DISABLED";
-  const canManageAdmin = !(user.roles || []).includes("ADMIN") || (currentSession?.roles || []).includes("SUPER_ADMIN");
+  const canManageAdmin = !(user.roles || []).includes("ADMIN") || hasRole("SUPER_ADMIN");
   const canManage = !(user.roles || []).includes("SUPER_ADMIN") && canManageAdmin;
   const roleOptions = internalRoleOptions(primaryRole);
   return `
@@ -375,7 +914,7 @@ function internalRoleOptions(selectedRole) {
     ["EMPLOYEE", "Employee portal"],
     ["SECURITY_GUARD", "Security portal"],
   ];
-  if ((currentSession?.roles || []).includes("SUPER_ADMIN")) {
+  if (hasRole("SUPER_ADMIN")) {
     roles.push(["ADMIN", "Administration portal"]);
   }
   if (selectedRole && !roles.some(([role]) => role === selectedRole)) {
@@ -393,13 +932,50 @@ function formatInternalRole(role) {
 }
 
 function renderMonitoring(data) {
-  renderWorkList("#monitoring-list", Object.entries(data), ([name, status]) => {
+  const entries = Object.entries(data || {});
+  renderMonitoringSummary(entries);
+  renderWorkList("#monitoring-list", entries, ([name, status]) => {
     const title = formatMonitoringTitle(name);
     const value = typeof status === "object" && status !== null
       ? Object.entries(status).map(([key, count]) => `${formatMonitoringTitle(key)}: ${count}`).join(" · ")
       : String(status);
     return workCard(title, value);
   }, "No monitoring signals", "System signals will appear after the API responds.");
+}
+
+function renderMonitoringSummary(entries) {
+  const grid = document.querySelector("#monitoring-summary");
+  if (!grid) {
+    return;
+  }
+
+  const items = Array.isArray(entries) ? entries.slice(0, 4) : [];
+  grid.innerHTML = items.length ? items.map(([name, status]) => `
+    <article class="admin-metric-card admin-metric-card--monitor">
+      <span class="metric-card__label">${escapeHtml(formatMonitoringTitle(name))}</span>
+      <strong>${escapeHtml(formatMonitoringStatus(status))}</strong>
+      <small>${escapeHtml(formatMonitoringDetail(status))}</small>
+    </article>
+  `).join("") : `
+    <article class="empty-state empty-state--inline">
+      <h3>No monitoring summary yet</h3>
+      <p>Service indicators will appear after the API responds.</p>
+    </article>
+  `;
+}
+
+function formatMonitoringStatus(status) {
+  if (typeof status === "object" && status !== null) {
+    return String(Object.values(status).reduce((sum, value) => sum + (Number(value) || 0), 0));
+  }
+  return String(status ?? "Unknown");
+}
+
+function formatMonitoringDetail(status) {
+  if (typeof status === "object" && status !== null) {
+    return Object.entries(status).map(([key, value]) => `${formatMonitoringTitle(key)} ${value}`).join(" · ");
+  }
+  return "Latest platform signal";
 }
 
 function renderAnalytics(data) {
@@ -409,6 +985,14 @@ function renderAnalytics(data) {
   renderChart("#peak-hours-chart", compactBars(data.peakHours || []));
   renderChart("#approval-rates-chart", approvalRateChart(data.approvalRates || []));
   renderEmployeeAnalytics(data.employeeAnalytics || []);
+}
+
+function renderAnalyticsLoading() {
+  renderChart("#daily-visitors-chart", chartEmpty("Loading daily visitor activity..."));
+  renderChart("#monthly-trends-chart", chartEmpty("Loading monthly trend activity..."));
+  renderChart("#peak-hours-chart", chartEmpty("Loading peak-hour activity..."));
+  renderChart("#approval-rates-chart", chartEmpty("Loading approval decisions..."));
+  renderEmployeeAnalytics([]);
 }
 
 function renderHomepageSettings(data) {
@@ -430,7 +1014,7 @@ function renderHomepageSettings(data) {
   renderMetricOptions("#public-counters-options", "publicMetricKeys", settings.publicMetricKeys || []);
   renderHomepagePreview(data?.publicPreview || {});
 
-  const canEdit = (currentSession?.roles || []).includes("SUPER_ADMIN");
+  const canEdit = hasRole("SUPER_ADMIN");
   form.querySelectorAll("input, textarea, button[type='submit']").forEach((element) => {
     if (element.type === "submit") {
       element.disabled = !canEdit;
@@ -451,8 +1035,8 @@ function renderHomepageSettings(data) {
 
 function resolveAllowedRoutes() {
   return hasRole("SUPER_ADMIN")
-    ? ["analytics", "users", "organizations", "homepage-settings", "reports", "monitoring"]
-    : ["analytics", "users", "monitoring", "visitors"];
+    ? ["analytics", "users", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access"]
+    : ["analytics", "users", "monitoring", "visitor-access"];
 }
 
 function hasRole(role) {
@@ -527,6 +1111,7 @@ function previewMetricsMarkup(title, items, emptyState) {
 
 function renderHomepageSettingsState(message) {
   const preview = document.querySelector("#homepage-settings-preview");
+  const meta = document.querySelector("#homepage-settings-meta");
   if (preview) {
     preview.innerHTML = `
       <article class="empty-state empty-state--inline">
@@ -534,6 +1119,9 @@ function renderHomepageSettingsState(message) {
         <p>${escapeHtml(message || "Homepage controls could not be loaded.")}</p>
       </article>
     `;
+  }
+  if (meta) {
+    meta.textContent = message || "Homepage controls could not be loaded.";
   }
 }
 
@@ -772,7 +1360,7 @@ function validateInternalUser(payload) {
   if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
   }
-  if ((currentSession?.roles || []).includes("SUPER_ADMIN") && !payload.companyCode) {
+  if (hasRole("SUPER_ADMIN") && !payload.companyCode) {
     return "Enter the organization code for this account.";
   }
   if (!/[a-z]/.test(payload.password || "")
@@ -806,4 +1394,11 @@ function formatMonitoringTitle(value) {
     .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
     .replaceAll("_", " ")
     .replaceAll(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = value;
+  }
 }
