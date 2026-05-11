@@ -21,10 +21,16 @@ public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
+    private final DepartmentService departmentService;
 
-    public OrganizationService(OrganizationRepository organizationRepository, UserRepository userRepository) {
+    public OrganizationService(
+            OrganizationRepository organizationRepository,
+            UserRepository userRepository,
+            DepartmentService departmentService
+    ) {
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
+        this.departmentService = departmentService;
     }
 
     public List<OrganizationResponse> listAll() {
@@ -64,7 +70,9 @@ public class OrganizationService {
         organization.setAddress(trimToNull(request.address()));
         organization.setContactEmail(trimToNull(request.contactEmail()));
         organization.setActiveStatus(request.activeStatus() == null || request.activeStatus());
-        return toResponse(organizationRepository.save(organization));
+        Organization saved = organizationRepository.save(organization);
+        departmentService.syncDepartmentsForOrganization(saved.getId(), request.departmentNames());
+        return toResponse(saved);
     }
 
     public OrganizationResponse update(String id, OrganizationRequest request) {
@@ -83,7 +91,9 @@ public class OrganizationService {
         organization.setAddress(trimToNull(request.address()));
         organization.setContactEmail(trimToNull(request.contactEmail()));
         organization.setActiveStatus(request.activeStatus() == null || request.activeStatus());
-        return toResponse(organizationRepository.save(organization));
+        Organization saved = organizationRepository.save(organization);
+        departmentService.syncDepartmentsForOrganization(saved.getId(), request.departmentNames());
+        return toResponse(saved);
     }
 
     public Organization requireActive(String organizationId) {

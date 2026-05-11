@@ -6,10 +6,12 @@ import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
+import com.visitor.management.repository.DepartmentRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
 import com.visitor.management.entity.AccessAuditLog;
+import com.visitor.management.entity.Department;
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,6 +82,9 @@ class VisitorManagementApplicationTests {
     private OrganizationRepository organizationRepository;
 
     @MockitoBean
+    private DepartmentRepository departmentRepository;
+
+    @MockitoBean
     private HomepageSettingsRepository homepageSettingsRepository;
 
     @MockitoBean
@@ -101,6 +107,11 @@ class VisitorManagementApplicationTests {
         when(organizationRepository.findByCompanyNameIgnoreCase("Acme Corp")).thenReturn(Optional.of(organization));
         when(organizationRepository.findByCompanyNameIgnoreCase("Beta Corp")).thenReturn(Optional.of(betaOrganization));
         when(organizationRepository.findAll(any(Sort.class))).thenReturn(List.of(organization, betaOrganization));
+        when(departmentRepository.findByOrganizationIdAndNormalizedName(any(), any())).thenReturn(Optional.empty());
+        when(departmentRepository.findAllByOrganizationId(any(), any(Sort.class))).thenReturn(List.of());
+        when(departmentRepository.findAllByOrganizationIdAndActiveStatusTrue(any(), any(Sort.class))).thenReturn(List.of());
+        when(departmentRepository.findAll(any(Sort.class))).thenReturn(List.of());
+        when(departmentRepository.findAllByActiveStatusTrue(any(Sort.class))).thenReturn(List.of());
         when(homepageSettingsRepository.findById("homepage")).thenReturn(Optional.empty());
         when(userRepository.findById("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
@@ -117,6 +128,13 @@ class VisitorManagementApplicationTests {
         when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(departmentRepository.save(any(Department.class))).thenAnswer(invocation -> {
+            Department department = invocation.getArgument(0);
+            if (department.getId() == null) {
+                department.setId("department-generated");
+            }
+            return department;
+        });
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.save(any(AccessAuditLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of());
@@ -495,6 +513,44 @@ class VisitorManagementApplicationTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.roles[0]").value("SECURITY_GUARD"));
+    }
+
+    @Test
+    void internalUserCreationNormalizesCustomDepartment() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Visitor Desk Agent",
+                                  "username": "visitoragent01",
+                                  "email": "visitoragent01@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "EMPLOYEE",
+                                  "companyCode": "ACME",
+                                  "department": "  visitor   desk  "
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.department").value("Visitor Desk"));
+    }
+
+    @Test
+    void adminDepartmentListStaysScopedToOwnTenant() throws Exception {
+        Department department = new Department();
+        department.setId("dept-acme");
+        department.setOrganizationId("org-acme");
+        department.setDepartmentName("Operations");
+        department.setNormalizedName("OPERATIONS");
+        department.setActiveStatus(true);
+        when(departmentRepository.findAllByOrganizationId(eq("org-acme"), any(Sort.class))).thenReturn(List.of(department));
+
+        mockMvc.perform(get("/api/v1/admin/departments?organizationId=org-beta&includeInactive=true")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].organizationId").value("org-acme"))
+                .andExpect(jsonPath("$.data[0].departmentName").value("Operations"));
     }
 
     @Test

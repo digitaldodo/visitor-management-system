@@ -28,6 +28,8 @@ public class User {
 
     private String department;
 
+    private String departmentId;
+
     private String phone;
 
     @Indexed
@@ -98,6 +100,14 @@ public class User {
 
     public void setDepartment(String department) {
         this.department = department;
+    }
+
+    public String getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(String departmentId) {
+        this.departmentId = departmentId;
     }
 
     public String getPhone() {

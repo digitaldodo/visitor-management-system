@@ -34,6 +34,7 @@ public class AdminUserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationService organizationService;
+    private final DepartmentService departmentService;
     private final AccessAuditService accessAuditService;
 
     public AdminUserService(
@@ -41,12 +42,14 @@ public class AdminUserService {
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             OrganizationService organizationService,
+            DepartmentService departmentService,
             AccessAuditService accessAuditService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.organizationService = organizationService;
+        this.departmentService = departmentService;
         this.accessAuditService = accessAuditService;
     }
 
@@ -83,9 +86,11 @@ public class AdminUserService {
         user.setUsername(username);
         user.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setDepartment(trimToNull(request.department()));
         user.setPhone(trimToNull(request.phone()));
         applyOrganization(user, organization);
+        DepartmentService.DepartmentAssignment departmentAssignment = departmentService.resolveAssignment(organization.getId(), request.department());
+        user.setDepartmentId(departmentAssignment != null ? departmentAssignment.departmentId() : null);
+        user.setDepartment(departmentAssignment != null ? departmentAssignment.departmentName() : null);
         user.setRoles(Set.of(role));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);

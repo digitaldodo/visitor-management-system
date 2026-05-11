@@ -416,6 +416,15 @@
   line-height: 1.1;
 }
 
+.form-field__message--inline {
+  color: var(--color-muted);
+}
+
+.button--small {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+}
+
 .admin-user-form__footer {
   align-items: center;
   display: flex;
@@ -562,6 +571,138 @@
   overflow-wrap: anywhere;
 }
 
+.department-toolbar {
+  background: rgba(11, 18, 31, 0.56);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  padding: 1rem;
+}
+
+.department-toolbar__field {
+  min-width: 0;
+}
+
+.department-toolbar__field--grow {
+  grid-column: span 2;
+}
+
+.department-toolbar__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  grid-column: 1 / -1;
+  justify-content: space-between;
+}
+
+.department-toolbar__actions p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.department-card {
+  background: rgba(11, 18, 31, 0.56);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.department-card__header,
+.department-card__footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.department-card h3,
+.department-card p {
+  margin: 0;
+}
+
+.department-card p,
+.department-card small {
+  color: var(--color-muted);
+}
+
+.department-card__editor {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.department-preset-editor {
+  background: rgba(10, 16, 28, 0.42);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+}
+
+.department-preset-editor__chips,
+.department-preset-editor__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.department-preset-editor__entry {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.department-preset-editor__entry input {
+  background: var(--field-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  min-height: 2.75rem;
+  padding: 0 0.8rem;
+  width: 100%;
+}
+
+.department-preset-editor__entry input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  outline: 0;
+}
+
+.department-chip {
+  align-items: center;
+  background: rgba(180, 83, 9, 0.18);
+  border: 1px solid rgba(252, 211, 77, 0.22);
+  border-radius: 999px;
+  color: var(--color-text);
+  display: inline-flex;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.8rem;
+}
+
+.department-chip button {
+  background: rgba(10, 16, 28, 0.72);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-muted);
+  cursor: pointer;
+  min-height: 1.5rem;
+  padding: 0 0.55rem;
+}
+
+.department-chip__empty {
+  color: var(--color-muted);
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .workspace-hero,
   .workspace-badges {
@@ -624,15 +765,23 @@
   .admin-user-form__footer,
   .organization-form__footer,
   .organization-form__actions,
+  .department-toolbar__actions,
   .homepage-settings-form__footer,
   .workspace-hero,
   .workspace-badges,
   .admin-user-card__header,
   .admin-user-card__actions,
   .admin-user-card__role,
+  .department-card__header,
+  .department-card__footer,
   .organization-card__header,
   .organization-card__actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .department-card__editor,
+  .department-preset-editor__entry {
+    grid-template-columns: 1fr;
   }
 }

@@ -5,6 +5,9 @@ import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
+import com.visitor.management.dto.DepartmentCreateRequest;
+import com.visitor.management.dto.DepartmentResponse;
+import com.visitor.management.dto.DepartmentUpdateRequest;
 import com.visitor.management.dto.HomepageSettingsRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
@@ -18,6 +21,7 @@ import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.AccessAuditService;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.DepartmentService;
 import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
@@ -34,6 +38,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -50,6 +55,7 @@ public class AdminController {
     private final CloudinaryUploadService cloudinaryUploadService;
     private final AnalyticsService analyticsService;
     private final AdminUserService adminUserService;
+    private final DepartmentService departmentService;
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
     private final AppProperties appProperties;
@@ -61,6 +67,7 @@ public class AdminController {
             CloudinaryUploadService cloudinaryUploadService,
             AnalyticsService analyticsService,
             AdminUserService adminUserService,
+            DepartmentService departmentService,
             HomepageService homepageService,
             AccessAuditService accessAuditService,
             AppProperties appProperties,
@@ -71,6 +78,7 @@ public class AdminController {
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.analyticsService = analyticsService;
         this.adminUserService = adminUserService;
+        this.departmentService = departmentService;
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
         this.appProperties = appProperties;
@@ -127,6 +135,35 @@ public class AdminController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Account access updated.", adminUserService.updateRole(id, request, authentication));
+    }
+
+    @GetMapping("/departments")
+    public ApiResponse<List<DepartmentResponse>> departments(
+            @RequestParam(required = false) String organizationId,
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok(
+                "Departments loaded.",
+                departmentService.listDepartments(authentication, organizationId, includeInactive)
+        );
+    }
+
+    @PostMapping("/departments")
+    public ApiResponse<DepartmentResponse> createDepartment(
+            @Valid @RequestBody DepartmentCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Department saved.", departmentService.createDepartment(request, authentication));
+    }
+
+    @PatchMapping("/departments/{id}")
+    public ApiResponse<DepartmentResponse> updateDepartment(
+            @PathVariable String id,
+            @Valid @RequestBody DepartmentUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Department updated.", departmentService.updateDepartment(id, request, authentication));
     }
 
     @GetMapping("/reports")

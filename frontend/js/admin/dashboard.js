@@ -1,5 +1,6 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { createDepartment, listDepartments, updateDepartment } from "../shared/departmentApi.js";
 import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
 import { createOrganization, listManagedOrganizations, updateOrganization } from "../shared/organizationApi.js";
 import { requireRole } from "../shared/roleGuard.js";
@@ -24,6 +25,14 @@ const ROUTE_DEFINITIONS = {
     title: "User Management Workspace",
     description: "Create workforce accounts, adjust portal access, and keep internal identity controls contained to one place.",
     badges: ["Admin access", "Scoped account issuance", "RBAC protected"],
+  },
+  departments: {
+    slug: "departments",
+    navLabel: "Departments",
+    eyebrow: "Workforce Structure",
+    title: "Department Workspace",
+    description: "Keep department options clean, tenant-scoped, and fast to manage without drifting into HR complexity.",
+    badges: ["Admin access", "Tenant isolated", "Operational setup"],
   },
   organizations: {
     slug: "organizations",
@@ -70,6 +79,7 @@ const ROUTE_DEFINITIONS = {
 const ROUTE_ALIASES = {
   analytics: "analytics",
   users: "users",
+  departments: "departments",
   organizations: "organizations",
   reports: "reports",
   monitoring: "monitoring",
@@ -83,6 +93,21 @@ let currentSession;
 let currentRoute = "";
 let homepageMetricOptions = [];
 let managedOrganizations = [];
+let organizationDepartmentDraft = [];
+let departmentWorkspaceItems = [];
+let departmentFilterOrganizationId = "";
+let userDepartmentOptions = [];
+let userDepartmentOrganizationId = "";
+
+const DEFAULT_DEPARTMENT_PRESETS = [
+  "Operations",
+  "Security",
+  "HR",
+  "IT",
+  "Reception",
+  "Facilities",
+  "Management",
+];
 
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
@@ -193,6 +218,8 @@ function workspaceTemplate(routeKey) {
       return analyticsTemplate();
     case "users":
       return usersTemplate();
+    case "departments":
+      return departmentsTemplate();
     case "organizations":
       return organizationsTemplate();
     case "homepage-controls":
@@ -312,9 +339,11 @@ function usersTemplate() {
             <span>Organization code</span>
             <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
           </label>
-          <label class="form-field">
+          <label class="form-field form-field--wide">
             <span>Department</span>
-            <input name="department" type="text" autocomplete="organization-title" placeholder="Operations" />
+            <input name="department" type="text" list="department-options" autocomplete="off" placeholder="Search or add a department" />
+            <datalist id="department-options"></datalist>
+            <small class="form-field__message form-field__message--inline" id="department-field-meta">Choose an organization department or enter a new one.</small>
           </label>
           <div class="admin-user-form__footer">
             <p>Visitor accounts are created through public onboarding. Workforce access is issued internally.</p>
@@ -331,6 +360,51 @@ function usersTemplate() {
           </div>
         </div>
         <div class="work-list" id="user-management-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function departmentsTemplate() {
+  const organizationField = hasRole("SUPER_ADMIN") ? `
+    <label class="form-field department-toolbar__field">
+      <span>Organization</span>
+      <select name="organizationId" id="department-organization-filter">
+        <option value="">All organizations</option>
+      </select>
+    </label>
+  ` : "";
+
+  return `
+    <section class="workspace-grid workspace-grid--split">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Department Controls</p>
+            <h3>Manage Departments</h3>
+          </div>
+        </div>
+        <form class="department-toolbar" id="department-form" novalidate>
+          ${organizationField}
+          <label class="form-field department-toolbar__field department-toolbar__field--grow">
+            <span>New department</span>
+            <input name="departmentName" type="text" autocomplete="organization-title" placeholder="Procurement" />
+          </label>
+          <div class="department-toolbar__actions">
+            <p id="department-management-meta">Departments stay isolated to each organization and remain available for fast account setup.</p>
+            <button class="button button--primary" type="submit">Add department</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Department Directory</p>
+            <h3>Configured Departments</h3>
+          </div>
+        </div>
+        <div class="work-list" id="departments-list"></div>
       </article>
     </section>
   `;
@@ -364,6 +438,18 @@ function organizationsTemplate() {
             <span>Address</span>
             <input name="address" type="text" autocomplete="street-address" placeholder="Street, city, country" />
           </label>
+          <div class="form-field form-field--wide">
+            <span>Department presets</span>
+            <small class="form-field__message form-field__message--inline">Seed common departments now so admins can assign people from a clean dropdown later.</small>
+            <div class="department-preset-editor">
+              <div class="department-preset-editor__chips" id="organization-department-list"></div>
+              <div class="department-preset-editor__entry">
+                <input id="organization-department-input" type="text" autocomplete="off" placeholder="Add department preset" />
+                <button class="button button--ghost" id="organization-department-add" type="button">Add</button>
+              </div>
+              <div class="department-preset-editor__suggestions" id="organization-department-suggestions"></div>
+            </div>
+          </div>
           <label class="checkbox-field form-field--wide">
             <input name="activeStatus" type="checkbox" checked />
             <span>Organization is active</span>
@@ -509,6 +595,9 @@ function initWorkspace(routeKey) {
     case "users":
       initAdminUserForm();
       break;
+    case "departments":
+      initDepartmentWorkspace();
+      break;
     case "organizations":
       initOrganizationForm();
       break;
@@ -541,6 +630,9 @@ async function loadWorkspace(routeKey, options = {}) {
         break;
       case "users":
         await loadUsersWorkspace();
+        break;
+      case "departments":
+        await loadDepartmentsWorkspace();
         break;
       case "organizations":
         await loadOrganizationsWorkspace();
@@ -581,6 +673,10 @@ async function loadAnalyticsWorkspace() {
 async function loadUsersWorkspace() {
   renderLoadingList("#user-management-list", 4);
   try {
+    if (hasRole("SUPER_ADMIN")) {
+      await ensureManagedOrganizations();
+    }
+    await loadUserDepartmentOptions({ preserveSelection: true });
     const users = await request("/admin/users");
     renderUsers(users.data || []);
   } catch (error) {
@@ -592,11 +688,32 @@ async function loadUsersWorkspace() {
 async function loadOrganizationsWorkspace() {
   renderLoadingList("#organizations-list", 4);
   try {
-    const organizations = await listManagedOrganizations();
-    renderOrganizations(organizations.data || []);
+    await ensureManagedOrganizations({ force: true });
+    renderOrganizations(managedOrganizations);
   } catch (error) {
     renderWorkList("#organizations-list", [], (item) => item, "Organizations unavailable", error.message);
     showToast("Organizations unavailable", error.message);
+  }
+}
+
+async function loadDepartmentsWorkspace() {
+  renderLoadingList("#departments-list", 4);
+  try {
+    if (hasRole("SUPER_ADMIN")) {
+      await ensureManagedOrganizations();
+      populateDepartmentOrganizationFilter();
+    }
+    const organizationId = resolveDepartmentFilterOrganizationId();
+    const departments = await listDepartments({
+      organizationId,
+      includeInactive: true,
+    });
+    departmentWorkspaceItems = departments.data || [];
+    renderDepartmentWorkspaceItems();
+  } catch (error) {
+    departmentWorkspaceItems = [];
+    renderWorkList("#departments-list", [], (item) => item, "Departments unavailable", error.message);
+    showToast("Departments unavailable", error.message);
   }
 }
 
@@ -644,6 +761,7 @@ function initAdminUserForm() {
   const roleSelect = form.querySelector("select[name='role']");
   const companyField = form.querySelector("[data-company-code-field]");
   const companyInput = form.querySelector("input[name='companyCode']");
+  const departmentInput = form.querySelector("input[name='department']");
   if (roleSelect && !hasRole("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
   }
@@ -655,10 +773,21 @@ function initAdminUserForm() {
   }
   const usernameInput = form.querySelector("input[name='username']");
   const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
+  const runDepartmentValidation = attachFieldValidator(departmentInput, (value) => validateDepartmentValue(value));
+
+  if (hasRole("SUPER_ADMIN")) {
+    companyInput?.addEventListener("input", () => {
+      loadUserDepartmentOptions({ preserveSelection: true });
+    });
+    companyInput?.addEventListener("blur", () => {
+      loadUserDepartmentOptions({ preserveSelection: true });
+    });
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
+    const department = normalizeDepartmentValue(data.department);
     const payload = {
       fullName: trim(data.fullName),
       username: trim(data.username),
@@ -666,7 +795,7 @@ function initAdminUserForm() {
       password: data.password,
       role: data.role,
       companyCode: trim(data.companyCode) || currentSession?.organizationCode || null,
-      department: trim(data.department),
+      department,
     };
     const error = validateInternalUser(payload);
     if (error) {
@@ -680,11 +809,16 @@ function initAdminUserForm() {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      const previousCompanyCode = trim(companyInput?.value) || currentSession?.organizationCode || null;
       form.reset();
       if (companyInput && currentSession?.organizationCode) {
         companyInput.value = currentSession.organizationCode;
+      } else if (companyInput && previousCompanyCode) {
+        companyInput.value = previousCompanyCode;
       }
       runUsernameValidation();
+      runDepartmentValidation();
+      await loadUserDepartmentOptions({ preserveSelection: false });
       showToast("Account created", "Share the temporary password through your approved internal process.");
       await loadUsersWorkspace();
     } catch (error) {
@@ -724,6 +858,123 @@ function initAdminUserForm() {
       showToast("Update failed", error.message);
     } finally {
       button.toggleAttribute("disabled", false);
+    }
+  });
+}
+
+function initDepartmentWorkspace() {
+  const form = document.querySelector("#department-form");
+  if (!form) {
+    return;
+  }
+
+  const organizationSelect = form.querySelector("select[name='organizationId']");
+  const departmentInput = form.querySelector("input[name='departmentName']");
+  const runDepartmentValidation = attachFieldValidator(departmentInput, (value) => validateDepartmentValue(value));
+
+  organizationSelect?.addEventListener("change", async () => {
+    departmentFilterOrganizationId = trim(organizationSelect.value) || "";
+    toggleDepartmentFormState();
+    await loadDepartmentsWorkspace();
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const departmentName = normalizeDepartmentValue(departmentInput?.value);
+    const organizationId = resolveDepartmentFilterOrganizationId();
+
+    if (!organizationId) {
+      showToast("Choose organization", "Select an organization before adding a department.");
+      return;
+    }
+
+    const error = validateDepartmentValue(departmentName, { required: true });
+    if (error) {
+      showToast("Check department", error);
+      return;
+    }
+
+    setFormLoading(form, true);
+    try {
+      await createDepartment({ organizationId, departmentName });
+      form.reset();
+      populateDepartmentOrganizationFilter();
+      if (organizationSelect && organizationId) {
+        organizationSelect.value = organizationId;
+      }
+      runDepartmentValidation();
+      showToast("Department added", "The department is ready for organization-scoped account assignment.");
+      await Promise.all([
+        loadDepartmentsWorkspace(),
+        refreshDepartmentOptionsForOrganization(organizationId),
+      ]);
+    } catch (error) {
+      showToast("Department save failed", error.message);
+    } finally {
+      toggleDepartmentFormState();
+      setFormLoading(form, false);
+    }
+  });
+
+  document.querySelector("#departments-list")?.addEventListener("click", async (event) => {
+    const toggleButton = event.target.closest("[data-department-toggle]");
+    if (!toggleButton) {
+      return;
+    }
+
+    const department = departmentWorkspaceItems.find((item) => item.id === toggleButton.dataset.departmentId);
+    if (!department) {
+      return;
+    }
+
+    toggleButton.toggleAttribute("disabled", true);
+    try {
+      await updateDepartment(department.id, { activeStatus: !department.activeStatus });
+      showToast("Department updated", department.activeStatus ? "Department deactivated for future assignments." : "Department reactivated for assignment.");
+      await Promise.all([
+        loadDepartmentsWorkspace(),
+        refreshDepartmentOptionsForOrganization(department.organizationId),
+      ]);
+    } catch (error) {
+      showToast("Department update failed", error.message);
+    } finally {
+      toggleButton.toggleAttribute("disabled", false);
+    }
+  });
+
+  document.querySelector("#departments-list")?.addEventListener("submit", async (event) => {
+    const editor = event.target.closest("[data-department-editor]");
+    if (!editor) {
+      return;
+    }
+
+    event.preventDefault();
+    const departmentId = editor.dataset.departmentId;
+    const input = editor.querySelector("input[name='departmentName']");
+    const departmentName = normalizeDepartmentValue(input?.value);
+    const error = validateDepartmentValue(departmentName, { required: true });
+    if (error) {
+      showToast("Check department", error);
+      return;
+    }
+
+    const department = departmentWorkspaceItems.find((item) => item.id === departmentId);
+    if (!department) {
+      return;
+    }
+
+    setFormLoading(editor, true);
+    try {
+      await updateDepartment(departmentId, { departmentName });
+      showToast("Department renamed", "Department updates are now reflected in organization-scoped account setup.");
+      await Promise.all([
+        loadDepartmentsWorkspace(),
+        refreshDepartmentOptionsForOrganization(department.organizationId),
+      ]);
+    } catch (error) {
+      showToast("Department rename failed", error.message);
+    } finally {
+      setFormLoading(editor, false);
     }
   });
 }
@@ -772,8 +1023,40 @@ function initOrganizationForm() {
     return;
   }
 
+  resetOrganizationDepartmentDraft(true);
+  renderOrganizationDepartmentEditor();
+
   document.querySelector("#organization-form-reset")?.addEventListener("click", () => {
     resetOrganizationForm(form);
+  });
+
+  document.querySelector("#organization-department-add")?.addEventListener("click", () => {
+    addOrganizationDepartmentFromInput();
+  });
+
+  document.querySelector("#organization-department-input")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    addOrganizationDepartmentFromInput();
+  });
+
+  document.querySelector("#organization-department-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-department-remove]");
+    if (!button) {
+      return;
+    }
+    organizationDepartmentDraft = organizationDepartmentDraft.filter((name) => departmentKey(name) !== button.dataset.departmentRemove);
+    renderOrganizationDepartmentEditor();
+  });
+
+  document.querySelector("#organization-department-suggestions")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-department-suggestion]");
+    if (!button) {
+      return;
+    }
+    addOrganizationDepartment(button.dataset.departmentSuggestion, { clearInput: false });
   });
 
   form.addEventListener("submit", async (event) => {
@@ -791,6 +1074,7 @@ function initOrganizationForm() {
       contactEmail: trim(data.get("contactEmail")),
       address: trim(data.get("address")),
       activeStatus: data.get("activeStatus") === "on",
+      departmentNames: organizationDepartmentDraft.slice(),
     };
     const error = validateOrganization(payload);
     if (error) {
@@ -828,8 +1112,16 @@ function initOrganizationForm() {
     }
 
     if (button.dataset.organizationAction === "edit") {
-      populateOrganizationForm(form, organization);
-      document.querySelector("#workspace-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      button.toggleAttribute("disabled", true);
+      try {
+        const departments = await listDepartments({ organizationId: organization.id });
+        populateOrganizationForm(form, organization, departments.data || []);
+        document.querySelector("#workspace-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (error) {
+        showToast("Departments unavailable", error.message);
+      } finally {
+        button.toggleAttribute("disabled", false);
+      }
       return;
     }
 
@@ -1035,8 +1327,8 @@ function renderHomepageSettings(data) {
 
 function resolveAllowedRoutes() {
   return hasRole("SUPER_ADMIN")
-    ? ["analytics", "users", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access"]
-    : ["analytics", "users", "monitoring", "visitor-access"];
+    ? ["analytics", "users", "departments", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access"]
+    : ["analytics", "users", "departments", "monitoring", "visitor-access"];
 }
 
 function hasRole(role) {
@@ -1136,6 +1428,48 @@ function renderOrganizations(items) {
     <article class="empty-state empty-state--inline">
       <h3>No organizations yet</h3>
       <p>Create the first tenant to start assigning admins and visitor workflows.</p>
+    </article>
+  `;
+}
+
+function renderDepartmentWorkspaceItems() {
+  const list = document.querySelector("#departments-list");
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = departmentWorkspaceItems.length ? departmentWorkspaceItems.map(departmentCard).join("") : `
+    <article class="empty-state empty-state--inline">
+      <h3>No departments configured</h3>
+      <p>Create operational teams here so account creation stays fast and standardized.</p>
+    </article>
+  `;
+}
+
+function departmentCard(department) {
+  const organizationMeta = department.organizationName
+    ? `${department.organizationName}${department.organizationCode ? ` (${department.organizationCode})` : ""}`
+    : department.organizationCode || currentSession?.organizationName || currentSession?.organizationCode || "Organization";
+  return `
+    <article class="department-card">
+      <div class="department-card__header">
+        <div>
+          <h3>${escapeHtml(department.departmentName)}</h3>
+          <p>${escapeHtml(organizationMeta)}</p>
+        </div>
+        <span class="status-badge status-badge--${department.activeStatus ? "approved" : "rejected"}">${department.activeStatus ? "Active" : "Inactive"}</span>
+      </div>
+      <form class="department-card__editor" data-department-editor data-department-id="${escapeHtml(department.id)}">
+        <label class="form-field">
+          <span>Rename department</span>
+          <input name="departmentName" type="text" value="${escapeHtml(department.departmentName)}" autocomplete="off" />
+        </label>
+        <button class="button button--ghost" type="submit">Save name</button>
+      </form>
+      <div class="department-card__footer">
+        <small>Created ${escapeHtml(formatDateTime(department.createdAt))}</small>
+        <button class="button ${department.activeStatus ? "button--ghost" : "button--primary"}" type="button" data-department-toggle data-department-id="${escapeHtml(department.id)}">${department.activeStatus ? "Deactivate" : "Activate"}</button>
+      </div>
     </article>
   `;
 }
@@ -1302,13 +1636,15 @@ function renderEmployeeAnalytics(items) {
   `;
 }
 
-function populateOrganizationForm(form, organization) {
+function populateOrganizationForm(form, organization, departments = []) {
   form.querySelector("input[name='organizationId']").value = organization.id || "";
   form.querySelector("input[name='companyName']").value = organization.companyName || "";
   form.querySelector("input[name='companyCode']").value = organization.companyCode || "";
   form.querySelector("input[name='contactEmail']").value = organization.contactEmail || "";
   form.querySelector("input[name='address']").value = organization.address || "";
   form.querySelector("input[name='activeStatus']").checked = Boolean(organization.activeStatus);
+  organizationDepartmentDraft = (departments || []).map((department) => department.departmentName);
+  renderOrganizationDepartmentEditor();
   const meta = document.querySelector("#organization-form-meta");
   if (meta) {
     meta.textContent = `Editing ${organization.companyName}. Save to update this tenant.`;
@@ -1319,10 +1655,269 @@ function resetOrganizationForm(form) {
   form.reset();
   form.querySelector("input[name='organizationId']").value = "";
   form.querySelector("input[name='activeStatus']").checked = true;
+  resetOrganizationDepartmentDraft(true);
+  renderOrganizationDepartmentEditor();
   const meta = document.querySelector("#organization-form-meta");
   if (meta) {
     meta.textContent = "Create organizations for tenant onboarding and admin assignment.";
   }
+}
+
+async function ensureManagedOrganizations(options = {}) {
+  const { force = false } = options;
+  if (managedOrganizations.length && !force) {
+    return managedOrganizations;
+  }
+
+  const response = await listManagedOrganizations();
+  managedOrganizations = response.data || [];
+  return managedOrganizations;
+}
+
+function populateDepartmentOrganizationFilter() {
+  const select = document.querySelector("#department-organization-filter");
+  if (!select) {
+    return;
+  }
+
+  const selectedValue = departmentFilterOrganizationId || trim(select.value) || "";
+  select.innerHTML = `<option value="">All organizations</option>${managedOrganizations.map((organization) => `
+    <option value="${escapeHtml(organization.id)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
+  `).join("")}`;
+
+  if (selectedValue && managedOrganizations.some((organization) => organization.id === selectedValue)) {
+    select.value = selectedValue;
+    departmentFilterOrganizationId = selectedValue;
+  } else if (!selectedValue && managedOrganizations.length === 1) {
+    select.value = managedOrganizations[0].id;
+    departmentFilterOrganizationId = managedOrganizations[0].id;
+  } else {
+    select.value = "";
+    if (!managedOrganizations.some((organization) => organization.id === departmentFilterOrganizationId)) {
+      departmentFilterOrganizationId = "";
+    }
+  }
+
+  toggleDepartmentFormState();
+}
+
+function resolveDepartmentFilterOrganizationId() {
+  if (!hasRole("SUPER_ADMIN")) {
+    return currentSession?.organizationId || "";
+  }
+  return departmentFilterOrganizationId || trim(document.querySelector("#department-organization-filter")?.value) || "";
+}
+
+function toggleDepartmentFormState() {
+  const form = document.querySelector("#department-form");
+  const meta = document.querySelector("#department-management-meta");
+  if (!form) {
+    return;
+  }
+
+  const input = form.querySelector("input[name='departmentName']");
+  const submit = form.querySelector("button[type='submit']");
+  const organizationId = resolveDepartmentFilterOrganizationId();
+  const locked = hasRole("SUPER_ADMIN") && !organizationId;
+
+  if (input) {
+    input.disabled = locked;
+  }
+  if (submit) {
+    submit.disabled = locked;
+  }
+  if (meta) {
+    meta.textContent = locked
+      ? "Viewing all departments. Select one organization to add a new department."
+      : "Departments stay isolated to each organization and remain available for fast account setup.";
+  }
+}
+
+async function loadUserDepartmentOptions(options = {}) {
+  const { preserveSelection = false } = options;
+  const form = document.querySelector("#admin-user-form");
+  if (!form) {
+    return;
+  }
+
+  const companyInput = form.querySelector("input[name='companyCode']");
+  const departmentInput = form.querySelector("input[name='department']");
+  const datalist = document.querySelector("#department-options");
+  const meta = document.querySelector("#department-field-meta");
+  if (!departmentInput || !datalist) {
+    return;
+  }
+
+  if (hasRole("SUPER_ADMIN") && !managedOrganizations.length) {
+    await ensureManagedOrganizations();
+  }
+
+  const organizationId = hasRole("SUPER_ADMIN")
+    ? resolveOrganizationIdFromCode(companyInput?.value)
+    : (currentSession?.organizationId || "");
+  const previousValue = preserveSelection ? departmentInput.value : "";
+  const organizationChanged = Boolean(userDepartmentOrganizationId && userDepartmentOrganizationId !== organizationId);
+
+  if (!organizationId) {
+    userDepartmentOptions = [];
+    userDepartmentOrganizationId = "";
+    datalist.innerHTML = "";
+    if (meta) {
+      meta.textContent = hasRole("SUPER_ADMIN")
+        ? "Enter an organization code first to load organization departments."
+        : "No organization departments are available yet. You can still add one here.";
+    }
+    departmentInput.disabled = hasRole("SUPER_ADMIN");
+    return;
+  }
+
+  try {
+    const response = await listDepartments({ organizationId });
+    userDepartmentOptions = response.data || [];
+    userDepartmentOrganizationId = organizationId;
+    datalist.innerHTML = userDepartmentOptions.map((department) => `<option value="${escapeHtml(department.departmentName)}"></option>`).join("");
+    if (meta) {
+      meta.textContent = userDepartmentOptions.length
+        ? "Search an organization department or type a new one to create it inline."
+        : "No departments exist yet for this organization. Type one to create it inline.";
+    }
+    departmentInput.disabled = false;
+    if (organizationChanged) {
+      departmentInput.value = "";
+    } else if (preserveSelection && previousValue) {
+      departmentInput.value = previousValue;
+    }
+  } catch (error) {
+    userDepartmentOptions = [];
+    userDepartmentOrganizationId = organizationId;
+    datalist.innerHTML = "";
+    departmentInput.disabled = false;
+    if (meta) {
+      meta.textContent = "Department options are temporarily unavailable. You can still type a department name.";
+    }
+    showToast("Departments unavailable", error.message);
+  }
+}
+
+async function refreshDepartmentOptionsForOrganization(organizationId) {
+  const activeOrganizationId = hasRole("SUPER_ADMIN")
+    ? resolveOrganizationIdFromCode(document.querySelector("#admin-user-form input[name='companyCode']")?.value)
+    : currentSession?.organizationId;
+  if (organizationId && activeOrganizationId === organizationId) {
+    await loadUserDepartmentOptions({ preserveSelection: true });
+  }
+}
+
+function resolveOrganizationIdFromCode(companyCode) {
+  const normalizedCode = String(companyCode || "").trim().toUpperCase();
+  if (!normalizedCode) {
+    return "";
+  }
+  return managedOrganizations.find((organization) => organization.companyCode === normalizedCode)?.id || "";
+}
+
+function resetOrganizationDepartmentDraft(useDefaults) {
+  organizationDepartmentDraft = useDefaults ? DEFAULT_DEPARTMENT_PRESETS.slice() : [];
+}
+
+function addOrganizationDepartmentFromInput() {
+  const input = document.querySelector("#organization-department-input");
+  if (!input) {
+    return;
+  }
+  addOrganizationDepartment(input.value);
+}
+
+function addOrganizationDepartment(value, options = {}) {
+  const { clearInput = true } = options;
+  const input = document.querySelector("#organization-department-input");
+  const normalized = normalizeDepartmentValue(value);
+  const error = validateDepartmentValue(normalized, { required: true });
+  if (error) {
+    showToast("Check department", error);
+    return;
+  }
+  const key = departmentKey(normalized);
+  if (organizationDepartmentDraft.some((departmentName) => departmentKey(departmentName) === key)) {
+    showToast("Duplicate department", "That department is already in this organization's preset list.");
+    return;
+  }
+  organizationDepartmentDraft = [...organizationDepartmentDraft, normalized];
+  renderOrganizationDepartmentEditor();
+  if (input && clearInput) {
+    input.value = "";
+    input.focus();
+  }
+}
+
+function renderOrganizationDepartmentEditor() {
+  const list = document.querySelector("#organization-department-list");
+  const suggestions = document.querySelector("#organization-department-suggestions");
+  if (list) {
+    list.innerHTML = organizationDepartmentDraft.length ? organizationDepartmentDraft.map((departmentName) => `
+      <span class="department-chip">
+        <span>${escapeHtml(departmentName)}</span>
+        <button type="button" data-department-remove="${escapeHtml(departmentKey(departmentName))}" aria-label="Remove ${escapeHtml(departmentName)}">Remove</button>
+      </span>
+    `).join("") : `<p class="department-chip__empty">No presets selected yet. Add only the teams this organization actually uses.</p>`;
+  }
+  if (suggestions) {
+    const selected = new Set(organizationDepartmentDraft.map((departmentName) => departmentKey(departmentName)));
+    const availableSuggestions = DEFAULT_DEPARTMENT_PRESETS.filter((departmentName) => !selected.has(departmentKey(departmentName)));
+    suggestions.innerHTML = availableSuggestions.map((departmentName) => `
+      <button class="button button--ghost button--small" type="button" data-department-suggestion="${escapeHtml(departmentName)}">${escapeHtml(departmentName)}</button>
+    `).join("");
+  }
+}
+
+function normalizeDepartmentValue(value) {
+  const compact = String(value || "").trim().replaceAll(/\s+/g, " ");
+  if (!compact) {
+    return "";
+  }
+  return compact
+    .split(" ")
+    .map((word) => formatDepartmentWord(word))
+    .join(" ");
+}
+
+function formatDepartmentWord(word) {
+  const upper = word.toUpperCase();
+  if (["HR", "IT", "QA", "HSE", "R&D"].includes(upper)) {
+    return upper;
+  }
+  return word
+    .split(/([/&-])/)
+    .map((segment) => {
+      if (!segment || ["/", "&", "-"].includes(segment)) {
+        return segment;
+      }
+      const segmentUpper = segment.toUpperCase();
+      if (["HR", "IT", "QA", "HSE", "R&D"].includes(segmentUpper)) {
+        return segmentUpper;
+      }
+      if (/^\d+$/.test(segment)) {
+        return segment;
+      }
+      return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+    })
+    .join("");
+}
+
+function departmentKey(value) {
+  return normalizeDepartmentValue(value).toUpperCase();
+}
+
+function validateDepartmentValue(value, options = {}) {
+  const { required = false } = options;
+  const normalized = normalizeDepartmentValue(value);
+  if (!normalized) {
+    return required ? "Enter a department name." : "";
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9 &/-]{1,79}$/.test(normalized)) {
+    return "Department names must be 2-80 characters and use letters, numbers, spaces, hyphens, slashes, or ampersands.";
+  }
+  return "";
 }
 
 function maxValue(data) {
@@ -1343,6 +1938,12 @@ function validateOrganization(payload) {
   if (payload.contactEmail && !isEmail(payload.contactEmail)) {
     return "Use a valid contact email.";
   }
+  for (const departmentName of payload.departmentNames || []) {
+    const error = validateDepartmentValue(departmentName, { required: true });
+    if (error) {
+      return error;
+    }
+  }
   return "";
 }
 
@@ -1362,6 +1963,12 @@ function validateInternalUser(payload) {
   }
   if (hasRole("SUPER_ADMIN") && !payload.companyCode) {
     return "Enter the organization code for this account.";
+  }
+  if (payload.department) {
+    const departmentError = validateDepartmentValue(payload.department);
+    if (departmentError) {
+      return departmentError;
+    }
   }
   if (!/[a-z]/.test(payload.password || "")
       || !/[A-Z]/.test(payload.password || "")
