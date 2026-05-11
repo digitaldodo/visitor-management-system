@@ -100,7 +100,7 @@
 .visitor-pass__body {
   display: grid;
   gap: 0.85rem;
-  grid-template-columns: 5.5rem minmax(0, 1fr) 7rem;
+  grid-template-columns: minmax(5rem, 5.5rem) minmax(0, 1fr) minmax(6rem, 7rem);
   min-width: 0;
   padding: 0.85rem;
 }
@@ -166,6 +166,7 @@
 
 .security-monitor-search {
   max-width: 22rem;
+  width: min(100%, 22rem);
 }
 
 .security-monitor-grid {
@@ -274,7 +275,7 @@
 .qr-result__identity {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(8.5rem, 10rem) minmax(0, 1fr);
+  grid-template-columns: minmax(7.5rem, 9rem) minmax(0, 1fr);
 }
 
 .qr-result__photo-wrap {
@@ -327,7 +328,7 @@
   border-color: rgba(247, 201, 168, 0.26);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .visitor-pass__body {
     grid-template-columns: 1fr;
   }
@@ -340,7 +341,9 @@
   .qr-result__identity {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 900px) {
   .visitor-pass-card__actions,
   .qr-verify-form__actions,
   .qr-result__actions {

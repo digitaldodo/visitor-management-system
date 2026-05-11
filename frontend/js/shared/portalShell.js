@@ -89,16 +89,39 @@ function initSidebar() {
   const backdrop = $("#sidebar-backdrop");
   const mobileQuery = window.matchMedia("(max-width: 1024px)");
 
+  const setSidebarState = (nextState) => {
+    if (!shell) {
+      return;
+    }
+
+    shell.dataset.sidebarState = nextState;
+    document.body.classList.toggle("has-mobile-sidebar", mobileQuery.matches && nextState === "open");
+  };
+
+  const syncSidebarMode = () => {
+    if (!shell) {
+      return;
+    }
+
+    if (mobileQuery.matches) {
+      setSidebarState(shell.dataset.sidebarState === "open" ? "open" : "closed");
+      return;
+    }
+
+    document.body.classList.remove("has-mobile-sidebar");
+    shell.dataset.sidebarState = shell.dataset.sidebarState === "collapsed" ? "collapsed" : "expanded";
+  };
+
   toggle?.addEventListener("click", () => {
     if (!shell) {
       return;
     }
     if (mobileQuery.matches) {
       const isOpen = shell.dataset.sidebarState === "open";
-      shell.dataset.sidebarState = isOpen ? "closed" : "open";
+      setSidebarState(isOpen ? "closed" : "open");
     } else {
       const isCollapsed = shell.dataset.sidebarState === "collapsed";
-      shell.dataset.sidebarState = isCollapsed ? "expanded" : "collapsed";
+      setSidebarState(isCollapsed ? "expanded" : "collapsed");
     }
   });
 
@@ -107,21 +130,19 @@ function initSidebar() {
       return;
     }
     const isCollapsed = shell.dataset.sidebarState === "collapsed";
-    shell.dataset.sidebarState = isCollapsed ? "expanded" : "collapsed";
+    setSidebarState(isCollapsed ? "expanded" : "collapsed");
     collapse.setAttribute("aria-label", isCollapsed ? "Collapse sidebar" : "Expand sidebar");
   });
 
   backdrop?.addEventListener("click", () => {
-    if (shell) {
-      shell.dataset.sidebarState = "closed";
-    }
+    setSidebarState("closed");
   });
 
   mobileQuery.addEventListener("change", () => {
-    if (shell) {
-      shell.dataset.sidebarState = mobileQuery.matches ? "closed" : "expanded";
-    }
+    syncSidebarMode();
   });
+
+  syncSidebarMode();
 }
 
 function initRouteNavigation(options) {
@@ -166,6 +187,7 @@ function initHashRoutes(allowedRoutes) {
         if (shell) {
           shell.dataset.sidebarState = "closed";
         }
+        document.body.classList.remove("has-mobile-sidebar");
       }
     });
   });
