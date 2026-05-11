@@ -15,7 +15,7 @@ export function initPortalShell(session, options = {}) {
   initLogout();
   initRouteNavigation(options);
   initNotifications();
-  $("#refresh-health")?.addEventListener("click", () => refreshHealth(true));
+  initRefreshControl(options.onRefresh);
 
   const organization = session.organizationName || session.organizationCode;
   const context = organization ? `${organization} · ` : "";
@@ -89,13 +89,42 @@ function initSidebar() {
   const backdrop = $("#sidebar-backdrop");
   const mobileQuery = window.matchMedia("(max-width: 1024px)");
 
-  const setSidebarState = (nextState) => {
+  if (shell && backdrop && backdrop.parentElement !== shell) {
+    shell.append(backdrop);
+  }
+  const storageKey = `accessflow.sidebar:${resolveShellStorageScope()}`;
+
+  const readSidebarPreference = () => {
+    try {
+      return window.sessionStorage.getItem(storageKey);
+    } catch {
+      return null;
+    }
+  };
+
+  const persistSidebarPreference = (value) => {
+    try {
+      window.sessionStorage.setItem(storageKey, value);
+    } catch {
+      // Ignore storage access issues and fall back to in-memory UI state.
+    }
+  };
+
+  const closeMobileSidebar = () => {
+    setSidebarState("closed", { persist: false });
+  };
+
+  const setSidebarState = (nextState, options = {}) => {
+    const { persist = true } = options;
     if (!shell) {
       return;
     }
 
     shell.dataset.sidebarState = nextState;
     document.body.classList.toggle("has-mobile-sidebar", mobileQuery.matches && nextState === "open");
+    if (!mobileQuery.matches && persist) {
+      persistSidebarPreference(nextState === "collapsed" ? "collapsed" : "expanded");
+    }
   };
 
   const syncSidebarMode = () => {
@@ -104,12 +133,14 @@ function initSidebar() {
     }
 
     if (mobileQuery.matches) {
-      setSidebarState(shell.dataset.sidebarState === "open" ? "open" : "closed");
+      closeMobileSidebar();
       return;
     }
 
     document.body.classList.remove("has-mobile-sidebar");
-    shell.dataset.sidebarState = shell.dataset.sidebarState === "collapsed" ? "collapsed" : "expanded";
+    const preferredState = readSidebarPreference();
+    const desktopState = preferredState === "collapsed" ? "collapsed" : "expanded";
+    setSidebarState(desktopState, { persist: false });
   };
 
   toggle?.addEventListener("click", () => {
@@ -135,7 +166,7 @@ function initSidebar() {
   });
 
   backdrop?.addEventListener("click", () => {
-    setSidebarState("closed");
+    closeMobileSidebar();
   });
 
   mobileQuery.addEventListener("change", () => {
@@ -241,16 +272,27 @@ function initPathRoutes(allowedRoutes, routeMap, activeRoute, defaultHref) {
 }
 
 function initLogout() {
-  $("#logout-button")?.addEventListener("click", async () => {
-    const refreshToken = getRefreshToken();
-    try {
-      if (refreshToken) {
-        await logout(refreshToken);
-      }
-    } finally {
-      clearSession();
-      window.location.assign(LOGIN_FROM_PORTAL);
+  const button = $("#logout-button");
+  if (!button || button.dataset.bound === "true") {
+    return;
+  }
+
+  button.dataset.bound = "true";
+  button.addEventListener("click", () => {
+    if (button.disabled) {
+      return;
     }
+
+    const refreshToken = getRefreshToken();
+    button.disabled = true;
+    button.classList.add("is-loading");
+    clearSession();
+
+    if (refreshToken) {
+      void logout(refreshToken, { keepalive: true });
+    }
+
+    window.location.replace(LOGIN_FROM_PORTAL);
   });
 }
 
@@ -379,6 +421,48 @@ async function refreshHealth(showSuccessToast) {
     setHealthOffline(error.message);
     showToast("API unavailable", error.message);
   }
+}
+
+function initRefreshControl(onRefresh) {
+  const button = $("#refresh-health");
+  if (!button) {
+    return;
+  }
+
+  button.onclick = null;
+  button.addEventListener("click", async () => {
+    if (button.disabled) {
+      return;
+    }
+
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.setAttribute("aria-busy", "true");
+
+    try {
+      const tasks = [refreshHealth(false)];
+      if (typeof onRefresh === "function") {
+        tasks.push(Promise.resolve().then(() => onRefresh()));
+      }
+      await Promise.all(tasks);
+      showToast(
+        typeof onRefresh === "function" ? "Dashboard refreshed" : "API online",
+        typeof onRefresh === "function" ? "Latest workspace data loaded." : "Backend health check completed.",
+      );
+    } catch (error) {
+      showToast("Refresh interrupted", error?.message || "Some dashboard data could not be refreshed.");
+    } finally {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+      button.removeAttribute("aria-busy");
+    }
+  });
+}
+
+function resolveShellStorageScope() {
+  const path = window.location.pathname || "portal";
+  const segments = path.split("/").filter(Boolean);
+  return segments.slice(0, 2).join(":") || "portal";
 }
 
 function setHealthLoading() {

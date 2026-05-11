@@ -1533,7 +1533,7 @@ body.has-mobile-sidebar {
     visibility: visible;
   }
 
-  .portal-shell[data-sidebar-state="open"] ~ .backdrop {
+  .portal-shell[data-sidebar-state="open"] .backdrop {
     display: block;
   }
 

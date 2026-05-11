@@ -24,7 +24,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  initPortalShell(session, { allowedRoutes: ROUTES });
+  initPortalShell(session, {
+    allowedRoutes: ROUTES,
+    onRefresh: () => loadSecurityPortal(false),
+  });
   initVisitorModule("[data-security-visitors]", {
     basePath: "/security",
     title: "Front Desk Registration",

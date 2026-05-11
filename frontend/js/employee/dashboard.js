@@ -18,7 +18,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  initPortalShell(session, { allowedRoutes: ROUTES });
+  initPortalShell(session, {
+    allowedRoutes: ROUTES,
+    onRefresh: () => loadEmployeePortal(),
+  });
   initVisitorModule("[data-employee-visitors]", {
     basePath: "/employee",
     title: "Visitor Registration and History",

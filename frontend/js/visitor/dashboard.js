@@ -20,7 +20,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  initPortalShell(session, { allowedRoutes: ROUTES });
+  initPortalShell(session, {
+    allowedRoutes: ROUTES,
+    onRefresh: () => loadVisitorPortal(),
+  });
   await initOrganizations(session);
   initHostPicker(document.querySelector("#visitor-request-form"), { basePath: "/visitor" });
   initRequestForm();

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./config.js";
 import { request } from "./httpClient.js";
 
 export function login(credentials) {
@@ -16,7 +17,20 @@ export function registerAccount(payload) {
   });
 }
 
-export function logout(refreshToken) {
+export function logout(refreshToken, options = {}) {
+  const { keepalive = false } = options;
+  if (keepalive && typeof fetch === "function") {
+    return fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+      keepalive: true,
+    }).catch(() => null);
+  }
+
   return request("/auth/logout", {
     method: "POST",
     body: JSON.stringify({ refreshToken }),

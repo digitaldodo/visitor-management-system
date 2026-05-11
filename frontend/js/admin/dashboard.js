@@ -98,6 +98,7 @@ let departmentWorkspaceItems = [];
 let departmentFilterOrganizationId = "";
 let userDepartmentOptions = [];
 let userDepartmentOrganizationId = "";
+let adminRouteState = null;
 
 const DEFAULT_DEPARTMENT_PRESETS = [
   "Operations",
@@ -125,17 +126,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   currentRoute = routeContext.routeKey;
+  adminRouteState = {
+    allowedRoutes,
+    routeMap: routeContext.routeMap,
+    legacyMode: routeContext.legacyMode,
+    routeLifecycleBound: false,
+  };
   initPortalShell(currentSession, {
     allowedRoutes,
     activeRoute: currentRoute,
     routeMap: routeContext.routeMap,
     defaultHref: routeContext.routeMap[allowedRoutes[0]]?.href,
+    onRefresh: () => loadWorkspace(currentRoute, { preserveToasts: true }),
   });
 
-  renderWorkspaceFrame(ROUTE_DEFINITIONS[currentRoute]);
-  initWorkspace(currentRoute);
-  bindWorkspaceRefresh();
-  await loadWorkspace(currentRoute);
+  initAdminRouteLifecycle();
+  await activateAdminRoute(currentRoute);
 });
 
 function resolveRouteContext(allowedRoutes) {
@@ -147,25 +153,25 @@ function resolveRouteContext(allowedRoutes) {
 
   if (legacyMode) {
     const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-    return { routeKey, routeMap };
+    return { routeKey, routeMap, legacyMode };
   }
 
   if (normalizedPath === "/admin") {
     const targetRoute = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
+    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
   }
 
   if (normalizedPath.startsWith("/admin/")) {
     const slug = normalizedPath.slice("/admin/".length).split("/")[0];
     const routeKey = resolveAlias(slug);
     if (allowedRoutes.includes(routeKey)) {
-      return { routeKey, routeMap };
+      return { routeKey, routeMap, legacyMode };
     }
-    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
+    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
   }
 
   const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-  return { routeKey, routeMap };
+  return { routeKey, routeMap, legacyMode };
 }
 
 function buildRouteMap(legacyMode) {
@@ -187,12 +193,6 @@ function normalizePath(pathname) {
 
 function resolveAlias(value) {
   return ROUTE_ALIASES[String(value || "").trim().toLowerCase()] || "";
-}
-
-function bindWorkspaceRefresh() {
-  document.querySelector("#refresh-health")?.addEventListener("click", () => {
-    loadWorkspace(currentRoute, { preserveToasts: true });
-  });
 }
 
 function renderWorkspaceFrame(route) {
@@ -588,6 +588,154 @@ function monitoringTemplate() {
 
 function visitorsTemplate() {
   return `<article class="panel workspace-visitor-panel" data-admin-visitors></article>`;
+}
+
+function initAdminRouteLifecycle() {
+  if (!adminRouteState || adminRouteState.routeLifecycleBound) {
+    return;
+  }
+
+  adminRouteState.routeLifecycleBound = true;
+
+  if (adminRouteState.legacyMode) {
+    window.addEventListener("hashchange", () => {
+      void syncRouteFromLocation();
+    });
+    return;
+  }
+
+  document.querySelector("#sidebar-nav")?.addEventListener("click", (event) => {
+    const link = event.target.closest(".nav-link[data-route]");
+    if (!link) {
+      return;
+    }
+
+    const routeKey = link.dataset.route;
+    if (!isAllowedAdminRoute(routeKey)) {
+      return;
+    }
+
+    event.preventDefault();
+    void navigateToAdminRoute(routeKey);
+  });
+
+  document.querySelectorAll("[data-default-admin-link]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const defaultRoute = adminRouteState?.allowedRoutes?.[0];
+      if (!defaultRoute) {
+        return;
+      }
+
+      event.preventDefault();
+      void navigateToAdminRoute(defaultRoute);
+    });
+  });
+
+  window.addEventListener("popstate", () => {
+    void syncRouteFromLocation();
+  });
+}
+
+async function syncRouteFromLocation() {
+  if (!adminRouteState) {
+    return;
+  }
+
+  const routeContext = resolveRouteContext(adminRouteState.allowedRoutes);
+  if (routeContext.redirectTo) {
+    window.location.replace(routeContext.redirectTo);
+    return;
+  }
+
+  if (routeContext.routeKey === currentRoute) {
+    syncAdminRouteNavigation(currentRoute);
+    return;
+  }
+
+  await activateAdminRoute(routeContext.routeKey, { preserveToasts: true });
+}
+
+async function navigateToAdminRoute(routeKey) {
+  if (!adminRouteState || !isAllowedAdminRoute(routeKey)) {
+    return;
+  }
+
+  if (routeKey === currentRoute) {
+    collapseAdminSidebarForNavigation();
+    return;
+  }
+
+  const href = adminRouteState.routeMap?.[routeKey]?.href;
+  if (!href) {
+    return;
+  }
+
+  if (adminRouteState.legacyMode) {
+    window.location.hash = ROUTE_DEFINITIONS[routeKey].slug;
+    return;
+  }
+
+  window.history.pushState({}, "", href);
+  await activateAdminRoute(routeKey, { preserveToasts: true });
+}
+
+function syncAdminRouteNavigation(routeKey) {
+  if (!adminRouteState) {
+    return;
+  }
+
+  const validRoutes = new Set(adminRouteState.allowedRoutes);
+  document.querySelectorAll("#sidebar-nav .nav-link").forEach((link) => {
+    const route = link.dataset.route;
+    const allowed = validRoutes.has(route);
+    link.hidden = !allowed;
+    link.setAttribute("aria-hidden", String(!allowed));
+    if (allowed && adminRouteState.routeMap?.[route]?.href) {
+      link.setAttribute("href", adminRouteState.routeMap[route].href);
+    }
+    const isActive = allowed && route === routeKey;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
+  const fallbackHref = adminRouteState.routeMap?.[adminRouteState.allowedRoutes[0]]?.href || "/admin/analytics";
+  document.querySelectorAll("[data-default-admin-link]").forEach((link) => {
+    link.setAttribute("href", fallbackHref);
+  });
+}
+
+async function activateAdminRoute(routeKey, options = {}) {
+  if (!ROUTE_DEFINITIONS[routeKey]) {
+    return;
+  }
+
+  currentRoute = routeKey;
+  collapseAdminSidebarForNavigation();
+  syncAdminRouteNavigation(routeKey);
+  renderWorkspaceFrame(ROUTE_DEFINITIONS[routeKey]);
+  initWorkspace(routeKey);
+  window.scrollTo(0, 0);
+  await loadWorkspace(routeKey, options);
+}
+
+function isAllowedAdminRoute(routeKey) {
+  return Boolean(adminRouteState?.allowedRoutes?.includes(routeKey));
+}
+
+function collapseAdminSidebarForNavigation() {
+  if (!window.matchMedia("(max-width: 1024px)").matches) {
+    return;
+  }
+
+  const shell = document.querySelector(".portal-shell");
+  if (shell) {
+    shell.dataset.sidebarState = "closed";
+  }
+  document.body.classList.remove("has-mobile-sidebar");
 }
 
 function initWorkspace(routeKey) {
