@@ -235,8 +235,13 @@ body {
   width: min(100%, 28rem);
 }
 
-.auth-tabs--three {
+.auth-tabs--three,
+.auth-tabs--four {
   grid-template-columns: none;
+}
+
+.auth-tabs--four {
+  width: min(100%, 34rem);
 }
 
 .auth-tab {
@@ -577,7 +582,8 @@ body {
     font-size: 1.55rem;
   }
 
-  .auth-tabs--three {
+  .auth-tabs--three,
+  .auth-tabs--four {
     flex-wrap: wrap;
     gap: 0.85rem 1rem;
   }

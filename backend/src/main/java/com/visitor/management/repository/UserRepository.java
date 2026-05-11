@@ -6,11 +6,14 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;
 import java.util.Collection;
+import java.util.List;
 
 public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByEmailIgnoreCase(String email);
 
     Optional<User> findByUsernameIgnoreCase(String username);
+
+    Optional<User> findByFullNameIgnoreCase(String fullName);
 
     boolean existsByEmailIgnoreCase(String email);
 
@@ -19,4 +22,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     boolean existsByRolesContaining(Role role);
 
     boolean existsByRolesIn(Collection<Role> roles);
+
+    List<User> findAllByOrganizationId(String organizationId);
 }

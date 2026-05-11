@@ -52,10 +52,10 @@ public class EmployeeController {
     }
 
     @GetMapping("/overview")
-    public ApiResponse<Map<String, Object>> overview() {
+    public ApiResponse<Map<String, Object>> overview(Authentication authentication) {
         return ApiResponse.ok("Employee overview loaded.", Map.of(
                 "area", "EMPLOYEE",
-                "metrics", visitorService.metrics()
+                "metrics", visitorService.metrics(authentication.getName())
         ));
     }
 

@@ -58,21 +58,21 @@ public class AdminController {
     }
 
     @GetMapping("/overview")
-    public ApiResponse<Map<String, Object>> overview() {
+    public ApiResponse<Map<String, Object>> overview(Authentication authentication) {
         return ApiResponse.ok("Admin overview loaded.", Map.of(
                 "area", "ADMIN",
-                "metrics", visitorService.metrics()
+                "metrics", visitorService.metrics(authentication.getName())
         ));
     }
 
     @GetMapping("/analytics")
-    public ApiResponse<Map<String, Object>> analytics() {
-        return ApiResponse.ok("Admin analytics loaded.", analyticsService.adminDashboard());
+    public ApiResponse<Map<String, Object>> analytics(Authentication authentication) {
+        return ApiResponse.ok("Admin analytics loaded.", analyticsService.adminDashboard(authentication.getName()));
     }
 
     @GetMapping("/users")
-    public ApiResponse<List<AdminUserResponse>> users() {
-        return ApiResponse.ok("Admin user management loaded.", adminUserService.listUsers());
+    public ApiResponse<List<AdminUserResponse>> users(Authentication authentication) {
+        return ApiResponse.ok("Admin user management loaded.", adminUserService.listUsers(authentication));
     }
 
     @PostMapping("/users")
@@ -114,29 +114,29 @@ public class AdminController {
     }
 
     @GetMapping("/monitoring")
-    public ApiResponse<Map<String, Object>> monitoring() {
+    public ApiResponse<Map<String, Object>> monitoring(Authentication authentication) {
         return ApiResponse.ok("Admin system monitoring loaded.", Map.of(
                 "api", "UP",
                 "database", "UP",
                 "cameraBridge", "READY",
                 "badgePrinter", "READY",
-                "visitors", visitorService.statusSummary()
+                "visitors", visitorService.statusSummary(authentication.getName())
         ));
     }
 
     @GetMapping("/visitors")
-    public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request) {
-        return ApiResponse.ok("Admin visitor records loaded.", visitorService.search(request));
+    public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
+        return ApiResponse.ok("Admin visitor records loaded.", visitorService.search(request, authentication.getName()));
     }
 
     @GetMapping("/visitors/{id}")
-    public ApiResponse<VisitorResponse> visitor(@PathVariable String id) {
-        return ApiResponse.ok("Admin visitor loaded.", visitorService.get(id));
+    public ApiResponse<VisitorResponse> visitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Admin visitor loaded.", visitorService.get(id, authentication.getName()));
     }
 
     @PostMapping("/visitors")
-    public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request) {
-        return ApiResponse.ok("Visitor registered.", visitorService.create(request));
+    public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request, Authentication authentication) {
+        return ApiResponse.ok("Visitor registered.", visitorService.create(request, authentication.getName()));
     }
 
     @PostMapping(value = "/visitors/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -145,23 +145,23 @@ public class AdminController {
     }
 
     @PutMapping("/visitors/{id}")
-    public ApiResponse<VisitorResponse> updateVisitor(@PathVariable String id, @Valid @RequestBody VisitorUpdateRequest request) {
-        return ApiResponse.ok("Visitor updated.", visitorService.update(id, request));
+    public ApiResponse<VisitorResponse> updateVisitor(@PathVariable String id, @Valid @RequestBody VisitorUpdateRequest request, Authentication authentication) {
+        return ApiResponse.ok("Visitor updated.", visitorService.update(id, request, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-in")
-    public ApiResponse<VisitorResponse> checkInVisitor(@PathVariable String id) {
-        return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id));
+    public ApiResponse<VisitorResponse> checkInVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-out")
-    public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id) {
-        return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id));
+    public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
     }
 
     @DeleteMapping("/visitors/{id}")
-    public ApiResponse<Void> deleteVisitor(@PathVariable String id) {
-        visitorService.delete(id);
+    public ApiResponse<Void> deleteVisitor(@PathVariable String id, Authentication authentication) {
+        visitorService.delete(id, authentication.getName());
         return ApiResponse.ok("Visitor deleted.", null);
     }
 

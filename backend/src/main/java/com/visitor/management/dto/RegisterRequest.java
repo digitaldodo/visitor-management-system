@@ -28,6 +28,18 @@ public class RegisterRequest {
     @Size(max = 32)
     private String phone;
 
+    @Size(max = 24)
+    private String companyCode;
+
+    @Size(max = 120)
+    private String companyName;
+
+    @Size(max = 120)
+    private String hostEmployee;
+
+    @Size(max = 160)
+    private String purposeOfVisit;
+
     @JsonAnySetter
     public void rejectUnknownField(String fieldName, Object value) {
         throw new IllegalArgumentException("Public visitor registration does not accept field: " + fieldName);
@@ -71,5 +83,37 @@ public class RegisterRequest {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String companyCode() {
+        return companyCode;
+    }
+
+    public void setCompanyCode(String companyCode) {
+        this.companyCode = companyCode;
+    }
+
+    public String companyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
+    public String hostEmployee() {
+        return hostEmployee;
+    }
+
+    public void setHostEmployee(String hostEmployee) {
+        this.hostEmployee = hostEmployee;
+    }
+
+    public String purposeOfVisit() {
+        return purposeOfVisit;
+    }
+
+    public void setPurposeOfVisit(String purposeOfVisit) {
+        this.purposeOfVisit = purposeOfVisit;
     }
 }

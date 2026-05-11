@@ -5,6 +5,7 @@ import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.entity.AccountStatus;
+import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
@@ -31,19 +32,26 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OrganizationService organizationService;
 
     public AdminUserService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            OrganizationService organizationService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.organizationService = organizationService;
     }
 
-    public List<AdminUserResponse> listUsers() {
-        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "fullName"))
+    public List<AdminUserResponse> listUsers(Authentication authentication) {
+        User actor = currentUser(authentication);
+        List<User> users = hasRole(authentication, Role.SUPER_ADMIN)
+                ? userRepository.findAll(Sort.by(Sort.Direction.ASC, "fullName"))
+                : userRepository.findAllByOrganizationId(requiredOrganizationId(actor));
+        return users
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -52,6 +60,8 @@ public class AdminUserService {
     public AdminUserResponse createUser(AdminUserCreateRequest request, Authentication authentication) {
         Role role = request.role();
         validateAssignableRole(role, authentication);
+        User actor = currentUser(authentication);
+        Organization organization = resolveOrganizationForCreate(request, role, actor, authentication);
 
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new ConflictException("An account with this email already exists.");
@@ -71,6 +81,7 @@ public class AdminUserService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setDepartment(trimToNull(request.department()));
         user.setPhone(trimToNull(request.phone()));
+        applyOrganization(user, organization);
         user.setRoles(Set.of(role));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
@@ -133,11 +144,15 @@ public class AdminUserService {
     }
 
     private void validateMutableAccount(User user, Authentication authentication) {
+        User actor = currentUser(authentication);
         if (user.getRoles().contains(Role.SUPER_ADMIN)) {
             throw new BadRequestException("SUPER_ADMIN accounts are managed by the secure environment bootstrap process.");
         }
         if (user.getRoles().contains(Role.ADMIN) && !hasRole(authentication, Role.SUPER_ADMIN)) {
             throw new BadRequestException("Only SUPER_ADMIN can manage admin accounts.");
+        }
+        if (!hasRole(authentication, Role.SUPER_ADMIN) && !requiredOrganizationId(actor).equals(user.getOrganizationId())) {
+            throw new ResourceNotFoundException("User account was not found.");
         }
         if (authentication != null && user.getId() != null && user.getId().equals(authentication.getName())) {
             throw new BadRequestException("You cannot change your own access state from this panel.");
@@ -169,6 +184,9 @@ public class AdminUserService {
                 user.getFullName(),
                 user.getDepartment(),
                 user.getPhone(),
+                user.getOrganizationId(),
+                user.getOrganizationName(),
+                user.getOrganizationCode(),
                 user.getRoles(),
                 user.isActive(),
                 user.getAccountStatus(),
@@ -192,5 +210,41 @@ public class AdminUserService {
         if (!STRONG_PASSWORD_PATTERN.matcher(password).matches()) {
             throw new BadRequestException("Password must be 12-128 characters and include uppercase, lowercase, number, and symbol.");
         }
+    }
+
+    private User currentUser(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadRequestException("Authentication is required.");
+        }
+        return userRepository.findById(authentication.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+    }
+
+    private Organization resolveOrganizationForCreate(AdminUserCreateRequest request, Role role, User actor, Authentication authentication) {
+        if (hasRole(authentication, Role.SUPER_ADMIN)) {
+            String organizationId = trimToNull(request.organizationId());
+            if (organizationId != null) {
+                return organizationService.requireActive(organizationId);
+            }
+            return organizationService.resolveRequired(request.companyCode(), null);
+        }
+        if (role == Role.ADMIN) {
+            throw new BadRequestException("Only SUPER_ADMIN can create admin accounts.");
+        }
+        return organizationService.requireActive(requiredOrganizationId(actor));
+    }
+
+    private void applyOrganization(User user, Organization organization) {
+        user.setOrganizationId(organization.getId());
+        user.setOrganizationName(organization.getCompanyName());
+        user.setOrganizationCode(organization.getCompanyCode());
+    }
+
+    private String requiredOrganizationId(User user) {
+        String organizationId = trimToNull(user.getOrganizationId());
+        if (organizationId == null) {
+            throw new BadRequestException("Your account is not assigned to an organization.");
+        }
+        return organizationId;
     }
 }

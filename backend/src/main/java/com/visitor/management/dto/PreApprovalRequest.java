@@ -12,6 +12,7 @@ public record PreApprovalRequest(
         @NotBlank @Size(min = 7, max = 32) String phone,
         @Email @Size(max = 160) String email,
         @Size(max = 120) String companyName,
+        @Size(max = 24) String companyCode,
         @NotBlank @Size(min = 2, max = 160) String purposeOfVisit,
         @NotNull Instant scheduledStartTime,
         @NotNull Instant scheduledEndTime,

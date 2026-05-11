@@ -11,6 +11,7 @@ import com.visitor.management.dto.UserProfileResponse;
 import com.visitor.management.dto.VerifyOtpRequest;
 import com.visitor.management.dto.VerifyOtpResponse;
 import com.visitor.management.entity.AccountStatus;
+import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.PasswordResetToken;
 import com.visitor.management.entity.RefreshToken;
 import com.visitor.management.entity.Role;
@@ -56,6 +57,7 @@ public class AuthService {
     private final TokenService tokenService;
     private final EmailService emailService;
     private final RateLimitService rateLimitService;
+    private final OrganizationService organizationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -66,7 +68,8 @@ public class AuthService {
             JwtService jwtService,
             TokenService tokenService,
             EmailService emailService,
-            RateLimitService rateLimitService
+            RateLimitService rateLimitService,
+            OrganizationService organizationService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -76,6 +79,7 @@ public class AuthService {
         this.tokenService = tokenService;
         this.emailService = emailService;
         this.rateLimitService = rateLimitService;
+        this.organizationService = organizationService;
     }
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
@@ -90,6 +94,8 @@ public class AuthService {
 
         validateStrongPassword(request.password());
 
+        Organization organization = organizationService.resolveRequired(request.companyCode(), request.companyName());
+
         User user = new User();
         user.setFullName(request.fullName().trim());
         user.setUsername(username);
@@ -97,6 +103,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setDepartment(null);
         user.setPhone(trimToNull(request.phone()));
+        applyOrganization(user, organization);
         user.setRoles(Set.of(Role.VISITOR));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
@@ -110,6 +117,8 @@ public class AuthService {
                 .filter(this::isActiveAccount)
                 .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
                 .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password."));
+        validateOrganizationLogin(user, request.companyCode());
+        validatePortalAudience(user, request.portalAudience());
 
         return issueTokens(user);
     }
@@ -246,6 +255,9 @@ public class AuthService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
+                user.getOrganizationId(),
+                user.getOrganizationName(),
+                user.getOrganizationCode(),
                 user.getRoles()
         );
     }
@@ -271,8 +283,59 @@ public class AuthService {
                 user.getFullName(),
                 user.getDepartment(),
                 user.getPhone(),
+                user.getOrganizationId(),
+                user.getOrganizationName(),
+                user.getOrganizationCode(),
                 user.getRoles()
         );
+    }
+
+    private void applyOrganization(User user, Organization organization) {
+        if (organization == null) {
+            return;
+        }
+        if (!organization.isActiveStatus()) {
+            throw new BadRequestException("Selected organization is inactive.");
+        }
+        user.setOrganizationId(organization.getId());
+        user.setOrganizationName(organization.getCompanyName());
+        user.setOrganizationCode(organization.getCompanyCode());
+    }
+
+    private void validateOrganizationLogin(User user, String companyCode) {
+        if (user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.VISITOR) || user.getOrganizationId() == null) {
+            return;
+        }
+        String requestedCode = trimToNull(companyCode);
+        if (requestedCode == null || user.getOrganizationCode() == null || !user.getOrganizationCode().equalsIgnoreCase(requestedCode)) {
+            throw new UnauthorizedException("Company code is required for this organization account.");
+        }
+    }
+
+    private void validatePortalAudience(User user, String portalAudience) {
+        String audience = normalizePortalAudience(portalAudience);
+        if (audience == null) {
+            return;
+        }
+
+        boolean allowed = switch (audience) {
+            case "admin" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.ADMIN);
+            case "employee" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.EMPLOYEE);
+            case "security" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.SECURITY_GUARD);
+            case "visitor" -> user.getRoles().contains(Role.VISITOR);
+            default -> false;
+        };
+
+        if (!allowed) {
+            throw new UnauthorizedException("Use the correct access option for this account.");
+        }
+    }
+
+    private String normalizePortalAudience(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     private String trimToNull(String value) {

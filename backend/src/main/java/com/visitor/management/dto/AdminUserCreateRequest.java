@@ -13,6 +13,8 @@ public record AdminUserCreateRequest(
         @Email @NotBlank @Size(max = 160) String email,
         @NotBlank @Size(min = 12, max = 128) String password,
         @NotNull Role role,
+        @Size(max = 80) String organizationId,
+        @Size(max = 24) String companyCode,
         @Size(max = 80) String department,
         @Size(max = 32) String phone
 ) {

@@ -17,6 +17,13 @@ export function createVisitor(basePath, payload) {
   });
 }
 
+export function updateVisitor(basePath, id, payload) {
+  return request(`${basePath}/visitors/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function preApproveVisitor(payload) {
   return request("/employee/pre-approvals", {
     method: "POST",
@@ -28,6 +35,15 @@ export function uploadVisitorPhoto(basePath, file) {
   const formData = new FormData();
   formData.append("file", file);
   return request(`${basePath}/visitors/photo`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function uploadVisitPhoto(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request("/visitor/visits/photo", {
     method: "POST",
     body: formData,
   });
@@ -48,6 +64,9 @@ export function rejectVisitor(basePath, id, note = "") {
 }
 
 export function getVisitorPass(basePath, id) {
+  if (basePath === "/visitor") {
+    return request(`/visitor/visits/${id}/pass`);
+  }
   return request(`${basePath}/visitors/${id}/pass`);
 }
 
@@ -62,6 +81,18 @@ export function verifyQrPayload(basePath, qrPayload) {
     method: "POST",
     body: JSON.stringify({ qrPayload }),
   });
+}
+
+export function getSecurityMonitoring(query = "") {
+  const suffix = query ? `?query=${encodeURIComponent(query)}` : "";
+  return request(`/security/monitoring${suffix}`);
+}
+
+export function getVisitorHistory(basePath, id) {
+  if (basePath === "/visitor") {
+    return request("/visitor/history");
+  }
+  return request(`${basePath}/visitors/${id}/history`);
 }
 
 

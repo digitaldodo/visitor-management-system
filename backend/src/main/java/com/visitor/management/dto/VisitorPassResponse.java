@@ -6,17 +6,27 @@ import java.time.Instant;
 
 public record VisitorPassResponse(
         String visitorId,
+        String badgeId,
         String fullName,
         String companyName,
+        String organizationName,
+        String organizationCode,
         String purposeOfVisit,
         String hostEmployee,
+        String hostEmployeeDepartment,
         String photoUrl,
         VisitorStatus status,
+        boolean valid,
+        String validityStatus,
         String passCode,
         String qrPayload,
         String qrImageDataUri,
         Instant issuedAt,
         Instant expiresAt,
-        Instant approvedAt
+        Instant approvedAt,
+        Instant scheduledStartTime,
+        Instant scheduledEndTime,
+        Instant checkInTime,
+        Instant checkOutTime
 ) {
 }

@@ -10,9 +10,18 @@ public record QrVerificationResponse(
         String visitorId,
         String fullName,
         String companyName,
+        String organizationName,
+        String organizationCode,
         String hostEmployee,
+        String hostEmployeeDepartment,
+        String photoUrl,
         VisitorStatus status,
         String passCode,
-        Instant expiresAt
+        Instant expiresAt,
+        Instant scheduledEndTime,
+        Instant checkInTime,
+        Instant checkOutTime,
+        boolean overdue,
+        String validityStatus
 ) {
 }

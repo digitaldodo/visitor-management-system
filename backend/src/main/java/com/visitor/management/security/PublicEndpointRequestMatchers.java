@@ -34,6 +34,8 @@ final class PublicEndpointRequestMatchers {
     private static final List<String> PUBLIC_ANY_METHOD_PATHS = List.of(
             "/api/v1/health/**",
             "/health/**",
+            "/api/v1/organizations/public",
+            "/organizations/public",
             "/api/versions",
             "/actuator/health/**",
             "/actuator/info",

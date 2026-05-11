@@ -2,6 +2,7 @@ import { login, registerAccount } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
 import { formatStatus } from "./shared/formatters.js";
+import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
 import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initAuthTabs();
   initPasswordToggles();
+  initOrganizations();
   initLoginForm();
   initRegisterForm();
   initForgotPassword();
@@ -30,7 +32,7 @@ function setAuthTab(target) {
   $$("[data-auth-tab]").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.authTab === target || (target === "visitor" && tab.dataset.authTab === "register")));
   $("#login-form")?.classList.toggle("is-hidden", target === "register");
   $("#register-form")?.classList.toggle("is-hidden", target !== "register");
-  updateLoginAudience(target === "security" ? "security" : target === "visitor" ? "visitor" : "employee");
+  updateLoginAudience(normalizeAudience(target));
 }
 
 function updateLoginAudience(audience) {
@@ -40,15 +42,20 @@ function updateLoginAudience(audience) {
     input.value = audience;
   }
   const copy = {
+    admin: {
+      eyebrow: "Admin access",
+      title: "Sign in to administration",
+      description: "Use your administrator credentials to manage people, reporting, and organization controls.",
+    },
     employee: {
       eyebrow: "Employee access",
       title: "Sign in to your workplace portal",
-      description: "Use your organization-issued credentials for host approvals and visit planning.",
+      description: "Use your organization-issued credentials and company code for host approvals.",
     },
     security: {
       eyebrow: "Security access",
       title: "Sign in to front desk operations",
-      description: "Use your assigned credentials to verify passes and manage check-ins.",
+      description: "Use your assigned credentials and company code to manage organization check-ins.",
     },
     visitor: {
       eyebrow: "Visitor access",
@@ -59,6 +66,7 @@ function updateLoginAudience(audience) {
   $("#login-eyebrow").textContent = copy.eyebrow;
   $("#login-title").textContent = copy.title;
   $("#login-description").textContent = copy.description;
+  form?.querySelector("[data-company-code-field]")?.classList.toggle("is-hidden", audience === "visitor");
 }
 
 function initPasswordToggles() {
@@ -88,10 +96,15 @@ function initLoginForm() {
     }
 
     await withLoading(form, async () => {
-      const response = await login({ identifier: data.identifier, password: data.password });
+      const response = await login({
+        identifier: data.identifier,
+        password: data.password,
+        companyCode: data.companyCode || null,
+        portalAudience: data.audience,
+      });
       const session = response.data;
       const tokenRoles = getTokenRoles(session.accessToken);
-      const role = session.roles?.find((candidate) => tokenRoles.includes(candidate));
+      const role = resolveAuthenticatedRole(session.roles, tokenRoles);
 
       if (!role) {
         throw new Error("Token role claims are missing or do not match the account.");
@@ -114,8 +127,8 @@ function initRegisterForm() {
     const form = event.currentTarget;
     const data = getFormData(form);
 
-    if (!data.fullName || !isUsername(data.username) || !isEmail(data.email) || !validatePassword(data.password)) {
-      showToast("Check the form", "Use a valid username, email, and strong password.");
+    if (!data.fullName || !isUsername(data.username) || !isEmail(data.email) || !validatePassword(data.password) || !data.companyCode) {
+      showToast("Check the form", "Use a valid username, email, password, and organization.");
       return;
     }
 
@@ -126,12 +139,29 @@ function initRegisterForm() {
         email: data.email,
         password: data.password,
         phone: data.phone || null,
+        companyCode: data.companyCode,
+        hostEmployee: data.hostEmployee || null,
+        purposeOfVisit: data.purposeOfVisit || null,
       });
       showToast("Visitor account created", "You can sign in to request or track visits.");
       form.reset();
       setAuthTab("visitor");
     });
   });
+}
+
+async function initOrganizations() {
+  try {
+    const response = await listOrganizations();
+    const organizations = response.data || [];
+    $$("[data-organization-select]").forEach((select) => {
+      select.innerHTML = `<option value="">Select organization</option>${organizations.map((organization) => `
+        <option value="${escapeHtml(organization.companyCode)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
+      `).join("")}`;
+    });
+  } catch {
+    // The manual company-code field still lets users authenticate if the public directory is unavailable.
+  }
 }
 
 function initForgotPassword() {
@@ -186,12 +216,36 @@ function validatePassword(value) {
     && String(value || "").length >= 12;
 }
 
+function normalizeAudience(target) {
+  if (target === "admin" || target === "security" || target === "visitor") {
+    return target;
+  }
+  return "employee";
+}
+
+function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
+  const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+  return priority.find((role) => sessionRoles.includes(role) && tokenRoles.includes(role)) || null;
+}
+
 function roleAllowedForAudience(role, audience) {
-  if (audience === "security") {
-    return role === "SECURITY_GUARD";
+  if (role === "SUPER_ADMIN") {
+    return ["admin", "employee", "security"].includes(audience);
   }
-  if (audience === "visitor") {
-    return role === "VISITOR";
-  }
-  return ["EMPLOYEE", "ADMIN", "SUPER_ADMIN"].includes(role);
+  const allowedAudienceByRole = {
+    ADMIN: "admin",
+    EMPLOYEE: "employee",
+    SECURITY_GUARD: "security",
+    VISITOR: "visitor",
+  };
+  return allowedAudienceByRole[role] === audience;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

@@ -25,6 +25,10 @@
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Z"/></svg></span>
             My Visits
           </a>
+          <a class="nav-link" href="#history" data-route="history">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 1-8.2 5.3L3 8.3V3h5.3L6.2 5.1A7 7 0 1 0 13 5Zm-1 4h2v5l4 2-1 1.7-5-3Z"/></svg></span>
+            History
+          </a>
           <a class="nav-link" href="#request" data-route="request">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7Z"/></svg></span>
             Request Visit
@@ -51,7 +55,7 @@
           <div class="topbar__title">
             <p class="eyebrow">Visitor Access</p>
             <h1>My Visits</h1>
-            <p class="topbar__tagline">Track approvals and open approved access passes.</p>
+            <p class="topbar__tagline" id="organization-context">Track approvals and open approved access passes.</p>
           </div>
           <div class="topbar__actions">
             <span class="user-chip" id="user-chip">Signed in</span>
@@ -72,7 +76,7 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Access Status</p>
-                  <h2>Visit Requests</h2>
+                  <h2>Visit Requests and Active Badges</h2>
                 </div>
               </div>
               <div class="work-list visitor-visit-list" id="visitor-visits-list"></div>
@@ -91,25 +95,70 @@
                   <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" required />
                 </label>
                 <label class="form-field">
-                  <span>Company</span>
-                  <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
+                  <span>Organization</span>
+                  <select name="companyCode" data-organization-select required>
+                    <option value="">Select organization</option>
+                  </select>
                 </label>
-                <label class="form-field">
-                  <span>Host name or ID</span>
-                  <input name="hostEmployee" type="text" placeholder="Who are you visiting?" required />
-                </label>
+                <div class="form-field form-field--wide">
+                  <span>Host employee</span>
+                  <div class="host-picker">
+                    <input data-host-search-input type="text" placeholder="Search employee name, email, or username" autocomplete="off" required />
+                    <input data-host-id name="hostEmployeeId" type="hidden" />
+                    <input data-host-name name="hostEmployee" type="hidden" />
+                    <div class="host-picker__meta" data-host-meta></div>
+                    <div class="host-picker__results is-hidden" data-host-results></div>
+                  </div>
+                </div>
                 <label class="form-field">
                   <span>Purpose</span>
                   <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Visitor photo</span>
+                  <input name="photoFile" type="file" accept="image/*" capture="user" required />
                 </label>
                 <button class="button button--primary" type="submit">Submit request</button>
               </form>
             </article>
           </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="history">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Visitor Record</p>
+                  <h2>Visit History</h2>
+                </div>
+              </div>
+              <div class="visitor-history-summary" id="visitor-history-summary"></div>
+              <div class="visitor-history-timeline" id="visitor-history-timeline"></div>
+            </article>
+
+            <aside class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Support</p>
+                  <h2>Badge Help</h2>
+                </div>
+              </div>
+              <div class="work-list">
+                <article class="work-card">
+                  <h3>Approved badge</h3>
+                  <p>Open any approved or checked-in visit to print or download the enterprise badge.</p>
+                </article>
+                <article class="work-card">
+                  <h3>Checkpoint scan</h3>
+                  <p>Security will verify your photo and QR at entry, then check you in and out on site.</p>
+                </article>
+              </div>
+            </aside>
+          </section>
         </main>
       </div>
     </div>
 
+    <div class="visitor-modal is-hidden" id="visitor-badge-modal"></div>
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>

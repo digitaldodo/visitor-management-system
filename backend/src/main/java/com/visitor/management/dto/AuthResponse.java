@@ -14,6 +14,9 @@ public record AuthResponse(
         String username,
         String email,
         String fullName,
+        String organizationId,
+        String organizationName,
+        String organizationCode,
         Set<Role> roles
 ) {
 }

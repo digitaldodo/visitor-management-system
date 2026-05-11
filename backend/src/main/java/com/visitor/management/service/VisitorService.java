@@ -2,16 +2,21 @@ package com.visitor.management.service;
 
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
+import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
+import com.visitor.management.dto.SecurityMonitoringResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorHistorySummaryResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.dto.VisitorVisitRequest;
 import com.visitor.management.config.AppProperties;
+import com.visitor.management.entity.Organization;
+import com.visitor.management.entity.Role;
 import com.visitor.management.entity.VisitorAuditLog;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
@@ -44,6 +49,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,6 +86,7 @@ public class VisitorService {
     private final QrCodeService qrCodeService;
     private final AppProperties appProperties;
     private final VisitorNotificationService visitorNotificationService;
+    private final OrganizationService organizationService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -90,7 +97,8 @@ public class VisitorService {
             JwtService jwtService,
             QrCodeService qrCodeService,
             AppProperties appProperties,
-            VisitorNotificationService visitorNotificationService
+            VisitorNotificationService visitorNotificationService,
+            OrganizationService organizationService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -101,6 +109,7 @@ public class VisitorService {
         this.qrCodeService = qrCodeService;
         this.appProperties = appProperties;
         this.visitorNotificationService = visitorNotificationService;
+        this.organizationService = organizationService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -110,14 +119,18 @@ public class VisitorService {
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse createForVisitorAccount(VisitorVisitRequest request, User account) {
         Instant now = Instant.now();
+        Organization organization = organizationService.resolveRequired(request.companyCode(), request.companyName());
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(account.getFullName(), "Account name is required."));
         visitor.setPhone(requiredTrim(request.phone() != null ? request.phone() : account.getPhone(), "Phone is required."));
         visitor.setEmail(account.getEmail());
-        visitor.setCompanyName(trimToNull(request.companyName()));
+        applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
-        visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), null));
+        visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), null, visitor.getOrganizationId()));
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
+        visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
+        visitor.setPhotoUrl(trimToNull(request.photoUrl()));
+        visitor.setPhotoPublicId(trimToNull(request.photoPublicId()));
         visitor.setStatus(VisitorStatus.PENDING);
         visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
         visitor.setCreatedAt(now);
@@ -131,7 +144,10 @@ public class VisitorService {
     }
 
     public List<VisitorResponse> visitsForVisitorAccount(User account) {
-        return visitorRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(account.getEmail())
+        List<Visitor> visits = account.getOrganizationId() == null
+                ? visitorRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(account.getEmail())
+                : visitorRepository.findAllByEmailIgnoreCaseAndOrganizationIdOrderByCreatedAtDesc(account.getEmail(), account.getOrganizationId());
+        return visits
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -147,16 +163,20 @@ public class VisitorService {
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
-    public VisitorResponse create(VisitorCreateRequest request, String forcedHostEmployeeId) {
+    public VisitorResponse create(VisitorCreateRequest request, String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
+        String forcedHostEmployeeId = actor != null && hasRole(actor, Role.EMPLOYEE) ? actor.getId() : null;
+        Organization organization = organizationFor(actor, request.companyCode(), request.companyName());
         Instant now = Instant.now();
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(request.fullName(), "Full name is required."));
         visitor.setPhone(requiredTrim(request.phone(), "Phone is required."));
         visitor.setEmail(trimToNull(request.email()));
-        visitor.setCompanyName(trimToNull(request.companyName()));
+        applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
-        visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), forcedHostEmployeeId));
+        visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), forcedHostEmployeeId, visitor.getOrganizationId()));
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
+        visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
         visitor.setStatus(VisitorStatus.PENDING);
@@ -173,6 +193,8 @@ public class VisitorService {
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse preApprove(PreApprovalRequest request, String hostEmployeeId) {
+        User actor = currentUser(hostEmployeeId);
+        Organization organization = organizationFor(actor, request.companyCode(), request.companyName());
         Instant now = Instant.now();
         Instant start = request.scheduledStartTime();
         Instant end = request.scheduledEndTime();
@@ -183,10 +205,11 @@ public class VisitorService {
         visitor.setFullName(requiredTrim(request.fullName(), "Full name is required."));
         visitor.setPhone(requiredTrim(request.phone(), "Phone is required."));
         visitor.setEmail(trimToNull(request.email()));
-        visitor.setCompanyName(trimToNull(request.companyName()));
+        applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
         visitor.setHostEmployeeId(requiredTrim(hostEmployeeId, "Host employee is required."));
         visitor.setHostEmployee(resolveHostEmployeeName(null, hostEmployeeId));
+        visitor.setHostEmployeeDepartment(resolveHostDepartment(hostEmployeeId));
         visitor.setScheduledStartTime(start);
         visitor.setScheduledEndTime(end);
         visitor.setScheduledTimezone(timezone);
@@ -195,6 +218,7 @@ public class VisitorService {
         visitor.setApprovedAt(now);
         visitor.setApprovedBy(hostEmployeeId);
         visitor.setQrCode(generatePassCode());
+        visitor.setBadgeId(generateBadgeId());
         visitor.setQrIssuedAt(now);
         visitor.setQrExpiresAt(end);
         visitor.setCreatedAt(now);
@@ -213,6 +237,12 @@ public class VisitorService {
         return toResponse(find(id));
     }
 
+    public VisitorResponse get(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        return toResponse(visitor);
+    }
+
     public VisitorResponse getForHost(String id, String hostEmployeeId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, hostEmployeeId);
@@ -223,10 +253,11 @@ public class VisitorService {
         return search(request, null);
     }
 
-    public PageResponse<VisitorResponse> search(SearchRequest request, String forcedHostEmployeeId) {
+    public PageResponse<VisitorResponse> search(SearchRequest request, String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
         Pageable pageable = pageable(request);
-        Query query = queryFor(request, forcedHostEmployeeId).with(pageable);
-        Query countQuery = queryFor(request, forcedHostEmployeeId);
+        Query query = queryFor(request, actor).with(pageable);
+        Query countQuery = queryFor(request, actor);
         long total = mongoTemplate.count(countQuery, Visitor.class);
         List<VisitorResponse> items = mongoTemplate.find(query, Visitor.class)
                 .stream()
@@ -274,6 +305,9 @@ public class VisitorService {
         visitor.setRejectedBy(null);
         visitor.setRejectionReason(null);
         visitor.setQrCode(generatePassCode());
+        if (visitor.getBadgeId() == null) {
+            visitor.setBadgeId(generateBadgeId());
+        }
         visitor.setQrIssuedAt(now);
         visitor.setQrExpiresAt(resolveQrExpiry(visitor, now));
         visitor.setUpdatedAt(now);
@@ -320,11 +354,21 @@ public class VisitorService {
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse update(String id, VisitorUpdateRequest request, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        applyUpdate(visitor, request);
+        return toResponse(visitorRepository.save(visitor));
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse updateForHost(String id, VisitorUpdateRequest request, String hostEmployeeId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, hostEmployeeId);
         applyUpdate(visitor, request);
         visitor.setHostEmployeeId(hostEmployeeId);
+        visitor.setHostEmployee(resolveHostEmployeeName(null, hostEmployeeId));
+        visitor.setHostEmployeeDepartment(resolveHostDepartment(hostEmployeeId));
         return toResponse(visitorRepository.save(visitor));
     }
 
@@ -334,8 +378,22 @@ public class VisitorService {
         visitorRepository.delete(visitor);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public void delete(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        visitorRepository.delete(visitor);
+    }
+
     public VisitorPassResponse pass(String id) {
         Visitor visitor = find(id);
+        requirePassReady(visitor);
+        return toPassResponse(visitor);
+    }
+
+    public VisitorPassResponse pass(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
         requirePassReady(visitor);
         return toPassResponse(visitor);
     }
@@ -351,7 +409,25 @@ public class VisitorService {
         return toPassResponse(saved);
     }
 
+    public VisitorPassResponse markBadgePrinted(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        requirePassReady(visitor);
+        Instant now = Instant.now();
+        visitor.setBadgePrintedAt(now);
+        addHistory(visitor, visitor.getStatus(), "BADGE_PRINTED", actorId, "Badge printed.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "BADGE_PRINTED", actorId, "Badge printed.", now);
+        return toPassResponse(saved);
+    }
+
     public QrVerificationResponse verifyQrPayload(String scannedPayload) {
+        return verifyQrPayload(scannedPayload, null);
+    }
+
+    public QrVerificationResponse verifyQrPayload(String scannedPayload, String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
+        Instant now = Instant.now();
         String token = normalizeQrPayload(scannedPayload);
         Claims claims;
         try {
@@ -370,13 +446,19 @@ public class VisitorService {
         if (visitor == null || visitor.getQrCode() == null || !visitor.getQrCode().equals(passCode)) {
             return invalidVerification("QR pass does not match an active visitor pass.");
         }
+        if (actor != null && !hasOrganizationAccess(visitor, actor)) {
+            return invalidVerification("QR pass belongs to another organization.");
+        }
 
-        if (visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
+        if (visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(now)) {
             return invalidVerification("QR pass has expired.");
         }
-        if (visitor.getScheduledStartTime() != null && Instant.now().isBefore(visitor.getScheduledStartTime())) {
+        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
             return invalidVerification("QR pass is not active until the scheduled start time.");
         }
+
+        boolean overdue = isOverdue(visitor, now);
+        String validityStatus = passValidityStatus(visitor, now);
 
         if (visitor.getStatus() == VisitorStatus.REJECTED
                 || visitor.getStatus() == VisitorStatus.CHECKED_OUT
@@ -388,29 +470,60 @@ public class VisitorService {
                     visitor.getId(),
                     visitor.getFullName(),
                     visitor.getCompanyName(),
+                    visitor.getOrganizationName(),
+                    visitor.getOrganizationCode(),
                     visitor.getHostEmployee(),
+                    hostDepartmentFor(visitor),
+                    visitor.getPhotoUrl(),
                     visitor.getStatus(),
                     visitor.getQrCode(),
-                    visitor.getQrExpiresAt()
+                    visitor.getQrExpiresAt(),
+                    visitor.getScheduledEndTime(),
+                    visitor.getCheckInTime(),
+                    visitor.getCheckOutTime(),
+                    overdue,
+                    validityStatus
             );
         }
 
         return new QrVerificationResponse(
                 true,
-                visitor.getStatus() == VisitorStatus.CHECKED_IN ? "Visitor pass is valid. Visitor is already checked in." : "Visitor pass is valid for check-in.",
+                visitor.getStatus() == VisitorStatus.CHECKED_IN
+                        ? (overdue ? "Visitor is checked in and has exceeded the approved visit window." : "Visitor pass is valid. Visitor is already checked in.")
+                        : "Visitor pass is valid for check-in.",
                 visitor.getId(),
                 visitor.getFullName(),
                 visitor.getCompanyName(),
+                visitor.getOrganizationName(),
+                visitor.getOrganizationCode(),
                 visitor.getHostEmployee(),
+                hostDepartmentFor(visitor),
+                visitor.getPhotoUrl(),
                 visitor.getStatus(),
                 visitor.getQrCode(),
-                visitor.getQrExpiresAt()
+                visitor.getQrExpiresAt(),
+                visitor.getScheduledEndTime(),
+                visitor.getCheckInTime(),
+                visitor.getCheckOutTime(),
+                overdue,
+                validityStatus
         );
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse checkIn(String id) {
         Visitor visitor = find(id);
+        return checkIn(visitor, null);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse checkIn(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        return checkIn(visitor, actorId);
+    }
+
+    private VisitorResponse checkIn(Visitor visitor, String actorId) {
         Instant now = Instant.now();
         if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
             throw new BadRequestException("Visitor is already checked in.");
@@ -428,9 +541,9 @@ public class VisitorService {
         visitor.setCheckOutTime(null);
         visitor.setStatus(VisitorStatus.CHECKED_IN);
         visitor.setUpdatedAt(now);
-        addHistory(visitor, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
+        addHistory(visitor, VisitorStatus.CHECKED_IN, "CHECKED_IN", actorId, "Visitor checked in.", now);
         Visitor saved = visitorRepository.save(visitor);
-        audit(saved.getId(), from, VisitorStatus.CHECKED_IN, "CHECKED_IN", null, "Visitor checked in.", now);
+        audit(saved.getId(), from, VisitorStatus.CHECKED_IN, "CHECKED_IN", actorId, "Visitor checked in.", now);
         visitorNotificationService.visitorCheckedIn(saved);
         return toResponse(saved);
     }
@@ -438,6 +551,17 @@ public class VisitorService {
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse checkOut(String id) {
         Visitor visitor = find(id);
+        return checkOut(visitor, null);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse checkOut(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        return checkOut(visitor, actorId);
+    }
+
+    private VisitorResponse checkOut(Visitor visitor, String actorId) {
         if (visitor.getStatus() != VisitorStatus.CHECKED_IN) {
             throw new BadRequestException("Only checked-in visitors can be checked out.");
         }
@@ -447,33 +571,111 @@ public class VisitorService {
         visitor.setCheckOutTime(now);
         visitor.setStatus(VisitorStatus.CHECKED_OUT);
         visitor.setUpdatedAt(now);
-        addHistory(visitor, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", null, "Visitor checked out.", now);
+        addHistory(visitor, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", actorId, "Visitor checked out.", now);
         Visitor saved = visitorRepository.save(visitor);
-        audit(saved.getId(), from, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", null, "Visitor checked out.", now);
+        audit(saved.getId(), from, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", actorId, "Visitor checked out.", now);
         return toResponse(saved);
     }
 
     public List<Map<String, Object>> metrics() {
+        return metrics(null);
+    }
+
+    public List<Map<String, Object>> metrics(String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
         Instant start = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant end = start.plusSeconds(24 * 60 * 60);
+        String organizationId = scopeOrganizationId(actor);
         return List.of(
-                Map.of("label", "Visitors today", "value", visitorRepository.countByCheckInTimeBetween(start, end), "note", "Checked in"),
-                Map.of("label", "Pending", "value", visitorRepository.countByStatus(VisitorStatus.PENDING), "note", "Awaiting approval"),
-                Map.of("label", "Approved", "value", visitorRepository.countByStatus(VisitorStatus.APPROVED), "note", "Passes generated"),
-                Map.of("label", "On site", "value", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN), "note", "Currently checked in"),
-                Map.of("label", "Expired", "value", visitorRepository.countByStatus(VisitorStatus.EXPIRED), "note", "Window elapsed")
+                Map.of("label", "Visitors today", "value", countCheckIns(organizationId, start, end), "note", "Checked in"),
+                Map.of("label", "Pending", "value", countStatus(organizationId, VisitorStatus.PENDING), "note", "Awaiting approval"),
+                Map.of("label", "Approved", "value", countStatus(organizationId, VisitorStatus.APPROVED), "note", "Passes generated"),
+                Map.of("label", "On site", "value", countStatus(organizationId, VisitorStatus.CHECKED_IN), "note", "Currently checked in"),
+                Map.of("label", "Expired", "value", countStatus(organizationId, VisitorStatus.EXPIRED), "note", "Window elapsed")
         );
+    }
+
+    public List<EmployeeDirectoryEntryResponse> searchHosts(String query, String companyCode, String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
+        Organization organization = resolveSearchOrganization(actor, companyCode);
+        Query employeeQuery = new Query()
+                .addCriteria(Criteria.where("roles").in(Role.EMPLOYEE))
+                .addCriteria(Criteria.where("active").is(true))
+                .addCriteria(Criteria.where("organizationId").is(organization.getId()))
+                .with(Sort.by(Sort.Direction.ASC, "fullName"))
+                .limit(8);
+
+        Criteria textCriteria = textSearchCriteria(query);
+        if (textCriteria != null) {
+            employeeQuery.addCriteria(textCriteria);
+        }
+
+        return mongoTemplate.find(employeeQuery, User.class)
+                .stream()
+                .map(user -> new EmployeeDirectoryEntryResponse(
+                        user.getId(),
+                        user.getFullName(),
+                        user.getEmail(),
+                        user.getUsername(),
+                        user.getDepartment(),
+                        user.getOrganizationName()
+                ))
+                .toList();
+    }
+
+    public SecurityMonitoringResponse securityMonitoring(String actorId, String query) {
+        User actor = currentUser(actorId);
+        String organizationId = scopeOrganizationId(actor);
+        Instant now = Instant.now();
+        return new SecurityMonitoringResponse(
+                Map.of(
+                        "currentlyInside", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_IN)),
+                        "overdueVisitors", countForMonitoring(organizationId, query, overdueCriteria(now)),
+                        "checkedOutVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_OUT)),
+                        "rejectedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.REJECTED)),
+                        "approvedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED))
+                ),
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_IN), Sort.by(Sort.Direction.DESC, "checkInTime")),
+                monitorVisitors(organizationId, query, overdueCriteria(now), Sort.by(Sort.Direction.ASC, "scheduledEndTime").and(Sort.by(Sort.Direction.ASC, "qrExpiresAt"))),
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_OUT), Sort.by(Sort.Direction.DESC, "checkOutTime")),
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.REJECTED), Sort.by(Sort.Direction.DESC, "rejectedAt")),
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED), Sort.by(Sort.Direction.ASC, "scheduledStartTime").and(Sort.by(Sort.Direction.DESC, "createdAt")))
+        );
+    }
+
+    public VisitorHistorySummaryResponse visitorHistoryForVisitorAccount(User account) {
+        List<Visitor> records = mongoTemplate.find(
+                historyQuery(account.getOrganizationId(), account.getEmail(), account.getPhone(), account.getFullName(), null),
+                Visitor.class
+        );
+        return toHistorySummary(records);
+    }
+
+    public VisitorHistorySummaryResponse visitorHistory(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        List<Visitor> records = mongoTemplate.find(
+                historyQuery(visitor.getOrganizationId(), visitor.getEmail(), visitor.getPhone(), visitor.getFullName(), null),
+                Visitor.class
+        );
+        return toHistorySummary(records);
     }
 
     @Cacheable("statusSummary")
     public Map<String, Object> statusSummary() {
+        return statusSummary(null);
+    }
+
+    public Map<String, Object> statusSummary(String actorId) {
+        User actor = actorId == null ? null : currentUser(actorId);
+        String organizationId = scopeOrganizationId(actor);
         return Map.of(
-                "pending", visitorRepository.countByStatus(VisitorStatus.PENDING),
-                "approved", visitorRepository.countByStatus(VisitorStatus.APPROVED),
-                "rejected", visitorRepository.countByStatus(VisitorStatus.REJECTED),
-                "checkedIn", visitorRepository.countByStatus(VisitorStatus.CHECKED_IN),
-                "checkedOut", visitorRepository.countByStatus(VisitorStatus.CHECKED_OUT),
-                "expired", visitorRepository.countByStatus(VisitorStatus.EXPIRED)
+                "pending", countStatus(organizationId, VisitorStatus.PENDING),
+                "approved", countStatus(organizationId, VisitorStatus.APPROVED),
+                "rejected", countStatus(organizationId, VisitorStatus.REJECTED),
+                "checkedIn", countStatus(organizationId, VisitorStatus.CHECKED_IN),
+                "checkedOut", countStatus(organizationId, VisitorStatus.CHECKED_OUT),
+                "expired", countStatus(organizationId, VisitorStatus.EXPIRED)
         );
     }
 
@@ -491,7 +693,7 @@ public class VisitorService {
         return dueVisitors.size();
     }
 
-    private Query queryFor(SearchRequest request, String forcedHostEmployeeId) {
+    private Query queryFor(SearchRequest request, User actor) {
         List<Criteria> criteria = new ArrayList<>();
         String query = trimToNull(request.query());
         if (query != null) {
@@ -511,9 +713,14 @@ public class VisitorService {
             criteria.add(Criteria.where("status").is(request.status()));
         }
 
-        String hostEmployeeId = forcedHostEmployeeId != null ? forcedHostEmployeeId : trimToNull(request.hostEmployeeId());
+        String hostEmployeeId = actor != null && hasRole(actor, Role.EMPLOYEE) ? actor.getId() : trimToNull(request.hostEmployeeId());
         if (hostEmployeeId != null) {
             criteria.add(Criteria.where("hostEmployeeId").is(hostEmployeeId));
+        }
+
+        String organizationId = scopeOrganizationId(actor);
+        if (organizationId != null) {
+            criteria.add(Criteria.where("organizationId").is(organizationId));
         }
 
         if (request.from() != null || request.to() != null) {
@@ -544,10 +751,21 @@ public class VisitorService {
         setIfPresent(request.fullName(), value -> visitor.setFullName(requiredTrim(value, "Full name is required.")));
         setIfPresent(request.phone(), value -> visitor.setPhone(requiredTrim(value, "Phone is required.")));
         setIfPresent(request.email(), value -> visitor.setEmail(trimToNull(value)));
-        setIfPresent(request.companyName(), value -> visitor.setCompanyName(trimToNull(value)));
+        setIfPresent(request.companyName(), value -> {
+            Organization organization = organizationService.resolve(request.companyCode(), value);
+            if (organization != null) {
+                applyOrganization(visitor, organization);
+            } else {
+                visitor.setCompanyName(trimToNull(value));
+            }
+        });
         setIfPresent(request.purposeOfVisit(), value -> visitor.setPurposeOfVisit(requiredTrim(value, "Purpose of visit is required.")));
-        setIfPresent(request.hostEmployeeId(), value -> visitor.setHostEmployeeId(trimToNull(value)));
-        setIfPresent(request.hostEmployee(), value -> visitor.setHostEmployee(trimToNull(value)));
+        if (request.hostEmployeeId() != null || request.hostEmployee() != null) {
+            String hostEmployeeId = resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), null, visitor.getOrganizationId());
+            visitor.setHostEmployeeId(hostEmployeeId);
+            visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), hostEmployeeId));
+            visitor.setHostEmployeeDepartment(resolveHostDepartment(hostEmployeeId));
+        }
         setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(trimToNull(value)));
         setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(trimToNull(value)));
         if (request.status() != null) {
@@ -569,10 +787,18 @@ public class VisitorService {
         if (hostEmployeeId == null || !hostEmployeeId.equals(visitor.getHostEmployeeId())) {
             throw new ResourceNotFoundException("Visitor was not found.");
         }
+        requireOrganizationAccess(visitor, currentUser(hostEmployeeId));
     }
 
-    private String resolveHostEmployeeId(String requestHostEmployeeId, String requestHostEmployee, String forcedHostEmployeeId) {
+    private String resolveHostEmployeeId(String requestHostEmployeeId, String requestHostEmployee, String forcedHostEmployeeId, String organizationId) {
         String resolved = forcedHostEmployeeId != null ? forcedHostEmployeeId : trimToNull(requestHostEmployeeId);
+        User user = findHost(resolved, organizationId);
+        if (user == null) {
+            user = findHost(requestHostEmployee, organizationId);
+        }
+        if (user != null) {
+            return user.getId();
+        }
         if (resolved == null) {
             resolved = trimToNull(requestHostEmployee);
         }
@@ -593,12 +819,23 @@ public class VisitorService {
                 .orElse(hostEmployeeId);
     }
 
+    private String resolveHostDepartment(String hostEmployeeId) {
+        return userRepository.findById(hostEmployeeId)
+                .map(User::getDepartment)
+                .filter(value -> !value.isBlank())
+                .orElse(null);
+    }
+
     private String generatePassCode() {
         String qrCode;
         do {
             qrCode = "VST-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
         } while (visitorRepository.findByQrCode(qrCode).isPresent());
         return qrCode;
+    }
+
+    private String generateBadgeId() {
+        return "BDG-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 
     private VisitorResponse toResponse(Visitor visitor) {
@@ -608,10 +845,15 @@ public class VisitorService {
                 visitor.getPhone(),
                 visitor.getEmail(),
                 visitor.getCompanyName(),
+                visitor.getOrganizationId(),
+                visitor.getOrganizationName(),
+                visitor.getOrganizationCode(),
                 visitor.getPurposeOfVisit(),
                 visitor.getHostEmployee(),
+                hostDepartmentFor(visitor),
                 visitor.getPhotoUrl(),
                 visitor.getHostEmployeeId(),
+                resolveBadgeId(visitor),
                 visitor.getCheckInTime(),
                 visitor.getCheckOutTime(),
                 visitor.getScheduledStartTime(),
@@ -646,20 +888,31 @@ public class VisitorService {
 
     private VisitorPassResponse toPassResponse(Visitor visitor) {
         String payload = QR_PAYLOAD_PREFIX + jwtService.generateVisitorPassToken(visitor.getId(), visitor.getQrCode(), visitor.getQrExpiresAt());
+        Instant now = Instant.now();
         return new VisitorPassResponse(
                 visitor.getId(),
+                resolveBadgeId(visitor),
                 visitor.getFullName(),
                 visitor.getCompanyName(),
+                visitor.getOrganizationName(),
+                visitor.getOrganizationCode(),
                 visitor.getPurposeOfVisit(),
                 visitor.getHostEmployee(),
+                hostDepartmentFor(visitor),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
+                isPassValid(visitor, now),
+                passValidityStatus(visitor, now),
                 visitor.getQrCode(),
                 payload,
                 qrCodeService.dataUri(payload),
                 visitor.getQrIssuedAt(),
                 visitor.getQrExpiresAt(),
-                visitor.getApprovedAt()
+                visitor.getApprovedAt(),
+                visitor.getScheduledStartTime(),
+                visitor.getScheduledEndTime(),
+                visitor.getCheckInTime(),
+                visitor.getCheckOutTime()
         );
     }
 
@@ -669,6 +922,73 @@ public class VisitorService {
             throw new BadRequestException(message);
         }
         return trimmed;
+    }
+
+    private User currentUser(String userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+    }
+
+    private boolean hasRole(User user, Role role) {
+        return user != null && user.getRoles() != null && user.getRoles().contains(role);
+    }
+
+    private Organization organizationFor(User actor, String companyCode, String companyName) {
+        if (actor != null && actor.getOrganizationId() != null && !hasRole(actor, Role.SUPER_ADMIN)) {
+            return organizationService.requireActive(actor.getOrganizationId());
+        }
+        return organizationService.resolveRequired(companyCode, companyName);
+    }
+
+    private void applyOrganization(Visitor visitor, Organization organization) {
+        visitor.setOrganizationId(organization.getId());
+        visitor.setOrganizationCode(organization.getCompanyCode());
+        visitor.setOrganizationName(organization.getCompanyName());
+        visitor.setCompanyName(organization.getCompanyName());
+    }
+
+    private String scopeOrganizationId(User actor) {
+        if (actor == null || hasRole(actor, Role.SUPER_ADMIN)) {
+            return null;
+        }
+        return actor.getOrganizationId();
+    }
+
+    private void requireOrganizationAccess(Visitor visitor, User actor) {
+        if (!hasOrganizationAccess(visitor, actor)) {
+            throw new ResourceNotFoundException("Visitor was not found.");
+        }
+    }
+
+    private boolean hasOrganizationAccess(Visitor visitor, User actor) {
+        String organizationId = scopeOrganizationId(actor);
+        return organizationId == null || organizationId.equals(visitor.getOrganizationId());
+    }
+
+    private User findHost(String candidate, String organizationId) {
+        String value = trimToNull(candidate);
+        if (value == null) {
+            return null;
+        }
+        User user = userRepository.findById(value)
+                .or(() -> userRepository.findByUsernameIgnoreCase(value))
+                .or(() -> userRepository.findByEmailIgnoreCase(value))
+                .or(() -> userRepository.findByFullNameIgnoreCase(value))
+                .orElse(null);
+        if (user == null || !hasRole(user, Role.EMPLOYEE)) {
+            return null;
+        }
+        return organizationId == null || organizationId.equals(user.getOrganizationId()) ? user : null;
+    }
+
+    private long countStatus(String organizationId, VisitorStatus status) {
+        return organizationId == null ? visitorRepository.countByStatus(status) : visitorRepository.countByOrganizationIdAndStatus(organizationId, status);
+    }
+
+    private long countCheckIns(String organizationId, Instant start, Instant end) {
+        return organizationId == null
+                ? visitorRepository.countByCheckInTimeBetween(start, end)
+                : visitorRepository.countByOrganizationIdAndCheckInTimeBetween(organizationId, start, end);
     }
 
     private String trimToNull(String value) {
@@ -728,7 +1048,7 @@ public class VisitorService {
     }
 
     private QrVerificationResponse invalidVerification(String message) {
-        return new QrVerificationResponse(false, message, null, null, null, null, null, null, null);
+        return new QrVerificationResponse(false, message, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, "Invalid");
     }
 
     private void validateScheduleWindow(Instant start, Instant end, Instant now) {
@@ -784,6 +1104,9 @@ public class VisitorService {
         Query activeForHost = new Query()
                 .addCriteria(Criteria.where("hostEmployeeId").is(candidate.getHostEmployeeId()))
                 .addCriteria(Criteria.where("status").in(activeStatuses));
+        if (candidate.getOrganizationId() != null) {
+            activeForHost.addCriteria(Criteria.where("organizationId").is(candidate.getOrganizationId()));
+        }
         long activeCount = mongoTemplate.count(activeForHost, Visitor.class);
         if (activeCount >= appProperties.getVisitors().getMaxActivePerEmployee()) {
             throw new ConflictException("Host employee has reached the active visitor limit.");
@@ -804,9 +1127,239 @@ public class VisitorService {
                 .addCriteria(Criteria.where("hostEmployeeId").is(candidate.getHostEmployeeId()))
                 .addCriteria(Criteria.where("status").in(activeStatuses))
                 .addCriteria(new Criteria().orOperator(identities.toArray(Criteria[]::new)));
+        if (candidate.getOrganizationId() != null) {
+            duplicate.addCriteria(Criteria.where("organizationId").is(candidate.getOrganizationId()));
+        }
         if (mongoTemplate.exists(duplicate, Visitor.class)) {
             throw new ConflictException("This visitor already has an active visit with the host employee.");
         }
+    }
+
+    private Query historyQuery(String organizationId, String email, String phone, String fullName, String excludeVisitorId) {
+        List<Criteria> criteria = new ArrayList<>();
+        List<Criteria> identities = new ArrayList<>();
+        if (email != null) {
+            identities.add(Criteria.where("email").is(email));
+        }
+        if (phone != null) {
+            identities.add(Criteria.where("phone").is(phone));
+        }
+        if (identities.isEmpty() && fullName != null) {
+            identities.add(Criteria.where("fullName").is(fullName));
+        }
+        if (!identities.isEmpty()) {
+            criteria.add(new Criteria().orOperator(identities.toArray(Criteria[]::new)));
+        }
+        if (organizationId != null) {
+            criteria.add(Criteria.where("organizationId").is(organizationId));
+        }
+        if (excludeVisitorId != null) {
+            criteria.add(Criteria.where("id").ne(excludeVisitorId));
+        }
+
+        Query query = new Query().with(Sort.by(Sort.Direction.DESC, "createdAt"));
+        if (!criteria.isEmpty()) {
+            query.addCriteria(new Criteria().andOperator(criteria.toArray(Criteria[]::new)));
+        }
+        return query;
+    }
+
+    private VisitorHistorySummaryResponse toHistorySummary(List<Visitor> records) {
+        List<VisitorResponse> items = records.stream().map(this::toResponse).toList();
+        LinkedHashSet<String> previousHosts = new LinkedHashSet<>();
+        long approvedVisits = 0;
+        long checkedInVisits = 0;
+        long checkedOutVisits = 0;
+        long rejectedVisits = 0;
+        long expiredVisits = 0;
+        Instant firstVisitAt = null;
+        Instant lastVisitAt = null;
+
+        for (Visitor visitor : records) {
+            if (visitor.getHostEmployee() != null && !visitor.getHostEmployee().isBlank()) {
+                previousHosts.add(visitor.getHostEmployee());
+            }
+            if (isApprovedLifecycle(visitor.getStatus())) {
+                approvedVisits++;
+            }
+            if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
+                checkedInVisits++;
+            }
+            if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+                checkedOutVisits++;
+            }
+            if (visitor.getStatus() == VisitorStatus.REJECTED) {
+                rejectedVisits++;
+            }
+            if (visitor.getStatus() == VisitorStatus.EXPIRED) {
+                expiredVisits++;
+            }
+            Instant timestamp = visitor.getCreatedAt();
+            if (timestamp != null) {
+                if (firstVisitAt == null || timestamp.isBefore(firstVisitAt)) {
+                    firstVisitAt = timestamp;
+                }
+                if (lastVisitAt == null || timestamp.isAfter(lastVisitAt)) {
+                    lastVisitAt = timestamp;
+                }
+            }
+        }
+
+        Visitor current = records.isEmpty() ? null : records.get(0);
+        return new VisitorHistorySummaryResponse(
+                current == null ? null : current.getFullName(),
+                current == null ? null : current.getCompanyName(),
+                current == null ? null : current.getOrganizationName(),
+                items.size(),
+                Math.max(items.size() - 1, 0),
+                approvedVisits,
+                checkedInVisits,
+                checkedOutVisits,
+                rejectedVisits,
+                expiredVisits,
+                firstVisitAt,
+                lastVisitAt,
+                previousHosts.stream().toList(),
+                items
+        );
+    }
+
+    private boolean isApprovedLifecycle(VisitorStatus status) {
+        return status == VisitorStatus.APPROVED || status == VisitorStatus.CHECKED_IN || status == VisitorStatus.CHECKED_OUT;
+    }
+
+    private Organization resolveSearchOrganization(User actor, String companyCode) {
+        if (actor != null && actor.getOrganizationId() != null && !hasRole(actor, Role.SUPER_ADMIN)) {
+            return organizationService.requireActive(actor.getOrganizationId());
+        }
+        return organizationService.resolveRequired(companyCode, null);
+    }
+
+    private Criteria textSearchCriteria(String query) {
+        String value = trimToNull(query);
+        if (value == null) {
+            return null;
+        }
+        Pattern pattern = Pattern.compile(Pattern.quote(value), Pattern.CASE_INSENSITIVE);
+        return new Criteria().orOperator(
+                Criteria.where("fullName").regex(pattern),
+                Criteria.where("phone").regex(pattern),
+                Criteria.where("email").regex(pattern),
+                Criteria.where("companyName").regex(pattern),
+                Criteria.where("purposeOfVisit").regex(pattern),
+                Criteria.where("hostEmployee").regex(pattern),
+                Criteria.where("hostEmployeeDepartment").regex(pattern),
+                Criteria.where("qrCode").regex(pattern),
+                Criteria.where("username").regex(pattern),
+                Criteria.where("department").regex(pattern)
+        );
+    }
+
+    private Query monitoringQuery(String organizationId, String query, Criteria statusCriteria, Sort sort) {
+        Query monitoringQuery = new Query().with(sort).limit(10);
+        List<Criteria> criteria = new ArrayList<>();
+        if (organizationId != null) {
+            criteria.add(Criteria.where("organizationId").is(organizationId));
+        }
+        Criteria textCriteria = textSearchCriteria(query);
+        if (textCriteria != null) {
+            criteria.add(textCriteria);
+        }
+        if (statusCriteria != null) {
+            criteria.add(statusCriteria);
+        }
+        if (!criteria.isEmpty()) {
+            monitoringQuery.addCriteria(new Criteria().andOperator(criteria.toArray(Criteria[]::new)));
+        }
+        return monitoringQuery;
+    }
+
+    private long countForMonitoring(String organizationId, String query, Criteria statusCriteria) {
+        Query countQuery = new Query();
+        List<Criteria> criteria = new ArrayList<>();
+        if (organizationId != null) {
+            criteria.add(Criteria.where("organizationId").is(organizationId));
+        }
+        Criteria textCriteria = textSearchCriteria(query);
+        if (textCriteria != null) {
+            criteria.add(textCriteria);
+        }
+        if (statusCriteria != null) {
+            criteria.add(statusCriteria);
+        }
+        if (!criteria.isEmpty()) {
+            countQuery.addCriteria(new Criteria().andOperator(criteria.toArray(Criteria[]::new)));
+        }
+        return mongoTemplate.count(countQuery, Visitor.class);
+    }
+
+    private List<VisitorResponse> monitorVisitors(String organizationId, String query, Criteria statusCriteria, Sort sort) {
+        return mongoTemplate.find(monitoringQuery(organizationId, query, statusCriteria, sort), Visitor.class)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private Criteria overdueCriteria(Instant now) {
+        return new Criteria().andOperator(
+                Criteria.where("status").is(VisitorStatus.CHECKED_IN),
+                new Criteria().orOperator(
+                        Criteria.where("scheduledEndTime").lte(now),
+                        Criteria.where("qrExpiresAt").lte(now)
+                )
+        );
+    }
+
+    private boolean isPassValid(Visitor visitor, Instant now) {
+        return visitor.getQrCode() != null
+                && visitor.getQrExpiresAt() != null
+                && visitor.getQrExpiresAt().isAfter(now)
+                && (visitor.getStatus() == VisitorStatus.APPROVED || visitor.getStatus() == VisitorStatus.CHECKED_IN)
+                && (visitor.getScheduledStartTime() == null || !now.isBefore(visitor.getScheduledStartTime()))
+                && (visitor.getScheduledEndTime() == null || now.isBefore(visitor.getScheduledEndTime()));
+    }
+
+    private boolean isOverdue(Visitor visitor, Instant now) {
+        return visitor.getStatus() == VisitorStatus.CHECKED_IN
+                && ((visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime()))
+                || (visitor.getQrExpiresAt() != null && !now.isBefore(visitor.getQrExpiresAt())));
+    }
+
+    private String passValidityStatus(Visitor visitor, Instant now) {
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+            return "Checked out";
+        }
+        if (visitor.getStatus() == VisitorStatus.REJECTED) {
+            return "Rejected";
+        }
+        if (visitor.getStatus() == VisitorStatus.EXPIRED) {
+            return "Expired";
+        }
+        if (visitor.getStatus() == VisitorStatus.PENDING) {
+            return "Awaiting approval";
+        }
+        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
+            return "Scheduled";
+        }
+        if (visitor.getQrExpiresAt() == null || !visitor.getQrExpiresAt().isAfter(now)) {
+            return "Expired";
+        }
+        if (isOverdue(visitor, now)) {
+            return "Overdue";
+        }
+        if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
+            return "Checked in";
+        }
+        return "Valid";
+    }
+
+    private String resolveBadgeId(Visitor visitor) {
+        return visitor.getBadgeId() != null ? visitor.getBadgeId() : "BDG-" + visitor.getQrCode();
+    }
+
+    private String hostDepartmentFor(Visitor visitor) {
+        String department = trimToNull(visitor.getHostEmployeeDepartment());
+        return department != null ? department : resolveHostDepartment(visitor.getHostEmployeeId());
     }
 
     private void expireVisitor(Visitor visitor, Instant now) {

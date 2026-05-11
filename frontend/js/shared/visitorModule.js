@@ -1,5 +1,6 @@
 import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./visitorApi.js";
-import { formatDate } from "./formatters.js";
+import { formatDate, formatDurationMinutes, minutesBetween } from "./formatters.js";
+import { initHostPicker } from "./hostPicker.js";
 import { showToast } from "./toast.js";
 
 const STATUS_LABELS = {
@@ -39,6 +40,9 @@ export function initVisitorModule(selector, options) {
   const statusFilter = root.querySelector("[data-visitor-status]");
   const pageSize = root.querySelector("[data-visitor-size]");
   initCamera(root, state);
+  if (options.showHostFields !== false) {
+    initHostPicker(root, { basePath: options.basePath });
+  }
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -204,15 +208,23 @@ export function initVisitorModule(selector, options) {
 
 function template(options) {
   const hostFields = options.showHostFields === false ? "" : `
-    <label class="form-field">
+    <div class="form-field form-field--wide">
       <span>Host Employee</span>
-      <input name="hostEmployee" type="text" placeholder="Host employee name" />
-    </label>
-    <label class="form-field">
-      <span>Host ID / Email</span>
-      <input name="hostEmployeeId" type="text" placeholder="host@company.com" />
-    </label>
+      <div class="host-picker">
+        <input data-host-search-input type="text" placeholder="Search employee name, email, or username" autocomplete="off" />
+        <input data-host-id name="hostEmployeeId" type="hidden" />
+        <input data-host-name name="hostEmployee" type="hidden" />
+        <div class="host-picker__meta" data-host-meta></div>
+        <div class="host-picker__results is-hidden" data-host-results></div>
+      </div>
+    </div>
   `;
+  const organizationCodeField = options.showOrganizationCodeField ? `
+      <label class="form-field">
+        <span>Organization Code</span>
+        <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" value="${escapeHtml(options.organizationCode || "")}" />
+      </label>
+  ` : "";
 
   return `
     <div class="panel__header">
@@ -239,6 +251,7 @@ function template(options) {
         <span>Company Name</span>
         <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
       </label>
+      ${organizationCodeField}
       <label class="form-field form-field--wide">
         <span>Purpose of Visit</span>
         <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
@@ -429,13 +442,17 @@ function openDetail(root, visitor) {
         ${detail("Phone", visitor.phone)}
         ${detail("Email", visitor.email || "Unlisted")}
         ${detail("Company", visitor.companyName || "Unlisted")}
+        ${detail("Organization", visitor.organizationName || visitor.organizationCode || "Unlisted")}
         ${detail("Purpose", visitor.purposeOfVisit)}
         ${detail("Host Employee", visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}
+        ${detail("Host Department", visitor.hostEmployeeDepartment || "Not recorded")}
+        ${detail("Badge ID", visitor.badgeId || "Not issued")}
         ${detail("Scheduled Start", formatDate(visitor.scheduledStartTime))}
         ${detail("Scheduled End", formatDate(visitor.scheduledEndTime))}
         ${detail("Timezone", visitor.scheduledTimezone || "Not scheduled")}
         ${detail("Check-in Time", formatDate(visitor.checkInTime))}
         ${detail("Check-out Time", formatDate(visitor.checkOutTime))}
+        ${detail("Visit Duration", formatDurationMinutes(minutesBetween(visitor.checkInTime, visitor.checkOutTime || new Date())))}
         ${photoDetail(visitor.photoUrl)}
         ${detail("QR Code", visitor.qrCode)}
         ${timelineDetail(visitor.statusHistory)}
@@ -487,6 +504,7 @@ function formPayload(form, options) {
     phone: trim(data.phone),
     email: trim(data.email),
     companyName: trim(data.companyName),
+    companyCode: trim(data.companyCode) || options.organizationCode || null,
     purposeOfVisit: trim(data.purposeOfVisit),
   };
   if (options.showHostFields !== false) {
@@ -509,8 +527,11 @@ function validate(payload, options, state) {
   if (!payload.purposeOfVisit || payload.purposeOfVisit.length < 2) {
     return "Enter the purpose of visit.";
   }
+  if (options.requireOrganizationCode && !payload.companyCode) {
+    return "Enter the organization code.";
+  }
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
-    return "Enter the host employee.";
+    return "Select a host employee from the directory.";
   }
   if (!state.photoBlob || !state.photoAccepted) {
     return "Capture the visitor photo.";

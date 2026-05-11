@@ -55,8 +55,9 @@
       </section>
 
       <section class="auth-card" aria-label="Account access">
-        <div class="auth-tabs auth-tabs--three" role="tablist" aria-label="Access options">
+        <div class="auth-tabs auth-tabs--four" role="tablist" aria-label="Access options">
           <button class="auth-tab is-active" type="button" data-auth-tab="register">Visitor Registration</button>
+          <button class="auth-tab" type="button" data-auth-tab="admin">Admin Login</button>
           <button class="auth-tab" type="button" data-auth-tab="employee">Employee Login</button>
           <button class="auth-tab" type="button" data-auth-tab="security">Security Login</button>
         </div>
@@ -71,6 +72,10 @@
           <label class="form-field">
             <span>Username or email</span>
             <input name="identifier" type="text" autocomplete="username" placeholder="username or email@company.com" required />
+          </label>
+          <label class="form-field" data-company-code-field>
+            <span>Company code</span>
+            <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
           </label>
           <label class="form-field form-field--password">
             <span>Password</span>
@@ -99,6 +104,20 @@
             <span>Email</span>
             <input name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
           </label>
+          <label class="form-field">
+            <span>Organization</span>
+            <select name="companyCode" data-organization-select>
+              <option value="">Select organization</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Host employee</span>
+            <input name="hostEmployee" type="text" placeholder="Host name, username, or email" />
+          </label>
+          <label class="form-field">
+            <span>Purpose of visit</span>
+            <input name="purposeOfVisit" type="text" placeholder="Meeting, interview, delivery" />
+          </label>
           <label class="form-field form-field--password">
             <span>Password</span>
             <input name="password" type="password" autocomplete="new-password" placeholder="12+ characters" required />
@@ -117,6 +136,6 @@
 
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <script src="./assets/js/env.js"></script>
-    <script type="module" src="./js/auth.js?v=20260511c"></script>
+    <script type="module" src="./js/auth.js?v=20260511d"></script>
   </body>
 </html>

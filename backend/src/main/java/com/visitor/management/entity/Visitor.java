@@ -28,6 +28,13 @@ public class Visitor {
     @Indexed
     private String companyName;
 
+    @Indexed
+    private String organizationId;
+
+    private String organizationCode;
+
+    private String organizationName;
+
     private String purposeOfVisit;
 
     @Indexed
@@ -35,6 +42,8 @@ public class Visitor {
 
     @Indexed
     private String hostEmployee;
+
+    private String hostEmployeeDepartment;
 
     @Indexed
     private Instant checkInTime;
@@ -76,6 +85,9 @@ public class Visitor {
 
     @Indexed(unique = true, sparse = true)
     private String qrCode;
+
+    @Indexed(unique = true, sparse = true)
+    private String badgeId;
 
     private Instant qrIssuedAt;
 
@@ -130,6 +142,30 @@ public class Visitor {
         this.companyName = companyName;
     }
 
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
+    }
+
+    public String getOrganizationCode() {
+        return organizationCode;
+    }
+
+    public void setOrganizationCode(String organizationCode) {
+        this.organizationCode = organizationCode;
+    }
+
+    public String getOrganizationName() {
+        return organizationName;
+    }
+
+    public void setOrganizationName(String organizationName) {
+        this.organizationName = organizationName;
+    }
+
     public String getPurposeOfVisit() {
         return purposeOfVisit;
     }
@@ -152,6 +188,14 @@ public class Visitor {
 
     public void setHostEmployee(String hostEmployee) {
         this.hostEmployee = hostEmployee;
+    }
+
+    public String getHostEmployeeDepartment() {
+        return hostEmployeeDepartment;
+    }
+
+    public void setHostEmployeeDepartment(String hostEmployeeDepartment) {
+        this.hostEmployeeDepartment = hostEmployeeDepartment;
     }
 
     public Instant getCheckInTime() {
@@ -288,6 +332,14 @@ public class Visitor {
 
     public void setQrCode(String qrCode) {
         this.qrCode = qrCode;
+    }
+
+    public String getBadgeId() {
+        return badgeId;
+    }
+
+    public void setBadgeId(String badgeId) {
+        this.badgeId = badgeId;
     }
 
     public Instant getQrIssuedAt() {
