@@ -51,72 +51,44 @@
               <span>Live visitor visibility</span>
             </div>
 
-            <div class="hero-signals" aria-label="Operational summary">
-              <article class="signal-card">
-                <strong>Faster arrivals</strong>
-                <span>Guide each guest from request to entry with less friction.</span>
-              </article>
-              <article class="signal-card">
-                <strong>Trusted entry</strong>
-                <span>Keep approvals, identity checks, and check-ins in one flow.</span>
-              </article>
-              <article class="signal-card">
-                <strong>Site oversight</strong>
-                <span>Track active visitors and keep every location aligned.</span>
-              </article>
-            </div>
+            <article class="hero-note" aria-label="Operational summary">
+              <strong>Built for calmer workplace arrivals.</strong>
+              <div class="hero-note__grid">
+                <span>Guide visitors from request to verified entry.</span>
+                <span>Keep hosts, security, and admins aligned in one flow.</span>
+              </div>
+            </article>
           </div>
 
           <div class="hero-stage">
             <article class="dashboard-mockup" aria-label="AccessFlow preview">
               <div class="dashboard-mockup__header">
                 <div>
-                  <span class="dashboard-label">Today at HQ</span>
-                  <h2>One operating view for arrivals, approvals, and secure entry.</h2>
+                  <span class="dashboard-label">Operations preview</span>
+                  <h2>One clear view from visitor approval to verified arrival.</h2>
                 </div>
-                <span class="dashboard-chip">Live lane status</span>
+                <span class="dashboard-chip">Live lane</span>
               </div>
 
               <div class="dashboard-mockup__body">
-                <section class="dashboard-panel">
-                  <div class="dashboard-panel__header">
-                    <span class="panel-title">Approval queue</span>
-                    <span class="panel-meta">14 pending</span>
-                  </div>
-                  <div class="signal-list">
-                    <div>
-                      <strong>Candidate interview</strong>
-                      <span>Awaiting employee review</span>
-                    </div>
-                    <div>
-                      <strong>Vendor briefing</strong>
-                      <span>Pass prepared for scheduled arrival</span>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="dashboard-panel dashboard-panel--stack">
-                  <div class="dashboard-panel__header">
-                    <span class="panel-title">Security lane</span>
-                    <span class="panel-meta panel-meta--success">Verified</span>
-                  </div>
-                  <div class="lane-list">
-                    <div>
-                      <strong>QR pass scanned</strong>
-                      <span>Badge issued after access verification.</span>
-                    </div>
-                    <div>
-                      <strong>Host notified</strong>
-                      <span>Visitor moved into approved arrival window.</span>
-                    </div>
-                  </div>
-                </section>
+                <div class="dashboard-flow">
+                  <article class="flow-step">
+                    <span class="flow-step__label">Approval</span>
+                    <strong>Host confirms the visitor request.</strong>
+                    <p>Visit purpose, expected arrival, and employee ownership stay attached to the entry flow.</p>
+                  </article>
+                  <article class="flow-step">
+                    <span class="flow-step__label">Entry</span>
+                    <strong>Security verifies the pass at the desk.</strong>
+                    <p>QR validation, host notification, and check-in status stay aligned inside one operating surface.</p>
+                  </article>
+                </div>
               </div>
 
-              <div class="dashboard-mockup__footer">
+              <div class="dashboard-summary">
                 <div>
-                  <span>Registered</span>
-                  <strong>124</strong>
+                  <span>Pending</span>
+                  <strong>14</strong>
                 </div>
                 <div>
                   <span>Approved</span>
@@ -134,8 +106,8 @@
                 <div>
                   <p class="eyebrow">Access hub</p>
                   <h2>Secure portal access</h2>
+                  <p>Visitor and workplace sign-in in one clean access panel.</p>
                 </div>
-                <span class="auth-card__pill">Protected sign-in</span>
               </div>
 
               <div class="auth-tabs auth-tabs--five" role="tablist" aria-label="Access options">
@@ -150,7 +122,7 @@
                 <div class="auth-form__header">
                   <p class="eyebrow" id="login-eyebrow">Visitor access</p>
                   <h3 id="login-title">Sign in to track your visit</h3>
-                  <p id="login-description">Use your visitor account to view approval status and approved QR passes.</p>
+                  <p id="login-description">View approval status and access your approved QR pass.</p>
                 </div>
                 <input name="audience" type="hidden" value="visitor" />
                 <label class="form-field">
@@ -177,7 +149,7 @@
                 <div class="auth-form__header">
                   <p class="eyebrow">Visitor onboarding</p>
                   <h3>Create a visitor account</h3>
-                  <p>Register once to request visits, receive approvals, and carry verified QR access passes.</p>
+                  <p>Register once to request visits and carry verified QR access passes.</p>
                 </div>
                 <div class="auth-form__split">
                   <label class="form-field">
@@ -223,12 +195,6 @@
                 <button class="button button--primary auth-submit" type="submit">Create visitor account</button>
                 <button class="link-button" type="button" data-auth-target="visitor">Already registered? Sign in as a visitor</button>
               </form>
-
-              <div class="auth-card__footer">
-                <span>Encrypted login</span>
-                <span>Approval workflows</span>
-                <span>Verified entry</span>
-              </div>
             </section>
           </div>
         </section>
