@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface VisitorRepository extends MongoRepository<Visitor, String> {
     Optional<Visitor> findByQrCode(String qrCode);
+    Optional<Visitor> findByPassTokenId(String passTokenId);
 
     Page<Visitor> findAllByHostEmployeeId(String hostEmployeeId, Pageable pageable);
 

@@ -6,7 +6,11 @@ import java.time.Instant;
 
 public record QrVerificationResponse(
         boolean valid,
+        boolean recognized,
+        String resultCode,
+        String headline,
         String message,
+        String recommendedAction,
         String visitorId,
         String fullName,
         String companyName,
@@ -16,12 +20,18 @@ public record QrVerificationResponse(
         String hostEmployeeDepartment,
         String photoUrl,
         VisitorStatus status,
+        String statusLabel,
+        String badgeId,
         String passCode,
+        Instant issuedAt,
         Instant expiresAt,
+        Instant scheduledStartTime,
         Instant scheduledEndTime,
         Instant checkInTime,
         Instant checkOutTime,
         boolean overdue,
-        String validityStatus
+        String validityStatus,
+        boolean canCheckIn,
+        boolean canCheckOut
 ) {
 }

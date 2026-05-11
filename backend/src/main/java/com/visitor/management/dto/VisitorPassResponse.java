@@ -16,6 +16,8 @@ public record VisitorPassResponse(
         String hostEmployeeDepartment,
         String photoUrl,
         VisitorStatus status,
+        String statusLabel,
+        String checkInState,
         boolean valid,
         String validityStatus,
         String passCode,
@@ -27,6 +29,7 @@ public record VisitorPassResponse(
         Instant scheduledStartTime,
         Instant scheduledEndTime,
         Instant checkInTime,
-        Instant checkOutTime
+        Instant checkOutTime,
+        Instant badgePrintedAt
 ) {
 }

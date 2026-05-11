@@ -89,6 +89,9 @@ public class Visitor {
     @Indexed(unique = true, sparse = true)
     private String badgeId;
 
+    @Indexed(unique = true, sparse = true)
+    private String passTokenId;
+
     private Instant qrIssuedAt;
 
     private Instant qrExpiresAt;
@@ -340,6 +343,14 @@ public class Visitor {
 
     public void setBadgeId(String badgeId) {
         this.badgeId = badgeId;
+    }
+
+    public String getPassTokenId() {
+        return passTokenId;
+    }
+
+    public void setPassTokenId(String passTokenId) {
+        this.passTokenId = passTokenId;
     }
 
     public Instant getQrIssuedAt() {

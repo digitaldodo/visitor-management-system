@@ -3,6 +3,7 @@ package com.visitor.management.security;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
+import com.visitor.management.entity.VisitorStatus;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -63,15 +64,25 @@ public class JwtService {
         return builder.signWith(secretKey).compact();
     }
 
-    public String generateVisitorPassToken(String visitorId, String passCode, Instant expiresAt) {
+    public String generateVisitorPassToken(
+            String securePassId,
+            String organizationReference,
+            String visitorReference,
+            VisitorStatus approvalState,
+            String passCode,
+            Instant expiresAt
+    ) {
         Instant now = Instant.now();
         return Jwts.builder()
-                .subject(visitorId)
+                .subject(securePassId)
                 .issuer(jwtProperties.getIssuer())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .claims(Map.of(
                         "type", "visitor-pass",
+                        "organizationReference", organizationReference,
+                        "visitorReference", visitorReference,
+                        "approvalState", approvalState.name(),
                         "passCode", passCode
                 ))
                 .signWith(secretKey)
