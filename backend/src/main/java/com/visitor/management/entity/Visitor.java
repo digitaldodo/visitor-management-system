@@ -43,6 +43,8 @@ public class Visitor {
     @Indexed
     private String hostEmployee;
 
+    private String hostEmployeeDepartment;
+
     @Indexed
     private Instant checkInTime;
 
@@ -83,6 +85,9 @@ public class Visitor {
 
     @Indexed(unique = true, sparse = true)
     private String qrCode;
+
+    @Indexed(unique = true, sparse = true)
+    private String badgeId;
 
     private Instant qrIssuedAt;
 
@@ -183,6 +188,14 @@ public class Visitor {
 
     public void setHostEmployee(String hostEmployee) {
         this.hostEmployee = hostEmployee;
+    }
+
+    public String getHostEmployeeDepartment() {
+        return hostEmployeeDepartment;
+    }
+
+    public void setHostEmployeeDepartment(String hostEmployeeDepartment) {
+        this.hostEmployeeDepartment = hostEmployeeDepartment;
     }
 
     public Instant getCheckInTime() {
@@ -319,6 +332,14 @@ public class Visitor {
 
     public void setQrCode(String qrCode) {
         this.qrCode = qrCode;
+    }
+
+    public String getBadgeId() {
+        return badgeId;
+    }
+
+    public void setBadgeId(String badgeId) {
+        this.badgeId = badgeId;
     }
 
     public Instant getQrIssuedAt() {

@@ -1,11 +1,14 @@
 package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
+import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.QrVerificationRequest;
 import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
+import com.visitor.management.dto.SecurityMonitoringResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorHistorySummaryResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
@@ -26,9 +29,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -118,9 +123,24 @@ public class SecurityPortalController {
         return ApiResponse.ok("Security visitor records loaded.", visitorService.search(request, authentication.getName()));
     }
 
+    @GetMapping("/monitoring")
+    public ApiResponse<SecurityMonitoringResponse> monitoring(@RequestParam(required = false) String query, Authentication authentication) {
+        return ApiResponse.ok("Security monitoring loaded.", visitorService.securityMonitoring(authentication.getName(), query));
+    }
+
+    @GetMapping("/hosts")
+    public ApiResponse<List<EmployeeDirectoryEntryResponse>> hosts(@RequestParam(required = false) String query, Authentication authentication) {
+        return ApiResponse.ok("Host directory loaded.", visitorService.searchHosts(query, null, authentication.getName()));
+    }
+
     @GetMapping("/visitors/{id}")
     public ApiResponse<VisitorResponse> visitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Security visitor loaded.", visitorService.get(id, authentication.getName()));
+    }
+
+    @GetMapping("/visitors/{id}/history")
+    public ApiResponse<VisitorHistorySummaryResponse> visitorHistory(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Visitor history loaded.", visitorService.visitorHistory(id, authentication.getName()));
     }
 
     @GetMapping("/visitors/{id}/pass")

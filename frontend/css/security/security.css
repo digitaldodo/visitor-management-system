@@ -46,6 +46,22 @@
   padding: 0.85rem;
 }
 
+.visitor-pass-card__summary {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.visitor-pass-card__summary h3,
+.visitor-pass-card__summary p {
+  margin: 0;
+}
+
+.visitor-pass-card__summary p {
+  color: var(--color-muted);
+}
+
 .visitor-pass {
   background: #ffffff;
   border: 1px solid #d8e5ef;
@@ -142,6 +158,36 @@
   text-align: center;
 }
 
+.security-monitor-search {
+  max-width: 22rem;
+}
+
+.security-monitor-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.security-monitor-card {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+}
+
+.security-monitor-card__header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.security-monitor-card__header h3,
+.security-monitor-card__header p {
+  margin: 0;
+}
+
 .qr-verify-form {
   display: grid;
   gap: 0.75rem;
@@ -177,7 +223,33 @@
   margin: 0;
 }
 
+.qr-result__identity {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+}
+
+.qr-result__identity img {
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  object-fit: cover;
+  width: 100%;
+}
+
+.qr-result__actions {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.work-card--alert {
+  background: #fff7ed;
+  border-color: #f7c9a8;
+}
+
 @media (max-width: 760px) {
+  .security-monitor-grid,
   .visitor-pass__body {
     grid-template-columns: 1fr;
   }
@@ -187,36 +259,14 @@
     max-width: 12rem;
   }
 
+  .qr-result__identity {
+    grid-template-columns: 1fr;
+  }
+
   .visitor-pass-card__actions,
-  .qr-verify-form__actions {
+  .qr-verify-form__actions,
+  .qr-result__actions {
     align-items: stretch;
     flex-direction: column;
-  }
-}
-
-@media print {
-  body * {
-    visibility: hidden;
-  }
-
-  .is-print-target,
-  .is-print-target * {
-    visibility: visible;
-  }
-
-  .is-print-target {
-    left: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
-  }
-
-  .is-print-target .visitor-pass-card__actions {
-    display: none;
-  }
-
-  .visitor-pass {
-    border: 2px solid #0f172a;
-    box-shadow: none;
   }
 }

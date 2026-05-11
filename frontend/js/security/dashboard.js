@@ -1,13 +1,20 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
-import { formatDate } from "../shared/formatters.js";
+import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { getVisitorPass, markBadgePrinted, verifyQrPayload } from "../shared/visitorApi.js";
+import { badgeDialogMarkup, downloadBadge, printBadge } from "../shared/badgeStudio.js";
+import { checkInVisitor, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/visitorApi.js";
 import { showToast } from "../shared/toast.js";
 
-const ROUTES = ["queue", "check-in", "photo", "qr", "badges"];
+const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges"];
+const state = {
+  monitoringQuery: "",
+  monitoringDebounce: 0,
+  activeBadge: null,
+  activeVerification: null,
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
@@ -20,12 +27,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   initPortalShell(session, { allowedRoutes: ROUTES });
   initVisitorModule("[data-security-visitors]", {
     basePath: "/security",
-    title: "Visitor Check-in and Records",
-    eyebrow: "Front Desk Registration",
+    title: "Front Desk Registration",
+    eyebrow: "Reception Operations",
     canDelete: false,
   });
   initQrVerification();
   initBadgeActions();
+  initMonitoringSearch();
   await loadSecurityPortal();
   window.setInterval(() => loadSecurityPortal(false), 15000);
 });
@@ -37,33 +45,63 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#checkins-list");
     renderLoadingList("#photo-list");
     renderLoadingList("#badge-list");
+    renderLoadingList("#monitor-inside-list");
+    renderLoadingList("#monitor-overdue-list");
+    renderLoadingList("#monitor-checkedout-list");
+    renderLoadingList("#monitor-rejected-list");
   }
 
   try {
-    const [overview, queue, checkins, photo, badges] = await Promise.all([
+    const [overview, queue, photo, monitoring] = await Promise.all([
       request("/security/overview"),
       request("/security/queue"),
-      request("/security/checkins"),
       request("/security/photo-capture"),
-      request("/security/badges"),
+      getSecurityMonitoring(state.monitoringQuery),
     ]);
 
     renderMetrics(overview.data.metrics);
-    renderWorkList("#queue-list", queue.data.items || [], (visitor) => workCard(visitor.fullName, visitor.purposeOfVisit, visitor.status), "No visitors in queue", "Approved visitors waiting for arrival will appear here.");
-    renderWorkList("#checkins-list", checkins.data.items || [], (checkin) => workCard(checkin.fullName, checkin.hostEmployee, checkin.status), "No active check-ins", "Checked-in visitors will appear here.");
-    await renderBadgeList(badges.data.items || []);
+    renderWorkList("#queue-list", queue.data.items || [], queueCard, "No approved arrivals", "Approved visitors waiting for arrival will appear here.");
+    renderWorkList("#checkins-list", monitoring.data.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
     renderWorkList("#photo-list", Object.entries(photo.data), ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
+    renderMonitoring(monitoring.data);
+    await renderBadgeList(monitoring.data.approvedVisitors || []);
   } catch (error) {
     if (showErrors) {
       renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", error.message);
       renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", error.message);
       renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", error.message);
       renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", error.message);
-    }
-    if (showErrors) {
+      renderWorkList("#monitor-inside-list", [], (item) => item, "Monitoring unavailable", error.message);
+      renderWorkList("#monitor-overdue-list", [], (item) => item, "Monitoring unavailable", error.message);
+      renderWorkList("#monitor-checkedout-list", [], (item) => item, "Monitoring unavailable", error.message);
+      renderWorkList("#monitor-rejected-list", [], (item) => item, "Monitoring unavailable", error.message);
       showToast("Security access blocked", error.message);
     }
   }
+}
+
+function initMonitoringSearch() {
+  const input = document.querySelector("#monitoring-search");
+  input?.addEventListener("input", () => {
+    window.clearTimeout(state.monitoringDebounce);
+    state.monitoringDebounce = window.setTimeout(async () => {
+      state.monitoringQuery = input.value.trim();
+      await loadSecurityPortal(false);
+    }, 240);
+  });
+}
+
+function renderMonitoring(data = {}) {
+  const counts = data.counts || {};
+  setCount("#monitor-count-inside", counts.currentlyInside || 0);
+  setCount("#monitor-count-overdue", counts.overdueVisitors || 0);
+  setCount("#monitor-count-checkedout", counts.checkedOutVisitors || 0);
+  setCount("#monitor-count-rejected", counts.rejectedVisitors || 0);
+
+  renderWorkList("#monitor-inside-list", data.currentlyInside || [], monitorCard, "No visitors inside", "Checked-in visitors will appear here.");
+  renderWorkList("#monitor-overdue-list", data.overdueVisitors || [], overdueCard, "No overdue visitors", "Visitors who exceed the approved window will appear here.");
+  renderWorkList("#monitor-checkedout-list", data.checkedOutVisitors || [], monitorCard, "No recent check-outs", "Completed departures will appear here.");
+  renderWorkList("#monitor-rejected-list", data.rejectedVisitors || [], rejectedCard, "No rejected visitors", "Denied requests will appear here.");
 }
 
 async function renderBadgeList(visitors) {
@@ -101,32 +139,16 @@ async function renderBadgeList(visitors) {
 
 function passCard(pass) {
   return `
-    <article class="visitor-pass-card" data-pass-card data-visitor-id="${escapeHtml(pass.visitorId)}">
-      <div class="visitor-pass">
-        <div class="visitor-pass__brand">
-          <img class="visitor-pass__logo" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
-          <div>
-            <strong>AccessFlow Visitor Pass</strong>
-            <small>${escapeHtml(pass.passCode)}</small>
-          </div>
+    <article class="visitor-pass-card">
+      <div class="visitor-pass-card__summary">
+        <div>
+          <h3>${escapeHtml(pass.fullName)}</h3>
+          <p>${escapeHtml(pass.companyName || "Unlisted organization")} · ${escapeHtml(pass.hostEmployee || "Unassigned")}</p>
         </div>
-        <div class="visitor-pass__body">
-          <img class="visitor-pass__photo" src="${escapeHtml(pass.photoUrl)}" alt="${escapeHtml(pass.fullName)} photo" />
-          <div>
-            <h3>${escapeHtml(pass.fullName)}</h3>
-            <p>${escapeHtml(pass.companyName || "Unlisted company")}</p>
-            <dl>
-              <div><dt>Host</dt><dd>${escapeHtml(pass.hostEmployee || "Unassigned")}</dd></div>
-              <div><dt>Purpose</dt><dd>${escapeHtml(pass.purposeOfVisit)}</dd></div>
-              <div><dt>Expires</dt><dd>${formatDate(pass.expiresAt)}</dd></div>
-            </dl>
-          </div>
-          <img class="visitor-pass__qr" src="${escapeHtml(pass.qrImageDataUri)}" alt="Visitor QR code" />
-        </div>
+        <span class="status-badge status-badge--${pass.valid ? "approved" : "expired"}">${escapeHtml(pass.validityStatus)}</span>
       </div>
       <div class="visitor-pass-card__actions">
-        <button class="button button--ghost" type="button" data-badge-action="print" data-visitor-id="${escapeHtml(pass.visitorId)}">Print</button>
-        <button class="button button--primary" type="button" data-badge-action="record-print" data-visitor-id="${escapeHtml(pass.visitorId)}">Mark Printed</button>
+        <button class="button button--ghost" type="button" data-badge-open="${escapeHtml(pass.visitorId)}">Open badge</button>
       </div>
     </article>
   `;
@@ -134,26 +156,68 @@ function passCard(pass) {
 
 function initBadgeActions() {
   document.querySelector("#badge-list")?.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-badge-action]");
+    const button = event.target.closest("[data-badge-open]");
     if (!button) {
       return;
     }
-    const card = button.closest("[data-pass-card]");
-    const id = button.dataset.visitorId;
-    if (button.dataset.badgeAction === "print") {
-      card?.classList.add("is-print-target");
-      window.print();
-      window.setTimeout(() => card?.classList.remove("is-print-target"), 300);
-      return;
-    }
     try {
-      await markBadgePrinted("/security", id);
-      showToast("Badge recorded", "Print timestamp saved.");
-      await loadSecurityPortal(false);
+      const response = await getVisitorPass("/security", button.dataset.badgeOpen);
+      state.activeBadge = response.data;
+      openBadgeModal(state.activeBadge);
     } catch (error) {
-      showToast("Badge update failed", error.message);
+      showToast("Badge unavailable", error.message);
     }
   });
+
+  const modal = document.querySelector("#security-badge-modal");
+  modal?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-badge-action]");
+    if (!button || !state.activeBadge) {
+      if (event.target === modal) {
+        closeBadgeModal();
+      }
+      return;
+    }
+
+    const badgeCard = modal.querySelector("[data-badge-card]");
+    const action = button.dataset.badgeAction;
+    try {
+      if (action === "close") {
+        closeBadgeModal();
+      }
+      if (action === "print") {
+        printBadge(badgeCard);
+      }
+      if (action === "png" || action === "pdf") {
+        await downloadBadge(state.activeBadge, action);
+        showToast("Badge downloaded", `Saved ${action.toUpperCase()} badge export.`);
+      }
+      if (action === "record-print") {
+        await markBadgePrinted("/security", state.activeBadge.visitorId);
+        showToast("Badge recorded", "Print timestamp saved.");
+        await loadSecurityPortal(false);
+      }
+    } catch (error) {
+      showToast("Badge action failed", error.message);
+    }
+  });
+}
+
+function openBadgeModal(pass) {
+  const modal = document.querySelector("#security-badge-modal");
+  if (!modal) {
+    return;
+  }
+  modal.classList.remove("is-hidden");
+  modal.innerHTML = badgeDialogMarkup(pass, { includeRecordPrint: true });
+}
+
+function closeBadgeModal() {
+  const modal = document.querySelector("#security-badge-modal");
+  modal?.classList.add("is-hidden");
+  if (modal) {
+    modal.innerHTML = "";
+  }
 }
 
 function initQrVerification() {
@@ -165,6 +229,29 @@ function initQrVerification() {
     await verifyScannedValue(input?.value || "");
   });
   scanButton?.addEventListener("click", startCameraScan);
+  document.querySelector("#qr-result")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-qr-action]");
+    if (!button || !state.activeVerification?.visitorId) {
+      return;
+    }
+    try {
+      if (button.dataset.qrAction === "capture-photo") {
+        await capturePhotoForVisitor(state.activeVerification.visitorId);
+      }
+      if (button.dataset.qrAction === "check-in") {
+        await checkInVisitor("/security", state.activeVerification.visitorId);
+        showToast("Visitor checked in", "Physical entry approved and recorded.");
+      }
+      if (button.dataset.qrAction === "check-out") {
+        await checkOutVisitor("/security", state.activeVerification.visitorId);
+        showToast("Visitor checked out", "Departure recorded.");
+      }
+      await loadSecurityPortal(false);
+      await verifyScannedValue(document.querySelector("#qr-payload-input")?.value || "");
+    } catch (error) {
+      showToast("Checkpoint action failed", error.message);
+    }
+  });
 }
 
 async function verifyScannedValue(value) {
@@ -179,8 +266,9 @@ async function verifyScannedValue(value) {
   submit?.setAttribute("aria-busy", "true");
   try {
     const response = await verifyQrPayload("/security", trimmed);
+    state.activeVerification = response.data;
     renderVerification(response.data);
-    showToast(response.data.valid ? "Pass valid" : "Pass rejected", response.data.message);
+    showToast(response.data.valid ? "Pass verified" : "Pass rejected", response.data.message);
   } catch (error) {
     showToast("Verification failed", error.message);
   } finally {
@@ -200,14 +288,24 @@ function renderVerification(result) {
       <strong>${result.valid ? "Valid pass" : "Invalid pass"}</strong>
       <p>${escapeHtml(result.message)}</p>
       ${result.visitorId ? `
-        <dl>
-          <div><dt>Visitor</dt><dd>${escapeHtml(result.fullName)}</dd></div>
-          <div><dt>Company</dt><dd>${escapeHtml(result.companyName || "Unlisted")}</dd></div>
-          <div><dt>Host</dt><dd>${escapeHtml(result.hostEmployee || "Unassigned")}</dd></div>
-          <div><dt>Status</dt><dd>${escapeHtml(result.status)}</dd></div>
-          <div><dt>Pass</dt><dd>${escapeHtml(result.passCode)}</dd></div>
-          <div><dt>Expires</dt><dd>${formatDate(result.expiresAt)}</dd></div>
-        </dl>
+        <div class="qr-result__identity">
+          ${result.photoUrl ? `<img src="${escapeHtml(result.photoUrl)}" alt="${escapeHtml(result.fullName)} photo" />` : ""}
+          <dl>
+            <div><dt>Visitor</dt><dd>${escapeHtml(result.fullName)}</dd></div>
+            <div><dt>Company</dt><dd>${escapeHtml(result.companyName || "Unlisted")}</dd></div>
+            <div><dt>Host</dt><dd>${escapeHtml(result.hostEmployee || "Unassigned")}</dd></div>
+            <div><dt>Department</dt><dd>${escapeHtml(result.hostEmployeeDepartment || "Not recorded")}</dd></div>
+            <div><dt>Status</dt><dd>${escapeHtml(result.validityStatus || result.status)}</dd></div>
+            <div><dt>Pass</dt><dd>${escapeHtml(result.passCode)}</dd></div>
+            <div><dt>Expires</dt><dd>${escapeHtml(formatDate(result.expiresAt))}</dd></div>
+            <div><dt>Check-in</dt><dd>${escapeHtml(result.checkInTime ? formatDate(result.checkInTime) : "Pending")}</dd></div>
+          </dl>
+        </div>
+        <div class="qr-result__actions">
+          ${!result.photoUrl ? `<button class="button button--ghost" type="button" data-qr-action="capture-photo">Capture or upload photo</button>` : ""}
+          ${result.status === "APPROVED" && result.valid ? `<button class="button button--primary" type="button" data-qr-action="check-in">Approve entry and check in</button>` : ""}
+          ${result.status === "CHECKED_IN" ? `<button class="button button--ghost" type="button" data-qr-action="check-out">Check out visitor</button>` : ""}
+        </div>
       ` : ""}
     </article>
   `;
@@ -239,14 +337,113 @@ async function startCameraScan() {
   const scan = async () => {
     const codes = await detector.detect(video).catch(() => []);
     if (codes.length) {
-      const value = codes[0].rawValue;
-      input.value = value;
+      const scanned = codes[0].rawValue;
+      input.value = scanned;
       stream.getTracks().forEach((track) => track.stop());
       video.classList.add("is-hidden");
-      await verifyScannedValue(value);
+      await verifyScannedValue(scanned);
       return;
     }
     window.requestAnimationFrame(scan);
   };
   window.requestAnimationFrame(scan);
+}
+
+function queueCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.companyName || "Unlisted organization")} · ${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
+      <small>${escapeHtml(formatDate(visitor.qrExpiresAt || visitor.scheduledStartTime || visitor.createdAt))}</small>
+      ${!visitor.photoUrl ? `<button class="button button--ghost" type="button" data-queue-photo="${escapeHtml(visitor.id)}">Capture photo</button>` : ""}
+    </article>
+  `;
+}
+
+function checkedInCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
+      <small>${escapeHtml(formatDurationMinutes(minutesBetween(visitor.checkInTime, visitor.checkOutTime || new Date())))}</small>
+    </article>
+  `;
+}
+
+function monitorCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.companyName || "Unlisted organization")} · ${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
+      <small>${escapeHtml(formatDate(visitor.checkInTime || visitor.checkOutTime || visitor.createdAt))}</small>
+    </article>
+  `;
+}
+
+function overdueCard(visitor) {
+  return `
+    <article class="work-card work-card--alert">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.hostEmployee || "Unassigned")} · ${escapeHtml(formatDurationMinutes(minutesBetween(visitor.checkInTime, new Date())))}</p>
+      <small>${escapeHtml(formatDate(visitor.scheduledEndTime || visitor.qrExpiresAt))}</small>
+    </article>
+  `;
+}
+
+function rejectedCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.rejectionReason || "Rejected by host")}</p>
+      <small>${escapeHtml(formatDate(visitor.rejectedAt || visitor.updatedAt || visitor.createdAt))}</small>
+    </article>
+  `;
+}
+
+function setCount(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = String(value);
+  }
+}
+
+document.querySelector("#queue-list")?.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-queue-photo]");
+  if (!button) {
+    return;
+  }
+  try {
+    await capturePhotoForVisitor(button.dataset.queuePhoto);
+  } catch (error) {
+    showToast("Photo update failed", error.message);
+  }
+});
+
+async function capturePhotoForVisitor(visitorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.capture = "user";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const upload = await uploadVisitorPhoto("/security", file);
+      await updateVisitor("/security", visitorId, {
+        photoUrl: upload.data.url,
+        photoPublicId: upload.data.publicId,
+      });
+      showToast("Photo saved", "Visitor photo is now attached to the badge.");
+      await loadSecurityPortal(false);
+      if (state.activeVerification?.visitorId === visitorId) {
+        state.activeVerification.photoUrl = upload.data.url;
+        renderVerification(state.activeVerification);
+      }
+    } catch (error) {
+      showToast("Photo update failed", error.message);
+    }
+  }, { once: true });
+  input.click();
 }

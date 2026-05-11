@@ -9,6 +9,8 @@ public record VisitorVisitRequest(
         @Size(max = 24) String companyCode,
         @NotBlank @Size(min = 2, max = 160) String purposeOfVisit,
         @Size(max = 120) String hostEmployee,
-        @Size(max = 80) String hostEmployeeId
+        @Size(max = 80) String hostEmployeeId,
+        @Size(max = 500) String photoUrl,
+        @Size(max = 255) String photoPublicId
 ) {
 }
