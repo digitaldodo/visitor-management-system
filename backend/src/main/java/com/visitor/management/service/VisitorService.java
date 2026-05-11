@@ -119,7 +119,9 @@ public class VisitorService {
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse createForVisitorAccount(VisitorVisitRequest request, User account) {
         Instant now = Instant.now();
-        Organization organization = organizationService.resolveRequired(request.companyCode(), request.companyName());
+        Organization organization = account.getOrganizationId() != null
+                ? organizationService.requireActive(account.getOrganizationId())
+                : organizationService.resolveRequired(request.companyCode(), request.companyName());
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(account.getFullName(), "Account name is required."));
         visitor.setPhone(requiredTrim(request.phone() != null ? request.phone() : account.getPhone(), "Phone is required."));
@@ -156,6 +158,9 @@ public class VisitorService {
     public VisitorPassResponse passForVisitorAccount(String id, User account) {
         Visitor visitor = find(id);
         if (visitor.getEmail() == null || !visitor.getEmail().equalsIgnoreCase(account.getEmail())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        if (account.getOrganizationId() != null && !account.getOrganizationId().equals(visitor.getOrganizationId())) {
             throw new ResourceNotFoundException("Visitor request was not found.");
         }
         requirePassReady(visitor);

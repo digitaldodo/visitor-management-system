@@ -59,6 +59,7 @@ public class AuthService {
     private final EmailService emailService;
     private final RateLimitService rateLimitService;
     private final OrganizationService organizationService;
+    private final AccessAuditService accessAuditService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -70,7 +71,8 @@ public class AuthService {
             TokenService tokenService,
             EmailService emailService,
             RateLimitService rateLimitService,
-            OrganizationService organizationService
+            OrganizationService organizationService,
+            AccessAuditService accessAuditService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -81,6 +83,7 @@ public class AuthService {
         this.emailService = emailService;
         this.rateLimitService = rateLimitService;
         this.organizationService = organizationService;
+        this.accessAuditService = accessAuditService;
     }
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
@@ -109,19 +112,26 @@ public class AuthService {
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
 
-        return toProfile(userRepository.save(user));
+        User saved = userRepository.save(user);
+        accessAuditService.recordVisitorAccountRegistered(saved);
+        return toProfile(saved);
     }
 
     public AuthResponse login(AuthRequest request) {
         String identifier = normalizeIdentifier(request.loginIdentifier());
-        User user = findByIdentifier(identifier)
-                .filter(this::isActiveAccount)
-                .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
-                .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password."));
-        validateOrganizationLogin(user, request.companyCode());
-        validatePortalAudience(user, request.portalAudience());
-
-        return issueTokens(user);
+        try {
+            User user = findByIdentifier(identifier)
+                    .filter(this::isActiveAccount)
+                    .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
+                    .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password."));
+            validateOrganizationLogin(user, request.companyCode());
+            validatePortalAudience(user, request.portalAudience());
+            accessAuditService.recordLoginSuccess(user, request.portalAudience());
+            return issueTokens(user);
+        } catch (UnauthorizedException ex) {
+            accessAuditService.recordLoginFailure(identifier, request.companyCode(), request.portalAudience(), ex.getMessage());
+            throw ex;
+        }
     }
 
     public AuthResponse refresh(RefreshTokenRequest request) {
@@ -321,8 +331,8 @@ public class AuthService {
 
         boolean allowed = switch (audience) {
             case "admin" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.ADMIN);
-            case "employee" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.EMPLOYEE);
-            case "security" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.SECURITY_GUARD);
+            case "employee" -> user.getRoles().contains(Role.EMPLOYEE);
+            case "security" -> user.getRoles().contains(Role.SECURITY_GUARD);
             case "visitor" -> user.getRoles().contains(Role.VISITOR);
             default -> false;
         };

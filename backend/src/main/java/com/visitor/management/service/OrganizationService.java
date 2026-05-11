@@ -3,10 +3,13 @@ package com.visitor.management.service;
 import com.visitor.management.dto.OrganizationRequest;
 import com.visitor.management.dto.OrganizationResponse;
 import com.visitor.management.entity.Organization;
+import com.visitor.management.entity.Role;
+import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.OrganizationRepository;
+import com.visitor.management.repository.UserRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -17,9 +20,11 @@ import java.util.Locale;
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final UserRepository userRepository;
 
-    public OrganizationService(OrganizationRepository organizationRepository) {
+    public OrganizationService(OrganizationRepository organizationRepository, UserRepository userRepository) {
         this.organizationRepository = organizationRepository;
+        this.userRepository = userRepository;
     }
 
     public List<OrganizationResponse> listAll() {
@@ -27,6 +32,18 @@ public class OrganizationService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public List<OrganizationResponse> listAccessible(String actorId) {
+        User actor = currentUser(actorId);
+        if (actor.getRoles().contains(Role.SUPER_ADMIN)) {
+            return listAll();
+        }
+        String organizationId = trimToNull(actor.getOrganizationId());
+        if (organizationId == null) {
+            throw new BadRequestException("Your account is not assigned to an organization.");
+        }
+        return List.of(toResponse(requireActive(organizationId)));
     }
 
     public List<OrganizationResponse> listPublicActive() {
@@ -101,5 +118,10 @@ public class OrganizationService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private User currentUser(String actorId) {
+        return userRepository.findById(actorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
     }
 }

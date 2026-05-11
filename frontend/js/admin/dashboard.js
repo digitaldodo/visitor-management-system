@@ -7,7 +7,6 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 
-const ROUTES = ["analytics", "users", "homepage-settings", "reports", "monitoring", "visitors"];
 let currentSession;
 let homepageMetricOptions = [];
 
@@ -19,49 +18,66 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  initPortalShell(currentSession, { allowedRoutes: ROUTES });
-  initVisitorModule("[data-admin-visitors]", {
-    basePath: "/admin",
-    title: "Full Visitor Access",
-    eyebrow: "Visitor Records",
-    canDelete: true,
-    showOrganizationCodeField: (currentSession.roles || []).includes("SUPER_ADMIN"),
-    requireOrganizationCode: (currentSession.roles || []).includes("SUPER_ADMIN"),
-    organizationCode: currentSession.organizationCode,
-  });
+  const allowedRoutes = resolveAllowedRoutes();
+  initPortalShell(currentSession, { allowedRoutes });
+  if (allowedRoutes.includes("visitors")) {
+    initVisitorModule("[data-admin-visitors]", {
+      basePath: "/admin",
+      title: "Full Visitor Access",
+      eyebrow: "Visitor Records",
+      canDelete: true,
+      showOrganizationCodeField: false,
+      requireOrganizationCode: false,
+      organizationCode: currentSession.organizationCode,
+    });
+  }
   initAdminUserForm();
   initHomepageSettingsForm();
   await loadAdminPortal();
 });
 
 async function loadAdminPortal() {
+  const canViewReports = hasRole("SUPER_ADMIN");
+  const canManageHomepage = hasRole("SUPER_ADMIN");
   renderDashboardCards([]);
   renderLoadingList("#user-management-list");
-  renderLoadingList("#reports-list");
   renderLoadingList("#monitoring-list");
   renderEmployeeAnalytics([]);
-  renderHomepageSettingsState("Loading homepage controls...");
+  if (canViewReports) {
+    renderLoadingList("#reports-list");
+  }
+  if (canManageHomepage) {
+    renderHomepageSettingsState("Loading homepage controls...");
+  }
 
   try {
-    const [analytics, users, reports, monitoring, homepageSettings] = await Promise.all([
+    const [analytics, users, monitoring, reports, homepageSettings] = await Promise.all([
       request("/admin/analytics"),
       request("/admin/users"),
-      request("/admin/reports"),
       request("/admin/monitoring"),
-      getHomepageSettings(),
+      canViewReports ? request("/admin/reports") : Promise.resolve({ data: [] }),
+      canManageHomepage ? getHomepageSettings() : Promise.resolve({ data: null }),
     ]);
 
     renderAnalytics(analytics.data);
     renderUsers(users.data || []);
-    renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No reports ready", "Generated operational reports will appear here.");
     renderMonitoring(monitoring.data);
-    renderHomepageSettings(homepageSettings.data);
+    if (canViewReports) {
+      renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No audit activity yet", "Structured login and access events will appear here.");
+    }
+    if (canManageHomepage) {
+      renderHomepageSettings(homepageSettings.data);
+    }
   } catch (error) {
     renderAnalytics({});
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
-    renderWorkList("#reports-list", [], (item) => item, "Reports unavailable", error.message);
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
-    renderHomepageSettingsState(error.message);
+    if (canViewReports) {
+      renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
+    }
+    if (canManageHomepage) {
+      renderHomepageSettingsState(error.message);
+    }
     showToast("Admin access blocked", error.message);
   }
 }
@@ -324,6 +340,16 @@ function renderHomepageSettings(data) {
         ? "Homepage controls are ready to configure."
         : "Homepage controls are visible here, but only SUPER_ADMIN can change them.";
   }
+}
+
+function resolveAllowedRoutes() {
+  return hasRole("SUPER_ADMIN")
+    ? ["analytics", "users", "homepage-settings", "reports", "monitoring"]
+    : ["analytics", "users", "monitoring", "visitors"];
+}
+
+function hasRole(role) {
+  return (currentSession?.roles || []).includes(role);
 }
 
 function renderMetricOptions(selector, name, selectedKeys) {

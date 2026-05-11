@@ -125,8 +125,24 @@ function initSidebar() {
 }
 
 function initRouteTabs(allowedRoutes) {
-  const validRoutes = new Set(allowedRoutes);
+    const validRoutes = new Set(allowedRoutes);
   const links = $$("#sidebar-nav .nav-link");
+  const firstAllowedRoute = allowedRoutes[0];
+
+  if (!firstAllowedRoute) {
+    return;
+  }
+
+  links.forEach((link) => {
+    const route = link.dataset.route;
+    const allowed = validRoutes.has(route);
+    link.hidden = !allowed;
+    link.setAttribute("aria-hidden", String(!allowed));
+    const section = route ? document.getElementById(route) : null;
+    if (section) {
+      section.hidden = !allowed;
+    }
+  });
 
   links.forEach((link) => {
     link.addEventListener("click", () => {
@@ -142,9 +158,9 @@ function initRouteTabs(allowedRoutes) {
   });
 
   const syncHash = () => {
-    const route = window.location.hash.replace("#", "") || allowedRoutes[0];
+    const route = window.location.hash.replace("#", "") || firstAllowedRoute;
     if (!validRoutes.has(route)) {
-      window.location.hash = allowedRoutes[0];
+      window.location.hash = firstAllowedRoute;
       return;
     }
     links.forEach((link) => link.classList.toggle("is-active", link.dataset.route === route));

@@ -4,10 +4,12 @@ import com.visitor.management.repository.PasswordResetTokenRepository;
 import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
+import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
+import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -32,6 +35,8 @@ import java.util.Set;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -63,6 +68,9 @@ class VisitorManagementApplicationTests {
     private VisitorAuditLogRepository visitorAuditLogRepository;
 
     @MockitoBean
+    private AccessAuditLogRepository accessAuditLogRepository;
+
+    @MockitoBean
     private NotificationRepository notificationRepository;
 
     @MockitoBean
@@ -82,15 +90,21 @@ class VisitorManagementApplicationTests {
 
     @BeforeEach
     void setUpUsers() {
-        Organization organization = organization();
+        Organization organization = organization("org-acme", "Acme Corp", "ACME");
+        Organization betaOrganization = organization("org-beta", "Beta Corp", "BETA");
         when(organizationRepository.findById("org-acme")).thenReturn(Optional.of(organization));
+        when(organizationRepository.findById("org-beta")).thenReturn(Optional.of(betaOrganization));
         when(organizationRepository.findByCompanyCodeIgnoreCase("ACME")).thenReturn(Optional.of(organization));
+        when(organizationRepository.findByCompanyCodeIgnoreCase("BETA")).thenReturn(Optional.of(betaOrganization));
         when(organizationRepository.findByCompanyNameIgnoreCase("Acme Corp")).thenReturn(Optional.of(organization));
+        when(organizationRepository.findByCompanyNameIgnoreCase("Beta Corp")).thenReturn(Optional.of(betaOrganization));
+        when(organizationRepository.findAll(any(Sort.class))).thenReturn(List.of(organization, betaOrganization));
         when(homepageSettingsRepository.findById("homepage")).thenReturn(Optional.empty());
         when(userRepository.findById("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(userRepository.findById("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
+        when(userRepository.findById("visitor-id")).thenReturn(Optional.of(visitorAccount("visitor-id", "visitor@example.com", "org-acme", "Acme Corp", "ACME")));
         when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(user("employee-target-id", Role.EMPLOYEE)));
         when(userRepository.findById("admin-target-id")).thenReturn(Optional.of(user("admin-target-id", Role.ADMIN)));
         when(userRepository.findById("super-admin-target-id")).thenReturn(Optional.of(user("super-admin-target-id", Role.SUPER_ADMIN)));
@@ -102,6 +116,8 @@ class VisitorManagementApplicationTests {
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accessAuditLogRepository.save(any(AccessAuditLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(accessAuditLogRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of());
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -173,7 +189,7 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
-    void superAdminCanLoginThroughAnyInternalPortal() throws Exception {
+    void superAdminCanLoginThroughAdminPortalOnly() throws Exception {
         mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
                         .content("""
@@ -195,8 +211,7 @@ class VisitorManagementApplicationTests {
                                   "password": "SecurePass123!"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+                .andExpect(status().isUnauthorized());
 
         mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
@@ -207,8 +222,7 @@ class VisitorManagementApplicationTests {
                                   "password": "SecurePass123!"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -274,6 +288,17 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void adminCannotAccessSuperAdminControls() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/homepage-settings")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/admin/reports")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void employeeCannotAccessSecurityNamespace() throws Exception {
         mockMvc.perform(get("/api/v1/security/overview")
                         .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))
@@ -314,6 +339,23 @@ class VisitorManagementApplicationTests {
         mockMvc.perform(get("/api/v1/security/overview")
                         .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void adminOrganizationListIsScopedToOwnTenant() throws Exception {
+        mockMvc.perform(get("/api/v1/organizations")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].companyCode").value("ACME"));
+    }
+
+    @Test
+    void superAdminCanListAllOrganizations() throws Exception {
+        mockMvc.perform(get("/api/v1/organizations")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
     }
 
     @Test
@@ -419,6 +461,29 @@ class VisitorManagementApplicationTests {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.roles[0]").value("SECURITY_GUARD"));
+    }
+
+    @Test
+    void internalUserCreationWritesAuditLog() throws Exception {
+        clearInvocations(accessAuditLogRepository);
+
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Security User",
+                                  "username": "security02",
+                                  "email": "security02@example.com",
+                                  "password": "SecurePass123!",
+                                  "role": "SECURITY_GUARD",
+                                  "companyCode": "ACME",
+                                  "department": "Front Desk"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(accessAuditLogRepository).save(any(AccessAuditLog.class));
     }
 
     @Test
@@ -558,6 +623,66 @@ class VisitorManagementApplicationTests {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void successfulLoginWritesAuditLog() throws Exception {
+        clearInvocations(accessAuditLogRepository);
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "identifier": "employee-id",
+                                  "companyCode": "ACME",
+                                  "portalAudience": "employee",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(accessAuditLogRepository).save(any(AccessAuditLog.class));
+    }
+
+    @Test
+    void visitorVisitRequestIgnoresCrossOrganizationCompanyCodeTampering() throws Exception {
+        mockMvc.perform(post("/api/v1/visitor/visits")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("visitor-id", Role.VISITOR))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "phone": "+919876543210",
+                                  "companyCode": "BETA",
+                                  "hostEmployeeId": "employee-id",
+                                  "purposeOfVisit": "Access review",
+                                  "photoUrl": "https://res.cloudinary.com/accessflow-test/image/upload/v1/visitor.jpg",
+                                  "photoPublicId": "visitor-management/visitor-photos/visitor-test"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.organizationCode").value("ACME"));
+    }
+
+    @Test
+    void visitorPassLookupIsScopedToVisitorOrganization() throws Exception {
+        Visitor crossOrgVisitor = visitor("visitor-beta", VisitorStatus.APPROVED);
+        crossOrgVisitor.setEmail("visitor@example.com");
+        crossOrgVisitor.setOrganizationId("org-beta");
+        crossOrgVisitor.setOrganizationName("Beta Corp");
+        crossOrgVisitor.setOrganizationCode("BETA");
+        crossOrgVisitor.setQrExpiresAt(java.time.Instant.parse("2099-05-12T06:30:00Z"));
+        when(visitorRepository.findById("visitor-beta")).thenReturn(Optional.of(crossOrgVisitor));
+
+        mockMvc.perform(get("/api/v1/visitor/visits/visitor-beta/pass")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("visitor-id", Role.VISITOR)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void superAdminCannotUseAdminVisitorWorkflowEndpoints() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/visitors?page=0&size=20")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
+                .andExpect(status().isForbidden());
+    }
+
     private String bearer(String subject, Role role) {
         return "Bearer " + jwtService.generateToken(subject, subject + "@example.com", Set.of(role));
     }
@@ -579,11 +704,26 @@ class VisitorManagementApplicationTests {
         return user;
     }
 
-    private Organization organization() {
+    private User visitorAccount(String id, String email, String organizationId, String organizationName, String organizationCode) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(id);
+        user.setEmail(email);
+        user.setFullName("Visitor Account");
+        user.setPasswordHash(passwordEncoder.encode("SecurePass123!"));
+        user.setRoles(Set.of(Role.VISITOR));
+        user.setActive(true);
+        user.setOrganizationId(organizationId);
+        user.setOrganizationName(organizationName);
+        user.setOrganizationCode(organizationCode);
+        return user;
+    }
+
+    private Organization organization(String id, String companyName, String companyCode) {
         Organization organization = new Organization();
-        organization.setId("org-acme");
-        organization.setCompanyName("Acme Corp");
-        organization.setCompanyCode("ACME");
+        organization.setId(id);
+        organization.setCompanyName(companyName);
+        organization.setCompanyCode(companyCode);
         organization.setActiveStatus(true);
         return organization;
     }

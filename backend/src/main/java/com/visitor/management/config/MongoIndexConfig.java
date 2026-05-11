@@ -1,6 +1,7 @@
 package com.visitor.management.config;
 
 import com.visitor.management.entity.Notification;
+import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorAuditLog;
 import org.slf4j.Logger;
@@ -46,6 +47,10 @@ public class MongoIndexConfig {
                         .on("visitorId", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("audit_visitor_created_idx"));
+                mongoTemplate.indexOps(AccessAuditLog.class).createIndex(new Index()
+                        .on("action", Sort.Direction.ASC)
+                        .on("createdAt", Sort.Direction.DESC)
+                        .named("access_audit_action_created_idx"));
                 log.info("AccessFlow MongoDB indexes verified.");
             } catch (RuntimeException ex) {
                 log.warn("AccessFlow MongoDB indexes could not be verified during startup: {}", ex.getMessage());

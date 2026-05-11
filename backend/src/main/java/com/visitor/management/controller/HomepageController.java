@@ -30,7 +30,7 @@ public class HomepageController {
     }
 
     @GetMapping("/settings")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ApiResponse<Map<String, Object>> adminSettings() {
         return ApiResponse.ok("Homepage settings loaded.", homepageService.adminSettings());
     }

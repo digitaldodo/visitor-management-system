@@ -6,6 +6,7 @@ import com.visitor.management.dto.OrganizationResponse;
 import com.visitor.management.service.OrganizationService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,8 +32,8 @@ public class OrganizationController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
-    public ApiResponse<List<OrganizationResponse>> organizations() {
-        return ApiResponse.ok("Organizations loaded.", organizationService.listAll());
+    public ApiResponse<List<OrganizationResponse>> organizations(Authentication authentication) {
+        return ApiResponse.ok("Organizations loaded.", organizationService.listAccessible(authentication.getName()));
     }
 
     @PostMapping

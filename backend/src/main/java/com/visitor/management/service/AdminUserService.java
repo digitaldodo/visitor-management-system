@@ -34,17 +34,20 @@ public class AdminUserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationService organizationService;
+    private final AccessAuditService accessAuditService;
 
     public AdminUserService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
-            OrganizationService organizationService
+            OrganizationService organizationService,
+            AccessAuditService accessAuditService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.organizationService = organizationService;
+        this.accessAuditService = accessAuditService;
     }
 
     public List<AdminUserResponse> listUsers(Authentication authentication) {
@@ -86,28 +89,36 @@ public class AdminUserService {
         user.setRoles(Set.of(role));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        accessAuditService.recordAccountCreated(actor, saved);
+        return toResponse(saved);
     }
 
     public AdminUserResponse disableUser(String id, Authentication authentication) {
+        User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         user.setActive(false);
         user.setAccountStatus(AccountStatus.DISABLED);
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        accessAuditService.recordAccountStateChanged(actor, saved, "ACCOUNT_DISABLED", "Internal account access was disabled.");
         return toResponse(saved);
     }
 
     public AdminUserResponse enableUser(String id, Authentication authentication) {
+        User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        accessAuditService.recordAccountStateChanged(actor, saved, "ACCOUNT_ENABLED", "Internal account access was enabled.");
+        return toResponse(saved);
     }
 
     public AdminUserResponse resetPassword(String id, AdminPasswordResetRequest request, Authentication authentication) {
+        User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         validateStrongPassword(request.newPassword());
@@ -115,10 +126,12 @@ public class AdminUserService {
         user.setPasswordChangedAt(Instant.now());
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        accessAuditService.recordAccountStateChanged(actor, saved, "PASSWORD_RESET", "Internal password reset completed.");
         return toResponse(saved);
     }
 
     public AdminUserResponse updateRole(String id, AdminUserRoleUpdateRequest request, Authentication authentication) {
+        User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         Role role = request.role();
@@ -126,9 +139,11 @@ public class AdminUserService {
         if (user.getRoles().contains(role) && user.getRoles().size() == 1) {
             return toResponse(user);
         }
+        Set<Role> previousRoles = Set.copyOf(user.getRoles());
         user.setRoles(Set.of(role));
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        accessAuditService.recordRoleChanged(actor, saved, previousRoles, saved.getRoles());
         return toResponse(saved);
     }
 
