@@ -1,6 +1,7 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
 import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
+import { createOrganization, listManagedOrganizations, updateOrganization } from "../shared/organizationApi.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
@@ -9,6 +10,7 @@ import { attachFieldValidator, isEmail, validateUsername } from "../shared/valid
 
 let currentSession;
 let homepageMetricOptions = [];
+let managedOrganizations = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
@@ -32,6 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   initAdminUserForm();
+  initOrganizationForm();
   initHomepageSettingsForm();
   await loadAdminPortal();
 });
@@ -39,6 +42,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function loadAdminPortal() {
   const canViewReports = hasRole("SUPER_ADMIN");
   const canManageHomepage = hasRole("SUPER_ADMIN");
+  const canManageOrganizations = hasRole("SUPER_ADMIN");
   renderDashboardCards([]);
   renderLoadingList("#user-management-list");
   renderLoadingList("#monitoring-list");
@@ -46,17 +50,21 @@ async function loadAdminPortal() {
   if (canViewReports) {
     renderLoadingList("#reports-list");
   }
+  if (canManageOrganizations) {
+    renderLoadingList("#organizations-list");
+  }
   if (canManageHomepage) {
     renderHomepageSettingsState("Loading homepage controls...");
   }
 
   try {
-    const [analytics, users, monitoring, reports, homepageSettings] = await Promise.all([
+    const [analytics, users, monitoring, reports, homepageSettings, organizations] = await Promise.all([
       request("/admin/analytics"),
       request("/admin/users"),
       request("/admin/monitoring"),
       canViewReports ? request("/admin/reports") : Promise.resolve({ data: [] }),
       canManageHomepage ? getHomepageSettings() : Promise.resolve({ data: null }),
+      canManageOrganizations ? listManagedOrganizations() : Promise.resolve({ data: [] }),
     ]);
 
     renderAnalytics(analytics.data);
@@ -68,12 +76,18 @@ async function loadAdminPortal() {
     if (canManageHomepage) {
       renderHomepageSettings(homepageSettings.data);
     }
+    if (canManageOrganizations) {
+      renderOrganizations(organizations.data || []);
+    }
   } catch (error) {
     renderAnalytics({});
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
     if (canViewReports) {
       renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
+    }
+    if (canManageOrganizations) {
+      renderWorkList("#organizations-list", [], (item) => item, "Organizations unavailable", error.message);
     }
     if (canManageHomepage) {
       renderHomepageSettingsState(error.message);
@@ -213,6 +227,96 @@ function initHomepageSettingsForm() {
   });
 }
 
+function initOrganizationForm() {
+  const form = document.querySelector("#organization-form");
+  if (!form) {
+    return;
+  }
+
+  document.querySelector("#organization-form-reset")?.addEventListener("click", () => {
+    resetOrganizationForm(form);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!hasRole("SUPER_ADMIN")) {
+      showToast("Organizations locked", "Only SUPER_ADMIN can manage organizations.");
+      return;
+    }
+
+    const data = new FormData(form);
+    const organizationId = trim(data.get("organizationId"));
+    const payload = {
+      companyName: trim(data.get("companyName")),
+      companyCode: String(data.get("companyCode") || "").trim().toUpperCase(),
+      contactEmail: trim(data.get("contactEmail")),
+      address: trim(data.get("address")),
+      activeStatus: data.get("activeStatus") === "on",
+    };
+    const error = validateOrganization(payload);
+    if (error) {
+      showToast("Check organization", error);
+      return;
+    }
+
+    setFormLoading(form, true);
+    try {
+      if (organizationId) {
+        await updateOrganization(organizationId, payload);
+        showToast("Organization updated", "Tenant details were saved.");
+      } else {
+        await createOrganization(payload);
+        showToast("Organization created", "Tenant is ready for admin and visitor setup.");
+      }
+      resetOrganizationForm(form);
+      await loadAdminPortal();
+    } catch (error) {
+      showToast("Organization save failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+
+  document.querySelector("#organizations-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-organization-action]");
+    if (!button) {
+      return;
+    }
+
+    const organization = managedOrganizations.find((item) => item.id === button.dataset.organizationId);
+    if (!organization) {
+      return;
+    }
+
+    if (button.dataset.organizationAction === "edit") {
+      populateOrganizationForm(form, organization);
+      window.location.hash = "organizations";
+      return;
+    }
+
+    if (button.dataset.organizationAction !== "toggle") {
+      return;
+    }
+
+    button.toggleAttribute("disabled", true);
+    try {
+      await updateOrganization(organization.id, {
+        companyName: organization.companyName,
+        companyCode: organization.companyCode,
+        contactEmail: organization.contactEmail || null,
+        address: organization.address || null,
+        activeStatus: !organization.activeStatus,
+      });
+      showToast("Organization updated", organization.activeStatus ? "Organization access has been paused." : "Organization is active again.");
+      await loadAdminPortal();
+    } catch (error) {
+      showToast("Organization update failed", error.message);
+    } finally {
+      button.toggleAttribute("disabled", false);
+    }
+  });
+}
+
 function renderUsers(users) {
   const list = document.querySelector("#user-management-list");
   if (!list) {
@@ -290,8 +394,11 @@ function formatInternalRole(role) {
 
 function renderMonitoring(data) {
   renderWorkList("#monitoring-list", Object.entries(data), ([name, status]) => {
-    const value = typeof status === "object" ? Object.entries(status).map(([key, count]) => `${key}: ${count}`).join(", ") : status;
-    return workCard(name, value);
+    const title = formatMonitoringTitle(name);
+    const value = typeof status === "object" && status !== null
+      ? Object.entries(status).map(([key, count]) => `${formatMonitoringTitle(key)}: ${count}`).join(" · ")
+      : String(status);
+    return workCard(title, value);
   }, "No monitoring signals", "System signals will appear after the API responds.");
 }
 
@@ -344,7 +451,7 @@ function renderHomepageSettings(data) {
 
 function resolveAllowedRoutes() {
   return hasRole("SUPER_ADMIN")
-    ? ["analytics", "users", "homepage-settings", "reports", "monitoring"]
+    ? ["analytics", "users", "organizations", "homepage-settings", "reports", "monitoring"]
     : ["analytics", "users", "monitoring", "visitors"];
 }
 
@@ -428,6 +535,44 @@ function renderHomepageSettingsState(message) {
       </article>
     `;
   }
+}
+
+function renderOrganizations(items) {
+  managedOrganizations = Array.isArray(items) ? items : [];
+  const list = document.querySelector("#organizations-list");
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = managedOrganizations.length ? managedOrganizations.map(organizationCard).join("") : `
+    <article class="empty-state empty-state--inline">
+      <h3>No organizations yet</h3>
+      <p>Create the first tenant to start assigning admins and visitor workflows.</p>
+    </article>
+  `;
+}
+
+function organizationCard(organization) {
+  return `
+    <article class="organization-card">
+      <div class="organization-card__header">
+        <div>
+          <h3>${escapeHtml(organization.companyName)}</h3>
+          <p>${escapeHtml(organization.companyCode)} · ${escapeHtml(organization.contactEmail || "No contact email")}</p>
+        </div>
+        <span class="status-badge status-badge--${organization.activeStatus ? "approved" : "rejected"}">${organization.activeStatus ? "Active" : "Inactive"}</span>
+      </div>
+      <dl>
+        <div><dt>Address</dt><dd>${escapeHtml(organization.address || "No address recorded")}</dd></div>
+        <div><dt>Created</dt><dd>${escapeHtml(formatDateTime(organization.createdAt))}</dd></div>
+        <div><dt>Updated</dt><dd>${escapeHtml(formatDateTime(organization.updatedAt))}</dd></div>
+      </dl>
+      <div class="organization-card__actions">
+        <button class="button button--ghost" type="button" data-organization-action="edit" data-organization-id="${escapeHtml(organization.id)}">Edit</button>
+        <button class="button ${organization.activeStatus ? "button--ghost" : "button--primary"}" type="button" data-organization-action="toggle" data-organization-id="${escapeHtml(organization.id)}">${organization.activeStatus ? "Deactivate" : "Activate"}</button>
+      </div>
+    </article>
+  `;
 }
 
 function renderDashboardCards(widgets) {
@@ -569,12 +714,48 @@ function renderEmployeeAnalytics(items) {
   `;
 }
 
+function populateOrganizationForm(form, organization) {
+  form.querySelector("input[name='organizationId']").value = organization.id || "";
+  form.querySelector("input[name='companyName']").value = organization.companyName || "";
+  form.querySelector("input[name='companyCode']").value = organization.companyCode || "";
+  form.querySelector("input[name='contactEmail']").value = organization.contactEmail || "";
+  form.querySelector("input[name='address']").value = organization.address || "";
+  form.querySelector("input[name='activeStatus']").checked = Boolean(organization.activeStatus);
+  const meta = document.querySelector("#organization-form-meta");
+  if (meta) {
+    meta.textContent = `Editing ${organization.companyName}. Save to update this tenant.`;
+  }
+}
+
+function resetOrganizationForm(form) {
+  form.reset();
+  form.querySelector("input[name='organizationId']").value = "";
+  form.querySelector("input[name='activeStatus']").checked = true;
+  const meta = document.querySelector("#organization-form-meta");
+  if (meta) {
+    meta.textContent = "Create organizations for tenant onboarding and admin assignment.";
+  }
+}
+
 function maxValue(data) {
   return Math.max(1, ...data.map((item) => Number(item.value) || 0));
 }
 
 function chartEmpty(message) {
   return `<div class="empty-state empty-state--inline"><h3>No chart data</h3><p>${escapeHtml(message)}</p></div>`;
+}
+
+function validateOrganization(payload) {
+  if (!payload.companyName || payload.companyName.length < 2) {
+    return "Enter the organization name.";
+  }
+  if (!/^[A-Z0-9_-]{2,24}$/.test(payload.companyCode || "")) {
+    return "Use a 2-24 character organization code with letters, numbers, hyphens, or underscores.";
+  }
+  if (payload.contactEmail && !isEmail(payload.contactEmail)) {
+    return "Use a valid contact email.";
+  }
+  return "";
 }
 
 function validateInternalUser(payload) {
@@ -614,4 +795,15 @@ function setFormLoading(form, loading) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function formatDateTime(value) {
+  return value ? new Date(value).toLocaleString() : "Not available";
+}
+
+function formatMonitoringTitle(value) {
+  return String(value || "")
+    .replaceAll(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replaceAll(/\b\w/g, (char) => char.toUpperCase());
 }

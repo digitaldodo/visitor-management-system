@@ -120,6 +120,10 @@ export function initVisitorModule(selector, options) {
       closeDetail(root);
       return;
     }
+    if (type === "export") {
+      exportVisitors(state.items, options.title || "visitor-log");
+      return;
+    }
     if (type === "prev" && state.page > 0) {
       state.page -= 1;
       await load();
@@ -299,6 +303,7 @@ function template(options) {
         <option value="20">20 rows</option>
         <option value="50">50 rows</option>
       </select>
+      <button class="button button--ghost" type="button" data-visitor-action="export">Export CSV</button>
     </div>
 
     <div class="visitor-table-wrap">
@@ -687,6 +692,43 @@ function setFormLoading(form, loading) {
   button?.toggleAttribute("aria-busy", loading);
 }
 
+function exportVisitors(items, label) {
+  if (!items.length) {
+    showToast("Nothing to export", "Load visitor records before exporting the current log.");
+    return;
+  }
+
+  const headers = ["Full name", "Phone", "Email", "Company", "Organization", "Host", "Department", "Status", "Created", "Check-in", "Check-out", "QR code", "Badge ID"];
+  const rows = items.map((visitor) => [
+    visitor.fullName,
+    visitor.phone,
+    visitor.email,
+    visitor.companyName,
+    visitor.organizationName || visitor.organizationCode,
+    visitor.hostEmployee,
+    visitor.hostEmployeeDepartment,
+    STATUS_LABELS[visitor.status] || visitor.status,
+    formatDate(visitor.createdAt),
+    formatDate(visitor.checkInTime),
+    formatDate(visitor.checkOutTime),
+    visitor.qrCode,
+    visitor.badgeId,
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${safeFileName(label)}.csv`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function statusBadge(status) {
   const label = STATUS_LABELS[status] || status;
   return `<span class="status-badge status-badge--${String(status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(label)}</span>`;
@@ -703,6 +745,19 @@ function debounce(callback, delay) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function csvCell(value) {
+  const safe = String(value ?? "").replaceAll('"', '""');
+  return `"${safe}"`;
+}
+
+function safeFileName(value) {
+  return String(value || "visitor-log")
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "") || "visitor-log";
 }
 
 function escapeHtml(value) {

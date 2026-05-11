@@ -67,6 +67,25 @@ public class OrganizationService {
         return toResponse(organizationRepository.save(organization));
     }
 
+    public OrganizationResponse update(String id, OrganizationRequest request) {
+        Organization organization = organizationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Organization was not found."));
+
+        String companyCode = normalizeCode(request.companyCode());
+        organizationRepository.findByCompanyCodeIgnoreCase(companyCode)
+                .filter(existing -> !existing.getId().equals(organization.getId()))
+                .ifPresent(existing -> {
+                    throw new ConflictException("An organization with this company code already exists.");
+                });
+
+        organization.setCompanyName(request.companyName().trim());
+        organization.setCompanyCode(companyCode);
+        organization.setAddress(trimToNull(request.address()));
+        organization.setContactEmail(trimToNull(request.contactEmail()));
+        organization.setActiveStatus(request.activeStatus() == null || request.activeStatus());
+        return toResponse(organizationRepository.save(organization));
+    }
+
     public Organization requireActive(String organizationId) {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization was not found."));

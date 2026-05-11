@@ -14,11 +14,11 @@
 }
 
 .employee-shell .metric-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f7fffd 100%);
+  background: linear-gradient(180deg, rgba(10, 35, 31, 0.98) 0%, rgba(8, 24, 22, 0.98) 100%);
 }
 
 .approval-card {
-  background: #fcfcfd;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -77,7 +77,7 @@
 }
 
 .approval-meta div {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 0.65rem;
@@ -110,8 +110,8 @@
 }
 
 .approval-empty {
-  background: #fcfcfd;
-  border: 1px dashed #a7c9c3;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(153, 246, 228, 0.18);
   border-radius: var(--radius-card);
   display: grid;
   gap: 0.25rem;
@@ -128,7 +128,7 @@
 }
 
 .preapproval-form {
-  background: #fcfcfd;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -152,7 +152,7 @@
 }
 
 .scheduled-card {
-  background: #fcfcfd;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;

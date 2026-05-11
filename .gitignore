@@ -31,6 +31,7 @@ logs/
 node_modules/
 dist/
 build/
+.tools/
 
 # Test and coverage output
 coverage/

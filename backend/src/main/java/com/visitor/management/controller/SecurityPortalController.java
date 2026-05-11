@@ -13,6 +13,7 @@ import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.VisitorService;
@@ -43,10 +44,16 @@ public class SecurityPortalController {
 
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final AppProperties appProperties;
 
-    public SecurityPortalController(VisitorService visitorService, CloudinaryUploadService cloudinaryUploadService) {
+    public SecurityPortalController(
+            VisitorService visitorService,
+            CloudinaryUploadService cloudinaryUploadService,
+            AppProperties appProperties
+    ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
+        this.appProperties = appProperties;
     }
 
     @GetMapping("/overview")
@@ -76,8 +83,10 @@ public class SecurityPortalController {
     @GetMapping("/photo-capture")
     public ApiResponse<Map<String, String>> photoCapture() {
         return ApiResponse.ok("Security webcam capture endpoint authorized.", Map.of(
-                "cameraStatus", "READY",
-                "storagePolicy", "Visitor photos are isolated to security workflows."
+                "captureMode", "Browser camera or secure file capture",
+                "photoUploads", isCloudinaryConfigured() ? "Configured" : "Unavailable",
+                "acceptedInput", "image/*",
+                "storagePolicy", "Visitor photos stay attached to organization-scoped visitor records."
         ));
     }
 
@@ -176,5 +185,14 @@ public class SecurityPortalController {
     @PatchMapping("/visitors/{id}/check-out")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
+    }
+
+    private boolean isCloudinaryConfigured() {
+        AppProperties.Cloudinary cloudinary = appProperties.getCloudinary();
+        return hasText(cloudinary.getCloudName()) && hasText(cloudinary.getApiKey()) && hasText(cloudinary.getApiSecret());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

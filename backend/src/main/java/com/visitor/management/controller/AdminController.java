@@ -12,6 +12,7 @@ import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.config.AppProperties;
 import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.AccessAuditService;
@@ -19,6 +20,7 @@ import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
@@ -49,6 +51,8 @@ public class AdminController {
     private final AdminUserService adminUserService;
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
+    private final AppProperties appProperties;
+    private final String activeProfile;
 
     public AdminController(
             VisitorService visitorService,
@@ -56,7 +60,9 @@ public class AdminController {
             AnalyticsService analyticsService,
             AdminUserService adminUserService,
             HomepageService homepageService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            AppProperties appProperties,
+            @Value("${spring.profiles.active:default}") String activeProfile
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
@@ -64,6 +70,8 @@ public class AdminController {
         this.adminUserService = adminUserService;
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
+        this.appProperties = appProperties;
+        this.activeProfile = activeProfile;
     }
 
     @GetMapping("/overview")
@@ -126,10 +134,14 @@ public class AdminController {
     @GetMapping("/monitoring")
     public ApiResponse<Map<String, Object>> monitoring(Authentication authentication) {
         return ApiResponse.ok("Admin system monitoring loaded.", Map.of(
-                "api", "UP",
-                "database", "UP",
-                "cameraBridge", "READY",
-                "badgePrinter", "READY",
+                "runtime", "UP",
+                "profile", activeProfile,
+                "photoUploads", isCloudinaryConfigured() ? "Configured" : "Unavailable",
+                "emailDelivery", isSendGridConfigured() ? "Configured" : "Unavailable",
+                "rateLimit", appProperties.getRateLimit().isEnabled()
+                        ? "%d requests per minute".formatted(appProperties.getRateLimit().getRequestsPerMinute())
+                        : "Disabled",
+                "frontendOrigins", String.join(", ", appProperties.getCors().getAllowedOrigins()),
                 "visitors", visitorService.statusSummary(authentication.getName())
         ));
     }
@@ -193,6 +205,20 @@ public class AdminController {
     public ApiResponse<Void> deleteVisitor(@PathVariable String id, Authentication authentication) {
         visitorService.delete(id, authentication.getName());
         return ApiResponse.ok("Visitor deleted.", null);
+    }
+
+    private boolean isCloudinaryConfigured() {
+        AppProperties.Cloudinary cloudinary = appProperties.getCloudinary();
+        return hasText(cloudinary.getCloudName()) && hasText(cloudinary.getApiKey()) && hasText(cloudinary.getApiSecret());
+    }
+
+    private boolean isSendGridConfigured() {
+        AppProperties.SendGrid sendGrid = appProperties.getSendgrid();
+        return hasText(sendGrid.getApiKey()) && hasText(sendGrid.getFromEmail());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
 }

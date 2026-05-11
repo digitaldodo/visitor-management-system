@@ -22,7 +22,8 @@
   aspect-ratio: 16 / 9;
   background:
     radial-gradient(circle at 50% 42%, rgba(186, 230, 253, 0.18), transparent 34%),
-    #101828;
+    linear-gradient(180deg, rgba(10, 22, 34, 0.98), rgba(7, 16, 27, 0.98));
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   color: #dbeafe;
   display: flex;
@@ -33,12 +34,12 @@
 }
 
 .security-shell .metric-card {
-  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  background: linear-gradient(180deg, rgba(10, 25, 41, 0.98) 0%, rgba(8, 17, 29, 0.98) 100%);
 }
 
 .visitor-pass-card,
 .qr-result {
-  background: #fcfcfd;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -64,8 +65,8 @@
 }
 
 .visitor-pass {
-  background: #ffffff;
-  border: 1px solid #d8e5ef;
+  background: rgba(7, 16, 27, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -154,8 +155,8 @@
 }
 
 .badge-empty {
-  background: #fcfcfd;
-  border: 1px dashed #b8d7ea;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(186, 230, 253, 0.24);
   border-radius: var(--radius-card);
   padding: 1rem;
   text-align: center;
@@ -172,7 +173,7 @@
 }
 
 .security-monitor-card {
-  background: #fcfcfd;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 1rem;
@@ -211,7 +212,7 @@
 }
 
 .qr-result {
-  border-color: #d0d5dd;
+  border-color: var(--color-line);
 }
 
 .qr-result.is-valid {
@@ -248,8 +249,8 @@
 }
 
 .work-card--alert {
-  background: #fff7ed;
-  border-color: #f7c9a8;
+  background: rgba(180, 83, 9, 0.12);
+  border-color: rgba(247, 201, 168, 0.22);
 }
 
 @media (max-width: 900px) {

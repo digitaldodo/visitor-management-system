@@ -7,3 +7,17 @@ export function listOrganizations() {
 export function listManagedOrganizations() {
   return request("/organizations");
 }
+
+export function createOrganization(payload) {
+  return request("/organizations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateOrganization(id, payload) {
+  return request(`/organizations/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

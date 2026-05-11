@@ -62,7 +62,7 @@ async function loadSecurityPortal(showErrors = true) {
     renderMetrics(overview.data.metrics);
     renderWorkList("#queue-list", queue.data.items || [], queueCard, "No approved arrivals", "Approved visitors waiting for arrival will appear here.");
     renderWorkList("#checkins-list", monitoring.data.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
-    renderWorkList("#photo-list", Object.entries(photo.data), ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
+    renderPhotoCapturePanel(photo.data || {});
     renderMonitoring(monitoring.data);
     await renderBadgeList(monitoring.data.approvedVisitors || []);
   } catch (error) {
@@ -70,6 +70,7 @@ async function loadSecurityPortal(showErrors = true) {
       renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", error.message);
       renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", error.message);
       renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", error.message);
+      setCameraFrameStatus(error.message);
       renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", error.message);
       renderWorkList("#monitor-inside-list", [], (item) => item, "Monitoring unavailable", error.message);
       renderWorkList("#monitor-overdue-list", [], (item) => item, "Monitoring unavailable", error.message);
@@ -102,6 +103,23 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-overdue-list", data.overdueVisitors || [], overdueCard, "No overdue visitors", "Visitors who exceed the approved window will appear here.");
   renderWorkList("#monitor-checkedout-list", data.checkedOutVisitors || [], monitorCard, "No recent check-outs", "Completed departures will appear here.");
   renderWorkList("#monitor-rejected-list", data.rejectedVisitors || [], rejectedCard, "No rejected visitors", "Denied requests will appear here.");
+}
+
+function renderPhotoCapturePanel(data = {}) {
+  const browserSupport = navigator.mediaDevices?.getUserMedia ? "Available in this browser" : "Use secure file upload";
+  const uploadsConfigured = String(data.photoUploads || "Unavailable");
+  setCameraFrameStatus(
+    uploadsConfigured === "Configured"
+      ? "Photo capture is ready. Use queue actions or QR verification to attach identity photos."
+      : "Photo uploads are not configured yet. Security can still review passes, but badge photo updates are unavailable."
+  );
+  renderWorkList("#photo-list", [
+    ["Capture mode", data.captureMode || "Browser camera or secure file capture"],
+    ["Browser support", browserSupport],
+    ["Photo uploads", uploadsConfigured],
+    ["Accepted input", data.acceptedInput || "image/*"],
+    ["Storage policy", data.storagePolicy || "Visitor photos stay attached to scoped visitor records."],
+  ], ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
 }
 
 async function renderBadgeList(visitors) {
@@ -404,6 +422,13 @@ function setCount(selector, value) {
   const element = document.querySelector(selector);
   if (element) {
     element.textContent = String(value);
+  }
+}
+
+function setCameraFrameStatus(message) {
+  const frame = document.querySelector("#camera-frame-status");
+  if (frame) {
+    frame.textContent = message;
   }
 }
 

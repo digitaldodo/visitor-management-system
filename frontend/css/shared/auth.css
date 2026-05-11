@@ -177,12 +177,12 @@ h3 {
 
 .hero-section {
   background:
-    radial-gradient(circle at 18% 20%, rgba(59, 130, 246, 0.18), transparent 22rem),
-    radial-gradient(circle at 84% 16%, rgba(45, 212, 191, 0.12), transparent 20rem),
+    radial-gradient(circle at 18% 20%, rgba(59, 130, 246, 0.15), transparent 22rem),
+    radial-gradient(circle at 84% 16%, rgba(45, 212, 191, 0.09), transparent 20rem),
     linear-gradient(145deg, rgba(6, 10, 20, 0.98) 0%, rgba(10, 17, 30, 0.97) 50%, rgba(7, 12, 24, 0.98) 100%);
   display: grid;
   gap: clamp(2rem, 3.5vw, 3.25rem);
-  grid-template-columns: minmax(0, 1.16fr) minmax(22rem, 0.84fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(min(100%, 24rem), 0.9fr);
   align-items: start;
   padding: clamp(2.4rem, 4.6vw, 3.8rem);
 }
@@ -346,7 +346,7 @@ h3 {
   gap: 1.25rem;
   grid-template-columns: 1fr;
   justify-self: stretch;
-  max-width: min(100%, 27rem);
+  max-width: min(100%, 28rem);
   min-width: 0;
   width: 100%;
 }
@@ -999,14 +999,14 @@ h3 {
   text-align: center;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1240px) {
   .hero-section {
     grid-template-columns: 1fr;
   }
 
   .hero-stage {
     justify-self: stretch;
-    max-width: min(100%, 36rem);
+    max-width: min(100%, 38rem);
   }
 
   .trust-layout {
@@ -1018,7 +1018,7 @@ h3 {
   }
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1180px) {
   .site-header {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;

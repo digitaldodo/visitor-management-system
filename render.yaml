@@ -12,10 +12,6 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/v1/health/live
     envVars:
-      - key: PORT
-        value: "10000"
-      - key: SERVER_ADDRESS
-        value: "0.0.0.0"
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
