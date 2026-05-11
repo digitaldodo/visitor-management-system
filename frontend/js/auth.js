@@ -2,10 +2,12 @@ import { login, registerAccount } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
 import { formatStatus } from "./shared/formatters.js";
+import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
 import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
+import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   initAppErrorBoundary();
@@ -17,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAuthTabs();
   initPasswordToggles();
   initOrganizations();
+  initHomepageContent();
   initLoginForm();
   initRegisterForm();
   initForgotPassword();
@@ -97,17 +100,21 @@ function initPasswordToggles() {
 }
 
 function initLoginForm() {
-  $("#login-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = getFormData(form);
+  const form = $("#login-form");
+  const identifierInput = form?.querySelector("input[name='identifier']");
+  const runIdentifierValidation = attachFieldValidator(identifierInput, validateLoginIdentifier);
 
-    if (!isUsernameOrEmail(data.identifier) || !data.password) {
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const currentForm = event.currentTarget;
+    const data = getFormData(currentForm);
+
+    if (runIdentifierValidation() || !data.password) {
       showToast("Check the form", "Enter a valid username/email and password.");
       return;
     }
 
-    await withLoading(form, async () => {
+    await withLoading(currentForm, async () => {
       const response = await login({
         identifier: data.identifier,
         password: data.password,
@@ -134,17 +141,22 @@ function initLoginForm() {
 }
 
 function initRegisterForm() {
-  $("#register-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = getFormData(form);
+  const form = $("#register-form");
+  const usernameInput = form?.querySelector("input[name='username']");
+  const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
 
-    if (!data.fullName || !isUsername(data.username) || !isEmail(data.email) || !validatePassword(data.password) || !data.companyCode) {
-      showToast("Check the form", "Use a valid username, email, password, and organization.");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const currentForm = event.currentTarget;
+    const data = getFormData(currentForm);
+    const usernameError = runUsernameValidation();
+
+    if (!data.fullName || usernameError || !isEmail(data.email) || !validatePassword(data.password) || !data.companyCode) {
+      showToast("Check the form", usernameError || "Use a valid email, password, and organization.");
       return;
     }
 
-    await withLoading(form, async () => {
+    await withLoading(currentForm, async () => {
       await registerAccount({
         fullName: data.fullName,
         username: data.username,
@@ -156,7 +168,8 @@ function initRegisterForm() {
         purposeOfVisit: data.purposeOfVisit || null,
       });
       showToast("Visitor account created", "You can sign in to request or track visits.");
-      form.reset();
+      currentForm.reset();
+      runUsernameValidation();
       setAuthTab("visitor");
     });
   });
@@ -173,6 +186,19 @@ async function initOrganizations() {
     });
   } catch {
     // The manual company-code field still lets users authenticate if the public directory is unavailable.
+  }
+}
+
+async function initHomepageContent() {
+  try {
+    const response = await getHomepageContent();
+    renderAnnouncement(response.data?.announcement);
+    renderHomepageMetrics("#homepage-featured-metrics", response.data?.featuredMetrics || [], response.data?.featuredMetricsEmptyState, "Visitor analytics become available after activity is recorded.");
+    renderHomepageMetrics("#homepage-counters", response.data?.publicCounters || [], response.data?.publicCountersEmptyState, "Public counters appear after organizations, employee accounts, or visitor records are created.");
+  } catch {
+    renderAnnouncement(null);
+    renderHomepageMetrics("#homepage-featured-metrics", [], null, "Platform insights appear here after the backend is reachable and real activity is recorded.");
+    renderHomepageMetrics("#homepage-counters", [], null, "Counters appear only when the backend can return real values.");
   }
 }
 
@@ -205,19 +231,6 @@ async function withLoading(form, action) {
 
 function getFormData(form) {
   return Object.fromEntries(new FormData(form).entries());
-}
-
-function isEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
-function isUsername(value) {
-  return /^[A-Za-z0-9._-]{3,32}$/.test(String(value || "").trim());
-}
-
-function isUsernameOrEmail(value) {
-  const trimmed = String(value || "").trim();
-  return isEmail(trimmed) || isUsername(trimmed);
 }
 
 function validatePassword(value) {
@@ -260,4 +273,50 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function renderAnnouncement(announcement) {
+  const panel = $("#homepage-announcement");
+  if (!panel) {
+    return;
+  }
+
+  if (!announcement?.title || !announcement?.body) {
+    panel.classList.add("is-hidden");
+    panel.innerHTML = "";
+    return;
+  }
+
+  panel.classList.remove("is-hidden");
+  panel.innerHTML = `
+    <p class="eyebrow">Announcement</p>
+    <h3>${escapeHtml(announcement.title)}</h3>
+    <p>${escapeHtml(announcement.body)}</p>
+  `;
+}
+
+function renderHomepageMetrics(selector, metrics, emptyState, fallbackMessage) {
+  const container = $(selector);
+  if (!container) {
+    return;
+  }
+
+  const safeMetrics = Array.isArray(metrics) ? metrics : [];
+  if (!safeMetrics.length) {
+    container.innerHTML = `
+      <article class="empty-state empty-state--inline homepage-empty-state">
+        <h3>${escapeHtml(emptyState?.title || "No metrics yet")}</h3>
+        <p>${escapeHtml(emptyState?.message || fallbackMessage)}</p>
+      </article>
+    `;
+    return;
+  }
+
+  container.innerHTML = safeMetrics.map((metric) => `
+    <article class="homepage-metric-card">
+      <span class="metric-card__label">${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(metric.value)}</strong>
+      <small>${escapeHtml(metric.note)}</small>
+    </article>
+  `).join("");
 }

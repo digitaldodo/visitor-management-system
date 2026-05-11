@@ -13,6 +13,7 @@ import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.UserRepository;
+import com.visitor.management.validation.UsernamePolicy;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -196,7 +197,11 @@ public class AdminUserService {
     }
 
     private String normalizeUsername(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
+        var errors = UsernamePolicy.validate(value);
+        if (!errors.isEmpty()) {
+            throw new BadRequestException(errors.values().iterator().next());
+        }
+        return UsernamePolicy.normalizeForLookup(value);
     }
 
     private String trimToNull(String value) {

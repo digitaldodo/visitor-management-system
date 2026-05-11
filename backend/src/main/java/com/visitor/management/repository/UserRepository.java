@@ -2,6 +2,7 @@ package com.visitor.management.repository;
 
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
+import com.visitor.management.entity.AccountStatus;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.Optional;
@@ -24,4 +25,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     boolean existsByRolesIn(Collection<Role> roles);
 
     List<User> findAllByOrganizationId(String organizationId);
+
+    long countByRolesContainingAndActiveTrueAndAccountStatus(Role role, AccountStatus accountStatus);
 }

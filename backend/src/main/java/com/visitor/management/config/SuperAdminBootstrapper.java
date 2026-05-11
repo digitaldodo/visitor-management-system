@@ -4,6 +4,7 @@ import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.UserRepository;
+import com.visitor.management.validation.UsernamePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -25,7 +25,6 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SuperAdminBootstrapper.class);
 
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9._-]{3,32}$");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,128}$");
 
@@ -46,8 +45,8 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
                 return;
             }
 
-            String username = required("SUPER_ADMIN_USERNAME").toLowerCase(Locale.ROOT);
-            String email = required("SUPER_ADMIN_EMAIL").toLowerCase(Locale.ROOT);
+            String username = required("SUPER_ADMIN_USERNAME");
+            String email = required("SUPER_ADMIN_EMAIL").toLowerCase(java.util.Locale.ROOT);
             String password = required("SUPER_ADMIN_PASSWORD");
             String name = displayName(username);
 
@@ -59,7 +58,7 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
 
             User user = new User();
             user.setFullName(name.trim());
-            user.setUsername(username);
+            user.setUsername(UsernamePolicy.normalizeForLookup(username));
             user.setEmail(email);
             user.setPasswordHash(passwordEncoder.encode(password));
             user.setRoles(Set.of(Role.SUPER_ADMIN));
@@ -89,8 +88,8 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
         if (name.trim().length() < 2 || name.trim().length() > 120) {
             throw new IllegalStateException("SUPER_ADMIN_USERNAME must produce a valid display name.");
         }
-        if (!USERNAME_PATTERN.matcher(username).matches()) {
-            throw new IllegalStateException("SUPER_ADMIN_USERNAME must be 3-32 characters and use only letters, numbers, dots, underscores, or hyphens.");
+        if (!UsernamePolicy.validate(username).isEmpty()) {
+            throw new IllegalStateException("SUPER_ADMIN_USERNAME must be 3-32 characters long and use only lowercase letters, numbers, or underscores.");
         }
         if (!EMAIL_PATTERN.matcher(email).matches()) {
             throw new IllegalStateException("SUPER_ADMIN_EMAIL must be a valid email address.");
@@ -104,7 +103,7 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
     }
 
     private boolean hasPlaceholder(String value) {
-        String normalized = value.toLowerCase(Locale.ROOT);
+        String normalized = value.toLowerCase(java.util.Locale.ROOT);
         return normalized.contains("replace-with")
                 || normalized.contains("example.com")
                 || normalized.contains("changeme")
@@ -127,7 +126,7 @@ public class SuperAdminBootstrapper implements ApplicationRunner {
             }
             result.append(Character.toUpperCase(part.charAt(0)));
             if (part.length() > 1) {
-                result.append(part.substring(1).toLowerCase(Locale.ROOT));
+                result.append(part.substring(1).toLowerCase(java.util.Locale.ROOT));
             }
         }
         return result.toString();

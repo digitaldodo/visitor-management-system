@@ -7,6 +7,7 @@ import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
+import com.visitor.management.repository.HomepageSettingsRepository;
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
@@ -68,6 +69,9 @@ class VisitorManagementApplicationTests {
     private OrganizationRepository organizationRepository;
 
     @MockitoBean
+    private HomepageSettingsRepository homepageSettingsRepository;
+
+    @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
 
     @MockitoBean
@@ -82,6 +86,7 @@ class VisitorManagementApplicationTests {
         when(organizationRepository.findById("org-acme")).thenReturn(Optional.of(organization));
         when(organizationRepository.findByCompanyCodeIgnoreCase("ACME")).thenReturn(Optional.of(organization));
         when(organizationRepository.findByCompanyNameIgnoreCase("Acme Corp")).thenReturn(Optional.of(organization));
+        when(homepageSettingsRepository.findById("homepage")).thenReturn(Optional.empty());
         when(userRepository.findById("super-admin-id")).thenReturn(Optional.of(user("super-admin-id", Role.SUPER_ADMIN)));
         when(userRepository.findById("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findById("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
@@ -124,8 +129,8 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Employee User",
-                                  "username": "employee.user",
-                                  "email": "employee.user@example.com",
+                                  "username": "employee01",
+                                  "email": "employee01@example.com",
                                   "password": "SecurePass123!",
                                   "role": "EMPLOYEE",
                                   "companyCode": "ACME"
@@ -138,6 +143,16 @@ class VisitorManagementApplicationTests {
     void healthEndpointsArePublic() throws Exception {
         mockMvc.perform(get("/api/v1/health/live"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void homepageEndpointReturnsSafeEmptyStateByDefault() throws Exception {
+        mockMvc.perform(get("/api/v1/homepage"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.featuredMetrics").isArray())
+                .andExpect(jsonPath("$.data.featuredMetrics.length()").value(0))
+                .andExpect(jsonPath("$.data.publicCounters").isArray())
+                .andExpect(jsonPath("$.data.publicCounters.length()").value(0));
     }
 
     @Test
@@ -308,7 +323,7 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Visitor User",
-                                  "username": "visitor.user",
+                                  "username": "visitor01",
                                   "email": "visitor@example.com",
                                   "password": "SecurePass123!",
                                   "companyCode": "ACME"
@@ -319,13 +334,30 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void publicRegistrationRejectsLegacyDottedUsername() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Legacy Visitor",
+                                  "username": "legacy.visitor",
+                                  "email": "legacy@example.com",
+                                  "password": "SecurePass123!",
+                                  "companyCode": "ACME"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].message").value("Username can contain only lowercase letters, numbers, and underscores."));
+    }
+
+    @Test
     void unprefixedPublicRegistrationCreatesOnlyVisitorAccounts() throws Exception {
         mockMvc.perform(post("/auth/register")
                         .contentType("application/json")
                         .content("""
                                 {
                                   "fullName": "Direct Visitor",
-                                  "username": "direct.visitor",
+                                  "username": "directvisitor01",
                                   "email": "direct.visitor@example.com",
                                   "password": "SecurePass123!",
                                   "companyCode": "ACME"
@@ -343,7 +375,7 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Tokenless Visitor",
-                                  "username": "tokenless.visitor",
+                                  "username": "tokenless01",
                                   "email": "tokenless.visitor@example.com",
                                   "password": "SecurePass123!",
                                   "companyCode": "ACME"
@@ -360,7 +392,7 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Internal User",
-                                  "username": "internal.user",
+                                  "username": "internal01",
                                   "email": "internal@example.com",
                                   "password": "SecurePass123!",
                                   "role": "EMPLOYEE"
@@ -377,8 +409,8 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Security User",
-                                  "username": "security.user",
-                                  "email": "security.user@example.com",
+                                  "username": "security01",
+                                  "email": "security01@example.com",
                                   "password": "SecurePass123!",
                                   "role": "SECURITY_GUARD",
                                   "companyCode": "ACME",
@@ -397,8 +429,8 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Admin User",
-                                  "username": "admin.user",
-                                  "email": "admin.user@example.com",
+                                  "username": "admin01",
+                                  "email": "admin01@example.com",
                                   "password": "SecurePass123!",
                                   "role": "ADMIN",
                                   "companyCode": "ACME"
@@ -415,7 +447,7 @@ class VisitorManagementApplicationTests {
                         .content("""
                                 {
                                   "fullName": "Visitor User",
-                                  "username": "visitor.internal",
+                                  "username": "visitorinternal01",
                                   "email": "visitor.internal@example.com",
                                   "password": "SecurePass123!",
                                   "role": "VISITOR",

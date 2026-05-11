@@ -9,7 +9,7 @@
     />
     <title>AccessFlow | Secure Workplace Visitor Operations</title>
     <link rel="icon" href="./assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511f" />
+    <link rel="stylesheet" href="./css/shared/auth.css?v=20260511-prod" />
   </head>
   <body>
     <div class="page-shell">
@@ -48,7 +48,7 @@
             <div class="hero-proof" aria-label="Core highlights">
               <span>Approval-based access</span>
               <span>QR pass verification</span>
-              <span>Live visitor visibility</span>
+              <span>Operational visibility</span>
             </div>
 
             <article class="hero-note" aria-label="Operational summary">
@@ -64,10 +64,10 @@
             <article class="dashboard-mockup" aria-label="AccessFlow preview">
               <div class="dashboard-mockup__header">
                 <div>
-                  <span class="dashboard-label">Operations preview</span>
+                  <span class="dashboard-label">Workflow preview</span>
                   <h2>One clear view from visitor approval to verified arrival.</h2>
                 </div>
-                <span class="dashboard-chip">Live lane</span>
+                <span class="dashboard-chip">Role-based</span>
               </div>
 
               <div class="dashboard-mockup__body">
@@ -85,20 +85,7 @@
                 </div>
               </div>
 
-              <div class="dashboard-summary">
-                <div>
-                  <span>Pending</span>
-                  <strong>14</strong>
-                </div>
-                <div>
-                  <span>Approved</span>
-                  <strong>108</strong>
-                </div>
-                <div>
-                  <span>On site</span>
-                  <strong>38</strong>
-                </div>
-              </div>
+              <div class="dashboard-summary homepage-counter-grid" id="homepage-counters"></div>
             </article>
 
             <section class="auth-card auth-card--hub" id="access-hub" aria-label="Account access">
@@ -158,7 +145,7 @@
                   </label>
                   <label class="form-field">
                     <span>Username</span>
-                    <input name="username" type="text" autocomplete="username" placeholder="user.name" required />
+                    <input name="username" type="text" autocomplete="username" placeholder="visitor01" required />
                   </label>
                 </div>
                 <div class="auth-form__split">
@@ -197,6 +184,16 @@
               </form>
             </section>
           </div>
+        </section>
+
+        <section class="section-block" id="homepage-insights">
+          <div class="section-heading">
+            <p class="eyebrow">Homepage insights</p>
+            <h2>Public metrics appear only when AccessFlow can return verified backend data.</h2>
+            <p>When real activity is limited, the homepage stays honest with onboarding guidance instead of fabricated operational numbers.</p>
+          </div>
+          <article class="announcement-panel is-hidden" id="homepage-announcement"></article>
+          <div class="homepage-metric-grid" id="homepage-featured-metrics"></div>
         </section>
 
         <section class="section-block" id="platform">
@@ -326,6 +323,6 @@
 
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <script src="./assets/js/env.js"></script>
-    <script type="module" src="./js/auth.js?v=20260511f"></script>
+    <script type="module" src="./js/auth.js?v=20260511-prod"></script>
   </body>
 </html>

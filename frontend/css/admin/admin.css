@@ -218,6 +218,122 @@
   padding: 1rem;
 }
 
+.homepage-settings-form {
+  background: #fffaf1;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.homepage-settings-form__selectors {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.homepage-settings-form__footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.homepage-settings-form__footer p {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.metric-selector {
+  background: #ffffff;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.metric-selector legend {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0 0.2rem;
+}
+
+.metric-selector__options,
+.homepage-preview,
+.homepage-preview-metrics {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.checkbox-field {
+  align-items: start;
+  display: flex;
+  gap: 0.7rem;
+}
+
+.checkbox-field input[type="checkbox"] {
+  accent-color: var(--role-accent);
+  margin-top: 0.15rem;
+}
+
+.checkbox-field span {
+  color: var(--color-text);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.checkbox-field small {
+  color: var(--color-muted);
+}
+
+.homepage-preview-panel {
+  min-height: 100%;
+}
+
+.homepage-preview-card {
+  background: #fcfcfd;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.95rem;
+}
+
+.homepage-preview-card h3,
+.homepage-preview-card p {
+  margin: 0;
+}
+
+.homepage-preview-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+
+.homepage-preview-metrics div {
+  background: #fffaf1;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem;
+}
+
+.homepage-preview-metrics span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.homepage-preview-metrics strong {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
 .admin-user-form__footer {
   align-items: center;
   display: flex;
@@ -339,6 +455,7 @@
   }
 
   .admin-user-form__footer,
+  .homepage-settings-form__footer,
   .admin-user-card__header,
   .admin-user-card__actions,
   .admin-user-card__role {

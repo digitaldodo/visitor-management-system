@@ -15,4 +15,6 @@ public interface OrganizationRepository extends MongoRepository<Organization, St
     boolean existsByCompanyCodeIgnoreCase(String companyCode);
 
     List<Organization> findAllByActiveStatusTrue(Sort sort);
+
+    long countByActiveStatusTrue();
 }

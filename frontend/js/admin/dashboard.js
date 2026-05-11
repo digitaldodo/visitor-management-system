@@ -1,12 +1,15 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
+import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 
-const ROUTES = ["analytics", "users", "reports", "monitoring", "visitors"];
+const ROUTES = ["analytics", "users", "homepage-settings", "reports", "monitoring", "visitors"];
 let currentSession;
+let homepageMetricOptions = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
@@ -27,6 +30,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     organizationCode: currentSession.organizationCode,
   });
   initAdminUserForm();
+  initHomepageSettingsForm();
   await loadAdminPortal();
 });
 
@@ -36,24 +40,28 @@ async function loadAdminPortal() {
   renderLoadingList("#reports-list");
   renderLoadingList("#monitoring-list");
   renderEmployeeAnalytics([]);
+  renderHomepageSettingsState("Loading homepage controls...");
 
   try {
-    const [analytics, users, reports, monitoring] = await Promise.all([
+    const [analytics, users, reports, monitoring, homepageSettings] = await Promise.all([
       request("/admin/analytics"),
       request("/admin/users"),
       request("/admin/reports"),
       request("/admin/monitoring"),
+      getHomepageSettings(),
     ]);
 
     renderAnalytics(analytics.data);
     renderUsers(users.data || []);
     renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No reports ready", "Generated operational reports will appear here.");
     renderMonitoring(monitoring.data);
+    renderHomepageSettings(homepageSettings.data);
   } catch (error) {
     renderAnalytics({});
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
     renderWorkList("#reports-list", [], (item) => item, "Reports unavailable", error.message);
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
+    renderHomepageSettingsState(error.message);
     showToast("Admin access blocked", error.message);
   }
 }
@@ -76,6 +84,8 @@ function initAdminUserForm() {
   if (companyField && !(currentSession?.roles || []).includes("SUPER_ADMIN")) {
     companyField.classList.add("is-hidden");
   }
+  const usernameInput = form.querySelector("input[name='username']");
+  const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -102,6 +112,10 @@ function initAdminUserForm() {
         body: JSON.stringify(payload),
       });
       form.reset();
+      if (companyInput && currentSession?.organizationCode) {
+        companyInput.value = currentSession.organizationCode;
+      }
+      runUsernameValidation();
       showToast("Account created", "Share the temporary password through your approved internal process.");
       await loadAdminPortal();
     } catch (error) {
@@ -141,6 +155,44 @@ function initAdminUserForm() {
       showToast("Update failed", error.message);
     } finally {
       button.toggleAttribute("disabled", false);
+    }
+  });
+}
+
+function initHomepageSettingsForm() {
+  const form = document.querySelector("#homepage-settings-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!(currentSession?.roles || []).includes("SUPER_ADMIN")) {
+      showToast("Settings locked", "Only SUPER_ADMIN can update homepage controls.");
+      return;
+    }
+
+    const data = new FormData(form);
+    const payload = {
+      statsVisible: data.get("statsVisible") === "on",
+      publicCountersVisible: data.get("publicCountersVisible") === "on",
+      featuredMetricsVisible: data.get("featuredMetricsVisible") === "on",
+      announcementVisible: data.get("announcementVisible") === "on",
+      announcementTitle: trim(data.get("announcementTitle")),
+      announcementBody: trim(data.get("announcementBody")),
+      featuredMetricKeys: data.getAll("featuredMetricKeys"),
+      publicMetricKeys: data.getAll("publicMetricKeys"),
+    };
+
+    setFormLoading(form, true);
+    try {
+      const response = await updateHomepageSettings(payload);
+      renderHomepageSettings(response.data);
+      showToast("Homepage updated", "Public homepage controls were saved.");
+    } catch (error) {
+      showToast("Homepage update failed", error.message);
+    } finally {
+      setFormLoading(form, false);
     }
   });
 }
@@ -234,6 +286,122 @@ function renderAnalytics(data) {
   renderChart("#peak-hours-chart", compactBars(data.peakHours || []));
   renderChart("#approval-rates-chart", approvalRateChart(data.approvalRates || []));
   renderEmployeeAnalytics(data.employeeAnalytics || []);
+}
+
+function renderHomepageSettings(data) {
+  homepageMetricOptions = Array.isArray(data?.availableMetrics) ? data.availableMetrics : [];
+  const settings = data?.settings || {};
+  const form = document.querySelector("#homepage-settings-form");
+  if (!form) {
+    return;
+  }
+
+  form.querySelector("input[name='statsVisible']").checked = Boolean(settings.statsVisible);
+  form.querySelector("input[name='publicCountersVisible']").checked = Boolean(settings.publicCountersVisible);
+  form.querySelector("input[name='featuredMetricsVisible']").checked = Boolean(settings.featuredMetricsVisible);
+  form.querySelector("input[name='announcementVisible']").checked = Boolean(settings.announcementVisible);
+  form.querySelector("input[name='announcementTitle']").value = settings.announcementTitle || "";
+  form.querySelector("textarea[name='announcementBody']").value = settings.announcementBody || "";
+
+  renderMetricOptions("#featured-metrics-options", "featuredMetricKeys", settings.featuredMetricKeys || []);
+  renderMetricOptions("#public-counters-options", "publicMetricKeys", settings.publicMetricKeys || []);
+  renderHomepagePreview(data?.publicPreview || {});
+
+  const canEdit = (currentSession?.roles || []).includes("SUPER_ADMIN");
+  form.querySelectorAll("input, textarea, button[type='submit']").forEach((element) => {
+    if (element.type === "submit") {
+      element.disabled = !canEdit;
+      return;
+    }
+    element.disabled = !canEdit;
+  });
+
+  const meta = document.querySelector("#homepage-settings-meta");
+  if (meta) {
+    meta.textContent = settings.updatedAt
+      ? `Last updated ${new Date(settings.updatedAt).toLocaleString()}${settings.updatedBy ? ` by ${settings.updatedBy}` : ""}.`
+      : canEdit
+        ? "Homepage controls are ready to configure."
+        : "Homepage controls are visible here, but only SUPER_ADMIN can change them.";
+  }
+}
+
+function renderMetricOptions(selector, name, selectedKeys) {
+  const container = document.querySelector(selector);
+  if (!container) {
+    return;
+  }
+
+  const selected = new Set(selectedKeys || []);
+  container.innerHTML = homepageMetricOptions.map((metric) => `
+    <label class="checkbox-field">
+      <input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(metric.key)}" ${selected.has(metric.key) ? "checked" : ""} />
+      <span>
+        <strong>${escapeHtml(metric.label)}</strong>
+        <small>${escapeHtml(metric.note)}</small>
+      </span>
+    </label>
+  `).join("");
+}
+
+function renderHomepagePreview(preview) {
+  const container = document.querySelector("#homepage-settings-preview");
+  if (!container) {
+    return;
+  }
+
+  const announcement = preview?.announcement;
+  const featuredMetrics = Array.isArray(preview?.featuredMetrics) ? preview.featuredMetrics : [];
+  const publicCounters = Array.isArray(preview?.publicCounters) ? preview.publicCounters : [];
+
+  container.innerHTML = `
+    ${announcement?.title && announcement?.body ? `
+      <article class="homepage-preview-card homepage-preview-card--announcement">
+        <p class="eyebrow">Announcement</p>
+        <h3>${escapeHtml(announcement.title)}</h3>
+        <p>${escapeHtml(announcement.body)}</p>
+      </article>
+    ` : ""}
+    ${previewMetricsMarkup("Featured metrics", featuredMetrics, preview?.featuredMetricsEmptyState)}
+    ${previewMetricsMarkup("Public counters", publicCounters, preview?.publicCountersEmptyState)}
+  `;
+}
+
+function previewMetricsMarkup(title, items, emptyState) {
+  if (!items.length) {
+    return `
+      <article class="homepage-preview-card">
+        <h3>${escapeHtml(title)}</h3>
+        <p>${escapeHtml(emptyState?.message || "No public metrics are currently available.")}</p>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="homepage-preview-card">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="homepage-preview-metrics">
+        ${items.map((metric) => `
+          <div>
+            <span>${escapeHtml(metric.label)}</span>
+            <strong>${escapeHtml(metric.value)}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderHomepageSettingsState(message) {
+  const preview = document.querySelector("#homepage-settings-preview");
+  if (preview) {
+    preview.innerHTML = `
+      <article class="empty-state empty-state--inline">
+        <h3>Homepage controls unavailable</h3>
+        <p>${escapeHtml(message || "Homepage controls could not be loaded.")}</p>
+      </article>
+    `;
+  }
 }
 
 function renderDashboardCards(widgets) {
@@ -387,10 +555,11 @@ function validateInternalUser(payload) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the person's full name.";
   }
-  if (!/^[A-Za-z0-9._-]{3,32}$/.test(payload.username || "")) {
-    return "Use a valid username.";
+  const usernameError = validateUsername(payload.username);
+  if (usernameError) {
+    return usernameError;
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email || "")) {
+  if (!isEmail(payload.email || "")) {
     return "Use a valid work email.";
   }
   if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {

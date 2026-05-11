@@ -23,6 +23,7 @@ import com.visitor.management.repository.PasswordResetTokenRepository;
 import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.security.JwtService;
+import com.visitor.management.validation.UsernamePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -401,7 +402,11 @@ public class AuthService {
     }
 
     private String normalizeUsername(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
+        var errors = UsernamePolicy.validate(value);
+        if (!errors.isEmpty()) {
+            throw new BadRequestException(errors.values().iterator().next());
+        }
+        return UsernamePolicy.normalizeForLookup(value);
     }
 
     private void validateStrongPassword(String password) {

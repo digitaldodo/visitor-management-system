@@ -488,6 +488,59 @@ h3 {
   font-size: 1.12rem;
 }
 
+.homepage-counter-grid {
+  min-height: 7rem;
+}
+
+.homepage-metric-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.homepage-metric-card,
+.announcement-panel {
+  background: linear-gradient(180deg, rgba(12, 18, 32, 0.92), rgba(8, 13, 24, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 22px;
+}
+
+.homepage-metric-card {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 9rem;
+  padding: 1.2rem;
+}
+
+.homepage-metric-card strong {
+  color: #f8fbff;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.08;
+}
+
+.homepage-metric-card small,
+.announcement-panel p:not(.eyebrow),
+.homepage-empty-state p {
+  color: #95a7c5;
+}
+
+.announcement-panel {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 1.2rem;
+}
+
+.announcement-panel h3,
+.homepage-empty-state h3 {
+  color: #f8fbff;
+  margin: 0;
+}
+
+.homepage-empty-state {
+  min-height: 9rem;
+}
+
 .auth-card {
   border-radius: 26px;
   color: #e7edf8;
@@ -614,6 +667,20 @@ h3 {
   border-color: rgba(96, 165, 250, 0.55);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
   outline: 0;
+}
+
+.form-field.is-invalid input,
+.form-field.is-invalid select {
+  border-color: rgba(248, 113, 113, 0.7);
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12);
+}
+
+.form-field__message {
+  color: #fca5a5;
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .form-field--password input {

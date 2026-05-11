@@ -2,6 +2,7 @@ import { forgotPassword, resetPassword, verifyOtp } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
 import { showToast } from "./shared/toast.js";
+import { attachFieldValidator, isUsernameOrEmail, validateLoginIdentifier } from "./shared/validation.js";
 
 const RESET_IDENTIFIER_KEY = "passwordResetIdentifier";
 const RESET_TOKEN_KEY = "passwordResetToken";
@@ -25,12 +26,14 @@ function initForgotPasswordPage() {
 
   const identifierInput = form.querySelector("input[name='identifier']");
   identifierInput.value = sessionStorage.getItem(RESET_IDENTIFIER_KEY) || "";
+  const runIdentifierValidation = attachFieldValidator(identifierInput, validateLoginIdentifier);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const identifier = identifierInput.value.trim();
-    if (!isUsernameOrEmail(identifier)) {
-      showToast("Check the form", "Enter a valid username or email.");
+    const error = runIdentifierValidation();
+    if (error || !isUsernameOrEmail(identifier)) {
+      showToast("Check the form", error || "Enter a valid username or email.");
       return;
     }
 
@@ -216,19 +219,6 @@ async function withLoading(form, action) {
     button?.removeAttribute("disabled");
     button?.removeAttribute("aria-busy");
   }
-}
-
-function isEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
-function isUsername(value) {
-  return /^[A-Za-z0-9._-]{3,32}$/.test(String(value || "").trim());
-}
-
-function isUsernameOrEmail(value) {
-  const trimmed = String(value || "").trim();
-  return isEmail(trimmed) || isUsername(trimmed);
 }
 
 function isStrongPassword(value) {

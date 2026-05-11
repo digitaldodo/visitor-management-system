@@ -5,6 +5,7 @@ import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
+import com.visitor.management.dto.HomepageSettingsRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.VisitorCreateRequest;
@@ -14,6 +15,7 @@ import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -44,17 +46,20 @@ public class AdminController {
     private final CloudinaryUploadService cloudinaryUploadService;
     private final AnalyticsService analyticsService;
     private final AdminUserService adminUserService;
+    private final HomepageService homepageService;
 
     public AdminController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             AnalyticsService analyticsService,
-            AdminUserService adminUserService
+            AdminUserService adminUserService,
+            HomepageService homepageService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.analyticsService = analyticsService;
         this.adminUserService = adminUserService;
+        this.homepageService = homepageService;
     }
 
     @GetMapping("/overview")
@@ -122,6 +127,17 @@ public class AdminController {
                 "badgePrinter", "READY",
                 "visitors", visitorService.statusSummary(authentication.getName())
         ));
+    }
+
+    @GetMapping("/homepage-settings")
+    public ApiResponse<Map<String, Object>> homepageSettings() {
+        return ApiResponse.ok("Homepage settings loaded.", homepageService.adminSettings());
+    }
+
+    @PutMapping("/homepage-settings")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<Map<String, Object>> updateHomepageSettings(@Valid @RequestBody HomepageSettingsRequest request, Authentication authentication) {
+        return ApiResponse.ok("Homepage settings updated.", homepageService.updateSettings(request, authentication));
     }
 
     @GetMapping("/visitors")

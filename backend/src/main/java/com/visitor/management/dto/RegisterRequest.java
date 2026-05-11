@@ -1,6 +1,7 @@
 package com.visitor.management.dto;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.visitor.management.validation.UsernamePolicy;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -13,7 +14,8 @@ public class RegisterRequest {
     private String fullName;
 
     @NotBlank
-    @Pattern(regexp = "^[A-Za-z0-9._-]{3,32}$", message = "Username must be 3-32 characters and use only letters, numbers, dots, underscores, or hyphens.")
+    @Size(min = UsernamePolicy.MIN_LENGTH, max = UsernamePolicy.MAX_LENGTH, message = UsernamePolicy.LENGTH_MESSAGE)
+    @Pattern(regexp = UsernamePolicy.USERNAME_REGEX, message = UsernamePolicy.INVALID_MESSAGE)
     private String username;
 
     @Email

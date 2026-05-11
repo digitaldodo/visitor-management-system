@@ -6,7 +6,7 @@
     <meta name="description" content="AccessFlow admin portal" />
     <title>AccessFlow | Admin Portal</title>
     <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511-access-control" />
+    <link rel="stylesheet" href="../../css/admin/admin.css?v=20260511-prod" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -29,6 +29,10 @@
           <a class="nav-link" href="#users" data-route="users">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3ZM3 20a5 5 0 0 1 10 0Zm8.5 0a5 5 0 0 1 9.5 0Z"/></svg></span>
             User Management
+          </a>
+          <a class="nav-link" href="#homepage-settings" data-route="homepage-settings">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v10H4Zm2 2v6h12V7Zm-2 10h16v2H4Z"/></svg></span>
+            Homepage Controls
           </a>
           <a class="nav-link" href="#reports" data-route="reports">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5Zm4 5h6v2H9Zm0 4h6v2H9Zm0 4h3v2H9Z"/></svg></span>
@@ -151,7 +155,7 @@
                 </label>
                 <label class="form-field">
                   <span>Username</span>
-                  <input name="username" type="text" autocomplete="username" placeholder="first.last" required />
+                  <input name="username" type="text" autocomplete="username" placeholder="employee01" required />
                 </label>
                 <label class="form-field">
                   <span>Email</span>
@@ -198,6 +202,67 @@
           </section>
 
           <section class="portal-grid">
+            <article class="panel" id="homepage-settings">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Public website</p>
+                  <h2>Homepage controls</h2>
+                </div>
+              </div>
+              <form class="homepage-settings-form" id="homepage-settings-form" novalidate>
+                <label class="checkbox-field">
+                  <input name="statsVisible" type="checkbox" />
+                  <span>Show homepage stats</span>
+                </label>
+                <label class="checkbox-field">
+                  <input name="featuredMetricsVisible" type="checkbox" />
+                  <span>Show featured metrics section</span>
+                </label>
+                <label class="checkbox-field">
+                  <input name="publicCountersVisible" type="checkbox" />
+                  <span>Show public counters in the hero area</span>
+                </label>
+                <label class="checkbox-field">
+                  <input name="announcementVisible" type="checkbox" />
+                  <span>Show homepage announcement</span>
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Announcement title</span>
+                  <input name="announcementTitle" type="text" maxlength="80" placeholder="Platform update" />
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Announcement body</span>
+                  <textarea name="announcementBody" rows="3" maxlength="240" placeholder="Use this space for scheduled maintenance, launch updates, or onboarding guidance."></textarea>
+                </label>
+                <div class="homepage-settings-form__selectors">
+                  <fieldset class="metric-selector">
+                    <legend>Featured metrics</legend>
+                    <div class="metric-selector__options" id="featured-metrics-options"></div>
+                  </fieldset>
+                  <fieldset class="metric-selector">
+                    <legend>Public counters</legend>
+                    <div class="metric-selector__options" id="public-counters-options"></div>
+                  </fieldset>
+                </div>
+                <div class="homepage-settings-form__footer">
+                  <p id="homepage-settings-meta">Homepage controls are ready to configure.</p>
+                  <button class="button button--primary" type="submit">Save homepage settings</button>
+                </div>
+              </form>
+            </article>
+
+            <aside class="panel homepage-preview-panel">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Preview</p>
+                  <h2>Public homepage output</h2>
+                </div>
+              </div>
+              <div class="homepage-preview" id="homepage-settings-preview"></div>
+            </aside>
+          </section>
+
+          <section class="portal-grid">
             <article class="panel" id="reports">
               <div class="panel__header">
                 <div>
@@ -217,6 +282,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/admin/dashboard.js?v=20260511-access-control"></script>
+    <script type="module" src="../../js/admin/dashboard.js?v=20260511-prod"></script>
   </body>
 </html>
