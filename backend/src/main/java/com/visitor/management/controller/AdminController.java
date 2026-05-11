@@ -13,6 +13,7 @@ import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.config.AppProperties;
+import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.service.AnalyticsService;
 import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.AccessAuditService;
@@ -52,6 +53,7 @@ public class AdminController {
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
     private final AppProperties appProperties;
+    private final CorsOriginResolver corsOriginResolver;
     private final String activeProfile;
 
     public AdminController(
@@ -62,6 +64,7 @@ public class AdminController {
             HomepageService homepageService,
             AccessAuditService accessAuditService,
             AppProperties appProperties,
+            CorsOriginResolver corsOriginResolver,
             @Value("${spring.profiles.active:default}") String activeProfile
     ) {
         this.visitorService = visitorService;
@@ -71,6 +74,7 @@ public class AdminController {
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
         this.appProperties = appProperties;
+        this.corsOriginResolver = corsOriginResolver;
         this.activeProfile = activeProfile;
     }
 
@@ -141,7 +145,7 @@ public class AdminController {
                 "rateLimit", appProperties.getRateLimit().isEnabled()
                         ? "%d requests per minute".formatted(appProperties.getRateLimit().getRequestsPerMinute())
                         : "Disabled",
-                "frontendOrigins", String.join(", ", appProperties.getCors().getAllowedOrigins()),
+                "frontendOrigins", String.join(", ", corsOriginResolver.resolveAllowedOrigins()),
                 "visitors", visitorService.statusSummary(authentication.getName())
         ));
     }

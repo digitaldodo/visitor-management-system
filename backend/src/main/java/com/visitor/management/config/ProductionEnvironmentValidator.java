@@ -21,10 +21,12 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
     private static final String LOCAL_JWT_SECRET = "local-development-secret-key-change-me-32";
 
     private final AppProperties properties;
+    private final CorsOriginResolver corsOriginResolver;
     private final Environment environment;
 
-    public ProductionEnvironmentValidator(AppProperties properties, Environment environment) {
+    public ProductionEnvironmentValidator(AppProperties properties, CorsOriginResolver corsOriginResolver, Environment environment) {
         this.properties = properties;
+        this.corsOriginResolver = corsOriginResolver;
         this.environment = environment;
     }
 
@@ -47,10 +49,14 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         if (LOCAL_JWT_SECRET.equals(properties.getJwt().getSecret()) || hasPlaceholder(properties.getJwt().getSecret())) {
             missing.add("JWT_SECRET must not use a local default or placeholder value");
         }
-        if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isLocalOrigin)) {
+        String frontendUrl = corsOriginResolver.getFrontendUrl();
+        if (!hasText(frontendUrl)) {
             missing.add("FRONTEND_URL must be the deployed frontend origin");
         }
-        if (properties.getCors().getAllowedOrigins().stream().anyMatch(this::isWildcardOrigin)) {
+        if (isLocalOrigin(frontendUrl)) {
+            missing.add("FRONTEND_URL must be the deployed frontend origin");
+        }
+        if (isWildcardOrigin(frontendUrl)) {
             missing.add("FRONTEND_URL must not use wildcards in production");
         }
 
