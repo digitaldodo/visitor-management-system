@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initQrVerification();
   initBadgeActions();
   initMonitoringSearch();
+  renderVerificationIdle();
   await loadSecurityPortal();
   window.setInterval(() => loadSecurityPortal(false), 15000);
 });
@@ -156,14 +157,16 @@ async function renderBadgeList(visitors) {
 }
 
 function passCard(pass) {
+  const tone = passBadgeTone(pass);
   return `
     <article class="visitor-pass-card">
       <div class="visitor-pass-card__summary">
         <div>
           <h3>${escapeHtml(pass.fullName)}</h3>
           <p>${escapeHtml(pass.companyName || "Unlisted organization")} · ${escapeHtml(pass.hostEmployee || "Unassigned")}</p>
+          <small>${escapeHtml(pass.badgeId || pass.passCode || "Badge pending")} · ${escapeHtml(pass.checkInState || pass.statusLabel || pass.validityStatus)}</small>
         </div>
-        <span class="status-badge status-badge--${pass.valid ? "approved" : "expired"}">${escapeHtml(pass.validityStatus)}</span>
+        <span class="status-badge status-badge--${tone}">${escapeHtml(pass.validityStatus || pass.statusLabel)}</span>
       </div>
       <div class="visitor-pass-card__actions">
         <button class="button button--ghost" type="button" data-badge-open="${escapeHtml(pass.visitorId)}">Open badge</button>
@@ -197,7 +200,7 @@ function initBadgeActions() {
       return;
     }
 
-    const badgeCard = modal.querySelector("[data-badge-card]");
+    const badgeCard = modal.querySelector("[data-badge-print-root]");
     const action = button.dataset.badgeAction;
     try {
       if (action === "close") {
@@ -256,11 +259,11 @@ function initQrVerification() {
       if (button.dataset.qrAction === "capture-photo") {
         await capturePhotoForVisitor(state.activeVerification.visitorId);
       }
-      if (button.dataset.qrAction === "check-in") {
+      if (button.dataset.qrAction === "check-in" && state.activeVerification.canCheckIn) {
         await checkInVisitor("/security", state.activeVerification.visitorId);
         showToast("Visitor checked in", "Physical entry approved and recorded.");
       }
-      if (button.dataset.qrAction === "check-out") {
+      if (button.dataset.qrAction === "check-out" && state.activeVerification.canCheckOut) {
         await checkOutVisitor("/security", state.activeVerification.visitorId);
         showToast("Visitor checked out", "Departure recorded.");
       }
@@ -286,8 +289,9 @@ async function verifyScannedValue(value) {
     const response = await verifyQrPayload("/security", trimmed);
     state.activeVerification = response.data;
     renderVerification(response.data);
-    showToast(response.data.valid ? "Pass verified" : "Pass rejected", response.data.message);
+    showToast(response.data.headline || (response.data.valid ? "Pass verified" : "Pass review required"), response.data.message);
   } catch (error) {
+    renderVerificationFailure(error.message);
     showToast("Verification failed", error.message);
   } finally {
     submit?.toggleAttribute("disabled", false);
@@ -296,33 +300,73 @@ async function verifyScannedValue(value) {
   }
 }
 
-function renderVerification(result) {
+function renderVerificationIdle() {
   const target = document.querySelector("#qr-result");
   if (!target) {
     return;
   }
   target.innerHTML = `
-    <article class="qr-result ${result.valid ? "is-valid" : "is-invalid"}">
-      <strong>${result.valid ? "Valid pass" : "Invalid pass"}</strong>
-      <p>${escapeHtml(result.message)}</p>
-      ${result.visitorId ? `
+    <article class="qr-result qr-result--idle">
+      <strong>Ready to scan</strong>
+      <p>Scan a visitor badge or paste a QR payload to validate the live approval record, photo, and access window.</p>
+    </article>
+  `;
+}
+
+function renderVerificationFailure(message) {
+  const target = document.querySelector("#qr-result");
+  if (!target) {
+    return;
+  }
+  target.innerHTML = `
+    <article class="qr-result qr-result--danger">
+      <strong>Verification unavailable</strong>
+      <p>${escapeHtml(message)}</p>
+    </article>
+  `;
+}
+
+function renderVerification(result) {
+  const target = document.querySelector("#qr-result");
+  if (!target) {
+    return;
+  }
+  const tone = resultTone(result);
+  const statusTone = verificationStatusTone(result);
+  target.innerHTML = `
+    <article class="qr-result qr-result--${tone}">
+      <div class="qr-result__header">
+        <div>
+          <strong>${escapeHtml(result.headline || (result.valid ? "Pass verified" : "Pass review required"))}</strong>
+          <p>${escapeHtml(result.message)}</p>
+        </div>
+        <span class="status-badge status-badge--${statusTone}">${escapeHtml(result.validityStatus || result.statusLabel || result.resultCode || "Review")}</span>
+      </div>
+      ${result.recommendedAction ? `<div class="qr-result__guidance">${escapeHtml(result.recommendedAction)}</div>` : ""}
+      ${result.recognized ? `
         <div class="qr-result__identity">
-          ${result.photoUrl ? `<img src="${escapeHtml(result.photoUrl)}" alt="${escapeHtml(result.fullName)} photo" />` : ""}
+          <div class="qr-result__photo-wrap">
+            ${result.photoUrl ? `<img src="${escapeHtml(result.photoUrl)}" alt="${escapeHtml(result.fullName)} photo" />` : `<div class="qr-result__photo-placeholder">No photo on file</div>`}
+          </div>
           <dl>
-            <div><dt>Visitor</dt><dd>${escapeHtml(result.fullName)}</dd></div>
+            <div><dt>Visitor</dt><dd>${escapeHtml(result.fullName || "Unknown visitor")}</dd></div>
             <div><dt>Company</dt><dd>${escapeHtml(result.companyName || "Unlisted")}</dd></div>
             <div><dt>Host</dt><dd>${escapeHtml(result.hostEmployee || "Unassigned")}</dd></div>
-            <div><dt>Department</dt><dd>${escapeHtml(result.hostEmployeeDepartment || "Not recorded")}</dd></div>
-            <div><dt>Status</dt><dd>${escapeHtml(result.validityStatus || result.status)}</dd></div>
-            <div><dt>Pass</dt><dd>${escapeHtml(result.passCode)}</dd></div>
+            <div><dt>Host team</dt><dd>${escapeHtml(result.hostEmployeeDepartment || "Not recorded")}</dd></div>
+            <div><dt>Badge ID</dt><dd>${escapeHtml(result.badgeId || "Not issued")}</dd></div>
+            <div><dt>Pass code</dt><dd>${escapeHtml(result.passCode || "Not issued")}</dd></div>
+            <div><dt>Workflow status</dt><dd>${escapeHtml(result.statusLabel || result.status || "Not recorded")}</dd></div>
+            <div><dt>Validity</dt><dd>${escapeHtml(result.validityStatus || "Not recorded")}</dd></div>
+            <div><dt>Issued</dt><dd>${escapeHtml(formatDate(result.issuedAt))}</dd></div>
             <div><dt>Expires</dt><dd>${escapeHtml(formatDate(result.expiresAt))}</dd></div>
-            <div><dt>Check-in</dt><dd>${escapeHtml(result.checkInTime ? formatDate(result.checkInTime) : "Pending")}</dd></div>
+            <div><dt>Visit window</dt><dd>${escapeHtml(formatWindow(result.scheduledStartTime, result.scheduledEndTime))}</dd></div>
+            <div><dt>Check-in state</dt><dd>${escapeHtml(checkpointStateText(result))}</dd></div>
           </dl>
         </div>
         <div class="qr-result__actions">
           ${!result.photoUrl ? `<button class="button button--ghost" type="button" data-qr-action="capture-photo">Capture or upload photo</button>` : ""}
-          ${result.status === "APPROVED" && result.valid ? `<button class="button button--primary" type="button" data-qr-action="check-in">Approve entry and check in</button>` : ""}
-          ${result.status === "CHECKED_IN" ? `<button class="button button--ghost" type="button" data-qr-action="check-out">Check out visitor</button>` : ""}
+          ${result.canCheckIn ? `<button class="button button--primary" type="button" data-qr-action="check-in">Approve entry and check in</button>` : ""}
+          ${result.canCheckOut ? `<button class="button button--ghost" type="button" data-qr-action="check-out">Check out visitor</button>` : ""}
         </div>
       ` : ""}
     </article>
@@ -372,7 +416,7 @@ function queueCard(visitor) {
     <article class="work-card">
       <h3>${escapeHtml(visitor.fullName)}</h3>
       <p>${escapeHtml(visitor.companyName || "Unlisted organization")} · ${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
-      <small>${escapeHtml(formatDate(visitor.qrExpiresAt || visitor.scheduledStartTime || visitor.createdAt))}</small>
+      <small>${escapeHtml(visitor.badgeId || visitor.qrCode || "Badge pending")} · ${escapeHtml(formatDate(visitor.qrExpiresAt || visitor.scheduledStartTime || visitor.createdAt))}</small>
       ${!visitor.photoUrl ? `<button class="button button--ghost" type="button" data-queue-photo="${escapeHtml(visitor.id)}">Capture photo</button>` : ""}
     </article>
   `;
@@ -393,7 +437,7 @@ function monitorCard(visitor) {
     <article class="work-card">
       <h3>${escapeHtml(visitor.fullName)}</h3>
       <p>${escapeHtml(visitor.companyName || "Unlisted organization")} · ${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
-      <small>${escapeHtml(formatDate(visitor.checkInTime || visitor.checkOutTime || visitor.createdAt))}</small>
+      <small>${escapeHtml(visitor.badgeId || visitor.qrCode || "Badge reference pending")} · ${escapeHtml(formatDate(visitor.checkInTime || visitor.checkOutTime || visitor.createdAt))}</small>
     </article>
   `;
 }
@@ -416,6 +460,66 @@ function rejectedCard(visitor) {
       <small>${escapeHtml(formatDate(visitor.rejectedAt || visitor.updatedAt || visitor.createdAt))}</small>
     </article>
   `;
+}
+
+function passBadgeTone(pass) {
+  const value = String(pass.validityStatus || pass.status || "").toLowerCase();
+  if (value.includes("checked in")) {
+    return "checked-in";
+  }
+  if (value.includes("checked out")) {
+    return "checked-out";
+  }
+  if (value.includes("expired") || value.includes("denied") || value.includes("rejected")) {
+    return "expired";
+  }
+  if (value.includes("overdue") || value.includes("scheduled") || value.includes("pending")) {
+    return "pending";
+  }
+  return "approved";
+}
+
+function resultTone(result) {
+  if (result.valid) {
+    return "success";
+  }
+  if (["ALREADY_USED", "OVERDUE_VISIT", "PENDING_APPROVAL", "NOT_ACTIVE_YET"].includes(result.resultCode)) {
+    return "warning";
+  }
+  return "danger";
+}
+
+function verificationStatusTone(result) {
+  if (result.valid) {
+    return "approved";
+  }
+  if (result.canCheckOut || ["ALREADY_USED", "OVERDUE_VISIT"].includes(result.resultCode)) {
+    return "checked-in";
+  }
+  if (result.resultCode === "PENDING_APPROVAL" || result.resultCode === "NOT_ACTIVE_YET") {
+    return "pending";
+  }
+  return "expired";
+}
+
+function checkpointStateText(result) {
+  if (result.checkOutTime) {
+    return `Checked out ${formatDate(result.checkOutTime)}`;
+  }
+  if (result.checkInTime) {
+    return `Checked in ${formatDate(result.checkInTime)}`;
+  }
+  return "Awaiting check-in";
+}
+
+function formatWindow(start, end) {
+  if (start && end) {
+    return `${formatDate(start)} to ${formatDate(end)}`;
+  }
+  if (end) {
+    return `Until ${formatDate(end)}`;
+  }
+  return "Open until expiry";
 }
 
 function setCount(selector, value) {

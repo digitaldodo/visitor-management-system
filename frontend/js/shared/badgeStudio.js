@@ -1,61 +1,97 @@
 import { formatDate, formatDateOnly, formatStatus } from "./formatters.js";
 
 const BRAND_LOGO = new URL("../../assets/branding/logo-dark.png", import.meta.url).href;
+const BRAND_ICON = new URL("../../assets/branding/logo-icon.png", import.meta.url).href;
+const FONT_STACK = "Aptos, 'Segoe UI', 'Helvetica Neue', sans-serif";
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 300">
-    <rect width="240" height="300" rx="24" fill="#e5e7eb"/>
-    <circle cx="120" cy="102" r="48" fill="#94a3b8"/>
-    <path d="M56 252c10-42 38-66 64-66s54 24 64 66" fill="#94a3b8"/>
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
+    <defs>
+      <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+        <stop offset="0%" stop-color="#dce7f7"/>
+        <stop offset="100%" stop-color="#eef2f8"/>
+      </linearGradient>
+    </defs>
+    <rect width="480" height="600" rx="48" fill="url(#bg)"/>
+    <circle cx="240" cy="200" r="92" fill="#9fb5d1"/>
+    <path d="M120 474c24-78 72-122 120-122s96 44 120 122" fill="#9fb5d1"/>
   </svg>
 `);
 
 export function badgeMarkup(pass, options = {}) {
-  const statusLabel = pass.validityStatus || formatStatus(pass.status);
   const visitDate = formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt);
-  const checkInTime = pass.checkInTime ? formatDate(pass.checkInTime, { timeStyle: "short" }) : "Pending";
+  const accessWindow = accessWindowLabel(pass);
+  const expiry = formatDate(pass.expiresAt);
+  const issuedAt = formatDate(pass.issuedAt);
+  const tone = badgeTone(pass);
+  const statusLabel = pass.validityStatus || pass.statusLabel || formatStatus(pass.status);
+  const checkInState = pass.checkInState || deriveCheckInState(pass);
+  const hostDepartment = pass.hostEmployeeDepartment || "Workplace team";
+  const purpose = pass.purposeOfVisit || "General visit";
+
   return `
-    <article class="enterprise-badge ${options.compact ? "enterprise-badge--compact" : ""}" data-badge-card>
-      <header class="enterprise-badge__header">
-        <div class="enterprise-badge__brand">
-          <img src="${escapeHtml(BRAND_LOGO)}" alt="AccessFlow" />
+    <article class="enterprise-badge enterprise-badge--${tone}" data-badge-card>
+      <div class="enterprise-badge__hero">
+        <div class="enterprise-badge__brandlockup">
+          <img class="enterprise-badge__brand-icon" src="${escapeHtml(BRAND_ICON)}" alt="AccessFlow" />
           <div>
-            <strong>${escapeHtml(pass.organizationName || "AccessFlow")}</strong>
-            <span>Visitor Management Badge</span>
+            <p class="enterprise-badge__eyebrow">Enterprise Visitor Access</p>
+            <h3>${escapeHtml(pass.organizationName || "AccessFlow")}</h3>
+            <p class="enterprise-badge__subtle">${escapeHtml(pass.organizationCode || "Managed workplace access")}</p>
           </div>
         </div>
-        <div class="enterprise-badge__status ${pass.valid ? "is-valid" : "is-invalid"}">
-          <span>Validity</span>
-          <strong>${escapeHtml(statusLabel)}</strong>
-        </div>
-      </header>
-
-      <div class="enterprise-badge__body">
-        <div class="enterprise-badge__identity">
-          <img class="enterprise-badge__photo" src="${escapeHtml(pass.photoUrl || FALLBACK_PHOTO)}" alt="${escapeHtml(pass.fullName)} photo" />
-          <div>
-            <p class="enterprise-badge__eyebrow">Visitor</p>
-            <h3>${escapeHtml(pass.fullName)}</h3>
-            <p>${escapeHtml(pass.companyName || "Unlisted organization")}</p>
-            <dl class="enterprise-badge__meta">
-              ${metaRow("Host", pass.hostEmployee || "Unassigned")}
-              ${metaRow("Department", pass.hostEmployeeDepartment || "Not recorded")}
-              ${metaRow("Purpose", pass.purposeOfVisit || "Visit")}
-              ${metaRow("Date", visitDate)}
-              ${metaRow("Check-in", checkInTime)}
-              ${metaRow("Expires", formatDate(pass.expiresAt))}
-            </dl>
-          </div>
-        </div>
-
-        <div class="enterprise-badge__qr-block">
-          <img class="enterprise-badge__qr" src="${escapeHtml(pass.qrImageDataUri)}" alt="Visitor QR code" />
-          <dl class="enterprise-badge__codes">
-            ${metaRow("Badge ID", pass.badgeId || "Not issued")}
-            ${metaRow("QR Code", pass.passCode || "Pending")}
-            ${metaRow("Org", pass.organizationCode || pass.organizationName || "AccessFlow")}
-          </dl>
+        <div class="enterprise-badge__status-stack">
+          <span class="enterprise-badge__chip enterprise-badge__chip--${tone}">${escapeHtml(statusLabel)}</span>
+          <span class="enterprise-badge__subtle">${escapeHtml(checkInState)}</span>
         </div>
       </div>
+
+      <div class="enterprise-badge__layout">
+        <section class="enterprise-badge__identity-panel">
+          <img class="enterprise-badge__photo" src="${escapeHtml(pass.photoUrl || FALLBACK_PHOTO)}" alt="${escapeHtml(pass.fullName)} photo" />
+          <div class="enterprise-badge__identity-copy">
+            <p class="enterprise-badge__eyebrow">Visitor</p>
+            <h4>${escapeHtml(pass.fullName || "Visitor")}</h4>
+            <p class="enterprise-badge__company">${escapeHtml(pass.companyName || "Independent visitor")}</p>
+            <div class="enterprise-badge__callout">
+              <strong>${escapeHtml(checkInState)}</strong>
+              <span>${escapeHtml(pass.valid ? "Access approved for entry verification." : "Checkpoint review required before entry.")}</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="enterprise-badge__details">
+          <div class="enterprise-badge__detail-grid">
+            ${detailTile("Host employee", pass.hostEmployee || "Front desk assigned")}
+            ${detailTile("Host team", hostDepartment)}
+            ${detailTile("Visit date", visitDate)}
+            ${detailTile("Access window", accessWindow)}
+            ${detailTile("Badge ID", pass.badgeId || "Pending issuance")}
+            ${detailTile("Pass code", pass.passCode || "Pending issuance")}
+            ${detailTile("Issued", issuedAt)}
+            ${detailTile("Expires", expiry)}
+          </div>
+          <div class="enterprise-badge__purpose">
+            <span>Visit purpose</span>
+            <strong>${escapeHtml(purpose)}</strong>
+          </div>
+        </section>
+
+        <aside class="enterprise-badge__qr-panel">
+          <img class="enterprise-badge__brand-wordmark" src="${escapeHtml(BRAND_LOGO)}" alt="AccessFlow" />
+          <div class="enterprise-badge__qr-frame">
+            <img class="enterprise-badge__qr" src="${escapeHtml(pass.qrImageDataUri)}" alt="Visitor QR code" />
+          </div>
+          <div class="enterprise-badge__scan-copy">
+            <strong>Security checkpoint</strong>
+            <span>Scan to validate this badge against the live AccessFlow approval record.</span>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="enterprise-badge__footer">
+        <span>Badge reference ${escapeHtml(pass.badgeId || pass.passCode || "AccessFlow")}</span>
+        <span>${escapeHtml(options.footerNote || "Present photo ID if requested by security.")}</span>
+      </footer>
     </article>
   `;
 }
@@ -67,12 +103,17 @@ export function badgeDialogMarkup(pass, options = {}) {
         <div>
           <p class="eyebrow">Visitor Badge</p>
           <h2>${escapeHtml(pass.fullName)}</h2>
+          <p class="enterprise-badge-dialog__lead">Operational badge view for entry, print, and export.</p>
         </div>
         <button class="icon-button" type="button" data-badge-action="close" aria-label="Close visitor badge">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
         </button>
       </div>
-      ${badgeMarkup(pass)}
+      <div class="enterprise-badge-sheet" data-badge-print-root>
+        <div class="enterprise-badge-sheet__canvas">
+          ${badgeMarkup(pass, options)}
+        </div>
+      </div>
       <div class="enterprise-badge__actions">
         <button class="button button--ghost" type="button" data-badge-action="print">Print badge</button>
         <button class="button button--ghost" type="button" data-badge-action="png">Download PNG</button>
@@ -96,92 +137,142 @@ export async function downloadBadge(pass, format) {
 }
 
 export function printBadge(element) {
-  element?.classList.add("is-print-target");
+  const target = element?.closest("[data-badge-print-root]") || element;
+  if (!target) {
+    return;
+  }
+  document.body.classList.add("print-badge-mode");
+  target.classList.add("is-print-target");
+  let cleared = false;
+  const cleanup = () => {
+    if (cleared) {
+      return;
+    }
+    cleared = true;
+    document.body.classList.remove("print-badge-mode");
+    target.classList.remove("is-print-target");
+  };
+  window.addEventListener("afterprint", cleanup, { once: true });
   window.print();
-  window.setTimeout(() => element?.classList.remove("is-print-target"), 300);
+  window.setTimeout(cleanup, 1000);
 }
 
 async function createBadgeCanvas(pass) {
-  const width = 1400;
-  const height = 880;
+  const width = 2480;
+  const height = 1564;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
-  context.fillStyle = "#f3f5f9";
+  context.fillStyle = "#eef3f8";
   context.fillRect(0, 0, width, height);
 
-  roundRect(context, 56, 56, width - 112, height - 112, 32, "#ffffff");
-  roundRect(context, 56, 56, width - 112, 166, 32, "#0f172a");
+  shadowPanel(context, 80, 80, width - 160, height - 160, 44);
+  roundRect(context, 80, 80, width - 160, height - 160, 44, "#ffffff");
+  roundRect(context, 80, 80, 560, height - 160, 44, "#0f1f33");
+  roundRect(context, 620, 80, width - 700, 188, 44, "#f5f8fc");
 
-  const [logo, photo, qr] = await Promise.all([
+  const [logo, icon, photo, qr] = await Promise.all([
     loadImage(BRAND_LOGO),
+    loadImage(BRAND_ICON),
     loadImage(pass.photoUrl || FALLBACK_PHOTO),
     loadImage(pass.qrImageDataUri),
   ]);
 
-  context.drawImage(logo, 88, 95, 180, 48);
+  context.drawImage(icon, 130, 130, 78, 78);
+  context.drawImage(logo, 226, 140, 220, 58);
+  context.fillStyle = "#d9e7ff";
+  context.font = `700 28px ${FONT_STACK}`;
+  context.fillText("ENTERPRISE VISITOR ACCESS", 130, 240);
+
+  drawImageCover(context, photo, 130, 310, 360, 450, 36);
   context.fillStyle = "#ffffff";
-  context.font = "700 34px Inter, Segoe UI, Arial, sans-serif";
-  context.fillText(pass.organizationName || "AccessFlow", 292, 118);
-  context.font = "500 22px Inter, Segoe UI, Arial, sans-serif";
-  context.fillStyle = "#c7d2fe";
-  context.fillText("Visitor Management Badge", 292, 152);
+  context.font = `700 58px ${FONT_STACK}`;
+  wrapText(context, pass.fullName || "Visitor", 130, 850, 360, 62);
+  context.fillStyle = "#bed1ea";
+  context.font = `600 32px ${FONT_STACK}`;
+  wrapText(context, pass.companyName || "Independent visitor", 130, 972, 360, 38);
 
-  const statusText = pass.validityStatus || formatStatus(pass.status);
-  roundRect(context, width - 350, 90, 210, 70, 22, pass.valid ? "#dcfce7" : "#fee2e2");
-  context.fillStyle = pass.valid ? "#166534" : "#991b1b";
-  context.font = "700 24px Inter, Segoe UI, Arial, sans-serif";
-  context.fillText(statusText, width - 320, 135);
+  roundRect(context, 130, 1090, 360, 168, 28, "rgba(255,255,255,0.08)");
+  context.fillStyle = "#e2ebf7";
+  context.font = `700 24px ${FONT_STACK}`;
+  context.fillText("CHECKPOINT STATE", 160, 1140);
+  context.fillStyle = "#ffffff";
+  context.font = `700 36px ${FONT_STACK}`;
+  wrapText(context, deriveCheckInState(pass), 160, 1190, 300, 40);
 
-  drawImageCover(context, photo, 100, 250, 280, 340, 24);
-  drawImageContain(context, qr, width - 410, 280, 250, 250);
+  context.fillStyle = "#0f1728";
+  context.font = `700 40px ${FONT_STACK}`;
+  context.fillText(pass.organizationName || "AccessFlow", 690, 165);
+  context.fillStyle = "#52627a";
+  context.font = `600 24px ${FONT_STACK}`;
+  context.fillText(pass.organizationCode || "Managed visitor operations", 690, 208);
 
-  context.fillStyle = "#0f172a";
-  context.font = "700 48px Inter, Segoe UI, Arial, sans-serif";
-  context.fillText(pass.fullName || "Visitor", 430, 300);
-  context.font = "500 28px Inter, Segoe UI, Arial, sans-serif";
-  context.fillStyle = "#475467";
-  context.fillText(pass.companyName || "Unlisted organization", 430, 346);
+  const tone = tonePalette(pass);
+  roundRect(context, 1890, 122, 380, 92, 26, tone.surface);
+  context.fillStyle = tone.text;
+  context.font = `700 34px ${FONT_STACK}`;
+  context.fillText(pass.validityStatus || pass.statusLabel || formatStatus(pass.status), 1930, 178);
 
-  const visitDate = formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt);
-  const checkInTime = pass.checkInTime ? formatDate(pass.checkInTime, { timeStyle: "short" }) : "Pending";
-  const meta = [
-    ["Host", pass.hostEmployee || "Unassigned"],
-    ["Department", pass.hostEmployeeDepartment || "Not recorded"],
-    ["Purpose", pass.purposeOfVisit || "Visit"],
-    ["Date", visitDate],
-    ["Check-in", checkInTime],
+  const detailOriginX = 690;
+  const detailOriginY = 340;
+  const cardWidth = 470;
+  const cardHeight = 168;
+  const detailCards = [
+    ["Host employee", pass.hostEmployee || "Front desk assigned"],
+    ["Host team", pass.hostEmployeeDepartment || "Workplace team"],
+    ["Visit date", formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt)],
+    ["Access window", accessWindowLabel(pass)],
+    ["Badge ID", pass.badgeId || "Pending issuance"],
+    ["Pass code", pass.passCode || "Pending issuance"],
+    ["Issued", formatDate(pass.issuedAt)],
     ["Expires", formatDate(pass.expiresAt)],
-    ["Badge ID", pass.badgeId || "Not issued"],
-    ["QR Code", pass.passCode || "Pending"],
   ];
 
-  let x = 430;
-  let y = 410;
-  meta.forEach(([label, value], index) => {
-    drawLabelValue(context, x, y, label, value, 360);
-    if (index % 2 === 1) {
-      x = 430;
-      y += 110;
-    } else {
-      x = 790;
-    }
+  detailCards.forEach(([label, value], index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    drawMetaCard(
+      context,
+      detailOriginX + (column * (cardWidth + 32)),
+      detailOriginY + (row * (cardHeight + 24)),
+      cardWidth,
+      cardHeight,
+      label,
+      value
+    );
   });
 
-  context.fillStyle = "#667085";
-  context.font = "500 22px Inter, Segoe UI, Arial, sans-serif";
-  context.fillText(pass.organizationCode || "AccessFlow", width - 408, 575);
-  context.fillText("Scan at security checkpoint", width - 408, 605);
+  roundRect(context, 1690, 340, 560, 560, 34, "#f6f9fc");
+  roundRect(context, 1730, 380, 480, 480, 28, "#ffffff");
+  drawImageContain(context, qr, 1780, 430, 380, 380);
+  context.fillStyle = "#344054";
+  context.font = `700 24px ${FONT_STACK}`;
+  context.fillText("Scan to validate this badge live", 1778, 850);
+
+  roundRect(context, 690, 1260, 1560, 166, 30, "#f6f9fc");
+  context.fillStyle = "#5b6b82";
+  context.font = `700 24px ${FONT_STACK}`;
+  context.fillText("VISIT PURPOSE", 740, 1320);
+  context.fillStyle = "#101828";
+  context.font = `700 36px ${FONT_STACK}`;
+  wrapText(context, pass.purposeOfVisit || "General visit", 740, 1374, 980, 42);
+  context.fillStyle = "#52627a";
+  context.font = `600 24px ${FONT_STACK}`;
+  wrapText(context, "Present photo identification if requested by security. Badge remains valid only while the approved AccessFlow visit window is active.", 1500, 1320, 680, 34);
 
   return canvas;
 }
 
 function createPdfFromCanvas(canvas) {
-  const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.98);
+  const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.99);
   const jpegBytes = base64ToBytes(jpegDataUrl.split(",")[1]);
   const pageWidth = 595;
-  const pageHeight = Math.round((canvas.height / canvas.width) * pageWidth);
+  const pageHeight = 842;
+  const imageWidth = 451;
+  const imageHeight = Math.round((canvas.height / canvas.width) * imageWidth);
+  const imageX = Math.round((pageWidth - imageWidth) / 2);
+  const imageY = 94;
   const encoder = new TextEncoder();
   const parts = [];
   const offsets = [0];
@@ -211,7 +302,7 @@ function createPdfFromCanvas(canvas) {
   pushText(`4 0 obj << /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >> stream\n`);
   pushBytes(jpegBytes);
   pushText("\nendstream\nendobj\n");
-  const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ`;
+  const content = `q\n${imageWidth} 0 0 ${imageHeight} ${imageX} ${imageY} cm\n/Im0 Do\nQ`;
   startObject();
   pushText(`5 0 obj << /Length ${encoder.encode(content).length} >> stream\n${content}\nendstream\nendobj\n`);
 
@@ -223,8 +314,17 @@ function createPdfFromCanvas(canvas) {
 }
 
 function safeFileName(pass, extension) {
-  const name = String(pass.fullName || "visitor-badge").trim().toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
-  return `${name || "visitor-badge"}-${String(pass.badgeId || pass.passCode || "pass").toLowerCase()}.${extension}`;
+  const name = String(pass.fullName || "visitor-badge")
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+  const badgeId = String(pass.badgeId || pass.passCode || "badge")
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+  return `accessflow-badge-${badgeId || "badge"}-${name || "visitor"}.${extension}`;
 }
 
 function triggerDownload(blob, filename) {
@@ -243,36 +343,38 @@ async function loadImage(src) {
   image.decoding = "async";
   image.crossOrigin = "anonymous";
   image.src = src;
-  await image.decode();
+  if (typeof image.decode === "function") {
+    await image.decode().catch(() => waitForImageLoad(image));
+    return image;
+  }
+  await waitForImageLoad(image);
   return image;
 }
 
-function drawLabelValue(context, x, y, label, value, width) {
-  context.fillStyle = "#667085";
-  context.font = "700 20px Inter, Segoe UI, Arial, sans-serif";
-  context.fillText(label.toUpperCase(), x, y);
-  context.fillStyle = "#101828";
-  context.font = "600 26px Inter, Segoe UI, Arial, sans-serif";
-  wrapText(context, value, x, y + 38, width, 32);
+function waitForImageLoad(image) {
+  return new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+  });
 }
 
-function wrapText(context, text, x, y, maxWidth, lineHeight) {
-  const words = String(text || "").split(/\s+/).filter(Boolean);
-  let line = "";
-  let currentY = y;
-  words.forEach((word) => {
-    const candidate = line ? `${line} ${word}` : word;
-    if (context.measureText(candidate).width > maxWidth && line) {
-      context.fillText(line, x, currentY);
-      line = word;
-      currentY += lineHeight;
-    } else {
-      line = candidate;
-    }
-  });
-  if (line) {
-    context.fillText(line, x, currentY);
-  }
+function drawMetaCard(context, x, y, width, height, label, value) {
+  roundRect(context, x, y, width, height, 24, "#f6f9fc");
+  context.fillStyle = "#607187";
+  context.font = `700 24px ${FONT_STACK}`;
+  context.fillText(String(label || "").toUpperCase(), x + 34, y + 48);
+  context.fillStyle = "#101828";
+  context.font = `700 34px ${FONT_STACK}`;
+  wrapText(context, value, x + 34, y + 102, width - 68, 40);
+}
+
+function shadowPanel(context, x, y, width, height, radius) {
+  context.save();
+  context.shadowColor = "rgba(15, 23, 42, 0.12)";
+  context.shadowBlur = 36;
+  context.shadowOffsetY = 22;
+  roundRect(context, x, y, width, height, radius, "#ffffff");
+  context.restore();
 }
 
 function roundRect(context, x, y, width, height, radius, fill) {
@@ -317,6 +419,25 @@ function roundClip(context, x, y, width, height, radius) {
   context.clip();
 }
 
+function wrapText(context, text, x, y, maxWidth, lineHeight) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  let line = "";
+  let currentY = y;
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (context.measureText(candidate).width > maxWidth && line) {
+      context.fillText(line, x, currentY);
+      line = word;
+      currentY += lineHeight;
+    } else {
+      line = candidate;
+    }
+  });
+  if (line) {
+    context.fillText(line, x, currentY);
+  }
+}
+
 function base64ToBytes(base64) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -326,8 +447,66 @@ function base64ToBytes(base64) {
   return bytes;
 }
 
-function metaRow(label, value) {
-  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+function detailTile(label, value) {
+  return `
+    <article class="enterprise-badge__detail-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function accessWindowLabel(pass) {
+  const start = pass.scheduledStartTime ? formatDate(pass.scheduledStartTime) : null;
+  const end = pass.scheduledEndTime ? formatDate(pass.scheduledEndTime) : null;
+  if (start && end) {
+    return `${start} to ${end}`;
+  }
+  if (end) {
+    return `Until ${end}`;
+  }
+  return "Open until badge expiry";
+}
+
+function deriveCheckInState(pass) {
+  if (pass.checkOutTime) {
+    return "Checked out";
+  }
+  if (pass.checkInTime) {
+    return pass.validityStatus === "Overdue" ? "Checked in · overdue" : "Checked in";
+  }
+  if (pass.status === "APPROVED") {
+    return "Awaiting check-in";
+  }
+  return pass.statusLabel || formatStatus(pass.status);
+}
+
+function badgeTone(pass) {
+  const value = String(pass.validityStatus || pass.status || "").toUpperCase();
+  if (value.includes("EXPIRED") || value.includes("REJECTED") || value.includes("DENIED")) {
+    return "danger";
+  }
+  if (value.includes("OVERDUE") || value.includes("SCHEDULED") || value.includes("PENDING")) {
+    return "warning";
+  }
+  if (value.includes("CHECKED OUT")) {
+    return "neutral";
+  }
+  return "success";
+}
+
+function tonePalette(pass) {
+  const tone = badgeTone(pass);
+  if (tone === "danger") {
+    return { surface: "#fff1f2", text: "#be123c" };
+  }
+  if (tone === "warning") {
+    return { surface: "#fff7e8", text: "#9a6700" };
+  }
+  if (tone === "neutral") {
+    return { surface: "#eef2f6", text: "#334155" };
+  }
+  return { surface: "#ecfdf3", text: "#166534" };
 }
 
 function escapeHtml(value) {

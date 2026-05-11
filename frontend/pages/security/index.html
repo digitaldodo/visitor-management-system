@@ -6,7 +6,7 @@
     <meta name="description" content="AccessFlow security portal" />
     <title>AccessFlow | Security Portal</title>
     <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="../../css/security/security.css?v=20260511" />
+    <link rel="stylesheet" href="../../css/security/security.css?v=20260511-passflow" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -188,14 +188,15 @@
               </div>
               <form class="qr-verify-form" id="qr-verify-form">
                 <label class="form-field">
-                  <span>Scan payload</span>
-                  <input id="qr-payload-input" type="text" autocomplete="off" placeholder="Scan badge QR or paste payload" />
+                  <span>Badge scan or payload</span>
+                  <input id="qr-payload-input" type="text" autocomplete="off" inputmode="text" placeholder="Scan a badge with a camera or hardware scanner" />
                 </label>
                 <div class="qr-verify-form__actions">
                   <button class="button button--ghost" id="qr-camera-button" type="button">Camera Scan</button>
                   <button class="button button--primary" type="submit">Verify</button>
                 </div>
               </form>
+              <p class="qr-verify-form__note">Only live AccessFlow visitor badges are accepted. Every scan is checked against approval status, timing, and organization scope.</p>
               <video class="qr-scan-video is-hidden" id="qr-scan-video" autoplay playsinline muted></video>
               <div id="qr-result"></div>
             </article>
@@ -230,6 +231,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/security/dashboard.js?v=20260511-enterprise"></script>
+    <script type="module" src="../../js/security/dashboard.js?v=20260511-passflow"></script>
   </body>
 </html>

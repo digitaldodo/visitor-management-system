@@ -127,7 +127,7 @@ function initBadgeActions() {
       return;
     }
 
-    const badgeCard = modal.querySelector("[data-badge-card]");
+    const badgeCard = modal.querySelector("[data-badge-print-root]");
     const action = button.dataset.badgeAction;
     try {
       if (action === "close") {
@@ -181,6 +181,12 @@ function visitCard(visit) {
   const status = formatStatus(visit.status);
   const passReady = ["APPROVED", "CHECKED_IN"].includes(visit.status) && visit.qrCode;
   const duration = visit.checkInTime ? formatDurationMinutes(minutesBetween(visit.checkInTime, visit.checkOutTime || new Date())) : "Pending";
+  const passMessage = visit.rejectionReason
+    || (visit.status === "CHECKED_IN"
+      ? "Security has checked you in. Keep this badge available until departure."
+      : passReady
+        ? "Badge ready. Present it at the security checkpoint."
+        : "We will update this status after review.");
   return `
     <article class="visitor-visit-card">
       <div class="visitor-visit-card__header">
@@ -199,7 +205,7 @@ function visitCard(visit) {
         <div><dt>Visit duration</dt><dd>${escapeHtml(duration)}</dd></div>
       </dl>
       <div class="visitor-visit-card__footer">
-        <span>${escapeHtml(visit.rejectionReason || (passReady ? "Badge ready. Present it at the security checkpoint." : "We will update this status after review."))}</span>
+        <span>${escapeHtml(passMessage)}</span>
         ${passReady ? `<button class="button button--primary" type="button" data-visit-action="badge" data-visitor-id="${escapeHtml(visit.id)}">Open badge</button>` : ""}
       </div>
     </article>

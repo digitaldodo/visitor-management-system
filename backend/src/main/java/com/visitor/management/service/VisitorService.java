@@ -164,6 +164,7 @@ public class VisitorService {
             throw new ResourceNotFoundException("Visitor request was not found.");
         }
         requirePassReady(visitor);
+        visitor = ensurePassSecurityState(visitor);
         return toPassResponse(visitor);
     }
 
@@ -222,10 +223,7 @@ public class VisitorService {
         visitor.setStatus(VisitorStatus.APPROVED);
         visitor.setApprovedAt(now);
         visitor.setApprovedBy(hostEmployeeId);
-        visitor.setQrCode(generatePassCode());
-        visitor.setBadgeId(generateBadgeId());
-        visitor.setQrIssuedAt(now);
-        visitor.setQrExpiresAt(end);
+        issuePassCredentials(visitor, now);
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
         enforceActiveVisitorRules(visitor);
@@ -309,12 +307,7 @@ public class VisitorService {
         visitor.setRejectedAt(null);
         visitor.setRejectedBy(null);
         visitor.setRejectionReason(null);
-        visitor.setQrCode(generatePassCode());
-        if (visitor.getBadgeId() == null) {
-            visitor.setBadgeId(generateBadgeId());
-        }
-        visitor.setQrIssuedAt(now);
-        visitor.setQrExpiresAt(resolveQrExpiry(visitor, now));
+        issuePassCredentials(visitor, now);
         visitor.setUpdatedAt(now);
         String note = trimToNull(request == null ? null : request.note());
         addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
@@ -339,10 +332,7 @@ public class VisitorService {
         visitor.setRejectedAt(now);
         visitor.setRejectedBy(actorId);
         visitor.setRejectionReason(note);
-        visitor.setQrCode(null);
-        visitor.setQrIssuedAt(null);
-        visitor.setQrExpiresAt(null);
-        visitor.setBadgePrintedAt(null);
+        clearPassCredentials(visitor);
         visitor.setUpdatedAt(now);
         addHistory(visitor, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
@@ -393,6 +383,7 @@ public class VisitorService {
     public VisitorPassResponse pass(String id) {
         Visitor visitor = find(id);
         requirePassReady(visitor);
+        visitor = ensurePassSecurityState(visitor);
         return toPassResponse(visitor);
     }
 
@@ -400,12 +391,14 @@ public class VisitorService {
         Visitor visitor = find(id);
         requireOrganizationAccess(visitor, currentUser(actorId));
         requirePassReady(visitor);
+        visitor = ensurePassSecurityState(visitor);
         return toPassResponse(visitor);
     }
 
     public VisitorPassResponse markBadgePrinted(String id) {
         Visitor visitor = find(id);
         requirePassReady(visitor);
+        visitor = ensurePassSecurityState(visitor);
         Instant now = Instant.now();
         visitor.setBadgePrintedAt(now);
         addHistory(visitor, visitor.getStatus(), "BADGE_PRINTED", null, "Badge printed.", now);
@@ -418,6 +411,7 @@ public class VisitorService {
         Visitor visitor = find(id);
         requireOrganizationAccess(visitor, currentUser(actorId));
         requirePassReady(visitor);
+        visitor = ensurePassSecurityState(visitor);
         Instant now = Instant.now();
         visitor.setBadgePrintedAt(now);
         addHistory(visitor, visitor.getStatus(), "BADGE_PRINTED", actorId, "Badge printed.", now);
@@ -438,80 +432,153 @@ public class VisitorService {
         try {
             claims = jwtService.parseClaims(token);
         } catch (JwtException | IllegalArgumentException ex) {
-            return invalidVerification("QR pass is invalid or expired.");
-        }
-
-        if (!"visitor-pass".equals(claims.get("type", String.class))) {
-            return invalidVerification("QR pass type is invalid.");
-        }
-
-        String visitorId = claims.getSubject();
-        String passCode = claims.get("passCode", String.class);
-        Visitor visitor = visitorRepository.findById(visitorId).orElse(null);
-        if (visitor == null || visitor.getQrCode() == null || !visitor.getQrCode().equals(passCode)) {
-            return invalidVerification("QR pass does not match an active visitor pass.");
-        }
-        if (actor != null && !hasOrganizationAccess(visitor, actor)) {
-            return invalidVerification("QR pass belongs to another organization.");
-        }
-
-        if (visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(now)) {
-            return invalidVerification("QR pass has expired.");
-        }
-        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
-            return invalidVerification("QR pass is not active until the scheduled start time.");
-        }
-
-        boolean overdue = isOverdue(visitor, now);
-        String validityStatus = passValidityStatus(visitor, now);
-
-        if (visitor.getStatus() == VisitorStatus.REJECTED
-                || visitor.getStatus() == VisitorStatus.CHECKED_OUT
-                || visitor.getStatus() == VisitorStatus.PENDING
-                || visitor.getStatus() == VisitorStatus.EXPIRED) {
-            return new QrVerificationResponse(
-                    false,
-                    "Visitor pass is not valid for entry in the current status.",
-                    visitor.getId(),
-                    visitor.getFullName(),
-                    visitor.getCompanyName(),
-                    visitor.getOrganizationName(),
-                    visitor.getOrganizationCode(),
-                    visitor.getHostEmployee(),
-                    hostDepartmentFor(visitor),
-                    visitor.getPhotoUrl(),
-                    visitor.getStatus(),
-                    visitor.getQrCode(),
-                    visitor.getQrExpiresAt(),
-                    visitor.getScheduledEndTime(),
-                    visitor.getCheckInTime(),
-                    visitor.getCheckOutTime(),
-                    overdue,
-                    validityStatus
+            return invalidVerification(
+                    "INVALID_QR",
+                    "Invalid QR pass",
+                    "This badge could not be verified.",
+                    "Ask the visitor to reopen the current pass or contact the workplace host."
             );
         }
 
-        return new QrVerificationResponse(
+        if (!"visitor-pass".equals(claims.get("type", String.class))) {
+            return invalidVerification(
+                    "INVALID_QR",
+                    "Invalid QR pass",
+                    "This code is not a supported AccessFlow visitor pass.",
+                    "Use a current visitor badge issued by AccessFlow."
+            );
+        }
+
+        String securePassId = claims.getSubject();
+        String organizationReference = claims.get("organizationReference", String.class);
+        String visitorReference = claims.get("visitorReference", String.class);
+        String approvalState = claims.get("approvalState", String.class);
+        String passCode = claims.get("passCode", String.class);
+        Visitor visitor = visitorRepository.findByPassTokenId(securePassId)
+                .or(() -> visitorRepository.findById(securePassId))
+                .orElse(null);
+        if (visitor == null) {
+            return invalidVerification(
+                    "REVOKED_PASS",
+                    "Pass no longer active",
+                    "This visitor pass has been replaced, revoked, or is no longer recognized.",
+                    "Ask security to issue the visitor's latest approved badge."
+            );
+        }
+
+        if (!matchesTokenClaims(visitor, securePassId, organizationReference, visitorReference, approvalState, passCode)) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "REVOKED_PASS",
+                    "Pass no longer active",
+                    "This visitor pass no longer matches the approved badge on file.",
+                    "Ask security to use the visitor's current pass before allowing entry.",
+                    visitor,
+                    now
+            );
+        }
+        if (actor != null && !hasOrganizationAccess(visitor, actor)) {
+            return invalidVerification(
+                    "ORGANIZATION_MISMATCH",
+                    "Organization mismatch",
+                    "This pass belongs to a different organization and cannot be processed here.",
+                    "Use the security desk assigned to the issuing organization."
+            );
+        }
+
+        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "NOT_ACTIVE_YET",
+                    "Pass not active yet",
+                    "This visitor is scheduled for a later arrival window.",
+                    "Confirm the scheduled time and ask the visitor to return when the access window opens.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.REJECTED) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "DENIED_VISITOR",
+                    "Access denied",
+                    "This visitor request was denied and the pass cannot be used for entry.",
+                    "Do not admit the visitor. Ask them to contact their host for a new approval.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.PENDING) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "PENDING_APPROVAL",
+                    "Approval still pending",
+                    "This visit has not been approved yet.",
+                    "Hold entry until the host or workplace team approves the visitor.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "ALREADY_USED",
+                    "Pass already used",
+                    "This visitor has already completed check-out and the pass cannot be reused.",
+                    "Do not re-admit the visitor with this badge. Issue a new approved visit if re-entry is required.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.EXPIRED
+                || visitor.getQrExpiresAt() == null
+                || !visitor.getQrExpiresAt().isAfter(now)
+                || (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime()))) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "EXPIRED_PASS",
+                    "Pass expired",
+                    "This visitor pass is outside its approved access window.",
+                    "Do not admit the visitor until a new approval is issued.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
+            return verificationResponse(
+                    false,
+                    true,
+                    isOverdue(visitor, now) ? "OVERDUE_VISIT" : "ALREADY_USED",
+                    isOverdue(visitor, now) ? "Visitor still on site" : "Pass already used",
+                    isOverdue(visitor, now)
+                            ? "This visitor is already checked in and has exceeded the approved visit window."
+                            : "This visitor is already checked in.",
+                    "Visually confirm identity and check the visitor out when they depart.",
+                    visitor,
+                    now
+            );
+        }
+
+        return verificationResponse(
                 true,
-                visitor.getStatus() == VisitorStatus.CHECKED_IN
-                        ? (overdue ? "Visitor is checked in and has exceeded the approved visit window." : "Visitor pass is valid. Visitor is already checked in.")
-                        : "Visitor pass is valid for check-in.",
-                visitor.getId(),
-                visitor.getFullName(),
-                visitor.getCompanyName(),
-                visitor.getOrganizationName(),
-                visitor.getOrganizationCode(),
-                visitor.getHostEmployee(),
-                hostDepartmentFor(visitor),
-                visitor.getPhotoUrl(),
-                visitor.getStatus(),
-                visitor.getQrCode(),
-                visitor.getQrExpiresAt(),
-                visitor.getScheduledEndTime(),
-                visitor.getCheckInTime(),
-                visitor.getCheckOutTime(),
-                overdue,
-                validityStatus
+                true,
+                "VALID_PASS",
+                "Pass verified",
+                "Approval is active and the visitor can be checked in.",
+                "Confirm the visitor photo and identity, then complete check-in.",
+                visitor,
+                now
         );
     }
 
@@ -834,13 +901,13 @@ public class VisitorService {
     private String generatePassCode() {
         String qrCode;
         do {
-            qrCode = "VST-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
+            qrCode = "AFP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase();
         } while (visitorRepository.findByQrCode(qrCode).isPresent());
         return qrCode;
     }
 
     private String generateBadgeId() {
-        return "BDG-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+        return "AFB-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 
     private VisitorResponse toResponse(Visitor visitor) {
@@ -892,7 +959,14 @@ public class VisitorService {
     }
 
     private VisitorPassResponse toPassResponse(Visitor visitor) {
-        String payload = QR_PAYLOAD_PREFIX + jwtService.generateVisitorPassToken(visitor.getId(), visitor.getQrCode(), visitor.getQrExpiresAt());
+        String payload = QR_PAYLOAD_PREFIX + jwtService.generateVisitorPassToken(
+                visitor.getPassTokenId(),
+                visitor.getOrganizationCode(),
+                resolveBadgeId(visitor),
+                visitor.getStatus(),
+                visitor.getQrCode(),
+                visitor.getQrExpiresAt()
+        );
         Instant now = Instant.now();
         return new VisitorPassResponse(
                 visitor.getId(),
@@ -906,6 +980,8 @@ public class VisitorService {
                 hostDepartmentFor(visitor),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
+                displayStatus(visitor.getStatus()),
+                checkInState(visitor, now),
                 isPassValid(visitor, now),
                 passValidityStatus(visitor, now),
                 visitor.getQrCode(),
@@ -917,7 +993,8 @@ public class VisitorService {
                 visitor.getScheduledStartTime(),
                 visitor.getScheduledEndTime(),
                 visitor.getCheckInTime(),
-                visitor.getCheckOutTime()
+                visitor.getCheckOutTime(),
+                visitor.getBadgePrintedAt()
         );
     }
 
@@ -1052,8 +1129,37 @@ public class VisitorService {
         return value;
     }
 
-    private QrVerificationResponse invalidVerification(String message) {
-        return new QrVerificationResponse(false, message, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, "Invalid");
+    private QrVerificationResponse invalidVerification(String resultCode, String headline, String message, String recommendedAction) {
+        return new QrVerificationResponse(
+                false,
+                false,
+                resultCode,
+                headline,
+                message,
+                recommendedAction,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                "Invalid",
+                false,
+                false
+        );
     }
 
     private void validateScheduleWindow(Instant start, Instant end, Instant now) {
@@ -1317,9 +1423,10 @@ public class VisitorService {
 
     private boolean isPassValid(Visitor visitor, Instant now) {
         return visitor.getQrCode() != null
+                && visitor.getPassTokenId() != null
                 && visitor.getQrExpiresAt() != null
                 && visitor.getQrExpiresAt().isAfter(now)
-                && (visitor.getStatus() == VisitorStatus.APPROVED || visitor.getStatus() == VisitorStatus.CHECKED_IN)
+                && visitor.getStatus() == VisitorStatus.APPROVED
                 && (visitor.getScheduledStartTime() == null || !now.isBefore(visitor.getScheduledStartTime()))
                 && (visitor.getScheduledEndTime() == null || now.isBefore(visitor.getScheduledEndTime()));
     }
@@ -1359,7 +1466,7 @@ public class VisitorService {
     }
 
     private String resolveBadgeId(Visitor visitor) {
-        return visitor.getBadgeId() != null ? visitor.getBadgeId() : "BDG-" + visitor.getQrCode();
+        return visitor.getBadgeId() != null ? visitor.getBadgeId() : "AFB-" + visitor.getQrCode();
     }
 
     private String hostDepartmentFor(Visitor visitor) {
@@ -1370,9 +1477,9 @@ public class VisitorService {
     private void expireVisitor(Visitor visitor, Instant now) {
         VisitorStatus from = visitor.getStatus();
         visitor.setStatus(VisitorStatus.EXPIRED);
-        visitor.setQrCode(null);
-        visitor.setQrIssuedAt(null);
-        visitor.setQrExpiresAt(null);
+        if (from == VisitorStatus.PENDING) {
+            clearPassCredentials(visitor);
+        }
         visitor.setUpdatedAt(now);
         String note = from == VisitorStatus.PENDING
                 ? "Pending approval expired automatically."
@@ -1381,5 +1488,137 @@ public class VisitorService {
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.EXPIRED, "AUTO_EXPIRED", null, note, now);
         visitorNotificationService.visitorExpired(saved, note);
+    }
+
+    private void issuePassCredentials(Visitor visitor, Instant now) {
+        visitor.setQrCode(generatePassCode());
+        if (visitor.getBadgeId() == null) {
+            visitor.setBadgeId(generateBadgeId());
+        }
+        visitor.setPassTokenId(UUID.randomUUID().toString());
+        visitor.setQrIssuedAt(now);
+        visitor.setQrExpiresAt(resolveQrExpiry(visitor, now));
+        visitor.setBadgePrintedAt(null);
+    }
+
+    private void clearPassCredentials(Visitor visitor) {
+        visitor.setQrCode(null);
+        visitor.setPassTokenId(null);
+        visitor.setQrIssuedAt(null);
+        visitor.setQrExpiresAt(null);
+        visitor.setBadgePrintedAt(null);
+    }
+
+    private Visitor ensurePassSecurityState(Visitor visitor) {
+        boolean changed = false;
+        if (visitor.getBadgeId() == null && visitor.getQrCode() != null) {
+            visitor.setBadgeId(generateBadgeId());
+            changed = true;
+        }
+        if (visitor.getPassTokenId() == null && visitor.getQrCode() != null) {
+            visitor.setPassTokenId(UUID.randomUUID().toString());
+            changed = true;
+        }
+        if (changed) {
+            visitor.setUpdatedAt(Instant.now());
+            return visitorRepository.save(visitor);
+        }
+        return visitor;
+    }
+
+    private boolean matchesTokenClaims(
+            Visitor visitor,
+            String securePassId,
+            String organizationReference,
+            String visitorReference,
+            String approvalState,
+            String passCode
+    ) {
+        if (visitor.getQrCode() == null || !visitor.getQrCode().equals(passCode)) {
+            return false;
+        }
+        if (securePassId != null && securePassId.equals(visitor.getId())) {
+            return true;
+        }
+        return visitor.getPassTokenId() != null
+                && resolveBadgeId(visitor).equals(visitorReference)
+                && String.valueOf(visitor.getOrganizationCode()).equals(String.valueOf(organizationReference))
+                && visitor.getStatus().name().equals(approvalState);
+    }
+
+    private QrVerificationResponse verificationResponse(
+            boolean valid,
+            boolean recognized,
+            String resultCode,
+            String headline,
+            String message,
+            String recommendedAction,
+            Visitor visitor,
+            Instant now
+    ) {
+        boolean overdue = isOverdue(visitor, now);
+        return new QrVerificationResponse(
+                valid,
+                recognized,
+                resultCode,
+                headline,
+                message,
+                recommendedAction,
+                visitor.getId(),
+                visitor.getFullName(),
+                visitor.getCompanyName(),
+                visitor.getOrganizationName(),
+                visitor.getOrganizationCode(),
+                visitor.getHostEmployee(),
+                hostDepartmentFor(visitor),
+                visitor.getPhotoUrl(),
+                visitor.getStatus(),
+                displayStatus(visitor.getStatus()),
+                resolveBadgeId(visitor),
+                visitor.getQrCode(),
+                visitor.getQrIssuedAt(),
+                visitor.getQrExpiresAt(),
+                visitor.getScheduledStartTime(),
+                visitor.getScheduledEndTime(),
+                visitor.getCheckInTime(),
+                visitor.getCheckOutTime(),
+                overdue,
+                passValidityStatus(visitor, now),
+                valid && visitor.getStatus() == VisitorStatus.APPROVED,
+                visitor.getStatus() == VisitorStatus.CHECKED_IN
+        );
+    }
+
+    private String displayStatus(VisitorStatus status) {
+        return switch (status) {
+            case PENDING -> "Pending approval";
+            case APPROVED -> "Approved";
+            case REJECTED -> "Denied";
+            case CHECKED_IN -> "Checked in";
+            case CHECKED_OUT -> "Checked out";
+            case EXPIRED -> "Expired";
+        };
+    }
+
+    private String checkInState(Visitor visitor, Instant now) {
+        if (visitor.getCheckOutTime() != null) {
+            return "Checked out";
+        }
+        if (visitor.getCheckInTime() != null) {
+            return isOverdue(visitor, now) ? "Checked in · overdue" : "Checked in";
+        }
+        if (visitor.getStatus() == VisitorStatus.APPROVED) {
+            return "Awaiting check-in";
+        }
+        if (visitor.getStatus() == VisitorStatus.PENDING) {
+            return "Pending approval";
+        }
+        if (visitor.getStatus() == VisitorStatus.REJECTED) {
+            return "Access denied";
+        }
+        if (visitor.getStatus() == VisitorStatus.EXPIRED) {
+            return "Visit expired";
+        }
+        return displayStatus(visitor.getStatus());
     }
 }
