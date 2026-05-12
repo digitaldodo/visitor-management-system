@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AccessFlow badge verification" />
+    <title>AccessFlow | Badge Verification</title>
+    <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
+    <link rel="stylesheet" href="../../css/pass/pass.css?v=20260512-qrverify" />
+  </head>
+  <body>
+    <main class="pass-verify-app">
+      <section class="pass-verify-shell">
+        <div class="pass-verify-brand">
+          <img src="../../assets/branding/logo-dark.png" alt="AccessFlow" />
+          <span>Badge verification</span>
+        </div>
+        <div class="pass-verify-stage" id="pass-verify-stage" aria-live="polite">
+          <article class="pass-verify-card pass-verify-card--loading">
+            <div class="pass-verify-status pass-verify-status--neutral">Loading</div>
+            <h1>Verifying badge</h1>
+            <p>AccessFlow is checking this visitor pass against the live approval record.</p>
+          </article>
+        </div>
+        <footer class="pass-verify-footer">
+          <span>AccessFlow public badge verification</span>
+          <span data-pass-year></span>
+        </footer>
+      </section>
+    </main>
+    <script src="../../assets/js/env.js"></script>
+    <script type="module" src="../../js/pass/verify.js?v=20260512-qrverify"></script>
+  </body>
+</html>

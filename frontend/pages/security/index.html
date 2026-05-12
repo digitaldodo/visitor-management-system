@@ -188,15 +188,15 @@
               </div>
               <form class="qr-verify-form" id="qr-verify-form">
                 <label class="form-field">
-                  <span>Badge scan or payload</span>
-                  <input id="qr-payload-input" type="text" autocomplete="off" inputmode="text" placeholder="Scan a badge with a camera or hardware scanner" />
+                  <span>Badge scan or verification link</span>
+                  <input id="qr-payload-input" type="text" autocomplete="off" inputmode="url" placeholder="Scan a badge URL or paste the verification link" />
                 </label>
                 <div class="qr-verify-form__actions">
                   <button class="button button--ghost" id="qr-camera-button" type="button">Camera Scan</button>
                   <button class="button button--primary" type="submit">Verify</button>
                 </div>
               </form>
-              <p class="qr-verify-form__note">Only live AccessFlow visitor badges are accepted. Every scan is checked against approval status, timing, and organization scope.</p>
+              <p class="qr-verify-form__note">Only live AccessFlow visitor badges are accepted. Each scan resolves the public pass link, then validates approval state, timing, and organization scope.</p>
               <video class="qr-scan-video is-hidden" id="qr-scan-video" autoplay playsinline muted></video>
               <div id="qr-result"></div>
             </article>

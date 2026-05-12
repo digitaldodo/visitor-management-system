@@ -1142,6 +1142,81 @@ body.has-mobile-sidebar {
   width: min(100%, 68rem);
 }
 
+.enterprise-badge-preview {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 68rem);
+}
+
+.enterprise-badge-preview__frame {
+  align-items: center;
+  aspect-ratio: 1.586;
+  background:
+    radial-gradient(circle at top, rgba(79, 124, 255, 0.13), transparent 34rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 28px;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: clamp(0.6rem, 1.8vw, 1rem);
+}
+
+.enterprise-badge-preview[data-state="error"] .enterprise-badge-preview__frame {
+  aspect-ratio: auto;
+  min-height: 18rem;
+}
+
+.enterprise-badge-preview__loading {
+  align-items: center;
+  color: var(--color-muted);
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+  max-width: 22rem;
+  text-align: center;
+}
+
+.enterprise-badge-preview__loading strong {
+  color: var(--color-text);
+}
+
+.enterprise-badge-preview__loading span {
+  line-height: 1.55;
+}
+
+.enterprise-badge-preview__image {
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.22);
+  display: block;
+  height: auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.enterprise-badge-preview__meta {
+  color: var(--color-muted);
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.enterprise-badge-preview__meta code {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  color: var(--color-text);
+  display: inline-block;
+  font-size: 0.76rem;
+  max-width: min(100%, 44rem);
+  overflow: hidden;
+  padding: 0.45rem 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .enterprise-badge {
   --badge-accent: #166534;
   --badge-accent-soft: #ecfdf3;
@@ -1780,6 +1855,10 @@ body.has-mobile-sidebar {
   .enterprise-badge-sheet__canvas {
     min-width: 100%;
     width: 100%;
+  }
+
+  .enterprise-badge-preview__meta code {
+    max-width: 100%;
   }
 
   .enterprise-badge__detail-grid {

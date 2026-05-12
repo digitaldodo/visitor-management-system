@@ -36,6 +36,8 @@ final class PublicEndpointRequestMatchers {
             "/health/**",
             "/api/v1/organizations/public",
             "/organizations/public",
+            "/api/v1/public/passes/**",
+            "/public/passes/**",
             "/api/v1/homepage",
             "/api/versions",
             "/actuator/health/**",

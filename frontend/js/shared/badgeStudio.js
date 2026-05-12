@@ -16,6 +16,7 @@ const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
     <path d="M120 474c24-78 72-122 120-122s96 44 120 122" fill="#9fb5d1"/>
   </svg>
 `);
+const badgeAssetCache = new Map();
 
 export function badgeMarkup(pass, options = {}) {
   const visitDate = formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt);
@@ -109,10 +110,21 @@ export function badgeDialogMarkup(pass, options = {}) {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
         </button>
       </div>
-      <div class="enterprise-badge-sheet" data-badge-print-root>
+      <div class="enterprise-badge-sheet">
         <div class="enterprise-badge-sheet__viewport">
-          <div class="enterprise-badge-sheet__canvas">
-            ${badgeMarkup(pass, options)}
+          <div class="enterprise-badge-preview" data-badge-preview-root>
+            <div class="enterprise-badge-preview__frame">
+              <div class="enterprise-badge-preview__loading" data-badge-preview-loading>
+                <strong>Rendering badge preview</strong>
+                <span>Preparing the print-safe layout and QR surface.</span>
+              </div>
+              <img class="enterprise-badge-preview__image is-hidden" data-badge-preview-image alt="${escapeHtml(pass.fullName)} badge preview" />
+            </div>
+            <div class="enterprise-badge-preview__meta">
+              <span>Badge reference ${escapeHtml(pass.badgeId || pass.passCode || "AccessFlow")}</span>
+              <span>Preview matches print, PDF, and PNG export output.</span>
+              ${pass.verificationUrl ? `<code>${escapeHtml(pass.verificationUrl)}</code>` : ""}
+            </div>
           </div>
         </div>
       </div>
@@ -126,8 +138,34 @@ export function badgeDialogMarkup(pass, options = {}) {
   `;
 }
 
+export async function hydrateBadgePreview(root, pass) {
+  const previewRoot = root?.querySelector("[data-badge-preview-root]");
+  const image = root?.querySelector("[data-badge-preview-image]");
+  const loading = root?.querySelector("[data-badge-preview-loading]");
+  if (!previewRoot || !image || !loading || !pass) {
+    return;
+  }
+
+  previewRoot.dataset.state = "loading";
+  try {
+    const asset = await getBadgeAsset(pass);
+    image.src = asset.imageDataUrl;
+    image.width = asset.canvas.width;
+    image.height = asset.canvas.height;
+    image.classList.remove("is-hidden");
+    previewRoot.dataset.state = "ready";
+    loading.remove();
+  } catch (error) {
+    previewRoot.dataset.state = "error";
+    loading.innerHTML = `
+      <strong>Preview unavailable</strong>
+      <span>${escapeHtml(error?.message || "Badge preview could not be rendered.")}</span>
+    `;
+  }
+}
+
 export async function downloadBadge(pass, format) {
-  const canvas = await createBadgeCanvas(pass);
+  const { canvas } = await getBadgeAsset(pass);
   if (format === "pdf") {
     const pdfBlob = createPdfFromCanvas(canvas);
     triggerDownload(pdfBlob, safeFileName(pass, "pdf"));
@@ -143,8 +181,7 @@ export async function printBadge(pass) {
     return;
   }
 
-  const canvas = await createBadgeCanvas(pass);
-  const imageDataUrl = canvas.toDataURL("image/png");
+  const { imageDataUrl } = await getBadgeAsset(pass);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.className = "badge-print-frame";
@@ -196,6 +233,31 @@ export async function printBadge(pass) {
 
   frame.srcdoc = renderPrintDocument(pass, imageDataUrl);
   document.body.append(frame);
+}
+
+async function getBadgeAsset(pass) {
+  const cacheKey = badgeAssetKey(pass);
+  if (!badgeAssetCache.has(cacheKey)) {
+    badgeAssetCache.set(cacheKey, (async () => {
+      const canvas = await createBadgeCanvas(pass);
+      return {
+        canvas,
+        imageDataUrl: canvas.toDataURL("image/png"),
+      };
+    })());
+  }
+  return badgeAssetCache.get(cacheKey);
+}
+
+function badgeAssetKey(pass) {
+  return [
+    pass.visitorId || "",
+    pass.badgeId || "",
+    pass.passCode || "",
+    pass.issuedAt || "",
+    pass.expiresAt || "",
+    pass.verificationUrl || pass.qrPayload || "",
+  ].join("::");
 }
 
 async function createBadgeCanvas(pass) {

@@ -4,7 +4,7 @@ import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from 
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { badgeDialogMarkup, downloadBadge, printBadge } from "../shared/badgeStudio.js";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { checkInVisitor, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/visitorApi.js";
 import { showToast } from "../shared/toast.js";
 
@@ -233,6 +233,7 @@ function openBadgeModal(pass) {
   }
   modal.classList.remove("is-hidden");
   modal.innerHTML = badgeDialogMarkup(pass, { includeRecordPrint: true });
+  void hydrateBadgePreview(modal, pass);
 }
 
 function closeBadgeModal() {
@@ -280,7 +281,7 @@ function initQrVerification() {
 async function verifyScannedValue(value) {
   const trimmed = value.trim();
   if (!trimmed) {
-    showToast("Scan needed", "Scan or paste a visitor QR payload.");
+    showToast("Scan needed", "Scan or paste a visitor badge link.");
     return;
   }
   const submit = document.querySelector("#qr-verify-form button[type='submit']");
@@ -310,7 +311,7 @@ function renderVerificationIdle() {
   target.innerHTML = `
     <article class="qr-result qr-result--idle">
       <strong>Ready to scan</strong>
-      <p>Scan a visitor badge or paste a QR payload to validate the live approval record, photo, and access window.</p>
+      <p>Scan a visitor badge or paste its verification link to validate the live approval record, photo, and access window.</p>
     </article>
   `;
 }

@@ -6,7 +6,7 @@ import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShel
 import { listOrganizations } from "../shared/organizationApi.js";
 import { getVisitorPass, getVisitorHistory, uploadVisitPhoto } from "../shared/visitorApi.js";
 import { initHostPicker } from "../shared/hostPicker.js";
-import { badgeDialogMarkup, downloadBadge, printBadge } from "../shared/badgeStudio.js";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["visits", "history", "request"];
@@ -155,6 +155,7 @@ function openBadgeModal(pass) {
   }
   modal.classList.remove("is-hidden");
   modal.innerHTML = badgeDialogMarkup(pass);
+  void hydrateBadgePreview(modal, pass);
 }
 
 function closeBadgeModal() {

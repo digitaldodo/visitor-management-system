@@ -21,7 +21,7 @@ public class QrCodeService {
     private static final int QR_SIZE = 960;
     private static final Map<EncodeHintType, Object> QR_HINTS = Map.of(
             EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H,
-            EncodeHintType.MARGIN, 2,
+            EncodeHintType.MARGIN, 4,
             EncodeHintType.CHARACTER_SET, "UTF-8"
     );
 

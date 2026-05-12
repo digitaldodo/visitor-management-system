@@ -22,6 +22,7 @@ public record VisitorPassResponse(
         String validityStatus,
         String passCode,
         String qrPayload,
+        String verificationUrl,
         String qrImageDataUri,
         Instant issuedAt,
         Instant expiresAt,

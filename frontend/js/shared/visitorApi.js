@@ -83,6 +83,12 @@ export function verifyQrPayload(basePath, qrPayload) {
   });
 }
 
+export function getPublicPassVerification(passToken) {
+  return request(`/public/passes/${encodeURIComponent(passToken)}`, {
+    auth: false,
+  });
+}
+
 export function getSecurityMonitoring(query = "") {
   const suffix = query ? `?query=${encodeURIComponent(query)}` : "";
   return request(`/security/monitoring${suffix}`);

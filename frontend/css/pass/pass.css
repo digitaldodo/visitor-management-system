@@ -1,0 +1,280 @@
+:root {
+  color-scheme: light;
+  --pass-bg: #edf3f9;
+  --pass-ink: #0f1728;
+  --pass-muted: #52627a;
+  --pass-line: rgba(82, 98, 122, 0.16);
+  --pass-card: rgba(255, 255, 255, 0.92);
+  --pass-shadow: 0 32px 80px rgba(15, 23, 42, 0.14);
+  --pass-valid: #166534;
+  --pass-valid-soft: #eaf8ef;
+  --pass-danger: #b42318;
+  --pass-danger-soft: #fff2f0;
+  --pass-warning: #9a6700;
+  --pass-warning-soft: #fff8e7;
+  --pass-neutral: #475467;
+  --pass-neutral-soft: #eef2f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.14), transparent 26rem),
+    linear-gradient(180deg, #f8fbff, var(--pass-bg));
+  color: var(--pass-ink);
+}
+
+img {
+  max-width: 100%;
+}
+
+.pass-verify-app {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.pass-verify-shell {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 72rem);
+}
+
+.pass-verify-brand,
+.pass-verify-footer {
+  align-items: center;
+  color: var(--pass-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.pass-verify-brand img {
+  height: 2rem;
+  width: auto;
+}
+
+.pass-verify-stage {
+  min-height: min(60vh, 42rem);
+}
+
+.pass-verify-card {
+  background: var(--pass-card);
+  border: 1px solid var(--pass-line);
+  border-radius: 32px;
+  box-shadow: var(--pass-shadow);
+  display: grid;
+  gap: 1.5rem;
+  overflow: hidden;
+  padding: clamp(1.2rem, 3vw, 2rem);
+}
+
+.pass-verify-card--loading,
+.pass-verify-card--error {
+  justify-items: start;
+}
+
+.pass-verify-status {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  min-height: 2.2rem;
+  padding: 0 0.95rem;
+  text-transform: uppercase;
+}
+
+.pass-verify-status--valid {
+  background: var(--pass-valid-soft);
+  color: var(--pass-valid);
+}
+
+.pass-verify-status--danger {
+  background: var(--pass-danger-soft);
+  color: var(--pass-danger);
+}
+
+.pass-verify-status--warning {
+  background: var(--pass-warning-soft);
+  color: var(--pass-warning);
+}
+
+.pass-verify-status--neutral {
+  background: var(--pass-neutral-soft);
+  color: var(--pass-neutral);
+}
+
+.pass-verify-card h1,
+.pass-verify-card h2,
+.pass-verify-card p {
+  margin: 0;
+}
+
+.pass-verify-hero {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+}
+
+.pass-verify-photo {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(180deg, #d9e7f5, #eef4fb);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.pass-verify-photo img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.pass-verify-photo--placeholder {
+  align-items: center;
+  color: var(--pass-muted);
+  display: flex;
+  font-size: 0.92rem;
+  height: 100%;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.pass-verify-summary {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.pass-verify-eyebrow {
+  color: var(--pass-muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pass-verify-headline {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pass-verify-headline h1 {
+  font-size: clamp(1.75rem, 4vw, 2.6rem);
+  line-height: 1.02;
+}
+
+.pass-verify-headline p,
+.pass-verify-message,
+.pass-verify-guidance {
+  color: var(--pass-muted);
+  line-height: 1.6;
+}
+
+.pass-verify-guidance {
+  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid var(--pass-line);
+  border-radius: 20px;
+  padding: 0.95rem 1rem;
+}
+
+.pass-verify-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+.pass-verify-detail {
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 22px;
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.95rem 1rem;
+}
+
+.pass-verify-detail span {
+  color: var(--pass-muted);
+  font-size: 0.73rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pass-verify-detail strong {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.pass-verify-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.pass-verify-button {
+  align-items: center;
+  background: #0f1728;
+  border: 0;
+  border-radius: 999px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: 0 1.1rem;
+}
+
+a.pass-verify-button {
+  text-decoration: none;
+}
+
+.pass-verify-button:hover {
+  background: #1d3557;
+}
+
+.pass-verify-button--ghost {
+  background: transparent;
+  border: 1px solid var(--pass-line);
+  color: var(--pass-ink);
+}
+
+.pass-verify-note {
+  color: var(--pass-muted);
+  font-size: 0.92rem;
+}
+
+@media (max-width: 760px) {
+  .pass-verify-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pass-verify-photo {
+    max-width: 13rem;
+  }
+
+  .pass-verify-brand,
+  .pass-verify-footer,
+  .pass-verify-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

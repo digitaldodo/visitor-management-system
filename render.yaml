@@ -85,6 +85,12 @@ services:
         source: /verify-otp
         destination: /pages/verify-otp/index.html
       - type: rewrite
+        source: /pass/*
+        destination: /pages/pass/index.html
+      - type: rewrite
+        source: /verify/*
+        destination: /pages/pass/index.html
+      - type: rewrite
         source: /reset-password
         destination: /pages/reset-password/index.html
       - type: rewrite
