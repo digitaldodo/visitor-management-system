@@ -60,6 +60,7 @@ public class AdminUserService {
                 : userRepository.findAllByOrganizationId(requiredOrganizationId(actor));
         return users
                 .stream()
+                .filter(user -> !actor.getId().equals(user.getId()))
                 .map(this::toResponse)
                 .toList();
     }

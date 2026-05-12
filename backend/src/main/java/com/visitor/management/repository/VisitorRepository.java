@@ -20,9 +20,17 @@ public interface VisitorRepository extends MongoRepository<Visitor, String> {
 
     List<Visitor> findAllByEmailIgnoreCaseAndOrganizationIdOrderByCreatedAtDesc(String email, String organizationId);
 
+    List<Visitor> findTop8ByOrganizationIdOrderByUpdatedAtDesc(String organizationId);
+
+    Optional<Visitor> findTopByOrganizationIdOrderByUpdatedAtDesc(String organizationId);
+
     long countByStatus(VisitorStatus status);
 
+    long countByOrganizationId(String organizationId);
+
     long countByOrganizationIdAndStatus(String organizationId, VisitorStatus status);
+
+    long countByOrganizationIdAndCreatedAtGreaterThanEqual(String organizationId, Instant createdAt);
 
     long countByCheckInTimeBetween(Instant start, Instant end);
 

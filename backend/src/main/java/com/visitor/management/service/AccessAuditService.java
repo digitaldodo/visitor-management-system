@@ -1,6 +1,7 @@
 package com.visitor.management.service;
 
 import com.visitor.management.entity.AccessAuditLog;
+import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.AccessAuditLogRepository;
@@ -45,17 +46,28 @@ public class AccessAuditService {
     }
 
     public void recordAccountCreated(User actor, User createdUser) {
-        record(actor, "ACCOUNT_CREATED", "USER_ACCOUNT", createdUser.getId(), createdUser.getFullName(), "SUCCESS",
+        record(actor, createdUser.getOrganizationId(), createdUser.getOrganizationName(), createdUser.getOrganizationCode(),
+                "ACCOUNT_CREATED", "USER_ACCOUNT", createdUser.getId(), createdUser.getFullName(), "SUCCESS",
                 "Created %s account for %s.".formatted(renderRoles(createdUser.getRoles()), normalize(createdUser.getEmail(), createdUser.getId())));
     }
 
     public void recordRoleChanged(User actor, User targetUser, Set<Role> previousRoles, Set<Role> currentRoles) {
-        record(actor, "ROLE_CHANGED", "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS",
+        record(actor, targetUser.getOrganizationId(), targetUser.getOrganizationName(), targetUser.getOrganizationCode(),
+                "ROLE_CHANGED", "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS",
                 "Updated roles from %s to %s.".formatted(renderRoles(previousRoles), renderRoles(currentRoles)));
     }
 
     public void recordAccountStateChanged(User actor, User targetUser, String action, String detail) {
-        record(actor, action, "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS", detail);
+        record(actor, targetUser.getOrganizationId(), targetUser.getOrganizationName(), targetUser.getOrganizationCode(),
+                action, "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS", detail);
+    }
+
+    public void recordOrganizationChanged(User actor, Organization organization, String action, String detail) {
+        if (organization == null) {
+            return;
+        }
+        record(actor, organization.getId(), organization.getCompanyName(), organization.getCompanyCode(),
+                action, "ORGANIZATION", organization.getId(), organization.getCompanyName(), "SUCCESS", detail);
     }
 
     public List<Map<String, String>> latestSecurityOversight() {
@@ -69,15 +81,30 @@ public class AccessAuditService {
     }
 
     private void record(User actor, String action, String targetType, String targetId, String targetName, String outcome, String details) {
+        record(actor, null, null, null, action, targetType, targetId, targetName, outcome, details);
+    }
+
+    private void record(
+            User actor,
+            String organizationId,
+            String organizationName,
+            String organizationCode,
+            String action,
+            String targetType,
+            String targetId,
+            String targetName,
+            String outcome,
+            String details
+    ) {
         AccessAuditLog log = new AccessAuditLog();
         if (actor != null) {
             log.setActorId(actor.getId());
             log.setActorName(actor.getFullName());
             log.setActorRoles(actor.getRoles());
-            log.setOrganizationId(actor.getOrganizationId());
-            log.setOrganizationName(actor.getOrganizationName());
-            log.setOrganizationCode(actor.getOrganizationCode());
         }
+        log.setOrganizationId(normalize(organizationId, actor != null ? actor.getOrganizationId() : null));
+        log.setOrganizationName(normalize(organizationName, actor != null ? actor.getOrganizationName() : null));
+        log.setOrganizationCode(normalize(organizationCode, actor != null ? actor.getOrganizationCode() : null));
         log.setAction(action);
         log.setTargetType(targetType);
         log.setTargetId(targetId);

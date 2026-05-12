@@ -2,7 +2,7 @@ import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
 import { createDepartment, listDepartments, updateDepartment } from "../shared/departmentApi.js";
 import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
-import { createOrganization, listManagedOrganizations, updateOrganization } from "../shared/organizationApi.js";
+import { createOrganization, getOrganizationWorkspace, listManagedOrganizations, listOrganizationWorkspaceItems, updateOrganization } from "../shared/organizationApi.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
@@ -92,13 +92,16 @@ const ROUTE_ALIASES = {
 let currentSession;
 let currentRoute = "";
 let homepageMetricOptions = [];
+let homepagePreviewSource = {};
 let managedOrganizations = [];
+let organizationWorkspaceItems = [];
 let organizationDepartmentDraft = [];
 let departmentWorkspaceItems = [];
 let departmentFilterOrganizationId = "";
 let userDepartmentOptions = [];
 let userDepartmentOrganizationId = "";
 let adminRouteState = null;
+let activeOrganizationWorkspace = null;
 
 const DEFAULT_DEPARTMENT_PRESETS = [
   "Operations",
@@ -412,116 +415,140 @@ function departmentsTemplate() {
 
 function organizationsTemplate() {
   return `
-    <section class="workspace-grid workspace-grid--split">
-      <article class="panel">
+    <section class="workspace-stack">
+      <article class="panel organization-directory-hero">
         <div class="panel__header">
           <div>
             <p class="eyebrow">Platform Tenancy</p>
-            <h3>Organization Setup</h3>
+            <h3>Organization Directory</h3>
+            <p class="panel__subtle">Operate tenants as managed entities with search, health signals, and dedicated workspaces instead of editing static forms inline.</p>
+          </div>
+          <div class="organization-directory-hero__actions">
+            <button class="button button--ghost" id="organization-refresh" type="button">Refresh directory</button>
+            <button class="button button--primary" id="organization-create-open" type="button">New organization</button>
           </div>
         </div>
-        <form class="organization-form" id="organization-form" novalidate>
-          <input name="organizationId" type="hidden" />
-          <label class="form-field">
-            <span>Organization name</span>
-            <input name="companyName" type="text" autocomplete="organization" placeholder="Northstar Labs" required />
-          </label>
-          <label class="form-field">
-            <span>Organization code</span>
-            <input name="companyCode" type="text" autocomplete="organization" placeholder="NORTHSTAR" required />
-          </label>
-          <label class="form-field">
-            <span>Contact email</span>
-            <input name="contactEmail" type="email" autocomplete="email" placeholder="ops@northstar.com" />
-          </label>
-          <label class="form-field form-field--wide">
-            <span>Address</span>
-            <input name="address" type="text" autocomplete="street-address" placeholder="Street, city, country" />
-          </label>
-          <div class="form-field form-field--wide">
-            <span>Department presets</span>
-            <small class="form-field__message form-field__message--inline">Seed common departments now so admins can assign people from a clean dropdown later.</small>
-            <div class="department-preset-editor">
-              <div class="department-preset-editor__chips" id="organization-department-list"></div>
-              <div class="department-preset-editor__entry">
-                <input id="organization-department-input" type="text" autocomplete="off" placeholder="Add department preset" />
-                <button class="button button--ghost" id="organization-department-add" type="button">Add</button>
-              </div>
-              <div class="department-preset-editor__suggestions" id="organization-department-suggestions"></div>
-            </div>
-          </div>
-          <label class="checkbox-field form-field--wide">
-            <input name="activeStatus" type="checkbox" checked />
-            <span>Organization is active</span>
-          </label>
-          <div class="organization-form__footer">
-            <p id="organization-form-meta">Create organizations for tenant onboarding and admin assignment.</p>
-            <div class="organization-form__actions">
-              <button class="button button--ghost" id="organization-form-reset" type="button">Clear</button>
-              <button class="button button--primary" type="submit">Save organization</button>
-            </div>
-          </div>
-        </form>
+        <div class="organization-summary-grid" id="organization-summary-grid"></div>
       </article>
 
       <article class="panel">
-        <div class="panel__header">
-          <div>
-            <p class="eyebrow">Tenant Directory</p>
-            <h3>Managed Organizations</h3>
-          </div>
+        <div class="organization-toolbar">
+          <label class="search-field organization-toolbar__search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 18.6-4.2-4.2a7 7 0 1 0-1.4 1.4l4.2 4.2ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"/></svg>
+            <input id="organization-search" type="search" placeholder="Search organization name, code, or contact" />
+          </label>
+          <label class="form-field organization-toolbar__field">
+            <span>Status</span>
+            <select id="organization-status-filter">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+          <label class="form-field organization-toolbar__field">
+            <span>Sort by</span>
+            <select id="organization-sort">
+              <option value="companyName">Name</option>
+              <option value="createdAt">Created date</option>
+              <option value="recentVisitorCount">Recent visitor activity</option>
+              <option value="adminCount">Admin count</option>
+            </select>
+          </label>
         </div>
-        <div class="work-list" id="organizations-list"></div>
+        <div class="organization-table-wrap">
+          <table class="organization-table">
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Admins</th>
+                <th>Employees</th>
+                <th>Visitor activity</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="organizations-list"></tbody>
+          </table>
+        </div>
+        <div class="organization-list-empty empty-state empty-state--inline is-hidden" id="organizations-empty">
+          <h3>No organizations match</h3>
+          <p>Try a different search or create a new tenant workspace.</p>
+        </div>
       </article>
     </section>
+    <div class="visitor-modal is-hidden organization-workspace-modal" id="organization-workspace-modal"></div>
   `;
 }
 
 function homepageControlsTemplate() {
   return `
-    <section class="workspace-grid workspace-grid--split">
-      <article class="panel">
+    <section class="workspace-grid homepage-controls-layout">
+      <article class="panel homepage-controls-panel">
         <div class="panel__header">
           <div>
             <p class="eyebrow">Public Website</p>
             <h3>Homepage Controls</h3>
+            <p class="panel__subtle">Adjust public messaging, signal density, and metric visibility from one structured configuration workspace.</p>
           </div>
         </div>
         <form class="homepage-settings-form" id="homepage-settings-form" novalidate>
-          <label class="checkbox-field">
-            <input name="statsVisible" type="checkbox" />
-            <span>Show homepage stats</span>
-          </label>
-          <label class="checkbox-field">
-            <input name="featuredMetricsVisible" type="checkbox" />
-            <span>Show featured metrics section</span>
-          </label>
-          <label class="checkbox-field">
-            <input name="publicCountersVisible" type="checkbox" />
-            <span>Show public counters in the hero area</span>
-          </label>
-          <label class="checkbox-field">
-            <input name="announcementVisible" type="checkbox" />
-            <span>Show homepage announcement</span>
-          </label>
-          <label class="form-field form-field--wide">
-            <span>Announcement title</span>
-            <input name="announcementTitle" type="text" maxlength="80" placeholder="Platform update" />
-          </label>
-          <label class="form-field form-field--wide">
-            <span>Announcement body</span>
-            <textarea name="announcementBody" rows="3" maxlength="240" placeholder="Use this space for scheduled maintenance, launch updates, or onboarding guidance."></textarea>
-          </label>
-          <div class="homepage-settings-form__selectors">
-            <fieldset class="metric-selector">
-              <legend>Featured metrics</legend>
-              <div class="metric-selector__options" id="featured-metrics-options"></div>
-            </fieldset>
-            <fieldset class="metric-selector">
-              <legend>Public counters</legend>
-              <div class="metric-selector__options" id="public-counters-options"></div>
-            </fieldset>
-          </div>
+          <section class="settings-card">
+            <div class="settings-card__header">
+              <div>
+                <p class="eyebrow">Visibility</p>
+                <h4>Section toggles</h4>
+              </div>
+              <p>Keep the homepage lean by enabling only the modules that have an operational purpose.</p>
+            </div>
+            <div class="settings-toggle-grid">
+              ${homepageToggleField("statsVisible", "Homepage stats", "Allow public data modules to render at all.")}
+              ${homepageToggleField("featuredMetricsVisible", "Featured metrics", "Show the primary metrics band beneath the hero.")}
+              ${homepageToggleField("publicCountersVisible", "Hero counters", "Surface counters directly inside the hero summary row.")}
+              ${homepageToggleField("announcementVisible", "Announcement banner", "Publish short updates without adding long-form content.")}
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card__header">
+              <div>
+                <p class="eyebrow">Announcement</p>
+                <h4>Public message</h4>
+              </div>
+              <p>Use concise messaging for maintenance windows, onboarding guidance, or launch updates.</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="form-field form-field--wide">
+                <span>Announcement title</span>
+                <input name="announcementTitle" type="text" maxlength="80" placeholder="Platform update" />
+              </label>
+              <label class="form-field form-field--wide">
+                <span>Announcement body</span>
+                <textarea name="announcementBody" rows="4" maxlength="240" placeholder="Use this space for scheduled maintenance, launch updates, or onboarding guidance."></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card__header">
+              <div>
+                <p class="eyebrow">Metric Sets</p>
+                <h4>Featured metrics and counters</h4>
+              </div>
+              <p>Select only the metrics that help a visitor or stakeholder understand platform scale at a glance.</p>
+            </div>
+            <div class="homepage-settings-form__selectors">
+              <fieldset class="metric-selector">
+                <legend>Featured metrics</legend>
+                <div class="metric-selector__options" id="featured-metrics-options"></div>
+              </fieldset>
+              <fieldset class="metric-selector">
+                <legend>Public counters</legend>
+                <div class="metric-selector__options" id="public-counters-options"></div>
+              </fieldset>
+            </div>
+          </section>
+
           <div class="homepage-settings-form__footer">
             <p id="homepage-settings-meta">Homepage controls are ready to configure.</p>
             <button class="button button--primary" type="submit">Save homepage settings</button>
@@ -532,13 +559,27 @@ function homepageControlsTemplate() {
       <aside class="panel homepage-preview-panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Preview</p>
+            <p class="eyebrow">Live Preview</p>
             <h3>Public Homepage Output</h3>
+            <p class="panel__subtle">This preview mirrors the current control selections so layout and hierarchy stay visible while you edit.</p>
           </div>
         </div>
         <div class="homepage-preview" id="homepage-settings-preview"></div>
       </aside>
     </section>
+  `;
+}
+
+function homepageToggleField(name, title, description) {
+  return `
+    <label class="toggle-card">
+      <input name="${escapeHtml(name)}" type="checkbox" />
+      <span class="toggle-card__content">
+        <strong>${escapeHtml(title)}</strong>
+        <small>${escapeHtml(description)}</small>
+      </span>
+      <span class="toggle-card__switch" aria-hidden="true"></span>
+    </label>
   `;
 }
 
@@ -747,7 +788,7 @@ function initWorkspace(routeKey) {
       initDepartmentWorkspace();
       break;
     case "organizations":
-      initOrganizationForm();
+      initOrganizationsWorkspace();
       break;
     case "homepage-controls":
       initHomepageSettingsForm();
@@ -834,12 +875,18 @@ async function loadUsersWorkspace() {
 }
 
 async function loadOrganizationsWorkspace() {
-  renderLoadingList("#organizations-list", 4);
+  renderOrganizationWorkspaceLoading();
   try {
-    await ensureManagedOrganizations({ force: true });
-    renderOrganizations(managedOrganizations);
+    const [workspaceResponse, organizationsResponse] = await Promise.all([
+      listOrganizationWorkspaceItems(),
+      listManagedOrganizations(),
+    ]);
+    organizationWorkspaceItems = workspaceResponse.data || [];
+    managedOrganizations = organizationsResponse.data || [];
+    renderOrganizations(organizationWorkspaceItems);
   } catch (error) {
-    renderWorkList("#organizations-list", [], (item) => item, "Organizations unavailable", error.message);
+    organizationWorkspaceItems = [];
+    renderOrganizations([]);
     showToast("Organizations unavailable", error.message);
   }
 }
@@ -1133,6 +1180,13 @@ function initHomepageSettingsForm() {
     return;
   }
 
+  form.addEventListener("input", () => {
+    syncHomepagePreviewFromForm(form);
+  });
+  form.addEventListener("change", () => {
+    syncHomepagePreviewFromForm(form);
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!hasRole("SUPER_ADMIN")) {
@@ -1165,87 +1219,16 @@ function initHomepageSettingsForm() {
   });
 }
 
-function initOrganizationForm() {
-  const form = document.querySelector("#organization-form");
-  if (!form) {
-    return;
-  }
-
-  resetOrganizationDepartmentDraft(true);
-  renderOrganizationDepartmentEditor();
-
-  document.querySelector("#organization-form-reset")?.addEventListener("click", () => {
-    resetOrganizationForm(form);
+function initOrganizationsWorkspace() {
+  const modal = document.querySelector("#organization-workspace-modal");
+  document.querySelector("#organization-search")?.addEventListener("input", () => renderOrganizations(organizationWorkspaceItems));
+  document.querySelector("#organization-status-filter")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
+  document.querySelector("#organization-sort")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
+  document.querySelector("#organization-refresh")?.addEventListener("click", async () => {
+    await loadOrganizationsWorkspace();
   });
-
-  document.querySelector("#organization-department-add")?.addEventListener("click", () => {
-    addOrganizationDepartmentFromInput();
-  });
-
-  document.querySelector("#organization-department-input")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") {
-      return;
-    }
-    event.preventDefault();
-    addOrganizationDepartmentFromInput();
-  });
-
-  document.querySelector("#organization-department-list")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-department-remove]");
-    if (!button) {
-      return;
-    }
-    organizationDepartmentDraft = organizationDepartmentDraft.filter((name) => departmentKey(name) !== button.dataset.departmentRemove);
-    renderOrganizationDepartmentEditor();
-  });
-
-  document.querySelector("#organization-department-suggestions")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-department-suggestion]");
-    if (!button) {
-      return;
-    }
-    addOrganizationDepartment(button.dataset.departmentSuggestion, { clearInput: false });
-  });
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!hasRole("SUPER_ADMIN")) {
-      showToast("Organizations locked", "Only SUPER_ADMIN can manage organizations.");
-      return;
-    }
-
-    const data = new FormData(form);
-    const organizationId = trim(data.get("organizationId"));
-    const payload = {
-      companyName: trim(data.get("companyName")),
-      companyCode: String(data.get("companyCode") || "").trim().toUpperCase(),
-      contactEmail: trim(data.get("contactEmail")),
-      address: trim(data.get("address")),
-      activeStatus: data.get("activeStatus") === "on",
-      departmentNames: organizationDepartmentDraft.slice(),
-    };
-    const error = validateOrganization(payload);
-    if (error) {
-      showToast("Check organization", error);
-      return;
-    }
-
-    setFormLoading(form, true);
-    try {
-      if (organizationId) {
-        await updateOrganization(organizationId, payload);
-        showToast("Organization updated", "Tenant details were saved.");
-      } else {
-        await createOrganization(payload);
-        showToast("Organization created", "Tenant is ready for admin and visitor setup.");
-      }
-      resetOrganizationForm(form);
-      await loadOrganizationsWorkspace();
-    } catch (error) {
-      showToast("Organization save failed", error.message);
-    } finally {
-      setFormLoading(form, false);
-    }
+  document.querySelector("#organization-create-open")?.addEventListener("click", () => {
+    openOrganizationWorkspaceModal();
   });
 
   document.querySelector("#organizations-list")?.addEventListener("click", async (event) => {
@@ -1253,30 +1236,18 @@ function initOrganizationForm() {
     if (!button) {
       return;
     }
-
-    const organization = managedOrganizations.find((item) => item.id === button.dataset.organizationId);
+    const organizationId = button.dataset.organizationId;
+    const organization = managedOrganizations.find((item) => item.id === organizationId);
     if (!organization) {
       return;
     }
-
-    if (button.dataset.organizationAction === "edit") {
-      button.toggleAttribute("disabled", true);
-      try {
-        const departments = await listDepartments({ organizationId: organization.id });
-        populateOrganizationForm(form, organization, departments.data || []);
-        document.querySelector("#workspace-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } catch (error) {
-        showToast("Departments unavailable", error.message);
-      } finally {
-        button.toggleAttribute("disabled", false);
-      }
+    if (button.dataset.organizationAction === "open") {
+      await openOrganizationWorkspaceModal(organization.id);
       return;
     }
-
     if (button.dataset.organizationAction !== "toggle") {
       return;
     }
-
     button.toggleAttribute("disabled", true);
     try {
       await updateOrganization(organization.id, {
@@ -1288,12 +1259,368 @@ function initOrganizationForm() {
       });
       showToast("Organization updated", organization.activeStatus ? "Organization access has been paused." : "Organization is active again.");
       await loadOrganizationsWorkspace();
+      if (activeOrganizationWorkspace?.organization?.id === organization.id) {
+        await openOrganizationWorkspaceModal(organization.id, { activeTab: "settings" });
+      }
     } catch (error) {
       showToast("Organization update failed", error.message);
     } finally {
       button.toggleAttribute("disabled", false);
     }
   });
+
+  modal?.addEventListener("click", async (event) => {
+    if (event.target === modal || event.target.closest("[data-organization-close]")) {
+      closeOrganizationWorkspaceModal();
+      return;
+    }
+
+    const tabButton = event.target.closest("[data-organization-tab]");
+    if (tabButton) {
+      setOrganizationWorkspaceTab(tabButton.dataset.organizationTab);
+      return;
+    }
+
+    const removeButton = event.target.closest("[data-department-remove]");
+    if (removeButton) {
+      organizationDepartmentDraft = organizationDepartmentDraft.filter((name) => departmentKey(name) !== removeButton.dataset.departmentRemove);
+      renderOrganizationDepartmentEditor();
+      return;
+    }
+
+    const suggestionButton = event.target.closest("[data-department-suggestion]");
+    if (suggestionButton) {
+      addOrganizationDepartment(suggestionButton.dataset.departmentSuggestion, { clearInput: false });
+      return;
+    }
+
+    if (event.target.closest("#organization-department-add")) {
+      addOrganizationDepartmentFromInput();
+      return;
+    }
+
+    const adminAction = event.target.closest("[data-organization-admin-action]");
+    if (adminAction && activeOrganizationWorkspace?.organization?.id) {
+      await handleOrganizationAdminAction(adminAction);
+      return;
+    }
+
+    const departmentToggle = event.target.closest("[data-organization-department-toggle]");
+    if (departmentToggle && activeOrganizationWorkspace?.organization?.id) {
+      await handleOrganizationDepartmentToggle(departmentToggle);
+    }
+  });
+
+  modal?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeOrganizationWorkspaceModal();
+      return;
+    }
+    if (event.key === "Enter" && event.target?.id === "organization-department-input") {
+      event.preventDefault();
+      addOrganizationDepartmentFromInput();
+    }
+  });
+
+  modal?.addEventListener("submit", async (event) => {
+    const form = event.target.closest("form");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+
+    if (form.id === "organization-form") {
+      await submitOrganizationWorkspaceForm(form);
+      return;
+    }
+    if (form.id === "organization-admin-form") {
+      await submitOrganizationAdminForm(form);
+      return;
+    }
+    if (form.id === "organization-department-form") {
+      await submitOrganizationDepartmentForm(form);
+      return;
+    }
+
+    const departmentEditor = form.closest("[data-organization-department-editor]");
+    if (departmentEditor) {
+      await submitOrganizationDepartmentRename(form, departmentEditor.dataset.departmentId);
+    }
+  });
+}
+
+async function openOrganizationWorkspaceModal(organizationId = "", options = {}) {
+  const { activeTab = "overview" } = options;
+  const modal = document.querySelector("#organization-workspace-modal");
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove("is-hidden");
+  modal.innerHTML = `
+    <div class="visitor-modal__dialog organization-workspace organization-workspace--loading" role="dialog" aria-modal="true" aria-label="Organization workspace">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Organization Workspace</p>
+          <h2>${organizationId ? "Loading organization" : "Create organization"}</h2>
+        </div>
+        <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
+        </button>
+      </div>
+      <div class="empty-state empty-state--inline">
+        <h3>${organizationId ? "Loading workspace" : "Preparing setup workspace"}</h3>
+        <p>${organizationId ? "Fetching organization detail, activity, and admin controls." : "Opening the organization setup flow."}</p>
+      </div>
+    </div>
+  `;
+
+  if (!organizationId) {
+    activeOrganizationWorkspace = null;
+    resetOrganizationDepartmentDraft(true);
+    renderOrganizationWorkspaceModal(null, { mode: "create", activeTab: "settings" });
+    return;
+  }
+
+  try {
+    const response = await getOrganizationWorkspace(organizationId);
+    activeOrganizationWorkspace = response.data;
+    organizationDepartmentDraft = (activeOrganizationWorkspace?.departments || []).map((department) => department.departmentName);
+    renderOrganizationWorkspaceModal(activeOrganizationWorkspace, { mode: "manage", activeTab });
+  } catch (error) {
+    modal.innerHTML = `
+      <div class="visitor-modal__dialog organization-workspace" role="dialog" aria-modal="true" aria-label="Organization workspace">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Organization Workspace</p>
+            <h2>Workspace unavailable</h2>
+          </div>
+          <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
+          </button>
+        </div>
+        <article class="empty-state empty-state--inline">
+          <h3>Organization workspace unavailable</h3>
+          <p>${escapeHtml(error.message)}</p>
+        </article>
+      </div>
+    `;
+  }
+}
+
+function closeOrganizationWorkspaceModal() {
+  const modal = document.querySelector("#organization-workspace-modal");
+  if (!modal) {
+    return;
+  }
+  modal.classList.add("is-hidden");
+  modal.innerHTML = "";
+  activeOrganizationWorkspace = null;
+}
+
+function setOrganizationWorkspaceTab(tab) {
+  const modal = document.querySelector("#organization-workspace-modal");
+  if (!modal) {
+    return;
+  }
+  modal.querySelectorAll("[data-organization-tab]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.organizationTab === tab);
+  });
+  modal.querySelectorAll("[data-organization-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.organizationPanel !== tab;
+  });
+}
+
+function renderOrganizationWorkspaceModal(workspace, options = {}) {
+  const { mode = "manage", activeTab = "overview" } = options;
+  const modal = document.querySelector("#organization-workspace-modal");
+  if (!modal) {
+    return;
+  }
+
+  modal.innerHTML = organizationWorkspaceModalMarkup(workspace, mode);
+  renderOrganizationDepartmentEditor();
+
+  const form = modal.querySelector("#organization-form");
+  if (form && workspace?.organization) {
+    populateOrganizationForm(form, workspace.organization, workspace.departments || []);
+  } else if (form) {
+    resetOrganizationForm(form);
+  }
+
+  setOrganizationWorkspaceTab(mode === "create" ? "settings" : activeTab);
+}
+
+async function submitOrganizationWorkspaceForm(form) {
+  if (!hasRole("SUPER_ADMIN")) {
+    showToast("Organizations locked", "Only SUPER_ADMIN can manage organizations.");
+    return;
+  }
+
+  const data = new FormData(form);
+  const organizationId = trim(data.get("organizationId"));
+  const payload = {
+    companyName: trim(data.get("companyName")),
+    companyCode: String(data.get("companyCode") || "").trim().toUpperCase(),
+    contactEmail: trim(data.get("contactEmail")),
+    address: trim(data.get("address")),
+    activeStatus: data.get("activeStatus") === "on",
+    departmentNames: organizationDepartmentDraft.slice(),
+  };
+  const error = validateOrganization(payload);
+  if (error) {
+    showToast("Check organization", error);
+    return;
+  }
+
+  setFormLoading(form, true);
+  try {
+    const response = organizationId
+      ? await updateOrganization(organizationId, payload)
+      : await createOrganization(payload);
+    showToast(organizationId ? "Organization updated" : "Organization created", organizationId ? "Tenant details were saved." : "Tenant is ready for admin and visitor setup.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(response.data?.id || organizationId, { activeTab: "overview" });
+  } catch (submitError) {
+    showToast("Organization save failed", submitError.message);
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function submitOrganizationAdminForm(form) {
+  if (!activeOrganizationWorkspace?.organization?.id) {
+    return;
+  }
+
+  const data = Object.fromEntries(new FormData(form).entries());
+  const payload = {
+    fullName: trim(data.fullName),
+    username: trim(data.username),
+    email: trim(data.email),
+    password: data.password,
+    role: "ADMIN",
+    companyCode: activeOrganizationWorkspace.organization.companyCode,
+    department: normalizeDepartmentValue(data.department),
+  };
+  const error = validateInternalUser(payload);
+  if (error) {
+    showToast("Check account", error);
+    return;
+  }
+
+  setFormLoading(form, true);
+  try {
+    await request("/admin/users", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    form.reset();
+    showToast("Admin created", "The organization admin account is ready for provisioning.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
+  } catch (submitError) {
+    showToast("Admin creation failed", submitError.message);
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function submitOrganizationDepartmentForm(form) {
+  const organizationId = activeOrganizationWorkspace?.organization?.id;
+  if (!organizationId) {
+    return;
+  }
+  const departmentName = normalizeDepartmentValue(form.querySelector("input[name='departmentName']")?.value);
+  const error = validateDepartmentValue(departmentName, { required: true });
+  if (error) {
+    showToast("Check department", error);
+    return;
+  }
+
+  setFormLoading(form, true);
+  try {
+    await createDepartment({ organizationId, departmentName });
+    form.reset();
+    showToast("Department added", "The department is ready for organization-scoped assignment.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(organizationId, { activeTab: "departments" });
+  } catch (submitError) {
+    showToast("Department save failed", submitError.message);
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function submitOrganizationDepartmentRename(form, departmentId) {
+  const departmentName = normalizeDepartmentValue(form.querySelector("input[name='departmentName']")?.value);
+  const error = validateDepartmentValue(departmentName, { required: true });
+  if (error) {
+    showToast("Check department", error);
+    return;
+  }
+
+  setFormLoading(form, true);
+  try {
+    await updateDepartment(departmentId, { departmentName });
+    showToast("Department renamed", "Department updates are now reflected in organization setup.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
+  } catch (submitError) {
+    showToast("Department rename failed", submitError.message);
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function handleOrganizationDepartmentToggle(button) {
+  const departmentId = button.dataset.departmentId;
+  const department = activeOrganizationWorkspace?.departments?.find((item) => item.id === departmentId);
+  if (!department) {
+    return;
+  }
+  button.toggleAttribute("disabled", true);
+  try {
+    await updateDepartment(department.id, { activeStatus: !department.activeStatus });
+    showToast("Department updated", department.activeStatus ? "Department deactivated for future assignments." : "Department reactivated for assignment.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
+  } catch (error) {
+    showToast("Department update failed", error.message);
+  } finally {
+    button.toggleAttribute("disabled", false);
+  }
+}
+
+async function handleOrganizationAdminAction(button) {
+  const userId = button.dataset.userId;
+  const action = button.dataset.organizationAdminAction;
+  const card = button.closest("[data-organization-admin-card]");
+  const roleField = card?.querySelector("[data-role-select]");
+  const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
+  if (action === "reset-password" && !password) {
+    return;
+  }
+  const requestBody = action === "reset-password"
+    ? { newPassword: password }
+    : action === "role"
+      ? { role: roleField?.value }
+      : {};
+
+  button.toggleAttribute("disabled", true);
+  try {
+    await request(`/admin/users/${encodeURIComponent(userId)}/${action}`, {
+      method: "PATCH",
+      body: JSON.stringify(requestBody),
+    });
+    showToast("Account updated", "Organization admin access controls were updated.");
+    await loadOrganizationsWorkspace();
+    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
+  } catch (error) {
+    showToast("Update failed", error.message);
+  } finally {
+    button.toggleAttribute("disabled", false);
+  }
 }
 
 function renderUsers(users) {
@@ -1437,6 +1764,7 @@ function renderAnalyticsLoading() {
 
 function renderHomepageSettings(data) {
   homepageMetricOptions = Array.isArray(data?.availableMetrics) ? data.availableMetrics : [];
+  homepagePreviewSource = data?.publicPreview || {};
   const settings = data?.settings || {};
   const form = document.querySelector("#homepage-settings-form");
   if (!form) {
@@ -1452,7 +1780,7 @@ function renderHomepageSettings(data) {
 
   renderMetricOptions("#featured-metrics-options", "featuredMetricKeys", settings.featuredMetricKeys || []);
   renderMetricOptions("#public-counters-options", "publicMetricKeys", settings.publicMetricKeys || []);
-  renderHomepagePreview(data?.publicPreview || {});
+  syncHomepagePreviewFromForm(form);
 
   const canEdit = hasRole("SUPER_ADMIN");
   form.querySelectorAll("input, textarea, button[type='submit']").forEach((element) => {
@@ -1491,12 +1819,13 @@ function renderMetricOptions(selector, name, selectedKeys) {
 
   const selected = new Set(selectedKeys || []);
   container.innerHTML = homepageMetricOptions.map((metric) => `
-    <label class="checkbox-field">
+    <label class="metric-option-card ${selected.has(metric.key) ? "is-selected" : ""}">
       <input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(metric.key)}" ${selected.has(metric.key) ? "checked" : ""} />
-      <span>
+      <span class="metric-option-card__body">
         <strong>${escapeHtml(metric.label)}</strong>
         <small>${escapeHtml(metric.note)}</small>
       </span>
+      <span class="metric-option-card__state">${selected.has(metric.key) ? "Selected" : "Optional"}</span>
     </label>
   `).join("");
 }
@@ -1512,15 +1841,44 @@ function renderHomepagePreview(preview) {
   const publicCounters = Array.isArray(preview?.publicCounters) ? preview.publicCounters : [];
 
   container.innerHTML = `
-    ${announcement?.title && announcement?.body ? `
-      <article class="homepage-preview-card homepage-preview-card--announcement">
-        <p class="eyebrow">Announcement</p>
-        <h3>${escapeHtml(announcement.title)}</h3>
-        <p>${escapeHtml(announcement.body)}</p>
+    <article class="homepage-preview-shell">
+      <section class="homepage-preview-hero">
+        <div class="homepage-preview-hero__copy">
+          <p class="eyebrow">AccessFlow</p>
+          <h3>Enterprise visitor access that stays structured from arrival to audit.</h3>
+          <p>Visitors, hosts, and security teams move through one clean operational flow with approval visibility, tenant-aware routing, and badge validation.</p>
+        </div>
+        <div class="homepage-preview-counter-row">
+          ${publicCounters.length ? publicCounters.map((metric) => `
+            <article class="homepage-preview-counter">
+              <span>${escapeHtml(metric.label)}</span>
+              <strong>${escapeHtml(metric.value)}</strong>
+            </article>
+          `).join("") : emptyPreviewTile(preview?.publicCountersEmptyState?.message || "Hero counters are disabled or no public counter data is available yet.")}
+        </div>
+      </section>
+      ${announcement?.title && announcement?.body ? `
+        <article class="homepage-preview-card homepage-preview-card--announcement">
+          <p class="eyebrow">Announcement</p>
+          <h3>${escapeHtml(announcement.title)}</h3>
+          <p>${escapeHtml(announcement.body)}</p>
+        </article>
+      ` : `
+        <article class="homepage-preview-card homepage-preview-card--empty">
+          <p class="eyebrow">Announcement</p>
+          <h3>No public message</h3>
+          <p>Enable the announcement banner when you need to communicate maintenance, onboarding, or launch guidance.</p>
+        </article>
+      `}
+      ${previewMetricsMarkup("Featured metrics", featuredMetrics, preview?.featuredMetricsEmptyState)}
+      <article class="homepage-preview-card homepage-preview-card--cta">
+        <div>
+          <p class="eyebrow">Portal access</p>
+          <h3>Visitors request access. Teams verify in real time.</h3>
+        </div>
+        <p>This mock section helps validate spacing, card rhythm, and density so the preview feels like a real homepage rather than disconnected placeholders.</p>
       </article>
-    ` : ""}
-    ${previewMetricsMarkup("Featured metrics", featuredMetrics, preview?.featuredMetricsEmptyState)}
-    ${previewMetricsMarkup("Public counters", publicCounters, preview?.publicCountersEmptyState)}
+    </article>
   `;
 }
 
@@ -1529,7 +1887,10 @@ function previewMetricsMarkup(title, items, emptyState) {
     return `
       <article class="homepage-preview-card">
         <h3>${escapeHtml(title)}</h3>
-        <p>${escapeHtml(emptyState?.message || "No public metrics are currently available.")}</p>
+        <div class="homepage-preview-empty">
+          <strong>Nothing selected yet</strong>
+          <p>${escapeHtml(emptyState?.message || "No public metrics are currently available.")}</p>
+        </div>
       </article>
     `;
   }
@@ -1549,6 +1910,55 @@ function previewMetricsMarkup(title, items, emptyState) {
   `;
 }
 
+function syncHomepagePreviewFromForm(form) {
+  const data = new FormData(form);
+  const featuredKeys = new Set(data.getAll("featuredMetricKeys"));
+  const publicKeys = new Set(data.getAll("publicMetricKeys"));
+  form.querySelectorAll(".metric-option-card").forEach((card) => {
+    const input = card.querySelector("input[type='checkbox']");
+    const selected = Boolean(input?.checked);
+    card.classList.toggle("is-selected", selected);
+    const state = card.querySelector(".metric-option-card__state");
+    if (state) {
+      state.textContent = selected ? "Selected" : "Optional";
+    }
+  });
+
+  const metricValueByKey = new Map(
+    [...(homepagePreviewSource?.featuredMetrics || []), ...(homepagePreviewSource?.publicCounters || [])]
+      .map((metric) => [metric.key || metric.label, metric])
+  );
+  const metricLookup = (keys) => homepageMetricOptions
+    .filter((metric) => keys.has(metric.key))
+    .map((metric) => metricValueByKey.get(metric.key) || {
+      key: metric.key,
+      label: metric.label,
+      value: "Not available yet",
+      note: metric.note,
+    });
+
+  const preview = {
+    announcement: data.get("announcementVisible") === "on"
+      ? {
+        title: trim(form.querySelector("input[name='announcementTitle']")?.value),
+        body: trim(form.querySelector("textarea[name='announcementBody']")?.value),
+      }
+      : null,
+    featuredMetrics: data.get("featuredMetricsVisible") === "on" && data.get("statsVisible") === "on"
+      ? metricLookup(featuredKeys)
+      : [],
+    publicCounters: data.get("publicCountersVisible") === "on" && data.get("statsVisible") === "on"
+      ? metricLookup(publicKeys)
+      : [],
+    featuredMetricsEmptyState: homepagePreviewSource?.featuredMetricsEmptyState,
+    publicCountersEmptyState: homepagePreviewSource?.publicCountersEmptyState,
+  };
+  if (!preview.announcement?.title || !preview.announcement?.body) {
+    preview.announcement = null;
+  }
+  renderHomepagePreview(preview);
+}
+
 function renderHomepageSettingsState(message) {
   const preview = document.querySelector("#homepage-settings-preview");
   const meta = document.querySelector("#homepage-settings-meta");
@@ -1566,18 +1976,17 @@ function renderHomepageSettingsState(message) {
 }
 
 function renderOrganizations(items) {
-  managedOrganizations = Array.isArray(items) ? items : [];
+  organizationWorkspaceItems = Array.isArray(items) ? items : [];
+  renderOrganizationSummary();
   const list = document.querySelector("#organizations-list");
-  if (!list) {
+  const empty = document.querySelector("#organizations-empty");
+  if (!list || !empty) {
     return;
   }
 
-  list.innerHTML = managedOrganizations.length ? managedOrganizations.map(organizationCard).join("") : `
-    <article class="empty-state empty-state--inline">
-      <h3>No organizations yet</h3>
-      <p>Create the first tenant to start assigning admins and visitor workflows.</p>
-    </article>
-  `;
+  const visibleItems = filteredOrganizationItems();
+  empty.classList.toggle("is-hidden", visibleItems.length > 0);
+  list.innerHTML = visibleItems.length ? visibleItems.map(organizationCard).join("") : "";
 }
 
 function renderDepartmentWorkspaceItems() {
@@ -1624,25 +2033,475 @@ function departmentCard(department) {
 
 function organizationCard(organization) {
   return `
-    <article class="organization-card">
-      <div class="organization-card__header">
-        <div>
-          <h3>${escapeHtml(organization.companyName)}</h3>
-          <p>${escapeHtml(organization.companyCode)} · ${escapeHtml(organization.contactEmail || "No contact email")}</p>
+    <tr class="organization-row">
+      <td data-label="Organization">
+        <div class="organization-row__identity">
+          <strong>${escapeHtml(organization.companyName)}</strong>
+          <small>${escapeHtml(organization.companyCode)}${organization.contactEmail ? ` · ${escapeHtml(organization.contactEmail)}` : ""}</small>
         </div>
-        <span class="status-badge status-badge--${organization.activeStatus ? "approved" : "rejected"}">${organization.activeStatus ? "Active" : "Inactive"}</span>
+      </td>
+      <td data-label="Admins">${escapeHtml(organization.adminCount)}</td>
+      <td data-label="Employees">${escapeHtml(organization.employeeCount)}</td>
+      <td data-label="Visitor activity">
+        <div class="organization-row__activity">
+          <strong>${escapeHtml(organization.recentVisitorCount)} recent</strong>
+          <small>${escapeHtml(organization.activeVisitors)} active · ${escapeHtml(organization.pendingVisitors)} pending</small>
+        </div>
+      </td>
+      <td data-label="Status"><span class="status-badge status-badge--${organization.activeStatus ? "approved" : "rejected"}">${organization.activeStatus ? "Active" : "Inactive"}</span></td>
+      <td data-label="Created">
+        <div class="organization-row__activity">
+          <strong>${escapeHtml(formatDateOnly(organization.createdAt))}</strong>
+          <small>${escapeHtml(organization.lastVisitorActivityAt ? `Last activity ${formatRelativeTime(organization.lastVisitorActivityAt)}` : "No visitor activity yet")}</small>
+        </div>
+      </td>
+      <td data-label="Actions">
+        <div class="organization-row__actions">
+          <button class="button button--ghost button--small" type="button" data-organization-action="open" data-organization-id="${escapeHtml(organization.id)}">Manage</button>
+          <button class="button ${organization.activeStatus ? "button--ghost" : "button--primary"} button--small" type="button" data-organization-action="toggle" data-organization-id="${escapeHtml(organization.id)}">${organization.activeStatus ? "Disable" : "Enable"}</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function renderOrganizationWorkspaceLoading() {
+  const list = document.querySelector("#organizations-list");
+  const empty = document.querySelector("#organizations-empty");
+  const summary = document.querySelector("#organization-summary-grid");
+  if (summary) {
+    summary.innerHTML = Array.from({ length: 4 }).map(() => `
+      <article class="organization-summary-card organization-summary-card--skeleton">
+        <span></span>
+        <strong></strong>
+        <small></small>
+      </article>
+    `).join("");
+  }
+  if (list) {
+    list.innerHTML = Array.from({ length: 5 }).map(() => `
+      <tr class="organization-row organization-row--skeleton">
+        <td colspan="7"><span></span></td>
+      </tr>
+    `).join("");
+  }
+  empty?.classList.add("is-hidden");
+}
+
+function renderOrganizationSummary() {
+  const summary = document.querySelector("#organization-summary-grid");
+  if (!summary) {
+    return;
+  }
+  const total = organizationWorkspaceItems.length;
+  const active = organizationWorkspaceItems.filter((item) => item.activeStatus).length;
+  const visitorReady = organizationWorkspaceItems.reduce((sum, item) => sum + (Number(item.activeVisitors) || 0), 0);
+  const recent = organizationWorkspaceItems.reduce((sum, item) => sum + (Number(item.recentVisitorCount) || 0), 0);
+  summary.innerHTML = [
+    ["Organizations", total, "Managed tenant records"],
+    ["Active tenants", active, "Available in the public directory"],
+    ["Active visitors", visitorReady, "Checked-in visitors across organizations"],
+    ["Recent activity", recent, "Visitor records created in the last 30 days"],
+  ].map(([label, value, note]) => `
+    <article class="organization-summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(note)}</small>
+    </article>
+  `).join("");
+}
+
+function filteredOrganizationItems() {
+  const query = String(document.querySelector("#organization-search")?.value || "").trim().toLowerCase();
+  const status = String(document.querySelector("#organization-status-filter")?.value || "").trim();
+  const sortBy = String(document.querySelector("#organization-sort")?.value || "companyName").trim();
+
+  return organizationWorkspaceItems
+    .filter((organization) => {
+      if (status === "active" && !organization.activeStatus) {
+        return false;
+      }
+      if (status === "inactive" && organization.activeStatus) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const haystack = [
+        organization.companyName,
+        organization.companyCode,
+        organization.contactEmail,
+        organization.address,
+      ].join(" ").toLowerCase();
+      return haystack.includes(query);
+    })
+    .sort((left, right) => compareOrganizationSort(left, right, sortBy));
+}
+
+function compareOrganizationSort(left, right, sortBy) {
+  if (sortBy === "createdAt") {
+    return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+  }
+  if (sortBy === "recentVisitorCount" || sortBy === "adminCount") {
+    return Number(right[sortBy] || 0) - Number(left[sortBy] || 0);
+  }
+  return String(left.companyName || "").localeCompare(String(right.companyName || ""));
+}
+
+function organizationWorkspaceModalMarkup(workspace, mode) {
+  const organization = workspace?.organization || {};
+  const summary = workspace?.summary || {};
+  const tabs = mode === "create"
+    ? ""
+    : `
+      <div class="organization-workspace__tabs">
+        ${["overview", "admins", "departments", "activity", "audit", "settings"].map((tab) => `
+          <button class="organization-tab" type="button" data-organization-tab="${tab}">${escapeHtml(formatTabLabel(tab))}</button>
+        `).join("")}
       </div>
-      <dl>
-        <div><dt>Address</dt><dd>${escapeHtml(organization.address || "No address recorded")}</dd></div>
-        <div><dt>Created</dt><dd>${escapeHtml(formatDateTime(organization.createdAt))}</dd></div>
-        <div><dt>Updated</dt><dd>${escapeHtml(formatDateTime(organization.updatedAt))}</dd></div>
-      </dl>
-      <div class="organization-card__actions">
-        <button class="button button--ghost" type="button" data-organization-action="edit" data-organization-id="${escapeHtml(organization.id)}">Edit</button>
-        <button class="button ${organization.activeStatus ? "button--ghost" : "button--primary"}" type="button" data-organization-action="toggle" data-organization-id="${escapeHtml(organization.id)}">${organization.activeStatus ? "Deactivate" : "Activate"}</button>
+    `;
+
+  return `
+    <div class="visitor-modal__dialog organization-workspace" role="dialog" aria-modal="true" aria-label="Organization workspace">
+      <div class="panel__header organization-workspace__header">
+        <div>
+          <p class="eyebrow">${mode === "create" ? "New tenant" : "Organization workspace"}</p>
+          <h2>${escapeHtml(mode === "create" ? "Create organization" : organization.companyName || "Organization")}</h2>
+          <p class="enterprise-badge-dialog__lead">${escapeHtml(mode === "create"
+            ? "Create a new tenant with clean presets and activation controls."
+            : `${organization.companyCode || "ORG"} · ${organization.contactEmail || "No contact email on file"}`)}</p>
+        </div>
+        <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
+        </button>
+      </div>
+      ${tabs}
+      <div class="organization-workspace__body">
+        <section class="organization-tab-panel" data-organization-panel="overview" ${mode === "create" ? "hidden" : ""}>
+          <div class="organization-workspace__grid">
+            <article class="organization-overview-card">
+              <p class="eyebrow">Summary</p>
+              <div class="organization-overview-card__stats">
+                ${summaryCard("Admins", summary.adminCount, "Assigned organization admins")}
+                ${summaryCard("Employees", summary.employeeCount, "Internal workforce accounts")}
+                ${summaryCard("Departments", summary.departmentCount, `${summary.activeDepartmentCount || 0} active`)}
+                ${summaryCard("Visitors", summary.totalVisitors, `${summary.recentVisitorCount || 0} in the last 30 days`)}
+              </div>
+            </article>
+            <article class="organization-overview-card">
+              <p class="eyebrow">Tenant profile</p>
+              <dl class="organization-overview-list">
+                <div><dt>Code</dt><dd>${escapeHtml(organization.companyCode || "Not set")}</dd></div>
+                <div><dt>Status</dt><dd>${escapeHtml(organization.activeStatus ? "Active" : "Inactive")}</dd></div>
+                <div><dt>Created</dt><dd>${escapeHtml(formatDateTime(organization.createdAt))}</dd></div>
+                <div><dt>Public directory</dt><dd>${escapeHtml(summary.publicDirectoryVisible ? "Visible while active" : "Hidden while inactive")}</dd></div>
+                <div><dt>Address</dt><dd>${escapeHtml(organization.address || "No address recorded")}</dd></div>
+              </dl>
+            </article>
+          </div>
+          <article class="organization-overview-card">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Recent visitor activity</p>
+                <h3>Latest records</h3>
+              </div>
+            </div>
+            <div class="organization-activity-list">
+              ${(workspace?.recentVisitors || []).length ? workspace.recentVisitors.map((visitor) => `
+                <article class="organization-activity-item">
+                  <div>
+                    <strong>${escapeHtml(visitor.fullName || "Visitor")}</strong>
+                    <p>${escapeHtml(visitor.companyName || "Independent visitor")} · ${escapeHtml(visitor.hostEmployee || "Host pending")}</p>
+                  </div>
+                  <div class="organization-activity-item__meta">
+                    ${statusBadge(visitor.status)}
+                    <small>${escapeHtml(formatDateTime(visitor.updatedAt || visitor.createdAt))}</small>
+                  </div>
+                </article>
+              `).join("") : `
+                <article class="empty-state empty-state--inline">
+                  <h3>No visitor activity yet</h3>
+                  <p>Recent visitor records will appear here once this organization starts using AccessFlow.</p>
+                </article>
+              `}
+            </div>
+          </article>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="admins" hidden>
+          <div class="organization-workspace__grid">
+            <article class="organization-overview-card">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Admin roster</p>
+                  <h3>Manage admins</h3>
+                </div>
+              </div>
+              <div class="organization-admin-list">
+                ${(workspace?.admins || []).length ? workspace.admins.map((admin) => organizationAdminCard(admin)).join("") : `
+                  <article class="empty-state empty-state--inline">
+                    <h3>No admins assigned</h3>
+                    <p>Create the first tenant admin below so this organization can operate independently.</p>
+                  </article>
+                `}
+              </div>
+            </article>
+            <article class="organization-overview-card">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Provisioning</p>
+                  <h3>Create organization admin</h3>
+                </div>
+              </div>
+              <form class="organization-admin-form" id="organization-admin-form" novalidate>
+                <label class="form-field">
+                  <span>Full name</span>
+                  <input name="fullName" type="text" autocomplete="name" placeholder="Tenant admin name" />
+                </label>
+                <label class="form-field">
+                  <span>Username</span>
+                  <input name="username" type="text" autocomplete="username" placeholder="tenant_admin" />
+                </label>
+                <label class="form-field">
+                  <span>Email</span>
+                  <input name="email" type="email" autocomplete="email" placeholder="admin@organization.com" />
+                </label>
+                <label class="form-field">
+                  <span>Department</span>
+                  <input name="department" type="text" list="department-options" placeholder="Operations" />
+                </label>
+                <label class="form-field form-field--wide">
+                  <span>Temporary password</span>
+                  <input name="password" type="text" autocomplete="new-password" placeholder="Use a strong temporary password" />
+                </label>
+                <button class="button button--primary" type="submit">Create admin</button>
+              </form>
+            </article>
+          </div>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="departments" hidden>
+          <div class="organization-workspace__grid">
+            <article class="organization-overview-card">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Department controls</p>
+                  <h3>Manage departments</h3>
+                </div>
+              </div>
+              <form class="organization-department-form" id="organization-department-form" novalidate>
+                <label class="form-field form-field--wide">
+                  <span>New department</span>
+                  <input name="departmentName" type="text" autocomplete="off" placeholder="Procurement" />
+                </label>
+                <button class="button button--primary" type="submit">Add department</button>
+              </form>
+            </article>
+            <article class="organization-overview-card">
+              <div class="organization-department-list">
+                ${(workspace?.departments || []).length ? workspace.departments.map((department) => `
+                  <article class="organization-department-card" data-organization-department-editor data-department-id="${escapeHtml(department.id)}">
+                    <div class="organization-department-card__header">
+                      <div>
+                        <strong>${escapeHtml(department.departmentName)}</strong>
+                        <small>${escapeHtml(formatDateOnly(department.createdAt))}</small>
+                      </div>
+                      <span class="status-badge status-badge--${department.activeStatus ? "approved" : "rejected"}">${department.activeStatus ? "Active" : "Inactive"}</span>
+                    </div>
+                    <form novalidate>
+                      <label class="form-field form-field--wide">
+                        <span>Rename department</span>
+                        <input name="departmentName" type="text" value="${escapeHtml(department.departmentName)}" autocomplete="off" />
+                      </label>
+                      <div class="organization-row__actions">
+                        <button class="button button--ghost button--small" type="submit">Save name</button>
+                        <button class="button ${department.activeStatus ? "button--ghost" : "button--primary"} button--small" type="button" data-organization-department-toggle data-department-id="${escapeHtml(department.id)}">${department.activeStatus ? "Disable" : "Enable"}</button>
+                      </div>
+                    </form>
+                  </article>
+                `).join("") : `
+                  <article class="empty-state empty-state--inline">
+                    <h3>No departments configured</h3>
+                    <p>Add only the teams this organization actually uses to keep account setup clean.</p>
+                  </article>
+                `}
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="activity" hidden>
+          <article class="organization-overview-card">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Visitor activity</p>
+                <h3>Latest visitor records</h3>
+              </div>
+            </div>
+            <div class="organization-activity-list">
+              ${(workspace?.recentVisitors || []).length ? workspace.recentVisitors.map((visitor) => `
+                <article class="organization-activity-item">
+                  <div>
+                    <strong>${escapeHtml(visitor.fullName || "Visitor")}</strong>
+                    <p>${escapeHtml(visitor.companyName || "Independent visitor")}</p>
+                  </div>
+                  <div class="organization-activity-item__meta">
+                    ${statusBadge(visitor.status)}
+                    <small>${escapeHtml(visitor.hostEmployee || "No host")} · ${escapeHtml(formatRelativeTime(visitor.updatedAt || visitor.createdAt))}</small>
+                  </div>
+                </article>
+              `).join("") : `
+                <article class="empty-state empty-state--inline">
+                  <h3>No recent visitor activity</h3>
+                  <p>Recent visitor registrations, approvals, and check-ins will appear here.</p>
+                </article>
+              `}
+            </div>
+          </article>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="audit" hidden>
+          <article class="organization-overview-card">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Audit trail</p>
+                <h3>Organization audit log</h3>
+              </div>
+            </div>
+            <div class="organization-audit-list">
+              ${(workspace?.auditLogs || []).length ? workspace.auditLogs.map((entry) => `
+                <article class="organization-audit-item">
+                  <div>
+                    <strong>${escapeHtml(entry.action)}</strong>
+                    <p>${escapeHtml(entry.details || entry.outcome || "Audit event recorded.")}</p>
+                  </div>
+                  <div class="organization-activity-item__meta">
+                    <span class="status-badge status-badge--approved">${escapeHtml(entry.outcome || "Recorded")}</span>
+                    <small>${escapeHtml(entry.actorName || "System")} · ${escapeHtml(formatDateTime(entry.createdAt))}</small>
+                  </div>
+                </article>
+              `).join("") : `
+                <article class="empty-state empty-state--inline">
+                  <h3>No audit events yet</h3>
+                  <p>Admin and tenant operations will appear here once activity is recorded.</p>
+                </article>
+              `}
+            </div>
+          </article>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="settings" ${mode === "create" ? "" : "hidden"}>
+          <article class="organization-overview-card">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Configuration</p>
+                <h3>${mode === "create" ? "Organization setup" : "Organization settings"}</h3>
+              </div>
+            </div>
+            <form class="organization-form" id="organization-form" novalidate>
+              <input name="organizationId" type="hidden" />
+              <label class="form-field">
+                <span>Organization name</span>
+                <input name="companyName" type="text" autocomplete="organization" placeholder="Northstar Labs" required />
+              </label>
+              <label class="form-field">
+                <span>Organization code</span>
+                <input name="companyCode" type="text" autocomplete="organization" placeholder="NORTHSTAR" required />
+              </label>
+              <label class="form-field">
+                <span>Contact email</span>
+                <input name="contactEmail" type="email" autocomplete="email" placeholder="ops@northstar.com" />
+              </label>
+              <label class="form-field form-field--wide">
+                <span>Address</span>
+                <input name="address" type="text" autocomplete="street-address" placeholder="Street, city, country" />
+              </label>
+              <div class="form-field form-field--wide">
+                <span>Department presets</span>
+                <small class="form-field__message form-field__message--inline">Seed only the departments this organization uses so downstream account assignment stays clean.</small>
+                <div class="department-preset-editor">
+                  <div class="department-preset-editor__chips" id="organization-department-list"></div>
+                  <div class="department-preset-editor__entry">
+                    <input id="organization-department-input" type="text" autocomplete="off" placeholder="Add department preset" />
+                    <button class="button button--ghost" id="organization-department-add" type="button">Add</button>
+                  </div>
+                  <div class="department-preset-editor__suggestions" id="organization-department-suggestions"></div>
+                </div>
+              </div>
+              <label class="toggle-card form-field--wide">
+                <input name="activeStatus" type="checkbox" checked />
+                <span class="toggle-card__content">
+                  <strong>Organization is active</strong>
+                  <small>Active organizations appear in the public directory and remain available for visitor and account workflows.</small>
+                </span>
+                <span class="toggle-card__switch" aria-hidden="true"></span>
+              </label>
+              <div class="organization-form__footer">
+                <p id="organization-form-meta">${escapeHtml(mode === "create" ? "Create organizations for tenant onboarding and admin assignment." : "Update tenant details, public visibility, and department presets from one place.")}</p>
+                <div class="organization-form__actions">
+                  ${mode === "create" ? "" : `<button class="button button--ghost" id="organization-form-reset" type="button" data-organization-tab="overview">Back to overview</button>`}
+                  <button class="button button--primary" type="submit">${mode === "create" ? "Create organization" : "Save organization"}</button>
+                </div>
+              </div>
+            </form>
+          </article>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+function organizationAdminCard(user) {
+  const disabled = !user.active || user.accountStatus === "DISABLED";
+  return `
+    <article class="organization-admin-card" data-organization-admin-card>
+      <div class="organization-admin-card__header">
+        <div>
+          <strong>${escapeHtml(user.fullName || user.email || "Unknown user")}</strong>
+          <p>${escapeHtml(user.email || "No email")} · ${escapeHtml(user.username || "No username")}</p>
+        </div>
+        <span class="status-badge status-badge--${disabled ? "rejected" : "approved"}">${disabled ? "Disabled" : "Active"}</span>
+      </div>
+      <div class="organization-admin-card__meta">
+        <span>${escapeHtml(user.department || "Department not set")}</span>
+        <span>${escapeHtml(formatDateOnly(user.createdAt))}</span>
+      </div>
+      <div class="admin-user-card__role">
+        <label class="form-field">
+          <span>Portal access</span>
+          <select data-role-select>
+            ${internalRoleOptions((user.roles || [])[0] || "ADMIN")}
+          </select>
+        </label>
+        <button class="button button--ghost button--small" type="button" data-organization-admin-action="role" data-user-id="${escapeHtml(user.id)}">Update access</button>
+      </div>
+      <div class="organization-row__actions">
+        <button class="button button--ghost button--small" type="button" data-organization-admin-action="reset-password" data-user-id="${escapeHtml(user.id)}">Reset password</button>
+        <button class="button ${disabled ? "button--primary" : "button--ghost"} button--small" type="button" data-organization-admin-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}">${disabled ? "Enable" : "Disable"}</button>
       </div>
     </article>
   `;
+}
+
+function summaryCard(label, value, note) {
+  return `
+    <article class="organization-summary-card organization-summary-card--modal">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value ?? 0)}</strong>
+      <small>${escapeHtml(note || "")}</small>
+    </article>
+  `;
+}
+
+function formatTabLabel(tab) {
+  return {
+    overview: "Overview",
+    admins: "Admins",
+    departments: "Departments",
+    activity: "Visitor Activity",
+    audit: "Audit Logs",
+    settings: "Settings",
+  }[tab] || tab;
 }
 
 function renderDashboardCards(widgets) {
@@ -2142,6 +3001,50 @@ function trim(value) {
 
 function formatDateTime(value) {
   return value ? new Date(value).toLocaleString() : "Not available";
+}
+
+function formatDateOnly(value) {
+  return value ? new Date(value).toLocaleDateString() : "Not available";
+}
+
+function formatRelativeTime(value) {
+  if (!value) {
+    return "not available";
+  }
+  const deltaMs = Date.now() - new Date(value).getTime();
+  const deltaHours = Math.max(0, Math.round(deltaMs / (1000 * 60 * 60)));
+  if (deltaHours < 1) {
+    return "just now";
+  }
+  if (deltaHours < 24) {
+    return `${deltaHours}h ago`;
+  }
+  const deltaDays = Math.round(deltaHours / 24);
+  return `${deltaDays}d ago`;
+}
+
+function statusBadge(status) {
+  const normalized = String(status || "").toLowerCase().replaceAll("_", "-") || "approved";
+  return `<span class="status-badge status-badge--${escapeHtml(normalized)}">${escapeHtml(formatStatusLabel(status))}</span>`;
+}
+
+function formatStatusLabel(status) {
+  return String(status || "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || "Unknown";
+}
+
+function emptyPreviewTile(message) {
+  return `
+    <article class="homepage-preview-counter homepage-preview-counter--empty">
+      <span>Empty state</span>
+      <strong>No live counters</strong>
+      <small>${escapeHtml(message)}</small>
+    </article>
+  `;
 }
 
 function formatMonitoringTitle(value) {

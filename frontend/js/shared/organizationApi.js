@@ -8,6 +8,14 @@ export function listManagedOrganizations() {
   return request("/organizations");
 }
 
+export function listOrganizationWorkspaceItems() {
+  return request("/organizations/workspace");
+}
+
+export function getOrganizationWorkspace(id) {
+  return request(`/organizations/${encodeURIComponent(id)}/workspace`);
+}
+
 export function createOrganization(payload) {
   return request("/organizations", {
     method: "POST",

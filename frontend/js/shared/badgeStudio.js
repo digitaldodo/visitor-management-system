@@ -110,8 +110,10 @@ export function badgeDialogMarkup(pass, options = {}) {
         </button>
       </div>
       <div class="enterprise-badge-sheet" data-badge-print-root>
-        <div class="enterprise-badge-sheet__canvas">
-          ${badgeMarkup(pass, options)}
+        <div class="enterprise-badge-sheet__viewport">
+          <div class="enterprise-badge-sheet__canvas">
+            ${badgeMarkup(pass, options)}
+          </div>
         </div>
       </div>
       <div class="enterprise-badge__actions">
@@ -267,12 +269,13 @@ async function createBadgeCanvas(pass) {
 function createPdfFromCanvas(canvas) {
   const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.99);
   const jpegBytes = base64ToBytes(jpegDataUrl.split(",")[1]);
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const imageWidth = 451;
+  const pagePadding = 18;
+  const pageWidth = 792;
+  const imageWidth = pageWidth - (pagePadding * 2);
   const imageHeight = Math.round((canvas.height / canvas.width) * imageWidth);
-  const imageX = Math.round((pageWidth - imageWidth) / 2);
-  const imageY = 94;
+  const pageHeight = imageHeight + (pagePadding * 2);
+  const imageX = pagePadding;
+  const imageY = pagePadding;
   const encoder = new TextEncoder();
   const parts = [];
   const offsets = [0];

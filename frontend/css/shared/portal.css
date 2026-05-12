@@ -1099,7 +1099,14 @@ body.has-mobile-sidebar {
 }
 
 .visitor-modal__dialog--badge {
-  max-width: 76rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: min(96vh, 58rem);
+  max-width: min(96vw, 82rem);
+  overflow: hidden;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  width: min(96vw, 82rem);
 }
 
 .enterprise-badge-dialog__lead {
@@ -1113,18 +1120,33 @@ body.has-mobile-sidebar {
     radial-gradient(circle at top, rgba(79, 124, 255, 0.14), transparent 22rem);
   border: 1px solid var(--color-line);
   border-radius: 28px;
+  min-height: 0;
+  overflow: auto;
   padding: clamp(0.85rem, 2vw, 1.5rem);
 }
 
+.enterprise-badge-sheet__viewport,
 .enterprise-badge-sheet__canvas {
   display: flex;
   justify-content: center;
+}
+
+.enterprise-badge-sheet__viewport {
+  align-items: center;
+  min-height: 100%;
+  width: 100%;
+}
+
+.enterprise-badge-sheet__canvas {
+  min-width: min(100%, 68rem);
+  width: min(100%, 68rem);
 }
 
 .enterprise-badge {
   --badge-accent: #166534;
   --badge-accent-soft: #ecfdf3;
   --badge-accent-line: #a7f3d0;
+  aspect-ratio: 1.586;
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), rgba(247, 250, 252, 1)),
     linear-gradient(180deg, #ffffff, #f6f8fb);
@@ -1134,7 +1156,8 @@ body.has-mobile-sidebar {
   color: #101828;
   display: grid;
   gap: 1.3rem;
-  max-width: 62rem;
+  grid-template-rows: auto 1fr auto;
+  max-width: 68rem;
   min-width: 0;
   overflow: hidden;
   padding: clamp(1rem, 2vw, 1.4rem);
@@ -1252,7 +1275,7 @@ body.has-mobile-sidebar {
 .enterprise-badge__layout {
   display: grid;
   gap: 1.1rem;
-  grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr) minmax(14rem, 16rem);
+  grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 1.2fr) minmax(11.5rem, 0.82fr);
 }
 
 .enterprise-badge__identity-panel,
@@ -1326,7 +1349,7 @@ body.has-mobile-sidebar {
 .enterprise-badge__detail-grid {
   display: grid;
   gap: 0.8rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(10rem, 1fr));
 }
 
 .enterprise-badge__detail-tile,
@@ -1362,6 +1385,7 @@ body.has-mobile-sidebar {
   display: grid;
   gap: 0.9rem;
   justify-items: center;
+  min-width: 0;
   padding: 1rem;
 }
 
@@ -1420,7 +1444,7 @@ body.has-mobile-sidebar {
   flex-wrap: wrap;
   gap: 0.8rem;
   justify-content: flex-end;
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .portal-main > section[id],
@@ -1674,16 +1698,20 @@ body.has-mobile-sidebar {
   }
 
   .enterprise-badge__hero,
-  .enterprise-badge__layout,
   .visitor-camera__controls,
   .visitor-photo-preview__actions {
     align-items: stretch;
     flex-direction: column;
   }
 
+  .visitor-modal__dialog--badge {
+    max-height: min(96vh, 64rem);
+    width: min(96vw, 72rem);
+  }
+
   .enterprise-badge::before {
     border-radius: 28px 28px 0 0;
-    height: 16rem;
+    height: 14rem;
     width: 100%;
   }
 
@@ -1697,12 +1725,12 @@ body.has-mobile-sidebar {
   }
 
   .enterprise-badge__layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .enterprise-badge__identity-panel {
     padding-right: 0;
-    padding-top: 6.75rem;
+    padding-top: 5.9rem;
   }
 
   .enterprise-badge__photo {
@@ -1710,7 +1738,7 @@ body.has-mobile-sidebar {
   }
 
   .enterprise-badge__detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   }
 
   .enterprise-badge__actions {
@@ -1736,10 +1764,26 @@ body.has-mobile-sidebar {
   .work-card,
   .health-card,
   .visitor-form,
-  .visitor-modal__dialog,
   .enterprise-badge,
   .enterprise-badge-sheet {
     padding: 0.9rem;
+  }
+
+  .visitor-modal__dialog {
+    padding: 0.9rem;
+  }
+
+  .visitor-modal__dialog--badge {
+    width: min(100%, 44rem);
+  }
+
+  .enterprise-badge-sheet__canvas {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .enterprise-badge__detail-grid {
+    grid-template-columns: 1fr;
   }
 
   .notification-popover {
@@ -1755,8 +1799,8 @@ body.has-mobile-sidebar {
 }
 
 @page {
-  margin: 10mm;
-  size: A4 portrait;
+  margin: 6mm;
+  size: landscape;
 }
 
 @media print {
@@ -1789,17 +1833,18 @@ body.has-mobile-sidebar {
     aspect-ratio: 1.586;
     box-shadow: none;
     margin: 0 auto;
-    max-width: 180mm;
+    max-width: 188mm;
     min-height: auto;
     page-break-inside: avoid;
     width: 100%;
   }
 
+  body.print-badge-mode .is-print-target .enterprise-badge-sheet__viewport,
   body.print-badge-mode .is-print-target .enterprise-badge-sheet__canvas {
     align-items: center;
     display: flex;
     justify-content: center;
-    min-height: calc(100vh - 20mm);
+    min-height: calc(100vh - 12mm);
   }
 
   body.print-badge-mode .enterprise-badge__actions,

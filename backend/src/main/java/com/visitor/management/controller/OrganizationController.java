@@ -3,6 +3,8 @@ package com.visitor.management.controller;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.OrganizationRequest;
 import com.visitor.management.dto.OrganizationResponse;
+import com.visitor.management.dto.OrganizationWorkspaceListItemResponse;
+import com.visitor.management.dto.OrganizationWorkspaceResponse;
 import com.visitor.management.service.OrganizationService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,15 +40,27 @@ public class OrganizationController {
         return ApiResponse.ok("Organizations loaded.", organizationService.listAccessible(authentication.getName()));
     }
 
+    @GetMapping("/workspace")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<List<OrganizationWorkspaceListItemResponse>> organizationWorkspaceList() {
+        return ApiResponse.ok("Organization workspace loaded.", organizationService.listWorkspaceItems());
+    }
+
+    @GetMapping("/{id}/workspace")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<OrganizationWorkspaceResponse> organizationWorkspace(@PathVariable String id) {
+        return ApiResponse.ok("Organization workspace loaded.", organizationService.workspace(id));
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ApiResponse<OrganizationResponse> create(@Valid @RequestBody OrganizationRequest request) {
-        return ApiResponse.ok("Organization created.", organizationService.create(request));
+    public ApiResponse<OrganizationResponse> create(@Valid @RequestBody OrganizationRequest request, Authentication authentication) {
+        return ApiResponse.ok("Organization created.", organizationService.create(request, authentication.getName()));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ApiResponse<OrganizationResponse> update(@PathVariable String id, @Valid @RequestBody OrganizationRequest request) {
-        return ApiResponse.ok("Organization updated.", organizationService.update(id, request));
+    public ApiResponse<OrganizationResponse> update(@PathVariable String id, @Valid @RequestBody OrganizationRequest request, Authentication authentication) {
+        return ApiResponse.ok("Organization updated.", organizationService.update(id, request, authentication.getName()));
     }
 }
