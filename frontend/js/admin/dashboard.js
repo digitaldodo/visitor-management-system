@@ -113,6 +113,37 @@ const DEFAULT_DEPARTMENT_PRESETS = [
   "Management",
 ];
 
+const INTERNAL_ROLE_DEPARTMENT_RULES = {
+  EMPLOYEE: {
+    mode: "manual",
+    label: "Department",
+    meta: "Choose an organization department or enter a new one.",
+    placeholder: "Search or add a department",
+    department: "",
+  },
+  SECURITY_GUARD: {
+    mode: "locked",
+    label: "Department",
+    meta: "Security portal access is always assigned to the Security department.",
+    placeholder: "Security",
+    department: "Security",
+  },
+  ADMIN: {
+    mode: "locked",
+    label: "Department",
+    meta: "Administration portal access is always assigned to the Administration department.",
+    placeholder: "Administration",
+    department: "Administration",
+  },
+  SUPER_ADMIN: {
+    mode: "hidden",
+    label: "Department",
+    meta: "Super admin access is platform-level and does not use an organization department.",
+    placeholder: "",
+    department: "",
+  },
+};
+
 document.addEventListener("DOMContentLoaded", async () => {
   initAppErrorBoundary();
 
@@ -336,14 +367,15 @@ function usersTemplate() {
               <option value="EMPLOYEE">Employee portal</option>
               <option value="SECURITY_GUARD">Security portal</option>
               <option value="ADMIN">Administration portal</option>
+              <option value="SUPER_ADMIN">Super admin</option>
             </select>
           </label>
           <label class="form-field" data-company-code-field>
             <span>Organization code</span>
             <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
           </label>
-          <label class="form-field form-field--wide">
-            <span>Department</span>
+          <label class="form-field form-field--wide" data-department-field>
+            <span id="department-field-label">Department</span>
             <input name="department" type="text" list="department-options" autocomplete="off" placeholder="Search or add a department" />
             <datalist id="department-options"></datalist>
             <small class="form-field__message form-field__message--inline" id="department-field-meta">Choose an organization department or enter a new one.</small>
@@ -957,8 +989,10 @@ function initAdminUserForm() {
   const companyField = form.querySelector("[data-company-code-field]");
   const companyInput = form.querySelector("input[name='companyCode']");
   const departmentInput = form.querySelector("input[name='department']");
+  const departmentField = form.querySelector("[data-department-field]");
   if (roleSelect && !hasRole("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
+    roleSelect.querySelector("option[value='SUPER_ADMIN']")?.remove();
   }
   if (companyInput && currentSession?.organizationCode) {
     companyInput.value = currentSession.organizationCode;
@@ -969,6 +1003,7 @@ function initAdminUserForm() {
   const usernameInput = form.querySelector("input[name='username']");
   const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
   const runDepartmentValidation = attachFieldValidator(departmentInput, (value) => validateDepartmentValue(value));
+  let employeeDepartmentDraft = "";
 
   if (hasRole("SUPER_ADMIN")) {
     companyInput?.addEventListener("input", () => {
@@ -977,6 +1012,44 @@ function initAdminUserForm() {
     companyInput?.addEventListener("blur", () => {
       loadUserDepartmentOptions({ preserveSelection: true });
     });
+  }
+
+  roleSelect?.addEventListener("change", () => {
+    if (roleSelect.dataset.activeRole === "EMPLOYEE") {
+      employeeDepartmentDraft = departmentInput?.value || employeeDepartmentDraft;
+    }
+    updateInternalProvisioningRoleState(form, {
+      companyField,
+      companyInput,
+      departmentField,
+      departmentInput,
+      onManualDepartmentDraft: (value) => {
+        employeeDepartmentDraft = value;
+      },
+      employeeDepartmentDraft: () => employeeDepartmentDraft,
+    });
+    roleSelect.dataset.activeRole = roleSelect.value;
+    runDepartmentValidation();
+  });
+
+  departmentInput?.addEventListener("input", () => {
+    if (roleSelect?.value === "EMPLOYEE") {
+      employeeDepartmentDraft = departmentInput.value;
+    }
+  });
+
+  updateInternalProvisioningRoleState(form, {
+    companyField,
+    companyInput,
+    departmentField,
+    departmentInput,
+    onManualDepartmentDraft: (value) => {
+      employeeDepartmentDraft = value;
+    },
+    employeeDepartmentDraft: () => employeeDepartmentDraft,
+  });
+  if (roleSelect) {
+    roleSelect.dataset.activeRole = roleSelect.value;
   }
 
   form.addEventListener("submit", async (event) => {
@@ -1010,6 +1083,20 @@ function initAdminUserForm() {
         companyInput.value = currentSession.organizationCode;
       } else if (companyInput && previousCompanyCode) {
         companyInput.value = previousCompanyCode;
+      }
+      employeeDepartmentDraft = "";
+      updateInternalProvisioningRoleState(form, {
+        companyField,
+        companyInput,
+        departmentField,
+        departmentInput,
+        onManualDepartmentDraft: (value) => {
+          employeeDepartmentDraft = value;
+        },
+        employeeDepartmentDraft: () => employeeDepartmentDraft,
+      });
+      if (roleSelect) {
+        roleSelect.dataset.activeRole = roleSelect.value;
       }
       runUsernameValidation();
       runDepartmentValidation();
@@ -2268,7 +2355,8 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
                 </label>
                 <label class="form-field">
                   <span>Department</span>
-                  <input name="department" type="text" list="department-options" placeholder="Operations" />
+                  <input name="department" type="text" value="Administration" readonly aria-readonly="true" />
+                  <small class="form-field__message form-field__message--inline">Organization admins are automatically assigned to the Administration department.</small>
                 </label>
                 <label class="form-field form-field--wide">
                   <span>Temporary password</span>
@@ -2751,7 +2839,16 @@ async function loadUserDepartmentOptions(options = {}) {
   const departmentInput = form.querySelector("input[name='department']");
   const datalist = document.querySelector("#department-options");
   const meta = document.querySelector("#department-field-meta");
+  const role = form.querySelector("select[name='role']")?.value || "EMPLOYEE";
+  const rule = provisioningRuleForRole(role);
   if (!departmentInput || !datalist) {
+    return;
+  }
+
+  if (rule.mode !== "manual") {
+    userDepartmentOptions = [];
+    datalist.innerHTML = "";
+    departmentInput.disabled = false;
     return;
   }
 
@@ -2821,6 +2918,71 @@ function resolveOrganizationIdFromCode(companyCode) {
     return "";
   }
   return managedOrganizations.find((organization) => organization.companyCode === normalizedCode)?.id || "";
+}
+
+function updateInternalProvisioningRoleState(form, context = {}) {
+  const roleSelect = form.querySelector("select[name='role']");
+  const departmentInput = context.departmentInput || form.querySelector("input[name='department']");
+  const departmentField = context.departmentField || form.querySelector("[data-department-field]");
+  const departmentMeta = form.querySelector("#department-field-meta");
+  const departmentLabel = form.querySelector("#department-field-label");
+  const companyField = context.companyField || form.querySelector("[data-company-code-field]");
+  const companyInput = context.companyInput || form.querySelector("input[name='companyCode']");
+  const previousRole = roleSelect?.dataset.activeRole || roleSelect?.value || "EMPLOYEE";
+  const rule = provisioningRuleForRole(roleSelect?.value);
+  const previousManualValue = typeof context.employeeDepartmentDraft === "function"
+    ? context.employeeDepartmentDraft()
+    : "";
+
+  if (!departmentInput || !departmentField || !departmentMeta || !departmentLabel) {
+    return;
+  }
+
+  if (roleSelect?.value === "EMPLOYEE" && typeof context.onManualDepartmentDraft === "function") {
+    context.onManualDepartmentDraft(departmentInput.value);
+  }
+
+  departmentLabel.textContent = rule.label;
+  departmentInput.placeholder = rule.placeholder || "";
+  departmentInput.readOnly = rule.mode === "locked";
+  departmentInput.classList.toggle("is-readonly", rule.mode === "locked");
+  departmentInput.setAttribute("aria-readonly", String(rule.mode === "locked"));
+  departmentField.classList.toggle("is-hidden", rule.mode === "hidden");
+
+  if (rule.mode === "locked") {
+    departmentInput.value = rule.department;
+    departmentMeta.textContent = rule.meta;
+    departmentInput.disabled = false;
+    departmentInput.setAttribute("list", "");
+  } else if (rule.mode === "hidden") {
+    departmentInput.value = "";
+    departmentMeta.textContent = rule.meta;
+    departmentInput.disabled = false;
+    departmentInput.removeAttribute("list");
+  } else {
+    departmentInput.value = previousRole === "EMPLOYEE"
+      ? (previousManualValue || departmentInput.value || "")
+      : (previousManualValue || "");
+    departmentMeta.textContent = rule.meta;
+    departmentInput.removeAttribute("list");
+    departmentInput.setAttribute("list", "department-options");
+    void loadUserDepartmentOptions({ preserveSelection: true });
+  }
+
+  if (companyField && companyInput) {
+    const hideCompanyField = hasRole("SUPER_ADMIN") && roleSelect?.value === "SUPER_ADMIN";
+    companyField.classList.toggle("is-hidden", !hasRole("SUPER_ADMIN") || hideCompanyField);
+    companyInput.required = hasRole("SUPER_ADMIN") && roleSelect?.value !== "SUPER_ADMIN";
+    if (hideCompanyField) {
+      companyInput.value = "";
+    } else if (!hasRole("SUPER_ADMIN") && currentSession?.organizationCode) {
+      companyInput.value = currentSession.organizationCode;
+    }
+  }
+}
+
+function provisioningRuleForRole(role) {
+  return INTERNAL_ROLE_DEPARTMENT_RULES[role] || INTERNAL_ROLE_DEPARTMENT_RULES.EMPLOYEE;
 }
 
 function resetOrganizationDepartmentDraft(useDefaults) {
@@ -2965,13 +3127,25 @@ function validateInternalUser(payload) {
   if (!isEmail(payload.email || "")) {
     return "Use a valid work email.";
   }
-  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
+  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN", "SUPER_ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
   }
-  if (hasRole("SUPER_ADMIN") && !payload.companyCode) {
+  const rule = provisioningRuleForRole(payload.role);
+  if (payload.role === "SUPER_ADMIN" && !hasRole("SUPER_ADMIN")) {
+    return "Only SUPER_ADMIN can issue super admin access.";
+  }
+  if (payload.role !== "SUPER_ADMIN" && hasRole("SUPER_ADMIN") && !payload.companyCode) {
     return "Enter the organization code for this account.";
   }
-  if (payload.department) {
+  if (rule.mode === "locked") {
+    if (payload.department && departmentKey(payload.department) !== departmentKey(rule.department)) {
+      return `${formatInternalRole(payload.role)} must use the ${rule.department} department.`;
+    }
+  } else if (rule.mode === "hidden") {
+    if (payload.department) {
+      return "Super admin access does not use a department.";
+    }
+  } else if (payload.department) {
     const departmentError = validateDepartmentValue(payload.department);
     if (departmentError) {
       return departmentError;

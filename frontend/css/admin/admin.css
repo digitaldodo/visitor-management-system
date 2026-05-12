@@ -853,6 +853,17 @@
   padding: 1rem;
 }
 
+.admin-user-form .form-field {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.admin-user-form input.is-readonly {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(252, 211, 77, 0.18);
+  color: var(--color-text);
+  cursor: default;
+}
+
 .metric-selector__options {
   grid-template-columns: 1fr;
 }

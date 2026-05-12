@@ -29,6 +29,8 @@ import java.util.regex.Pattern;
 public class AdminUserService {
 
     private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,128}$");
+    private static final String SECURITY_DEPARTMENT = "Security";
+    private static final String ADMINISTRATION_DEPARTMENT = "Administration";
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -67,7 +69,7 @@ public class AdminUserService {
 
     public AdminUserResponse createUser(AdminUserCreateRequest request, Authentication authentication) {
         Role role = request.role();
-        validateAssignableRole(role, authentication);
+        validateCreatableRole(role, authentication);
         User actor = currentUser(authentication);
         Organization organization = resolveOrganizationForCreate(request, role, actor, authentication);
 
@@ -89,7 +91,7 @@ public class AdminUserService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setPhone(trimToNull(request.phone()));
         applyOrganization(user, organization);
-        DepartmentService.DepartmentAssignment departmentAssignment = departmentService.resolveAssignment(organization.getId(), request.department());
+        DepartmentService.DepartmentAssignment departmentAssignment = resolveDepartmentAssignment(role, organization, request.department());
         user.setDepartmentId(departmentAssignment != null ? departmentAssignment.departmentId() : null);
         user.setDepartment(departmentAssignment != null ? departmentAssignment.departmentName() : null);
         user.setRoles(Set.of(role));
@@ -141,24 +143,43 @@ public class AdminUserService {
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         Role role = request.role();
-        validateAssignableRole(role, authentication);
+        validateReassignableRole(role, authentication);
         if (user.getRoles().contains(role) && user.getRoles().size() == 1) {
             return toResponse(user);
         }
         Set<Role> previousRoles = Set.copyOf(user.getRoles());
         user.setRoles(Set.of(role));
+        DepartmentService.DepartmentAssignment departmentAssignment = resolveDepartmentAssignment(
+                role,
+                role == Role.SUPER_ADMIN ? null : resolveOrganizationForExistingUser(user),
+                user.getDepartment()
+        );
+        user.setDepartmentId(departmentAssignment != null ? departmentAssignment.departmentId() : null);
+        user.setDepartment(departmentAssignment != null ? departmentAssignment.departmentName() : null);
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
         accessAuditService.recordRoleChanged(actor, saved, previousRoles, saved.getRoles());
         return toResponse(saved);
     }
 
-    private void validateAssignableRole(Role role, Authentication authentication) {
-        if (role == Role.SUPER_ADMIN || role == Role.VISITOR) {
+    private void validateCreatableRole(Role role, Authentication authentication) {
+        if (role == Role.VISITOR) {
             throw new BadRequestException("This role cannot be created from internal user management.");
         }
-        if (role == Role.ADMIN && !hasRole(authentication, Role.SUPER_ADMIN)) {
+        if ((role == Role.ADMIN || role == Role.SUPER_ADMIN) && !hasRole(authentication, Role.SUPER_ADMIN)) {
             throw new BadRequestException("Only SUPER_ADMIN can create admin accounts.");
+        }
+        if (role != Role.ADMIN && role != Role.EMPLOYEE && role != Role.SECURITY_GUARD && role != Role.SUPER_ADMIN) {
+            throw new BadRequestException("Unsupported internal account role.");
+        }
+    }
+
+    private void validateReassignableRole(Role role, Authentication authentication) {
+        if (role == Role.SUPER_ADMIN || role == Role.VISITOR) {
+            throw new BadRequestException("This role cannot be assigned from internal user management.");
+        }
+        if (role == Role.ADMIN && !hasRole(authentication, Role.SUPER_ADMIN)) {
+            throw new BadRequestException("Only SUPER_ADMIN can assign admin accounts.");
         }
         if (role != Role.ADMIN && role != Role.EMPLOYEE && role != Role.SECURITY_GUARD) {
             throw new BadRequestException("Unsupported internal account role.");
@@ -247,6 +268,12 @@ public class AdminUserService {
     }
 
     private Organization resolveOrganizationForCreate(AdminUserCreateRequest request, Role role, User actor, Authentication authentication) {
+        if (role == Role.SUPER_ADMIN) {
+            if (trimToNull(request.organizationId()) != null || trimToNull(request.companyCode()) != null) {
+                throw new BadRequestException("SUPER_ADMIN accounts are platform-level and cannot be assigned to an organization.");
+            }
+            return null;
+        }
         if (hasRole(authentication, Role.SUPER_ADMIN)) {
             String organizationId = trimToNull(request.organizationId());
             if (organizationId != null) {
@@ -261,9 +288,50 @@ public class AdminUserService {
     }
 
     private void applyOrganization(User user, Organization organization) {
+        if (organization == null) {
+            user.setOrganizationId(null);
+            user.setOrganizationName(null);
+            user.setOrganizationCode(null);
+            return;
+        }
         user.setOrganizationId(organization.getId());
         user.setOrganizationName(organization.getCompanyName());
         user.setOrganizationCode(organization.getCompanyCode());
+    }
+
+    private DepartmentService.DepartmentAssignment resolveDepartmentAssignment(Role role, Organization organization, String requestedDepartment) {
+        String department = trimToNull(requestedDepartment);
+        if (role == Role.SUPER_ADMIN) {
+            if (department != null) {
+                throw new BadRequestException("SUPER_ADMIN accounts do not use departments.");
+            }
+            return null;
+        }
+        if (organization == null) {
+            throw new BadRequestException("An organization is required for this account role.");
+        }
+
+        if (role == Role.SECURITY_GUARD) {
+            if (department != null && !SECURITY_DEPARTMENT.equalsIgnoreCase(department)) {
+                throw new BadRequestException("Security portal accounts must use the Security department.");
+            }
+            return departmentService.resolveAssignment(organization.getId(), SECURITY_DEPARTMENT);
+        }
+        if (role == Role.ADMIN) {
+            if (department != null && !ADMINISTRATION_DEPARTMENT.equalsIgnoreCase(department)) {
+                throw new BadRequestException("Administration portal accounts must use the Administration department.");
+            }
+            return departmentService.resolveAssignment(organization.getId(), ADMINISTRATION_DEPARTMENT);
+        }
+        return departmentService.resolveAssignment(organization.getId(), requestedDepartment);
+    }
+
+    private Organization resolveOrganizationForExistingUser(User user) {
+        String organizationId = trimToNull(user.getOrganizationId());
+        if (organizationId == null) {
+            throw new BadRequestException("This account is not assigned to an organization.");
+        }
+        return organizationService.requireActive(organizationId);
     }
 
     private String requiredOrganizationId(User user) {
