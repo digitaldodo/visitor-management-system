@@ -138,25 +138,64 @@ export async function downloadBadge(pass, format) {
   triggerDownload(blob, safeFileName(pass, "png"));
 }
 
-export function printBadge(element) {
-  const target = element?.closest("[data-badge-print-root]") || element;
-  if (!target) {
+export async function printBadge(pass) {
+  if (!pass) {
     return;
   }
-  document.body.classList.add("print-badge-mode");
-  target.classList.add("is-print-target");
-  let cleared = false;
+
+  const canvas = await createBadgeCanvas(pass);
+  const imageDataUrl = canvas.toDataURL("image/png");
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.className = "badge-print-frame";
+  frame.style.position = "fixed";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  frame.style.opacity = "0";
+  frame.style.pointerEvents = "none";
+  frame.style.inset = "0";
+
   const cleanup = () => {
-    if (cleared) {
+    window.setTimeout(() => {
+      frame.remove();
+    }, 200);
+  };
+
+  frame.addEventListener("load", () => {
+    const printWindow = frame.contentWindow;
+    const printDocument = printWindow?.document;
+    const image = printDocument?.querySelector("[data-print-badge-image]");
+    if (!printWindow || !printDocument || !image) {
+      cleanup();
       return;
     }
-    cleared = true;
-    document.body.classList.remove("print-badge-mode");
-    target.classList.remove("is-print-target");
-  };
-  window.addEventListener("afterprint", cleanup, { once: true });
-  window.print();
-  window.setTimeout(cleanup, 1000);
+
+    const triggerPrint = () => {
+      let finished = false;
+      const finalize = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        cleanup();
+      };
+      printWindow.addEventListener("afterprint", finalize, { once: true });
+      window.setTimeout(finalize, 4000);
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    if (image.complete) {
+      triggerPrint();
+      return;
+    }
+    image.addEventListener("load", triggerPrint, { once: true });
+    image.addEventListener("error", cleanup, { once: true });
+  }, { once: true });
+
+  frame.srcdoc = renderPrintDocument(pass, imageDataUrl);
+  document.body.append(frame);
 }
 
 async function createBadgeCanvas(pass) {
@@ -328,6 +367,99 @@ function safeFileName(pass, extension) {
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-|-$/g, "");
   return `accessflow-badge-${badgeId || "badge"}-${name || "visitor"}.${extension}`;
+}
+
+function renderPrintDocument(pass, imageDataUrl) {
+  const title = escapeHtml(`AccessFlow badge - ${pass.fullName || pass.badgeId || "visitor"}`);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        background: #ffffff;
+        margin: 0;
+        min-height: 100%;
+        padding: 0;
+      }
+
+      body {
+        font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      .print-badge-page {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 6mm;
+        width: 100%;
+      }
+
+      .print-badge-card {
+        aspect-ratio: 2480 / 1564;
+        display: block;
+        inline-size: min(100%, 255mm);
+        max-inline-size: 255mm;
+        page-break-inside: avoid;
+      }
+
+      .print-badge-card img {
+        display: block;
+        height: auto;
+        image-rendering: crisp-edges;
+        image-rendering: -webkit-optimize-contrast;
+        max-inline-size: 100%;
+        width: 100%;
+      }
+
+      @page {
+        margin: 6mm;
+        size: auto landscape;
+      }
+
+      @media print {
+        html,
+        body {
+          height: auto;
+        }
+
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .print-badge-page {
+          min-height: auto;
+          padding: 0;
+        }
+
+        .print-badge-card {
+          inline-size: min(100%, 255mm);
+          margin: 0 auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="print-badge-page" aria-label="AccessFlow visitor badge print layout">
+      <figure class="print-badge-card">
+        <img src="${imageDataUrl}" alt="${escapeHtml(pass.fullName || "Visitor")} badge" data-print-badge-image />
+      </figure>
+    </main>
+  </body>
+</html>`;
 }
 
 function triggerDownload(blob, filename) {

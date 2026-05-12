@@ -130,14 +130,13 @@ function initBadgeActions() {
       return;
     }
 
-    const badgeCard = modal.querySelector("[data-badge-print-root]");
     const action = button.dataset.badgeAction;
     try {
       if (action === "close") {
         closeBadgeModal();
       }
       if (action === "print") {
-        printBadge(badgeCard);
+        await printBadge(activeBadge);
       }
       if (action === "png" || action === "pdf") {
         await downloadBadge(activeBadge, action);
