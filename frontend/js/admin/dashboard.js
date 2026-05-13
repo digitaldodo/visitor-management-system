@@ -1963,7 +1963,7 @@ function renderHomepagePreview(preview) {
           <p class="eyebrow">Portal access</p>
           <h3>Visitors request access. Teams verify in real time.</h3>
         </div>
-        <p>This mock section helps validate spacing, card rhythm, and density so the preview feels like a real homepage rather than disconnected placeholders.</p>
+        <p>This section keeps portal messaging, spacing, and information density visible while you tune the public homepage experience.</p>
       </article>
     </article>
   `;

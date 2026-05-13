@@ -10,12 +10,6 @@ export const ROLE_PORTALS = {
   VISITOR: "/pages/visitor/index.html",
 };
 
-export const ROLE_PORTALS_FROM_PORTAL = {
-  SUPER_ADMIN: "/admin/analytics",
-  ADMIN: "/admin/analytics",
-  EMPLOYEE: "/employee",
-  SECURITY_GUARD: "/security",
-  VISITOR: "/pages/visitor/index.html",
-};
+export const ROLE_PORTALS_FROM_PORTAL = ROLE_PORTALS;
 
 export const LOGIN_FROM_PORTAL = "/";

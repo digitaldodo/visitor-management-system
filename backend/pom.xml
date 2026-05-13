@@ -15,7 +15,7 @@
     <artifactId>visitor-management-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>Visitor Management Backend</name>
-    <description>Spring Boot backend boilerplate for a Visitor Management System.</description>
+    <description>AccessFlow Spring Boot backend for visitor access, approvals, and verification workflows.</description>
 
     <properties>
         <java.version>21</java.version>
