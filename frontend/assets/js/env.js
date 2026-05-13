@@ -1,1 +1,1 @@
-window.API_BASE_URL = window.API_BASE_URL || "http://localhost:8080/api/v1";
+window.API_BASE_URL = window.API_BASE_URL || "https://accessflow-api.onrender.com/api/v1";

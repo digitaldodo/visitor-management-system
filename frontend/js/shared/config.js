@@ -1,6 +1,6 @@
 export const API_BASE_URL =
   window.API_BASE_URL ||
-  "http://localhost:8080/api/v1";
+  "https://accessflow-api.onrender.com/api/v1";
 
 export const ROLE_PORTALS = {
   SUPER_ADMIN: "/admin/analytics",

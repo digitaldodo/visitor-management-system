@@ -19,7 +19,7 @@ services:
       - key: FRONTEND_PUBLIC_URL
         value: https://accessflow-web.onrender.com
       - key: CORS_ALLOWED_ORIGINS
-        value: https://accessflow-web.onrender.com,http://localhost:5173,http://127.0.0.1:5173
+        value: https://accessflow-web.onrender.com
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
