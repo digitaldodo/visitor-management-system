@@ -92,7 +92,16 @@ public class AppProperties {
     }
 
     public static class Cors {
+        private String publicUrl;
         private List<String> allowedOrigins = new ArrayList<>();
+
+        public String getPublicUrl() {
+            return publicUrl;
+        }
+
+        public void setPublicUrl(String publicUrl) {
+            this.publicUrl = publicUrl;
+        }
 
         public List<String> getAllowedOrigins() {
             return allowedOrigins;

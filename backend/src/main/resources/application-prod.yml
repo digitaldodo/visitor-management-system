@@ -1,5 +1,6 @@
 app:
   cors:
+    public-url: ${FRONTEND_PUBLIC_URL:}
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 spring:

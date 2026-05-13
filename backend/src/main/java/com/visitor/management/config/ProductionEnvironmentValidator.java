@@ -35,9 +35,11 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         List<String> missing = new ArrayList<>();
         List<String> degraded = new ArrayList<>();
         List<String> allowedOrigins = corsOriginResolver.resolveAllowedOrigins();
+        String publicOrigin = corsOriginResolver.resolvePublicOrigin();
 
         require("MONGODB_URI", missing);
         require("JWT_SECRET", missing);
+        require("FRONTEND_PUBLIC_URL", missing);
         require("CORS_ALLOWED_ORIGINS", missing);
 
         String mongoUri = environment.getProperty("spring.data.mongodb.uri");
@@ -55,6 +57,15 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         }
         if (allowedOrigins.stream().anyMatch(this::isWildcardOrigin)) {
             missing.add("CORS_ALLOWED_ORIGINS must not use wildcards in production");
+        }
+        if (!hasText(publicOrigin)) {
+            missing.add("FRONTEND_PUBLIC_URL must be the deployed frontend origin");
+        }
+        if (isLocalOrigin(publicOrigin)) {
+            missing.add("FRONTEND_PUBLIC_URL must not point to localhost or 127.0.0.1 in production");
+        }
+        if (isWildcardOrigin(publicOrigin)) {
+            missing.add("FRONTEND_PUBLIC_URL must not use wildcards in production");
         }
         if (allowedOrigins.stream().noneMatch(this::isSecureRemoteOrigin)) {
             missing.add("CORS_ALLOWED_ORIGINS must include at least one non-local HTTPS frontend origin");

@@ -7,6 +7,7 @@ spring:
 
 app:
   cors:
+    public-url: https://accessflow-web.onrender.com/
     allowed-origins:
       - https://accessflow-web.onrender.com/
       - http://localhost:5173

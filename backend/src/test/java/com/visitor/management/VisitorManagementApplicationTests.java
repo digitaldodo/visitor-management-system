@@ -229,6 +229,15 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void corsActualRequestAllowsRenderFrontendOrigin() throws Exception {
+        mockMvc.perform(get("/api/v1/homepage")
+                        .header(HttpHeaders.ORIGIN, "https://accessflow-web.onrender.com"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://accessflow-web.onrender.com"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+    }
+
+    @Test
     void corsPreflightRejectsUnexpectedOrigin() throws Exception {
         mockMvc.perform(options("/api/v1/organizations/public")
                         .header(HttpHeaders.ORIGIN, "https://evil.example.com")

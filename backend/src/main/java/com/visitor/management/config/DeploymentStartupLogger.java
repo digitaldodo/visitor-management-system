@@ -40,8 +40,9 @@ public class DeploymentStartupLogger {
     @EventListener
     public void onApplicationReady(ApplicationReadyEvent event) {
         log.info(
-                "AccessFlow backend ready in {} ms with health endpoints at /api/v1/health and /api/v1/health/live; CORS allowed origins={}",
+                "AccessFlow backend ready in {} ms with health endpoints at /api/v1/health and /api/v1/health/live; CORS public origin={}; CORS allowed origins={}",
                 ManagementFactory.getRuntimeMXBean().getUptime(),
+                corsOriginResolver.resolvePublicOrigin(),
                 corsOriginResolver.resolveAllowedOrigins()
         );
     }

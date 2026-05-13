@@ -28,6 +28,7 @@ Backend production variables:
 ```text
 MONGODB_URI
 JWT_SECRET
+FRONTEND_PUBLIC_URL
 CORS_ALLOWED_ORIGINS
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
@@ -54,7 +55,7 @@ Use `.env.example` as the shape reference. Do not commit real secrets.
 - `accessflow-api`: Docker web service built from `backend/Dockerfile`
 - `accessflow-web`: static site published from `frontend/`
 
-The frontend build writes `frontend/assets/js/env.js` from `API_BASE_URL`. The backend Docker image starts with the Spring `prod` profile, binds to `0.0.0.0:${PORT:-10000}` for Render, and reads `CORS_ALLOWED_ORIGINS` for CORS. Use a comma-separated list such as `https://accessflow-web.onrender.com,http://localhost:5173,http://127.0.0.1:5173`.
+The frontend build writes `frontend/assets/js/env.js` from `API_BASE_URL`. The backend Docker image starts with the Spring `prod` profile, binds to `0.0.0.0:${PORT:-10000}` for Render, and reads `FRONTEND_PUBLIC_URL` plus `CORS_ALLOWED_ORIGINS` for CORS. Use `FRONTEND_PUBLIC_URL=https://accessflow-web.onrender.com` and a comma-separated `CORS_ALLOWED_ORIGINS` list such as `https://accessflow-web.onrender.com,http://localhost:5173,http://127.0.0.1:5173`.
 
 Set the secret values in Render before the first backend deploy. The initial super admin is created only when no `SUPER_ADMIN` or `ADMIN` user exists. The display name is derived from `SUPER_ADMIN_USERNAME`.
 

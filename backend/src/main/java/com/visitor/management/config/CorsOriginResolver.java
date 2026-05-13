@@ -17,11 +17,17 @@ public class CorsOriginResolver {
 
     public List<String> resolveAllowedOrigins() {
         Set<String> origins = new LinkedHashSet<>();
+        addOrigin(origins, properties.getCors().getPublicUrl());
         properties.getCors().getAllowedOrigins().forEach(origin -> addOrigin(origins, origin));
         return List.copyOf(origins);
     }
 
     public String resolvePublicOrigin() {
+        String configuredPublicOrigin = normalizeOrigin(properties.getCors().getPublicUrl());
+        if (configuredPublicOrigin != null) {
+            return configuredPublicOrigin;
+        }
+
         List<String> origins = resolveAllowedOrigins();
         return origins.stream()
                 .filter(origin -> origin.startsWith("https://") && !isLocalOrigin(origin))
