@@ -15,6 +15,7 @@ import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.dto.VisitorVisitRequest;
 import com.visitor.management.config.AppProperties;
+import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.VisitorAuditLog;
@@ -87,6 +88,7 @@ public class VisitorService {
     private final JwtService jwtService;
     private final QrCodeService qrCodeService;
     private final AppProperties appProperties;
+    private final CorsOriginResolver corsOriginResolver;
     private final VisitorNotificationService visitorNotificationService;
     private final OrganizationService organizationService;
 
@@ -99,6 +101,7 @@ public class VisitorService {
             JwtService jwtService,
             QrCodeService qrCodeService,
             AppProperties appProperties,
+            CorsOriginResolver corsOriginResolver,
             VisitorNotificationService visitorNotificationService,
             OrganizationService organizationService
     ) {
@@ -110,6 +113,7 @@ public class VisitorService {
         this.jwtService = jwtService;
         this.qrCodeService = qrCodeService;
         this.appProperties = appProperties;
+        this.corsOriginResolver = corsOriginResolver;
         this.visitorNotificationService = visitorNotificationService;
         this.organizationService = organizationService;
     }
@@ -1550,7 +1554,7 @@ public class VisitorService {
     }
 
     private String verificationUrl(Visitor visitor) {
-        String frontendUrl = trimToNull(appProperties.getCors().getFrontendUrl());
+        String frontendUrl = trimToNull(corsOriginResolver.resolvePublicOrigin());
         if (frontendUrl == null) {
             throw new BadRequestException("Public frontend URL is not configured for visitor badge verification.");
         }

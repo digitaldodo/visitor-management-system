@@ -206,6 +206,29 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void corsPreflightAllowsLoopbackDevelopmentOrigin() throws Exception {
+        mockMvc.perform(options("/api/v1/organizations/public")
+                        .header(HttpHeaders.ORIGIN, "http://127.0.0.1:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://127.0.0.1:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+    }
+
+    @Test
+    void corsPreflightAllowsAuthenticatedEndpointWithoutJwt() throws Exception {
+        mockMvc.perform(options("/api/v1/admin/overview")
+                        .header(HttpHeaders.ORIGIN, "https://accessflow-web.onrender.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://accessflow-web.onrender.com"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsStringIgnoringCase("authorization")));
+    }
+
+    @Test
     void corsPreflightRejectsUnexpectedOrigin() throws Exception {
         mockMvc.perform(options("/api/v1/organizations/public")
                         .header(HttpHeaders.ORIGIN, "https://evil.example.com")
@@ -508,7 +531,7 @@ class VisitorManagementApplicationTests {
                                   "password": "SecurePass123!",
                                   "role": "SECURITY_GUARD",
                                   "companyCode": "ACME",
-                                  "department": "Front Desk"
+                                  "department": "Security"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -568,7 +591,7 @@ class VisitorManagementApplicationTests {
                                   "password": "SecurePass123!",
                                   "role": "SECURITY_GUARD",
                                   "companyCode": "ACME",
-                                  "department": "Front Desk"
+                                  "department": "Security"
                                 }
                                 """))
                 .andExpect(status().isOk());

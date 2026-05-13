@@ -92,23 +92,14 @@ public class AppProperties {
     }
 
     public static class Cors {
-        private String frontendUrl;
-        private List<String> localDevOrigins = new ArrayList<>();
+        private List<String> allowedOrigins = new ArrayList<>();
 
-        public String getFrontendUrl() {
-            return frontendUrl;
+        public List<String> getAllowedOrigins() {
+            return allowedOrigins;
         }
 
-        public void setFrontendUrl(String frontendUrl) {
-            this.frontendUrl = frontendUrl;
-        }
-
-        public List<String> getLocalDevOrigins() {
-            return localDevOrigins;
-        }
-
-        public void setLocalDevOrigins(List<String> localDevOrigins) {
-            this.localDevOrigins = localDevOrigins;
+        public void setAllowedOrigins(List<String> allowedOrigins) {
+            this.allowedOrigins = allowedOrigins;
         }
     }
 

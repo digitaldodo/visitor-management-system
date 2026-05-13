@@ -34,10 +34,11 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         List<String> missing = new ArrayList<>();
         List<String> degraded = new ArrayList<>();
+        List<String> allowedOrigins = corsOriginResolver.resolveAllowedOrigins();
 
         require("MONGODB_URI", missing);
         require("JWT_SECRET", missing);
-        require("FRONTEND_URL", missing);
+        require("CORS_ALLOWED_ORIGINS", missing);
 
         String mongoUri = environment.getProperty("spring.data.mongodb.uri");
         if (LOCAL_MONGO_URI.equals(mongoUri)
@@ -49,15 +50,14 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         if (LOCAL_JWT_SECRET.equals(properties.getJwt().getSecret()) || hasPlaceholder(properties.getJwt().getSecret())) {
             missing.add("JWT_SECRET must not use a local default or placeholder value");
         }
-        String frontendUrl = corsOriginResolver.getFrontendUrl();
-        if (!hasText(frontendUrl)) {
-            missing.add("FRONTEND_URL must be the deployed frontend origin");
+        if (allowedOrigins.isEmpty()) {
+            missing.add("CORS_ALLOWED_ORIGINS must contain the deployed frontend origin");
         }
-        if (isLocalOrigin(frontendUrl)) {
-            missing.add("FRONTEND_URL must be the deployed frontend origin");
+        if (allowedOrigins.stream().anyMatch(this::isWildcardOrigin)) {
+            missing.add("CORS_ALLOWED_ORIGINS must not use wildcards in production");
         }
-        if (isWildcardOrigin(frontendUrl)) {
-            missing.add("FRONTEND_URL must not use wildcards in production");
+        if (allowedOrigins.stream().noneMatch(this::isSecureRemoteOrigin)) {
+            missing.add("CORS_ALLOWED_ORIGINS must include at least one non-local HTTPS frontend origin");
         }
 
         AppProperties.Cloudinary cloudinary = properties.getCloudinary();
@@ -101,8 +101,12 @@ public class ProductionEnvironmentValidator implements ApplicationRunner {
         return origin != null && (origin.contains("localhost") || origin.contains("127.0.0.1"));
     }
 
+    private boolean isSecureRemoteOrigin(String origin) {
+        return hasText(origin) && origin.startsWith("https://") && !isLocalOrigin(origin);
+    }
+
     private boolean isWildcardOrigin(String origin) {
-        return origin != null && origin.trim().equals("*");
+        return origin != null && origin.contains("*");
     }
 
     private boolean hasPlaceholder(String value) {

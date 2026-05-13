@@ -1,7 +1,5 @@
 package com.visitor.management.config;
 
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashSet;
@@ -12,30 +10,23 @@ import java.util.Set;
 public class CorsOriginResolver {
 
     private final AppProperties properties;
-    private final Environment environment;
 
-    public CorsOriginResolver(AppProperties properties, Environment environment) {
+    public CorsOriginResolver(AppProperties properties) {
         this.properties = properties;
-        this.environment = environment;
     }
 
     public List<String> resolveAllowedOrigins() {
         Set<String> origins = new LinkedHashSet<>();
-
-        addOrigin(origins, properties.getCors().getFrontendUrl());
-        if (!isProduction()) {
-            properties.getCors().getLocalDevOrigins().forEach(origin -> addOrigin(origins, origin));
-        }
-
+        properties.getCors().getAllowedOrigins().forEach(origin -> addOrigin(origins, origin));
         return List.copyOf(origins);
     }
 
-    public String getFrontendUrl() {
-        return normalizeOrigin(properties.getCors().getFrontendUrl());
-    }
-
-    public boolean isProduction() {
-        return environment.acceptsProfiles(Profiles.of("prod"));
+    public String resolvePublicOrigin() {
+        List<String> origins = resolveAllowedOrigins();
+        return origins.stream()
+                .filter(origin -> origin.startsWith("https://") && !isLocalOrigin(origin))
+                .findFirst()
+                .orElseGet(() -> origins.stream().findFirst().orElse(null));
     }
 
     public String normalizeOrigin(String origin) {
@@ -56,5 +47,9 @@ public class CorsOriginResolver {
         if (normalized != null) {
             origins.add(normalized);
         }
+    }
+
+    private boolean isLocalOrigin(String origin) {
+        return origin.contains("localhost") || origin.contains("127.0.0.1");
     }
 }

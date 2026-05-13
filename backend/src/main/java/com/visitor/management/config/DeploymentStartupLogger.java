@@ -17,9 +17,11 @@ public class DeploymentStartupLogger {
     private static final Logger log = LoggerFactory.getLogger(DeploymentStartupLogger.class);
 
     private final Environment environment;
+    private final CorsOriginResolver corsOriginResolver;
 
-    public DeploymentStartupLogger(Environment environment) {
+    public DeploymentStartupLogger(Environment environment, CorsOriginResolver corsOriginResolver) {
         this.environment = environment;
+        this.corsOriginResolver = corsOriginResolver;
     }
 
     @EventListener
@@ -38,8 +40,9 @@ public class DeploymentStartupLogger {
     @EventListener
     public void onApplicationReady(ApplicationReadyEvent event) {
         log.info(
-                "AccessFlow backend ready in {} ms with health endpoints at /api/v1/health and /api/v1/health/live",
-                ManagementFactory.getRuntimeMXBean().getUptime()
+                "AccessFlow backend ready in {} ms with health endpoints at /api/v1/health and /api/v1/health/live; CORS allowed origins={}",
+                ManagementFactory.getRuntimeMXBean().getUptime(),
+                corsOriginResolver.resolveAllowedOrigins()
         );
     }
 }
