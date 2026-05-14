@@ -163,7 +163,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   adminRouteState = {
     allowedRoutes,
     routeMap: routeContext.routeMap,
-    legacyMode: routeContext.legacyMode,
     routeLifecycleBound: false,
   };
   initPortalShell(currentSession, {
@@ -181,39 +180,33 @@ document.addEventListener("DOMContentLoaded", async () => {
 function resolveRouteContext(allowedRoutes) {
   const defaultRoute = allowedRoutes[0];
   const normalizedPath = normalizePath(window.location.pathname);
-  const legacyMode = /\/pages\/admin\/[^/]+\.html$/i.test(normalizedPath);
-  const routeMap = buildRouteMap(legacyMode);
+  const routeMap = buildRouteMap();
   const hashRoute = resolveAlias(window.location.hash.replace("#", ""));
-
-  if (legacyMode) {
-    const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-    return { routeKey, routeMap, legacyMode };
-  }
 
   if (normalizedPath === "/admin") {
     const targetRoute = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
+    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
   }
 
   if (normalizedPath.startsWith("/admin/")) {
     const slug = normalizedPath.slice("/admin/".length).split("/")[0];
     const routeKey = resolveAlias(slug);
     if (allowedRoutes.includes(routeKey)) {
-      return { routeKey, routeMap, legacyMode };
+      return { routeKey, routeMap };
     }
-    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
+    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap };
   }
 
   const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-  return { routeKey, routeMap, legacyMode };
+  return { routeKey, routeMap };
 }
 
-function buildRouteMap(legacyMode) {
+function buildRouteMap() {
   return Object.fromEntries(
     Object.entries(ROUTE_DEFINITIONS).map(([key, route]) => [
       key,
       {
-        href: legacyMode ? `./index.html#${route.slug}` : `/admin/${route.slug}`,
+        href: `/admin/${route.slug}`,
       },
     ]),
   );
@@ -670,13 +663,6 @@ function initAdminRouteLifecycle() {
 
   adminRouteState.routeLifecycleBound = true;
 
-  if (adminRouteState.legacyMode) {
-    window.addEventListener("hashchange", () => {
-      void syncRouteFromLocation();
-    });
-    return;
-  }
-
   document.querySelector("#sidebar-nav")?.addEventListener("click", (event) => {
     const link = event.target.closest(".nav-link[data-route]");
     if (!link) {
@@ -740,11 +726,6 @@ async function navigateToAdminRoute(routeKey) {
 
   const href = adminRouteState.routeMap?.[routeKey]?.href;
   if (!href) {
-    return;
-  }
-
-  if (adminRouteState.legacyMode) {
-    window.location.hash = ROUTE_DEFINITIONS[routeKey].slug;
     return;
   }
 
