@@ -8,7 +8,7 @@ export async function login(credentials) {
     body: JSON.stringify(credentials),
     auth: false,
   });
-  return normalizeAuthResponse(response, { context: "login response" });
+  return normalizeAuthResponse(response?.raw || response, { context: "login response" });
 }
 
 export function registerAccount(payload) {

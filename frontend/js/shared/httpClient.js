@@ -135,6 +135,10 @@ async function parseResponsePayload(response) {
 }
 
 function normalizeApiResponse(payload, response) {
+  if (isAuthPayload(payload)) {
+    return payload;
+  }
+
   if (payload && typeof payload === "object" && ("data" in payload || "success" in payload || "message" in payload)) {
     return {
       success: payload.success !== false,
@@ -154,4 +158,13 @@ function normalizeApiResponse(payload, response) {
     status: response.status,
     raw: payload,
   };
+}
+
+function isAuthPayload(payload) {
+  return Boolean(
+    payload
+      && typeof payload === "object"
+      && (payload.accessToken || payload.access_token)
+      && (payload.refreshToken || payload.refresh_token),
+  );
 }
