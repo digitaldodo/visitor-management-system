@@ -32,8 +32,8 @@ export function requireRole(requiredRole) {
     return null;
   }
 
-  const sessionRoles = session.roles || [];
-  const tokenRoles = getTokenRoles(session.accessToken);
+  const sessionRoles = Array.isArray(session.roles) ? session.roles : [];
+  const tokenRoles = getTokenRoles(session?.accessToken);
   const hasRequiredSessionRole = hasEffectiveRole(sessionRoles, requiredRole);
   const hasRequiredTokenRole = hasEffectiveRole(tokenRoles, requiredRole);
 
@@ -43,10 +43,21 @@ export function requireRole(requiredRole) {
 
   const fallbackRole = resolvePortalRole(tokenRoles) || resolvePortalRole(sessionRoles);
   if (fallbackRole) {
+    logRoleGuardWarning("Redirecting to the portal matching the authenticated role.", {
+      requiredRole,
+      fallbackRole,
+      sessionRoles,
+      tokenRoles,
+    });
     redirectToPortal(fallbackRole, true);
     return null;
   }
 
+  logRoleGuardWarning("Stored session has no usable role; clearing session.", {
+    requiredRole,
+    sessionRoles,
+    tokenRoles,
+  });
   clearSession();
   redirectToLogin();
   return null;
@@ -59,4 +70,11 @@ function hasEffectiveRole(roles, requiredRole) {
 function resolvePortalRole(roles = []) {
   const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
   return priority.find((role) => roles.includes(role) && ROLE_PORTALS_FROM_PORTAL[role]) || null;
+}
+
+function logRoleGuardWarning(message, details) {
+  if (typeof console === "undefined" || typeof console.warn !== "function") {
+    return;
+  }
+  console.warn(`[auth] ${message}`, details);
 }

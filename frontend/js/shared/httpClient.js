@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config.js";
-import { clearSession, getAccessToken, getRefreshToken, normalizeSessionPayload, setSession } from "./session.js";
+import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -82,8 +82,14 @@ async function refreshAccessToken() {
   });
 
   const payload = await response.json().catch(() => null);
-  const session = normalizeSessionPayload(payload);
+  const session = normalizeAuthResponse(payload, { context: "token refresh" });
   if (!response.ok || !session) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn("[auth] Token refresh failed; clearing stored session.", {
+        status: response.status,
+        payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : [],
+      });
+    }
     clearSession();
     return false;
   }

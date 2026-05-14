@@ -1,12 +1,14 @@
 import { API_BASE_URL } from "./config.js";
 import { request } from "./httpClient.js";
+import { normalizeAuthResponse } from "./session.js";
 
-export function login(credentials) {
-  return request("/auth/login", {
+export async function login(credentials) {
+  const response = await request("/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
     auth: false,
   });
+  return normalizeAuthResponse(response, { context: "login response" });
 }
 
 export function registerAccount(payload) {

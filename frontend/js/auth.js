@@ -5,7 +5,7 @@ import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
-import { getTokenRoles, normalizeSessionPayload, setSession } from "./shared/session.js";
+import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 
@@ -121,7 +121,7 @@ function initLoginForm() {
         companyCode: data.companyCode || null,
         portalAudience: data.audience,
       });
-      const session = normalizeSessionPayload(response);
+      const session = response;
       if (!session) {
         throw new Error("Login response was empty or malformed. Try again in a moment.");
       }
@@ -253,7 +253,20 @@ function normalizeAudience(target) {
 
 function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
   const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
-  return priority.find((role) => sessionRoles.includes(role) && tokenRoles.includes(role)) || null;
+  const sessionRole = priority.find((role) => sessionRoles.includes(role)) || null;
+  const tokenRole = priority.find((role) => tokenRoles.includes(role)) || null;
+
+  if (sessionRole && tokenRole && sessionRole !== tokenRole) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn("[auth] Login role mismatch between response body and token claims.", {
+        sessionRole,
+        tokenRole,
+      });
+    }
+    return null;
+  }
+
+  return tokenRole || sessionRole;
 }
 
 function roleAllowedForAudience(role, audience) {
