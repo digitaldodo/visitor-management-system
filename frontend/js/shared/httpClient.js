@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config.js";
-import { clearSession, getAccessToken, getRefreshToken, setSession } from "./session.js";
+import { clearSession, getAccessToken, getRefreshToken, normalizeSessionPayload, setSession } from "./session.js";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -55,6 +55,14 @@ export async function request(path, options = {}) {
     throw error;
   }
 
+  if (!payload || typeof payload !== "object") {
+    return {
+      success: true,
+      message: "The server returned an empty or malformed response.",
+      data: null,
+    };
+  }
+
   return payload;
 }
 
@@ -74,12 +82,13 @@ async function refreshAccessToken() {
   });
 
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.data) {
+  const session = normalizeSessionPayload(payload);
+  if (!response.ok || !session) {
     clearSession();
     return false;
   }
 
-  setSession(payload.data);
+  setSession(session);
   return true;
 }
 

@@ -1,5 +1,6 @@
 package com.visitor.management.controller;
 
+import com.visitor.management.dto.ActionResponse;
 import com.visitor.management.dto.AdminPasswordResetRequest;
 import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
@@ -243,9 +244,9 @@ public class AdminController {
 
     @DeleteMapping("/visitors/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> deleteVisitor(@PathVariable String id, Authentication authentication) {
+    public ApiResponse<ActionResponse> deleteVisitor(@PathVariable String id, Authentication authentication) {
         visitorService.delete(id, authentication.getName());
-        return ApiResponse.ok("Visitor deleted.", null);
+        return ApiResponse.ok("Visitor deleted.", ActionResponse.ok());
     }
 
     private boolean isCloudinaryConfigured() {

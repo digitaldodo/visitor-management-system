@@ -25,12 +25,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.Optional;
 import java.util.Set;
@@ -45,6 +47,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -125,6 +128,7 @@ class VisitorManagementApplicationTests {
         when(userRepository.findByUsernameIgnoreCase("admin-id")).thenReturn(Optional.of(user("admin-id", Role.ADMIN)));
         when(userRepository.findByUsernameIgnoreCase("employee-id")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(userRepository.findByUsernameIgnoreCase("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
+        when(userRepository.findByUsernameIgnoreCase("visitor-id")).thenReturn(Optional.of(visitorAccount("visitor-id", "visitor@example.com", "org-acme", "Acme Corp", "ACME")));
         when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -268,8 +272,12 @@ class VisitorManagementApplicationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.data.roles[0]").value("EMPLOYEE"));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.roles[0]").value("EMPLOYEE"))
+                .andExpect(jsonPath("$.user.id").value("employee-id"))
+                .andExpect(jsonPath("$.user.role").value("EMPLOYEE"))
+                .andExpect(jsonPath("$.user.organizationCode").value("ACME"));
     }
 
     @Test
@@ -284,7 +292,10 @@ class VisitorManagementApplicationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.roles[0]").value("SUPER_ADMIN"))
+                .andExpect(jsonPath("$.user.id").value("super-admin-id"))
+                .andExpect(jsonPath("$.user.role").value("SUPER_ADMIN"));
 
         mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
@@ -361,7 +372,19 @@ class VisitorManagementApplicationTests {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.roles[0]").value("ADMIN"))
+                .andExpect(jsonPath("$.user.id").value("admin-id"))
+                .andExpect(jsonPath("$.user.role").value("ADMIN"));
+    }
+
+    @Test
+    void loginResponsePayloadShapeIsStableForEveryPortalRole() throws Exception {
+        assertLoginPayload("visitor-id", "ACME", "visitor", Role.VISITOR, "visitor-id");
+        assertLoginPayload("employee-id", "ACME", "employee", Role.EMPLOYEE, "employee-id");
+        assertLoginPayload("security-id", "ACME", "security", Role.SECURITY_GUARD, "security-id");
+        assertLoginPayload("admin-id", "ACME", "admin", Role.ADMIN, "admin-id");
+        assertLoginPayload("super-admin-id", null, "admin", Role.SUPER_ADMIN, "super-admin-id");
     }
 
     @Test
@@ -803,6 +826,40 @@ class VisitorManagementApplicationTests {
         mockMvc.perform(get("/api/v1/admin/visitors?page=0&size=20")
                         .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
                 .andExpect(status().isForbidden());
+    }
+
+    private void assertLoginPayload(String identifier, String companyCode, String portalAudience, Role expectedRole, String expectedUserId) throws Exception {
+        ResultActions result = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identifier": "%s",
+                                  "companyCode": %s,
+                                  "portalAudience": "%s",
+                                  "password": "SecurePass123!"
+                                }
+                                """.formatted(identifier, jsonStringOrNull(companyCode), portalAudience)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.blankOrNullString())))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.user.id").value(expectedUserId))
+                .andExpect(jsonPath("$.user.username").value(expectedUserId))
+                .andExpect(jsonPath("$.user.email").exists())
+                .andExpect(jsonPath("$.user.role").value(expectedRole.name()))
+                .andExpect(jsonPath("$.roles[0]").value(expectedRole.name()));
+
+        if (expectedRole != Role.SUPER_ADMIN) {
+            result.andExpect(jsonPath("$.user.organizationCode").value("ACME"))
+                    .andExpect(jsonPath("$.user.organizationName").value("Acme Corp"));
+        }
+    }
+
+    private String jsonStringOrNull(String value) {
+        return value == null ? "null" : "\"" + value + "\"";
     }
 
     private String bearer(String subject, Role role) {

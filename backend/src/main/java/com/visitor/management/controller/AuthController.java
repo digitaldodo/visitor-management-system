@@ -1,5 +1,6 @@
 package com.visitor.management.controller;
 
+import com.visitor.management.dto.ActionResponse;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.AuthRequest;
 import com.visitor.management.dto.AuthResponse;
@@ -34,8 +35,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
-        return ApiResponse.ok("Login successful.", authService.login(request));
+    public AuthResponse login(@Valid @RequestBody AuthRequest request) {
+        return authService.login(request);
     }
 
     @PostMapping("/register")
@@ -49,9 +50,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@Valid @RequestBody LogoutRequest request) {
+    public ApiResponse<ActionResponse> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request.refreshToken());
-        return ApiResponse.ok("Logged out.", null);
+        return ApiResponse.ok("Logged out.", ActionResponse.ok());
     }
 
     @PostMapping("/forgot-password")
@@ -67,9 +68,9 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    public ApiResponse<ActionResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
-        return ApiResponse.ok("Password updated.", null);
+        return ApiResponse.ok("Password updated.", ActionResponse.ok());
     }
 
     @GetMapping("/me")

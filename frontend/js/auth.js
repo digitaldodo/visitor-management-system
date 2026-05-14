@@ -5,7 +5,7 @@ import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
-import { getTokenRoles, setSession } from "./shared/session.js";
+import { getTokenRoles, normalizeSessionPayload, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 
@@ -121,7 +121,10 @@ function initLoginForm() {
         companyCode: data.companyCode || null,
         portalAudience: data.audience,
       });
-      const session = response.data;
+      const session = normalizeSessionPayload(response);
+      if (!session) {
+        throw new Error("Login response was empty or malformed. Try again in a moment.");
+      }
       const tokenRoles = getTokenRoles(session.accessToken);
       const role = resolveAuthenticatedRole(session.roles, tokenRoles);
 
