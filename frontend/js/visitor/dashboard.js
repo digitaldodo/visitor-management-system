@@ -1,5 +1,5 @@
 import { request } from "../shared/httpClient.js";
-import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
@@ -12,7 +12,11 @@ import { showToast } from "../shared/toast.js";
 const ROUTES = ["visits", "history", "request"];
 let activeBadge = null;
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  void bootVisitorPortal();
+});
+
+async function bootVisitorPortal() {
   initAppErrorBoundary();
 
   const session = requireRole("VISITOR");
@@ -24,34 +28,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowedRoutes: ROUTES,
     onRefresh: () => loadVisitorPortal(),
   });
-  await initOrganizations(session);
-  initHostPicker(document.querySelector("#visitor-request-form"), { basePath: "/visitor" });
+  await runSafely("visitor organizations", () => initOrganizations(session), {
+    toastTitle: "Organizations unavailable",
+  });
+  await runSafely("visitor host picker", () => initHostPicker(document.querySelector("#visitor-request-form"), { basePath: "/visitor" }), {
+    toastTitle: "Host search unavailable",
+  });
   initRequestForm();
   initVisitActions();
   initBadgeActions();
   await loadVisitorPortal();
-});
+}
 
 async function loadVisitorPortal() {
-  try {
-    const [overview, visits, history] = await Promise.all([
-      request("/visitor/overview"),
-      request("/visitor/visits"),
-      getVisitorHistory("/visitor"),
-    ]);
+  const [overview, visits, history] = await Promise.allSettled([
+    request("/visitor/overview"),
+    request("/visitor/visits"),
+    getVisitorHistory("/visitor"),
+  ]);
+
+  if (overview.status === "fulfilled") {
+    const overviewData = overview.value?.data || {};
     renderMetrics([
-      { label: "Pending", value: overview.data.pending, note: "Awaiting host approval" },
-      { label: "Active passes", value: overview.data.activePasses, note: "Approved or checked in" },
-      { label: "Total requests", value: overview.data.totalRequests, note: "Saved in your access history" },
+      { label: "Pending", value: overviewData.pending || 0, note: "Awaiting host approval" },
+      { label: "Active passes", value: overviewData.activePasses || 0, note: "Approved or checked in" },
+      { label: "Total requests", value: overviewData.totalRequests || 0, note: "Saved in your access history" },
     ]);
-    setOrganizationContext(overview.data);
-    renderVisits(visits.data || []);
-    renderHistory(history.data);
-  } catch (error) {
+    setOrganizationContext(overviewData);
+  } else {
     renderMetrics([]);
+  }
+
+  if (visits.status === "fulfilled") {
+    renderVisits(visits.value?.data || []);
+  } else {
     renderVisits([]);
+    showToast("Visits unavailable", visits.reason?.message || "Visit requests could not be loaded.");
+  }
+
+  if (history.status === "fulfilled") {
+    renderHistory(history.value?.data || null);
+  } else {
     renderHistory(null);
-    showToast("Visitor access unavailable", error.message);
   }
 }
 
@@ -81,8 +99,12 @@ function initRequestForm() {
     setFormLoading(form, true);
     try {
       const upload = await uploadVisitPhoto(photoFile);
-      payload.photoUrl = upload.data.url;
-      payload.photoPublicId = upload.data.publicId;
+      const uploadData = upload?.data || {};
+      if (!uploadData.url) {
+        throw new Error("Photo upload response was empty.");
+      }
+      payload.photoUrl = uploadData.url;
+      payload.photoPublicId = uploadData.publicId;
       await request("/visitor/visits", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -111,7 +133,10 @@ function initVisitActions() {
     }
     try {
       const response = await getVisitorPass("/visitor", visitorId);
-      activeBadge = response.data;
+      activeBadge = response?.data || null;
+      if (!activeBadge) {
+        throw new Error("Badge response was empty.");
+      }
       openBadgeModal(activeBadge);
     } catch (error) {
       showToast("Badge unavailable", error.message);
@@ -315,7 +340,7 @@ async function initOrganizations(session) {
 
   try {
     const response = await listOrganizations();
-    const organizations = response.data || [];
+    const organizations = response?.data || [];
     select.innerHTML = `<option value="">Select organization</option>${organizations.map((organization) => `
       <option value="${escapeHtml(organization.companyCode)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
     `).join("")}`;

@@ -1,5 +1,5 @@
 import { request } from "../shared/httpClient.js";
-import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
@@ -16,7 +16,11 @@ const state = {
   activeVerification: null,
 };
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  void bootSecurityPortal();
+});
+
+async function bootSecurityPortal() {
   initAppErrorBoundary();
 
   const session = requireRole("SECURITY_GUARD");
@@ -28,19 +32,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowedRoutes: ROUTES,
     onRefresh: () => loadSecurityPortal(false),
   });
-  initVisitorModule("[data-security-visitors]", {
+  await runSafely("security visitor module", () => initVisitorModule("[data-security-visitors]", {
     basePath: "/security",
     title: "Front Desk Registration",
     eyebrow: "Reception Operations",
     canDelete: false,
-  });
+  }), { toastTitle: "Visitor registration unavailable" });
   initQrVerification();
   initBadgeActions();
   initMonitoringSearch();
   renderVerificationIdle();
   await loadSecurityPortal();
   window.setInterval(() => loadSecurityPortal(false), 15000);
-});
+}
 
 async function loadSecurityPortal(showErrors = true) {
   if (showErrors) {
@@ -55,33 +59,46 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-rejected-list");
   }
 
-  try {
-    const [overview, queue, photo, monitoring] = await Promise.all([
-      request("/security/overview"),
-      request("/security/queue"),
-      request("/security/photo-capture"),
-      getSecurityMonitoring(state.monitoringQuery),
-    ]);
+  const [overview, queue, photo, monitoring] = await Promise.allSettled([
+    request("/security/overview"),
+    request("/security/queue"),
+    request("/security/photo-capture"),
+    getSecurityMonitoring(state.monitoringQuery),
+  ]);
 
-    renderMetrics(overview.data.metrics);
-    renderWorkList("#queue-list", queue.data.items || [], queueCard, "No approved arrivals", "Approved visitors waiting for arrival will appear here.");
-    renderWorkList("#checkins-list", monitoring.data.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
-    renderPhotoCapturePanel(photo.data || {});
-    renderMonitoring(monitoring.data);
-    await renderBadgeList(monitoring.data.approvedVisitors || []);
-  } catch (error) {
-    if (showErrors) {
-      renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", error.message);
-      renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", error.message);
-      renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", error.message);
-      setCameraFrameStatus(error.message);
-      renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", error.message);
-      renderWorkList("#monitor-inside-list", [], (item) => item, "Monitoring unavailable", error.message);
-      renderWorkList("#monitor-overdue-list", [], (item) => item, "Monitoring unavailable", error.message);
-      renderWorkList("#monitor-checkedout-list", [], (item) => item, "Monitoring unavailable", error.message);
-      renderWorkList("#monitor-rejected-list", [], (item) => item, "Monitoring unavailable", error.message);
-      showToast("Security access blocked", error.message);
-    }
+  if (overview.status === "fulfilled") {
+    renderMetrics(overview.value?.data?.metrics || []);
+  } else if (showErrors) {
+    renderMetrics([]);
+  }
+
+  if (queue.status === "fulfilled") {
+    renderWorkList("#queue-list", queue.value?.data?.items || [], queueCard, "No approved arrivals", "Approved visitors waiting for arrival will appear here.");
+  } else if (showErrors) {
+    renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", queue.reason?.message || "Queue could not be loaded.");
+  }
+
+  if (photo.status === "fulfilled") {
+    renderPhotoCapturePanel(photo.value?.data || {});
+  } else if (showErrors) {
+    const message = photo.reason?.message || "Camera status could not be loaded.";
+    renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", message);
+    setCameraFrameStatus(message);
+  }
+
+  if (monitoring.status === "fulfilled") {
+    const monitoringData = monitoring.value?.data || {};
+    renderWorkList("#checkins-list", monitoringData.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
+    renderMonitoring(monitoringData);
+    await renderBadgeList(monitoringData.approvedVisitors || []);
+  } else if (showErrors) {
+    const message = monitoring.reason?.message || "Monitoring could not be loaded.";
+    renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", message);
+    renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", message);
+    renderWorkList("#monitor-inside-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-overdue-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-checkedout-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-rejected-list", [], (item) => item, "Monitoring unavailable", message);
   }
 }
 
@@ -186,7 +203,10 @@ function initBadgeActions() {
     }
     try {
       const response = await getVisitorPass("/security", button.dataset.badgeOpen);
-      state.activeBadge = response.data;
+      state.activeBadge = response?.data || null;
+      if (!state.activeBadge) {
+        throw new Error("Badge response was empty.");
+      }
       openBadgeModal(state.activeBadge);
     } catch (error) {
       showToast("Badge unavailable", error.message);
@@ -290,9 +310,12 @@ async function verifyScannedValue(value) {
   submit?.setAttribute("aria-busy", "true");
   try {
     const response = await verifyQrPayload("/security", trimmed);
-    state.activeVerification = response.data;
-    renderVerification(response.data);
-    showToast(response.data.headline || (response.data.valid ? "Pass verified" : "Pass review required"), response.data.message);
+    state.activeVerification = response?.data || null;
+    if (!state.activeVerification) {
+      throw new Error("Verification response was empty.");
+    }
+    renderVerification(state.activeVerification);
+    showToast(state.activeVerification.headline || (state.activeVerification.valid ? "Pass verified" : "Pass review required"), state.activeVerification.message);
   } catch (error) {
     renderVerificationFailure(error.message);
     showToast("Verification failed", error.message);
@@ -563,14 +586,15 @@ async function capturePhotoForVisitor(visitorId) {
     }
     try {
       const upload = await uploadVisitorPhoto("/security", file);
+      const uploadData = upload?.data || {};
       await updateVisitor("/security", visitorId, {
-        photoUrl: upload.data.url,
-        photoPublicId: upload.data.publicId,
+        photoUrl: uploadData.url,
+        photoPublicId: uploadData.publicId,
       });
       showToast("Photo saved", "Visitor photo is now attached to the badge.");
       await loadSecurityPortal(false);
       if (state.activeVerification?.visitorId === visitorId) {
-        state.activeVerification.photoUrl = upload.data.url;
+        state.activeVerification.photoUrl = uploadData.url;
         renderVerification(state.activeVerification);
       }
     } catch (error) {

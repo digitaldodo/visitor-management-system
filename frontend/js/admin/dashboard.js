@@ -1,5 +1,5 @@
 import { request } from "../shared/httpClient.js";
-import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { createDepartment, listDepartments, updateDepartment } from "../shared/departmentApi.js";
 import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
 import { createOrganization, getOrganizationWorkspace, listManagedOrganizations, listOrganizationWorkspaceItems, updateOrganization } from "../shared/organizationApi.js";
@@ -144,7 +144,11 @@ const INTERNAL_ROLE_DEPARTMENT_RULES = {
   },
 };
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  void bootAdminPortal();
+});
+
+async function bootAdminPortal() {
   initAppErrorBoundary();
 
   currentSession = requireRole("ADMIN");
@@ -174,8 +178,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   initAdminRouteLifecycle();
-  await activateAdminRoute(currentRoute);
-});
+  await runSafely("admin portal activation", () => activateAdminRoute(currentRoute), {
+    toastTitle: "Workspace unavailable",
+  });
+}
 
 function resolveRouteContext(allowedRoutes) {
   const defaultRoute = allowedRoutes[0];
@@ -771,9 +777,18 @@ async function activateAdminRoute(routeKey, options = {}) {
   collapseAdminSidebarForNavigation();
   syncAdminRouteNavigation(routeKey);
   renderWorkspaceFrame(ROUTE_DEFINITIONS[routeKey]);
-  initWorkspace(routeKey);
+  let initialized = true;
+  try {
+    initWorkspace(routeKey);
+  } catch (error) {
+    initialized = false;
+    renderWorkspaceError("Workspace module failed", error.message);
+    showToast("Workspace module unavailable", error.message);
+  }
   window.scrollTo(0, 0);
-  await loadWorkspace(routeKey, options);
+  if (initialized) {
+    await loadWorkspace(routeKey, options);
+  }
 }
 
 function isAllowedAdminRoute(routeKey) {
@@ -822,6 +837,19 @@ function initWorkspace(routeKey) {
   }
 }
 
+function renderWorkspaceError(title, message) {
+  const view = document.querySelector("#workspace-view");
+  if (!view) {
+    return;
+  }
+  view.innerHTML = `
+    <article class="empty-state">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(message || "This workspace could not initialize, but the portal shell remains available.")}</p>
+    </article>
+  `;
+}
+
 async function loadWorkspace(routeKey, options = {}) {
   const { preserveToasts = false } = options;
 
@@ -865,7 +893,7 @@ async function loadAnalyticsWorkspace() {
   renderAnalyticsLoading();
   try {
     const analytics = await request("/admin/analytics");
-    renderAnalytics(analytics.data);
+    renderAnalytics(analytics?.data || {});
   } catch (error) {
     renderAnalytics({});
     showToast("Analytics unavailable", error.message);
@@ -880,7 +908,7 @@ async function loadUsersWorkspace() {
     }
     await loadUserDepartmentOptions({ preserveSelection: true });
     const users = await request("/admin/users");
-    renderUsers(users.data || []);
+    renderUsers(users?.data || []);
   } catch (error) {
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
     showToast("User management unavailable", error.message);
@@ -894,8 +922,8 @@ async function loadOrganizationsWorkspace() {
       listOrganizationWorkspaceItems(),
       listManagedOrganizations(),
     ]);
-    organizationWorkspaceItems = workspaceResponse.data || [];
-    managedOrganizations = organizationsResponse.data || [];
+    organizationWorkspaceItems = workspaceResponse?.data || [];
+    managedOrganizations = organizationsResponse?.data || [];
     renderOrganizations(organizationWorkspaceItems);
   } catch (error) {
     organizationWorkspaceItems = [];
@@ -916,7 +944,7 @@ async function loadDepartmentsWorkspace() {
       organizationId,
       includeInactive: true,
     });
-    departmentWorkspaceItems = departments.data || [];
+    departmentWorkspaceItems = departments?.data || [];
     renderDepartmentWorkspaceItems();
   } catch (error) {
     departmentWorkspaceItems = [];
@@ -929,7 +957,7 @@ async function loadHomepageWorkspace() {
   renderHomepageSettingsState("Loading homepage controls...");
   try {
     const homepageSettings = await getHomepageSettings();
-    renderHomepageSettings(homepageSettings.data);
+    renderHomepageSettings(homepageSettings?.data || null);
   } catch (error) {
     renderHomepageSettingsState(error.message);
     showToast("Homepage controls unavailable", error.message);
@@ -940,7 +968,7 @@ async function loadReportsWorkspace() {
   renderLoadingList("#reports-list", 4);
   try {
     const reports = await request("/admin/reports");
-    renderWorkList("#reports-list", reports.data, (report) => workCard(report.title, report.status), "No audit activity yet", "Structured login and access events will appear here.");
+    renderWorkList("#reports-list", reports?.data || [], (report) => workCard(report.title, report.status), "No audit activity yet", "Structured login and access events will appear here.");
   } catch (error) {
     renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
     showToast("Reports unavailable", error.message);
@@ -952,7 +980,7 @@ async function loadMonitoringWorkspace() {
   renderLoadingList("#monitoring-list", 4);
   try {
     const monitoring = await request("/admin/monitoring");
-    renderMonitoring(monitoring.data);
+    renderMonitoring(monitoring?.data || {});
   } catch (error) {
     renderMonitoringSummary([]);
     renderWorkList("#monitoring-list", [], (item) => item, "Monitoring unavailable", error.message);
@@ -1277,7 +1305,7 @@ function initHomepageSettingsForm() {
     setFormLoading(form, true);
     try {
       const response = await updateHomepageSettings(payload);
-      renderHomepageSettings(response.data);
+      renderHomepageSettings(response?.data || null);
       showToast("Homepage updated", "Public homepage controls were saved.");
     } catch (error) {
       showToast("Homepage update failed", error.message);
@@ -1452,7 +1480,10 @@ async function openOrganizationWorkspaceModal(organizationId = "", options = {})
 
   try {
     const response = await getOrganizationWorkspace(organizationId);
-    activeOrganizationWorkspace = response.data;
+    activeOrganizationWorkspace = response?.data || null;
+    if (!activeOrganizationWorkspace?.organization) {
+      throw new Error("Organization workspace response was empty.");
+    }
     organizationDepartmentDraft = (activeOrganizationWorkspace?.departments || []).map((department) => department.departmentName);
     renderOrganizationWorkspaceModal(activeOrganizationWorkspace, { mode: "manage", activeTab });
   } catch (error) {
@@ -1548,7 +1579,7 @@ async function submitOrganizationWorkspaceForm(form) {
       : await createOrganization(payload);
     showToast(organizationId ? "Organization updated" : "Organization created", organizationId ? "Tenant details were saved." : "Tenant is ready for admin and visitor setup.");
     await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(response.data?.id || organizationId, { activeTab: "overview" });
+    await openOrganizationWorkspaceModal(response?.data?.id || organizationId, { activeTab: "overview" });
   } catch (submitError) {
     showToast("Organization save failed", submitError.message);
   } finally {
@@ -2746,7 +2777,7 @@ async function ensureManagedOrganizations(options = {}) {
   }
 
   const response = await listManagedOrganizations();
-  managedOrganizations = response.data || [];
+  managedOrganizations = response?.data || [];
   return managedOrganizations;
 }
 
@@ -2858,7 +2889,7 @@ async function loadUserDepartmentOptions(options = {}) {
 
   try {
     const response = await listDepartments({ organizationId });
-    userDepartmentOptions = response.data || [];
+    userDepartmentOptions = response?.data || [];
     userDepartmentOrganizationId = organizationId;
     datalist.innerHTML = userDepartmentOptions.map((department) => `<option value="${escapeHtml(department.departmentName)}"></option>`).join("");
     if (meta) {

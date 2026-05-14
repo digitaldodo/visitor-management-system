@@ -1,5 +1,5 @@
 import { request } from "../shared/httpClient.js";
-import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
+import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { formatDate, formatStatus, formatTime, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
@@ -10,7 +10,11 @@ import { showToast } from "../shared/toast.js";
 const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history"];
 let approvalPollTimer;
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  void bootEmployeePortal();
+});
+
+async function bootEmployeePortal() {
   initAppErrorBoundary();
 
   const session = requireRole("EMPLOYEE");
@@ -22,19 +26,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowedRoutes: ROUTES,
     onRefresh: () => loadEmployeePortal(),
   });
-  initVisitorModule("[data-employee-visitors]", {
+  await runSafely("employee visitor module", () => initVisitorModule("[data-employee-visitors]", {
     basePath: "/employee",
     title: "Visitor Registration and History",
     eyebrow: "Personal Records",
     showHostFields: false,
     canDelete: false,
-  });
+  }), { toastTitle: "Visitor history unavailable" });
   initApprovalActions();
   initPreApprovalForm();
   await loadEmployeePortal();
   approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
   window.addEventListener("beforeunload", () => window.clearInterval(approvalPollTimer));
-});
+}
 
 async function loadEmployeePortal() {
   renderMetrics([]);
@@ -42,22 +46,30 @@ async function loadEmployeePortal() {
   renderLoadingList("#notifications-list");
   renderLoadingList("#scheduled-list");
 
-  try {
-    const [overview, notifications, scheduled] = await Promise.all([
-      request("/employee/overview"),
-      request("/employee/notifications"),
-      request("/employee/scheduled-visitors"),
-    ]);
+  const [overview, notifications, scheduled] = await Promise.allSettled([
+    request("/employee/overview"),
+    request("/employee/notifications"),
+    request("/employee/scheduled-visitors"),
+  ]);
 
-    renderMetrics(overview.data.metrics);
-    await loadApprovals(false);
-    renderWorkList("#notifications-list", notifications.data, (notification) => workCard(notification.title, notification.message), "No employee notices", "Visitor updates and reminders will appear here.");
-    renderScheduledVisitors(scheduled.data || []);
-  } catch (error) {
-    renderWorkList("#approvals-list", [], (item) => item, "Approvals unavailable", error.message);
-    renderWorkList("#notifications-list", [], (item) => item, "Notifications unavailable", error.message);
-    renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", error.message);
-    showToast("Employee access blocked", error.message);
+  if (overview.status === "fulfilled") {
+    renderMetrics(overview.value?.data?.metrics || []);
+  } else {
+    renderMetrics([]);
+  }
+
+  await loadApprovals(false);
+
+  if (notifications.status === "fulfilled") {
+    renderWorkList("#notifications-list", notifications.value?.data || [], (notification) => workCard(notification.title, notification.message), "No employee notices", "Visitor updates and reminders will appear here.");
+  } else {
+    renderWorkList("#notifications-list", [], (item) => item, "Notifications unavailable", notifications.reason?.message || "Notifications could not be loaded.");
+  }
+
+  if (scheduled.status === "fulfilled") {
+    renderScheduledVisitors(scheduled.value?.data || []);
+  } else {
+    renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
   }
 }
 
@@ -106,7 +118,7 @@ async function loadApprovals(showToastOnSuccess) {
 
   try {
     const approvals = await request("/employee/approvals");
-    const items = approvals.data?.items || [];
+    const items = approvals?.data?.items || [];
     list.innerHTML = items.length ? items.map(approvalCard).join("") : `
       <article class="approval-empty">
         <h3>No pending approvals</h3>

@@ -35,10 +35,22 @@ export function requireRole(requiredRole) {
   const sessionRoles = Array.isArray(session.roles) ? session.roles : [];
   const tokenRoles = getTokenRoles(session?.accessToken);
   const hasRequiredSessionRole = hasEffectiveRole(sessionRoles, requiredRole);
-  const hasRequiredTokenRole = hasEffectiveRole(tokenRoles, requiredRole);
+  const tokenHasRoles = tokenRoles.length > 0;
+  const hasRequiredTokenRole = tokenHasRoles ? hasEffectiveRole(tokenRoles, requiredRole) : true;
 
   if (hasRequiredSessionRole && hasRequiredTokenRole) {
     return session;
+  }
+
+  if (hasRequiredSessionRole && tokenHasRoles && !rolesOverlap(sessionRoles, tokenRoles)) {
+    logRoleGuardWarning("Stored session role no longer matches token claims; clearing session.", {
+      requiredRole,
+      sessionRoles,
+      tokenRoles,
+    });
+    clearSession();
+    redirectToLogin();
+    return null;
   }
 
   const fallbackRole = resolvePortalRole(tokenRoles) || resolvePortalRole(sessionRoles);
@@ -70,6 +82,10 @@ function hasEffectiveRole(roles, requiredRole) {
 function resolvePortalRole(roles = []) {
   const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
   return priority.find((role) => roles.includes(role) && ROLE_PORTALS_FROM_PORTAL[role]) || null;
+}
+
+function rolesOverlap(left = [], right = []) {
+  return left.some((role) => right.includes(role));
 }
 
 function logRoleGuardWarning(message, details) {

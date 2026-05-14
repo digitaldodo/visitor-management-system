@@ -56,8 +56,12 @@ export function initVisitorModule(selector, options) {
     setFormLoading(form, true);
     try {
       const photo = await uploadVisitorPhoto(options.basePath, state.photoBlob);
-      payload.photoUrl = photo.data.url;
-      payload.photoPublicId = photo.data.publicId;
+      const photoData = photo?.data || {};
+      if (!photoData.url) {
+        throw new Error("Photo upload response was empty.");
+      }
+      payload.photoUrl = photoData.url;
+      payload.photoPublicId = photoData.publicId;
       await createVisitor(options.basePath, payload);
       form.reset();
       resetPhotoState(root, state);
@@ -193,10 +197,11 @@ export function initVisitorModule(selector, options) {
         sortBy: "createdAt",
         direction: "desc",
       });
-      state.items = response.data.items || [];
-      state.totalPages = response.data.totalPages || 0;
+      const pageData = response?.data || {};
+      state.items = pageData.items || [];
+      state.totalPages = pageData.totalPages || 0;
       renderRows(root, state, options);
-      renderPagination(root, state, response.data.totalItems || 0);
+      renderPagination(root, state, pageData.totalItems || 0);
     } catch (error) {
       state.items = [];
       renderRows(root, state, options, error.message);

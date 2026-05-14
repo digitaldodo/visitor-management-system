@@ -1,11 +1,24 @@
 const SESSION_KEY = "visitor_management_session";
 const ROLE_PRIORITY = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+const ROLE_ALIASES = {
+  SECURITY: "SECURITY_GUARD",
+  SECURITY_ADMIN: "SECURITY_GUARD",
+};
 
 export function getSession() {
   try {
-    const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
-    return normalizeAuthResponse(stored, { context: "stored session", log: false });
+    const rawSession = localStorage.getItem(SESSION_KEY);
+    if (!rawSession) {
+      return null;
+    }
+    const stored = JSON.parse(rawSession);
+    const session = normalizeAuthResponse(stored, { context: "stored session", log: false });
+    if (!session) {
+      localStorage.removeItem(SESSION_KEY);
+    }
+    return session;
   } catch {
+    localStorage.removeItem(SESSION_KEY);
     return null;
   }
 }
@@ -52,7 +65,7 @@ export function getTokenRoles(token = getAccessToken()) {
     const normalized = payload.replaceAll("-", "+").replaceAll("_", "/");
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
     const claims = JSON.parse(atob(padded));
-    return Array.isArray(claims.roles) ? claims.roles : [];
+    return normalizeRoles(claims.roles);
   } catch {
     return [];
   }
@@ -69,8 +82,8 @@ export function normalizeAuthResponse(response, options = {}) {
 
   const source = payload;
   const user = source.user && typeof source.user === "object" ? source.user : {};
-  const accessToken = typeof source.accessToken === "string" ? source.accessToken.trim() : "";
-  const refreshToken = typeof source.refreshToken === "string" ? source.refreshToken.trim() : "";
+  const accessToken = firstString(source.accessToken, source.token, source.jwt, source.access_token);
+  const refreshToken = firstString(source.refreshToken, source.refresh_token);
 
   if (!accessToken || !refreshToken) {
     logAuthWarning(log, context, "Auth response is missing accessToken or refreshToken.", source);
@@ -93,19 +106,19 @@ export function normalizeAuthResponse(response, options = {}) {
     username: source.username || user.username || null,
     email: source.email || user.email || null,
     fullName: source.fullName || user.fullName || user.username || user.email || null,
-    organizationId: source.organizationId || user.organizationId || null,
-    organizationName: source.organizationName || user.organizationName || null,
-    organizationCode: source.organizationCode || user.organizationCode || null,
+    organizationId: firstNullable(source.organizationId, user.organizationId),
+    organizationName: firstNullable(source.organizationName, user.organizationName),
+    organizationCode: firstNullable(source.organizationCode, user.organizationCode),
     roles,
     user: {
       id: user.id || source.userId || null,
       username: user.username || source.username || null,
       email: user.email || source.email || null,
       role: user.role || roles[0] || null,
-      organizationCode: user.organizationCode || source.organizationCode || null,
-      organizationName: user.organizationName || source.organizationName || null,
+      organizationCode: firstNullable(user.organizationCode, source.organizationCode),
+      organizationName: firstNullable(user.organizationName, source.organizationName),
       fullName: user.fullName || source.fullName || null,
-      organizationId: user.organizationId || source.organizationId || null,
+      organizationId: firstNullable(user.organizationId, source.organizationId),
       roles,
     },
   };
@@ -138,10 +151,13 @@ function hasAuthTokens(value) {
 
 function normalizeRoles(value) {
   if (Array.isArray(value)) {
-    return value.filter((role) => typeof role === "string" && role.trim()).map((role) => role.trim());
+    return value
+      .filter((role) => typeof role === "string" && role.trim())
+      .map(normalizeRole)
+      .filter(Boolean);
   }
   if (typeof value === "string" && value.trim()) {
-    return [value.trim()];
+    return [normalizeRole(value)].filter(Boolean);
   }
   return [];
 }
@@ -153,7 +169,7 @@ function mergeRoles(...roleSets) {
     if (typeof role !== "string") {
       return;
     }
-    const normalizedRole = role.trim();
+    const normalizedRole = normalizeRole(role);
     if (normalizedRole && !seen.has(normalizedRole)) {
       seen.add(normalizedRole);
       roles.push(normalizedRole);
@@ -164,6 +180,21 @@ function mergeRoles(...roleSets) {
     const rightIndex = ROLE_PRIORITY.indexOf(right);
     return (leftIndex === -1 ? ROLE_PRIORITY.length : leftIndex) - (rightIndex === -1 ? ROLE_PRIORITY.length : rightIndex);
   });
+}
+
+function normalizeRole(role) {
+  const normalized = String(role || "").trim().toUpperCase();
+  return ROLE_ALIASES[normalized] || normalized;
+}
+
+function firstString(...values) {
+  const value = values.find((item) => typeof item === "string" && item.trim());
+  return value ? value.trim() : "";
+}
+
+function firstNullable(...values) {
+  const value = values.find((item) => item !== undefined && item !== null);
+  return value ?? null;
 }
 
 function logAuthWarning(shouldLog, context, message, payload) {

@@ -88,8 +88,12 @@ function initVerifyOtpPage() {
 
     await withLoading(form, async () => {
       const response = await verifyOtp(identifier, otp);
-      sessionStorage.setItem(RESET_TOKEN_KEY, response.data.resetToken);
-      sessionStorage.setItem(RESET_TOKEN_EXPIRES_KEY, response.data.expiresAt);
+      const resetData = response?.data || {};
+      if (!resetData.resetToken || !resetData.expiresAt) {
+        throw new Error("Verification response was empty.");
+      }
+      sessionStorage.setItem(RESET_TOKEN_KEY, resetData.resetToken);
+      sessionStorage.setItem(RESET_TOKEN_EXPIRES_KEY, resetData.expiresAt);
       showToast("Code verified", "Create a new password.");
       window.location.href = "../reset-password/index.html";
     });

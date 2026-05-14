@@ -11,15 +11,15 @@ let notificationPollTimer;
 let latestNotificationSeenAt = "";
 
 export function initPortalShell(session, options = {}) {
-  initSidebar();
-  initLogout();
-  initRouteNavigation(options);
-  initNotifications();
-  initRefreshControl(options.onRefresh);
+  safeShellInit("sidebar", initSidebar);
+  safeShellInit("logout", initLogout);
+  safeShellInit("route navigation", () => initRouteNavigation(options));
+  safeShellInit("notifications", initNotifications);
+  safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
 
   const organization = session.organizationName || session.organizationCode;
-  const context = organization ? `${organization} · ` : "";
-  setText("#user-chip", `${session.fullName || session.email} · ${context}${formatRole(session.roles?.[0])}`);
+  const context = organization ? `${organization} · ` : "Platform · ";
+  setText("#user-chip", `${session.fullName || session.email || "Signed in"} · ${context}${formatRole(session.roles?.[0])}`);
   refreshHealth(false);
 }
 
@@ -169,9 +169,7 @@ function initSidebar() {
     closeMobileSidebar();
   });
 
-  mobileQuery.addEventListener("change", () => {
-    syncSidebarMode();
-  });
+  bindMediaQuery(mobileQuery, "change", syncSidebarMode);
 
   syncSidebarMode();
 }
@@ -361,7 +359,7 @@ function initNotifications() {
 async function loadNotifications(showNewToast) {
   try {
     const response = await getNotifications(10);
-    renderNotifications(response.data, showNewToast);
+    renderNotifications(response?.data, showNewToast);
   } catch {
     renderNotifications({ unreadCount: 0, items: [] }, false);
   }
@@ -370,8 +368,8 @@ async function loadNotifications(showNewToast) {
 function renderNotifications(data, showNewToast) {
   const badge = $("#notification-badge");
   const list = $("#notification-list");
-  const unreadCount = data?.unreadCount || 0;
-  const items = data?.items || [];
+  const unreadCount = Number(data?.unreadCount) || 0;
+  const items = Array.isArray(data?.items) ? data.items : [];
 
   if (badge) {
     badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
@@ -442,7 +440,9 @@ function initRefreshControl(onRefresh) {
     try {
       const tasks = [refreshHealth(false)];
       if (typeof onRefresh === "function") {
-        tasks.push(Promise.resolve().then(() => onRefresh()));
+        tasks.push(Promise.resolve().then(() => onRefresh()).catch((error) => {
+          showToast("Workspace refresh failed", error?.message || "Workspace data could not be refreshed.");
+        }));
       }
       await Promise.all(tasks);
       showToast(
@@ -515,4 +515,24 @@ function emptyMarkup(title, message) {
       <p>${escapeHtml(message)}</p>
     </article>
   `;
+}
+
+function safeShellInit(label, callback) {
+  try {
+    callback();
+  } catch (error) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn(`[portal] ${label} initialization failed`, {
+        message: error?.message || String(error),
+      });
+    }
+  }
+}
+
+function bindMediaQuery(query, eventName, listener) {
+  if (typeof query?.addEventListener === "function") {
+    query.addEventListener(eventName, listener);
+  } else if (typeof query?.addListener === "function") {
+    query.addListener(listener);
+  }
 }
