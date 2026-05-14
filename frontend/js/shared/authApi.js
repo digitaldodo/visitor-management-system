@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config.js";
 import { request } from "./httpClient.js";
-import { normalizeAuthResponse } from "./session.js";
+import { normalizeAuthResponse } from "./session.js?v=20260515-auth-normalize";
 
 export async function login(credentials) {
   const response = await request("/auth/login", {

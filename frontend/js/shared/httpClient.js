@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config.js";
-import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js";
+import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js?v=20260515-auth-normalize";
 
 const REQUEST_TIMEOUT_MS = 20000;
 

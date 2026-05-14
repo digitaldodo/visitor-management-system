@@ -1,5 +1,5 @@
 import { LOGIN_FROM_PORTAL, ROLE_PORTALS, ROLE_PORTALS_FROM_PORTAL } from "./config.js";
-import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticated } from "./session.js";
+import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticated } from "./session.js?v=20260515-auth-normalize";
 
 export function redirectToPortal(role, fromPortal = false) {
   const target = fromPortal ? ROLE_PORTALS_FROM_PORTAL[role] : ROLE_PORTALS[role];

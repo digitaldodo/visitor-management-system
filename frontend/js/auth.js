@@ -5,7 +5,7 @@ import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
-import { getTokenRoles, setSession } from "./shared/session.js";
+import { getTokenRoles, setSession } from "./shared/session.js?v=20260515-auth-normalize";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 

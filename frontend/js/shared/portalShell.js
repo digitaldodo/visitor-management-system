@@ -2,7 +2,7 @@ import { logout } from "./authApi.js";
 import { getHealth } from "./healthApi.js";
 import { $, $$, setText } from "./dom.js";
 import { LOGIN_FROM_PORTAL } from "./config.js";
-import { clearSession, getRefreshToken } from "./session.js";
+import { clearSession, getRefreshToken } from "./session.js?v=20260515-auth-normalize";
 import { showToast } from "./toast.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
 import { formatDate, formatStatus } from "./formatters.js";

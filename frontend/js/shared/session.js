@@ -124,10 +124,6 @@ export function normalizeAuthResponse(response, options = {}) {
   };
 }
 
-export function normalizeSessionPayload(payload) {
-  return normalizeAuthResponse(payload);
-}
-
 function unwrapAuthPayload(response) {
   if (!response || typeof response !== "object") {
     return null;
