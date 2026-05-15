@@ -80,6 +80,24 @@ public class EmployeeAttendanceService {
         }
     }
 
+    public void activateEmployeeCredential(User user) {
+        provisionEmployeeCredential(user);
+        if (trimToNull(user.getEmployeeQrToken()) == null) {
+            user.setEmployeeQrToken(tokenService.generateOpaqueToken());
+        }
+        user.setEmployeeQrIssuedAt(Instant.now());
+        user.setEmployeeQrRevokedAt(null);
+    }
+
+    public void deactivateEmployeeCredential(User user) {
+        if (user == null || user.getRoles() == null || !user.getRoles().contains(Role.EMPLOYEE)) {
+            return;
+        }
+        if (trimToNull(user.getEmployeeQrToken()) != null && user.getEmployeeQrRevokedAt() == null) {
+            user.setEmployeeQrRevokedAt(Instant.now());
+        }
+    }
+
     public List<EmployeeDirectoryResponse> searchEmployees(String query, String actorId) {
         User actor = currentUser(actorId);
         String normalizedQuery = trimToNull(query);
@@ -98,6 +116,7 @@ public class EmployeeAttendanceService {
         User actor = currentUser(actorId);
         User employee = requireEmployee(employeeUserId);
         requireSameOrganizationOrSuperAdmin(actor, employee);
+        validateEmployeeAccess(employee);
         provisionAndPersistIfNeeded(employee);
         return toBadgeResponse(employee);
     }
@@ -107,6 +126,7 @@ public class EmployeeAttendanceService {
         if (!employee.getRoles().contains(Role.EMPLOYEE)) {
             throw new BadRequestException("Only employee accounts have workforce badges.");
         }
+        validateEmployeeAccess(employee);
         provisionAndPersistIfNeeded(employee);
         return toBadgeResponse(employee);
     }

@@ -50,6 +50,10 @@
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v4h3v14H4V7h3Zm2 4h6V5H9Zm3 7a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
             Employee Check-In
           </a>
+          <a class="nav-link" href="#workforce-onboarding" data-route="workforce-onboarding">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Zm14-8h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
+            Worker Onboarding
+          </a>
           <a class="nav-link" href="#employee-attendance" data-route="employee-attendance">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4Zm0 4h16v10H4Zm3 3v4h3v-4Zm5 0v4h5v-4Z"/></svg></span>
             Workforce Presence
@@ -274,6 +278,67 @@
               </div>
               <div class="health-card" id="health-card"></div>
             </aside>
+          </section>
+
+          <section class="panel" id="workforce-onboarding">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Admin Approval Required</p>
+                <h2>Worker Onboarding</h2>
+              </div>
+            </div>
+            <form class="workforce-onboarding-form" id="workforce-onboarding-form" novalidate>
+              <label class="form-field">
+                <span>Worker name</span>
+                <input name="fullName" type="text" autocomplete="name" placeholder="Worker full name" required />
+              </label>
+              <label class="form-field">
+                <span>Mobile</span>
+                <input name="phone" type="tel" autocomplete="tel" placeholder="Optional mobile number" />
+              </label>
+              <label class="form-field">
+                <span>Department</span>
+                <input name="department" type="text" autocomplete="organization-title" placeholder="Facilities" />
+              </label>
+              <label class="form-field">
+                <span>Worker category</span>
+                <select name="employeeType">
+                  <option value="CLEANER">Cleaner</option>
+                  <option value="SWEEPER">Sweeper</option>
+                  <option value="GARDENER">Gardener</option>
+                  <option value="HELPER">Helper</option>
+                  <option value="MAINTENANCE">Maintenance</option>
+                  <option value="CONTRACT_LABOR">Contract labor</option>
+                  <option value="SUPPORT_STAFF">Support staff</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span>Designation</span>
+                <input name="designation" type="text" autocomplete="organization-title" placeholder="Housekeeping support" />
+              </label>
+              <label class="form-field">
+                <span>Shift name</span>
+                <input name="shiftName" type="text" placeholder="Morning Shift" />
+              </label>
+              <label class="form-field">
+                <span>Shift start</span>
+                <input name="shiftStartTime" type="time" />
+              </label>
+              <label class="form-field">
+                <span>Shift end</span>
+                <input name="shiftEndTime" type="time" />
+              </label>
+              <input name="employeePhotoUrl" type="hidden" />
+              <div class="workforce-onboarding-form__photo">
+                <button class="button button--ghost" id="workforce-photo-button" type="button">Capture photo</button>
+                <span id="workforce-photo-status">Photo optional before admin approval</span>
+              </div>
+              <div class="admin-user-form__footer">
+                <p>Security can submit details and print a receipt. QR and badge access activate only after organization admin approval.</p>
+                <button class="button button--primary" type="submit">Submit for approval</button>
+              </div>
+            </form>
+            <div id="workforce-onboarding-result"></div>
           </section>
 
           <section class="portal-grid">

@@ -28,7 +28,11 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     List<User> findAllByOrganizationIdAndRolesContaining(String organizationId, Role role);
 
+    List<User> findAllByOrganizationIdAndRolesContainingAndAccountStatus(String organizationId, Role role, AccountStatus accountStatus);
+
     List<User> findAllByRolesContaining(Role role);
+
+    List<User> findAllByRolesContainingAndAccountStatus(Role role, AccountStatus accountStatus);
 
     Optional<User> findByEmployeeQrToken(String employeeQrToken);
 

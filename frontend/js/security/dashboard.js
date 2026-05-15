@@ -5,11 +5,11 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
-const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "employee-attendance", "workforce-logs"];
+const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
 const state = {
   monitoringQuery: "",
   monitoringDebounce: 0,
@@ -45,6 +45,7 @@ async function bootSecurityPortal() {
   }), { toastTitle: "Visitor registration unavailable" });
   initQrVerification();
   initEmployeeAttendanceWorkspace();
+  initWorkforceOnboarding();
   initBadgeActions();
   initEmployeeBadgeActions();
   initMonitoringSearch();
@@ -218,6 +219,100 @@ function initEmployeeAttendanceWorkspace() {
   });
 }
 
+function initWorkforceOnboarding() {
+  const form = document.querySelector("#workforce-onboarding-form");
+  const photoButton = document.querySelector("#workforce-photo-button");
+  if (!form) {
+    return;
+  }
+
+  photoButton?.addEventListener("click", () => captureWorkforcePhoto(form));
+  document.querySelector("#workforce-onboarding-result")?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-workforce-print]")) {
+      window.print();
+    }
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const payload = {
+      fullName: trim(data.fullName),
+      phone: trim(data.phone),
+      department: trim(data.department),
+      employeeType: trim(data.employeeType),
+      designation: trim(data.designation),
+      shiftName: trim(data.shiftName),
+      shiftStartTime: trim(data.shiftStartTime),
+      shiftEndTime: trim(data.shiftEndTime),
+      employeePhotoUrl: trim(data.employeePhotoUrl),
+    };
+    if (!payload.fullName || payload.fullName.length < 2) {
+      showToast("Worker name required", "Enter the worker's full name before submitting.");
+      return;
+    }
+
+    const submit = form.querySelector("button[type='submit']");
+    submit?.toggleAttribute("disabled", true);
+    try {
+      const response = await createWorkforceOnboarding(payload);
+      const worker = response?.data || null;
+      renderWorkforceReceipt(worker);
+      form.reset();
+      setText("#workforce-photo-status", "Photo optional before admin approval");
+      showToast("Sent for admin approval", "QR and badge access remain inactive until an organization admin approves this worker.");
+      await loadSecurityPortal(false);
+    } catch (error) {
+      showToast("Onboarding failed", error.message);
+    } finally {
+      submit?.toggleAttribute("disabled", false);
+    }
+  });
+}
+
+function captureWorkforcePhoto(form) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.capture = "user";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      setText("#workforce-photo-status", "Uploading photo...");
+      const upload = await uploadWorkforcePhoto(file);
+      const uploadData = upload?.data || {};
+      form.querySelector("input[name='employeePhotoUrl']").value = uploadData.url || "";
+      setText("#workforce-photo-status", uploadData.url ? "Photo attached to onboarding request" : "Photo upload completed");
+    } catch (error) {
+      setText("#workforce-photo-status", "Photo upload failed");
+      showToast("Photo update failed", error.message);
+    }
+  }, { once: true });
+  input.click();
+}
+
+function renderWorkforceReceipt(worker) {
+  const target = document.querySelector("#workforce-onboarding-result");
+  if (!target || !worker) {
+    return;
+  }
+  target.innerHTML = `
+    <article class="workforce-receipt">
+      <div>
+        <p class="eyebrow">Temporary Receipt</p>
+        <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+        <p>${escapeHtml(worker.employeeType || "Support staff")} · ${escapeHtml(worker.department || "Department pending")}</p>
+        <small>Request ${escapeHtml(worker.id || "")} · ${escapeHtml(formatStatusText(worker.accountStatus || "PENDING_APPROVAL"))}</small>
+      </div>
+      <div class="workforce-receipt__stamp">QR inactive</div>
+      <button class="button button--ghost" type="button" data-workforce-print>Print receipt</button>
+    </article>
+  `;
+}
+
 async function scanEmployeeValue(value) {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -327,16 +422,19 @@ function renderEmployeeDirectory(employees) {
 
 function employeeCard(employee) {
   const state = employee.currentlyIn ? "Currently in" : "Out";
+  const activeAccess = employee.active && employee.accountStatus === "ACTIVE";
   return `
     <article class="work-card employee-work-card">
       <div>
         <h3>${escapeHtml(employee.fullName || "Employee")}</h3>
         <p>${escapeHtml(employee.employeeId || "No employee ID")} · ${escapeHtml(employee.department || "Unassigned")} · ${escapeHtml(employee.designation || "No designation")}</p>
-        <small>${escapeHtml(formatEmployeeShift(employee))} · ${escapeHtml(state)}</small>
+        <small>${escapeHtml(formatEmployeeShift(employee))} · ${escapeHtml(activeAccess ? state : formatStatusText(employee.accountStatus || "Inactive"))}</small>
       </div>
       <div class="employee-work-card__actions">
-        <button class="button button--ghost" type="button" data-employee-action="badge" data-employee-id="${escapeHtml(employee.id)}">Badge</button>
-        ${employee.currentlyIn
+        <button class="button button--ghost" type="button" data-employee-action="badge" data-employee-id="${escapeHtml(employee.id)}" ${activeAccess ? "" : "disabled"}>Badge</button>
+        ${!activeAccess
+          ? `<button class="button button--ghost" type="button" disabled>Awaiting admin approval</button>`
+          : employee.currentlyIn
           ? `<button class="button button--ghost" type="button" data-employee-action="check-out" data-employee-id="${escapeHtml(employee.id)}">Manual check-out</button>`
           : `<button class="button button--primary" type="button" data-employee-action="check-in" data-employee-id="${escapeHtml(employee.id)}">Manual check-in</button>`}
       </div>
@@ -907,6 +1005,18 @@ function setCameraFrameStatus(message) {
   if (frame) {
     frame.textContent = message;
   }
+}
+
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = value;
+  }
+}
+
+function trim(value) {
+  const next = String(value || "").trim();
+  return next || null;
 }
 
 document.querySelector("#queue-list")?.addEventListener("click", async (event) => {

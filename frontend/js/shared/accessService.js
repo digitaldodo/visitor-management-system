@@ -40,6 +40,47 @@ export function uploadVisitorPhoto(basePath, file) {
   });
 }
 
+export function uploadWorkforcePhoto(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request("/security/workforce-onboarding/photo", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function createWorkforceOnboarding(payload) {
+  return request("/security/workforce-onboarding", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listWorkforceOnboardingRequests() {
+  return request("/admin/workforce-onboarding");
+}
+
+export function updateWorkforceOnboarding(id, payload) {
+  return request(`/admin/workforce-onboarding/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveWorkforceOnboarding(id, payload) {
+  return request(`/admin/workforce-onboarding/${encodeURIComponent(id)}/approve`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function rejectWorkforceOnboarding(id, reason) {
+  return request(`/admin/workforce-onboarding/${encodeURIComponent(id)}/reject`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export function uploadVisitPhoto(file) {
   const formData = new FormData();
   formData.append("file", file);

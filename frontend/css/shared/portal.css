@@ -976,13 +976,31 @@ body.has-mobile-sidebar {
   color: #86600e;
 }
 
+.status-badge--pending-approval {
+  background: #fff7e6;
+  border-color: #efd28e;
+  color: #86600e;
+}
+
 .status-badge--approved {
   background: #e9f8ef;
   border-color: #a8d9bb;
   color: #1f6b43;
 }
 
+.status-badge--active {
+  background: #e9f8ef;
+  border-color: #a8d9bb;
+  color: #1f6b43;
+}
+
 .status-badge--rejected {
+  background: #fbeded;
+  border-color: #e4b8b8;
+  color: #963b3b;
+}
+
+.status-badge--disabled {
   background: #fbeded;
   border-color: #e4b8b8;
   color: #963b3b;

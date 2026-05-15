@@ -503,6 +503,16 @@
   margin: 0.15rem 0 0;
 }
 
+.workforce-approval-card__form {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.workforce-approval-card__form .form-field {
+  min-width: 0;
+}
+
 .organization-form {
   background: rgba(11, 18, 31, 0.56);
   border: 1px solid var(--color-line);

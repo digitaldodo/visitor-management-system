@@ -52,6 +52,26 @@ public class User {
 
     private Instant employeeQrRevokedAt;
 
+    private String workforceOnboardingCreatedById;
+
+    private String workforceOnboardingCreatedByName;
+
+    private Instant workforceOnboardingCreatedAt;
+
+    private String workforceApprovedById;
+
+    private String workforceApprovedByName;
+
+    private Instant workforceApprovedAt;
+
+    private String workforceRejectedById;
+
+    private String workforceRejectedByName;
+
+    private Instant workforceRejectedAt;
+
+    private String workforceRejectionReason;
+
     private String phone;
 
     private String phoneCountryCode;
@@ -216,6 +236,86 @@ public class User {
 
     public void setEmployeeQrRevokedAt(Instant employeeQrRevokedAt) {
         this.employeeQrRevokedAt = employeeQrRevokedAt;
+    }
+
+    public String getWorkforceOnboardingCreatedById() {
+        return workforceOnboardingCreatedById;
+    }
+
+    public void setWorkforceOnboardingCreatedById(String workforceOnboardingCreatedById) {
+        this.workforceOnboardingCreatedById = workforceOnboardingCreatedById;
+    }
+
+    public String getWorkforceOnboardingCreatedByName() {
+        return workforceOnboardingCreatedByName;
+    }
+
+    public void setWorkforceOnboardingCreatedByName(String workforceOnboardingCreatedByName) {
+        this.workforceOnboardingCreatedByName = workforceOnboardingCreatedByName;
+    }
+
+    public Instant getWorkforceOnboardingCreatedAt() {
+        return workforceOnboardingCreatedAt;
+    }
+
+    public void setWorkforceOnboardingCreatedAt(Instant workforceOnboardingCreatedAt) {
+        this.workforceOnboardingCreatedAt = workforceOnboardingCreatedAt;
+    }
+
+    public String getWorkforceApprovedById() {
+        return workforceApprovedById;
+    }
+
+    public void setWorkforceApprovedById(String workforceApprovedById) {
+        this.workforceApprovedById = workforceApprovedById;
+    }
+
+    public String getWorkforceApprovedByName() {
+        return workforceApprovedByName;
+    }
+
+    public void setWorkforceApprovedByName(String workforceApprovedByName) {
+        this.workforceApprovedByName = workforceApprovedByName;
+    }
+
+    public Instant getWorkforceApprovedAt() {
+        return workforceApprovedAt;
+    }
+
+    public void setWorkforceApprovedAt(Instant workforceApprovedAt) {
+        this.workforceApprovedAt = workforceApprovedAt;
+    }
+
+    public String getWorkforceRejectedById() {
+        return workforceRejectedById;
+    }
+
+    public void setWorkforceRejectedById(String workforceRejectedById) {
+        this.workforceRejectedById = workforceRejectedById;
+    }
+
+    public String getWorkforceRejectedByName() {
+        return workforceRejectedByName;
+    }
+
+    public void setWorkforceRejectedByName(String workforceRejectedByName) {
+        this.workforceRejectedByName = workforceRejectedByName;
+    }
+
+    public Instant getWorkforceRejectedAt() {
+        return workforceRejectedAt;
+    }
+
+    public void setWorkforceRejectedAt(Instant workforceRejectedAt) {
+        this.workforceRejectedAt = workforceRejectedAt;
+    }
+
+    public String getWorkforceRejectionReason() {
+        return workforceRejectionReason;
+    }
+
+    public void setWorkforceRejectionReason(String workforceRejectionReason) {
+        this.workforceRejectionReason = workforceRejectionReason;
     }
 
     public String getPhone() {

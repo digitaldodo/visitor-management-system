@@ -235,9 +235,15 @@ public class AdminUserService {
         validateMutableAccount(user, authentication);
         user.setActive(false);
         user.setAccountStatus(AccountStatus.DISABLED);
+        if (user.getRoles().contains(Role.EMPLOYEE)) {
+            employeeAttendanceService.deactivateEmployeeCredential(user);
+        }
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
         accessAuditService.recordAccountStateChanged(actor, saved, "ACCOUNT_DISABLED", "Internal account access was disabled.");
+        if (saved.getRoles().contains(Role.EMPLOYEE)) {
+            accessAuditService.recordWorkforceOnboarding(actor, saved, "WORKFORCE_QR_DEACTIVATED", "SUCCESS", "Static workforce QR was deactivated with account access.");
+        }
         return toResponse(saved);
     }
 
@@ -245,10 +251,19 @@ public class AdminUserService {
         User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
+        if (user.getAccountStatus() == AccountStatus.PENDING_APPROVAL || user.getAccountStatus() == AccountStatus.REJECTED) {
+            throw new BadRequestException("Workforce onboarding requests must be approved before access can be enabled.");
+        }
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
+        if (user.getRoles().contains(Role.EMPLOYEE)) {
+            employeeAttendanceService.activateEmployeeCredential(user);
+        }
         User saved = userRepository.save(user);
         accessAuditService.recordAccountStateChanged(actor, saved, "ACCOUNT_ENABLED", "Internal account access was enabled.");
+        if (saved.getRoles().contains(Role.EMPLOYEE)) {
+            accessAuditService.recordWorkforceOnboarding(actor, saved, "WORKFORCE_QR_ACTIVATED", "SUCCESS", "Static workforce QR was activated with account access.");
+        }
         return toResponse(saved);
     }
 
@@ -384,6 +399,16 @@ public class AdminUserService {
                 user.getRoles(),
                 user.isActive(),
                 user.getAccountStatus(),
+                user.getWorkforceOnboardingCreatedById(),
+                user.getWorkforceOnboardingCreatedByName(),
+                user.getWorkforceOnboardingCreatedAt(),
+                user.getWorkforceApprovedById(),
+                user.getWorkforceApprovedByName(),
+                user.getWorkforceApprovedAt(),
+                user.getWorkforceRejectedById(),
+                user.getWorkforceRejectedByName(),
+                user.getWorkforceRejectedAt(),
+                user.getWorkforceRejectionReason(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );

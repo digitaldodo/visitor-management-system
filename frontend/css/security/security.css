@@ -343,6 +343,52 @@
   justify-content: flex-end;
 }
 
+.workforce-onboarding-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.workforce-onboarding-form__photo,
+.workforce-receipt {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.workforce-onboarding-form__photo span,
+.workforce-receipt small {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.workforce-receipt {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.workforce-receipt h3,
+.workforce-receipt p {
+  margin: 0;
+}
+
+.workforce-receipt__stamp {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  color: #9a6700;
+  background: #fff7e8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .employee-badge-sheet {
   overflow: auto;
 }
@@ -469,6 +515,10 @@
 }
 
 @media (max-width: 900px) {
+  .workforce-onboarding-form {
+    grid-template-columns: 1fr;
+  }
+
   .visitor-pass-card__actions,
   .qr-verify-form__actions,
   .qr-result__actions,

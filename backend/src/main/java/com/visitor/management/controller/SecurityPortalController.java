@@ -19,10 +19,13 @@ import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.dto.AdminUserResponse;
+import com.visitor.management.dto.WorkforceOnboardingRequest;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.EmployeeAttendanceService;
+import com.visitor.management.service.WorkforceOnboardingService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -52,17 +55,20 @@ public class SecurityPortalController {
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
     private final EmployeeAttendanceService employeeAttendanceService;
+    private final WorkforceOnboardingService workforceOnboardingService;
     private final AppProperties appProperties;
 
     public SecurityPortalController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             EmployeeAttendanceService employeeAttendanceService,
+            WorkforceOnboardingService workforceOnboardingService,
             AppProperties appProperties
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.employeeAttendanceService = employeeAttendanceService;
+        this.workforceOnboardingService = workforceOnboardingService;
         this.appProperties = appProperties;
     }
 
@@ -160,6 +166,19 @@ public class SecurityPortalController {
     @GetMapping("/employees")
     public ApiResponse<List<EmployeeDirectoryResponse>> employees(@RequestParam(required = false) String query, Authentication authentication) {
         return ApiResponse.ok("Employee directory loaded.", employeeAttendanceService.searchEmployees(query, authentication.getName()));
+    }
+
+    @PostMapping("/workforce-onboarding")
+    public ApiResponse<AdminUserResponse> createWorkforceOnboarding(
+            @Valid @RequestBody WorkforceOnboardingRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce onboarding request created for admin approval.", workforceOnboardingService.createAssistedRequest(request, authentication.getName()));
+    }
+
+    @PostMapping(value = "/workforce-onboarding/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VisitorPhotoUploadResponse> uploadWorkforcePhoto(@RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok("Workforce photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));
     }
 
     @GetMapping("/employees/attendance")

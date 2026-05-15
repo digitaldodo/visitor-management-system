@@ -29,6 +29,16 @@ public record AdminUserResponse(
         Set<Role> roles,
         boolean active,
         AccountStatus accountStatus,
+        String workforceOnboardingCreatedById,
+        String workforceOnboardingCreatedByName,
+        Instant workforceOnboardingCreatedAt,
+        String workforceApprovedById,
+        String workforceApprovedByName,
+        Instant workforceApprovedAt,
+        String workforceRejectedById,
+        String workforceRejectedByName,
+        Instant workforceRejectedAt,
+        String workforceRejectionReason,
         Instant createdAt,
         Instant updatedAt
 ) {

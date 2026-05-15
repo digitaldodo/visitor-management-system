@@ -300,6 +300,16 @@ public class OrganizationService {
                 user.getRoles(),
                 user.isActive(),
                 user.getAccountStatus(),
+                user.getWorkforceOnboardingCreatedById(),
+                user.getWorkforceOnboardingCreatedByName(),
+                user.getWorkforceOnboardingCreatedAt(),
+                user.getWorkforceApprovedById(),
+                user.getWorkforceApprovedByName(),
+                user.getWorkforceApprovedAt(),
+                user.getWorkforceRejectedById(),
+                user.getWorkforceRejectedByName(),
+                user.getWorkforceRejectedAt(),
+                user.getWorkforceRejectionReason(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );

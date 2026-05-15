@@ -6,6 +6,7 @@ import { createOrganization, getOrganizationWorkspace, listManagedOrganizations,
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
+import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, updateWorkforceOnboarding } from "../shared/accessService.js?v=20260515-scheduling";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -76,6 +77,14 @@ const ROUTE_DEFINITIONS = {
     description: "Run live visitor operations, registration, and record management inside one dedicated operational workspace.",
     badges: ["Admin access", "Frontline workflows", "Live records"],
   },
+  "workforce-approvals": {
+    slug: "workforce-approvals",
+    navLabel: "Workforce Approvals",
+    eyebrow: "Access Activation",
+    title: "Workforce Approval Workspace",
+    description: "Approve security-assisted worker onboarding, assign final access details, and keep workforce QR activation admin-controlled.",
+    badges: ["Admin approval", "QR activation", "Audit logged"],
+  },
 };
 
 const ROUTE_ALIASES = {
@@ -87,6 +96,7 @@ const ROUTE_ALIASES = {
   monitoring: "monitoring",
   visitors: "visitor-access",
   "visitor-access": "visitor-access",
+  "workforce-approvals": "workforce-approvals",
   "homepage-settings": "homepage-controls",
   "homepage-controls": "homepage-controls",
 };
@@ -277,6 +287,8 @@ function workspaceTemplate(routeKey) {
       return monitoringTemplate();
     case "visitor-access":
       return visitorsTemplate();
+    case "workforce-approvals":
+      return workforceApprovalsTemplate();
     default:
       return `
         <article class="empty-state">
@@ -447,6 +459,22 @@ function usersTemplate() {
           </div>
         </div>
         <div class="work-list" id="user-management-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function workforceApprovalsTemplate() {
+  return `
+    <section class="workspace-stack">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Pending Requests</p>
+            <h3>Support Staff Onboarding</h3>
+          </div>
+        </div>
+        <div class="work-list" id="workforce-approval-list"></div>
       </article>
     </section>
   `;
@@ -897,6 +925,9 @@ function initWorkspace(routeKey) {
         organizationCode: currentSession.organizationCode,
       });
       break;
+    case "workforce-approvals":
+      initWorkforceApprovalsWorkspace();
+      break;
     default:
       break;
   }
@@ -943,6 +974,9 @@ async function loadWorkspace(routeKey, options = {}) {
         break;
       case "visitor-access":
         break;
+      case "workforce-approvals":
+        await loadWorkforceApprovalsWorkspace();
+        break;
       default:
         break;
     }
@@ -978,6 +1012,65 @@ async function loadUsersWorkspace() {
     renderWorkList("#user-management-list", [], (item) => item, "Admin data unavailable", error.message);
     showToast("User management unavailable", error.message);
   }
+}
+
+async function loadWorkforceApprovalsWorkspace() {
+  renderLoadingList("#workforce-approval-list", 4);
+  try {
+    const response = await listWorkforceOnboardingRequests();
+    renderWorkforceApprovals(response?.data || []);
+  } catch (error) {
+    renderWorkList("#workforce-approval-list", [], (item) => item, "Workforce approvals unavailable", error.message);
+    showToast("Workforce approvals unavailable", error.message);
+  }
+}
+
+function initWorkforceApprovalsWorkspace() {
+  document.querySelector("#workforce-approval-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-workforce-action]");
+    if (!button) {
+      return;
+    }
+    const card = button.closest("[data-workforce-card]");
+    const workerId = card?.dataset.workerId;
+    const action = button.dataset.workforceAction;
+    if (!workerId || !action) {
+      return;
+    }
+    if (hasRole("SUPER_ADMIN") && !hasRole("ADMIN")) {
+      showToast("Admin approval required", "SUPER_ADMIN can view requests, but organization ADMIN must approve workforce access.");
+      return;
+    }
+    const payload = workforcePayloadFromCard(card);
+    button.toggleAttribute("disabled", true);
+    try {
+      if (action === "save") {
+        await updateWorkforceOnboarding(workerId, payload);
+        showToast("Worker details saved", "Pending onboarding details were updated.");
+      }
+      if (action === "approve") {
+        await approveWorkforceOnboarding(workerId, payload);
+        showToast("Workforce access activated", "Static QR and check-in/check-out access are now active.");
+      }
+      if (action === "reject") {
+        const reason = window.prompt("Reason for rejecting this workforce onboarding request.");
+        if (!reason?.trim()) {
+          showToast("Reason required", "Rejections require an audit reason.");
+          return;
+        }
+        await rejectWorkforceOnboarding(workerId, reason.trim());
+        showToast("Worker request rejected", "The decision was audit logged.");
+      }
+      await Promise.all([
+        loadWorkforceApprovalsWorkspace(),
+        currentRoute === "users" ? loadUsersWorkspace() : Promise.resolve(),
+      ]);
+    } catch (error) {
+      showToast("Workforce action failed", error.message);
+    } finally {
+      button.toggleAttribute("disabled", false);
+    }
+  });
 }
 
 async function loadOrganizationsWorkspace() {
@@ -1803,6 +1896,102 @@ async function handleOrganizationAdminAction(button) {
   }
 }
 
+function renderWorkforceApprovals(workers) {
+  const list = document.querySelector("#workforce-approval-list");
+  if (!list) {
+    return;
+  }
+  const canApprove = hasRole("ADMIN");
+  list.innerHTML = workers.length ? workers.map((worker) => workforceApprovalCard(worker, canApprove)).join("") : `
+    <article class="empty-state empty-state--inline">
+      <h3>No pending workforce requests</h3>
+      <p>Security-assisted support staff onboarding requests will appear here before QR activation.</p>
+    </article>
+  `;
+}
+
+function workforceApprovalCard(worker, canApprove) {
+  const disabled = canApprove ? "" : "disabled";
+  return `
+    <article class="admin-user-card workforce-approval-card" data-workforce-card data-worker-id="${escapeHtml(worker.id)}">
+      <div class="admin-user-card__header">
+        <div>
+          <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+          <p>${escapeHtml(worker.employeeType || "Support staff")} · Requested by ${escapeHtml(worker.workforceOnboardingCreatedByName || "Security")}</p>
+        </div>
+        ${statusBadge(worker.accountStatus || "PENDING_APPROVAL")}
+      </div>
+      <dl>
+        <div><dt>Organization</dt><dd>${escapeHtml(worker.organizationName || worker.organizationCode || "Organization")}</dd></div>
+        <div><dt>Worker ID</dt><dd>${escapeHtml(worker.employeeId || "Issued after approval")}</dd></div>
+        <div><dt>QR status</dt><dd>Inactive until approval</dd></div>
+        <div><dt>Requested</dt><dd>${escapeHtml(formatDateTime(worker.workforceOnboardingCreatedAt || worker.createdAt))}</dd></div>
+      </dl>
+      <div class="workforce-approval-card__form">
+        <label class="form-field">
+          <span>Department</span>
+          <input name="department" type="text" value="${escapeHtml(worker.department || "")}" ${disabled} />
+        </label>
+        <label class="form-field">
+          <span>Category</span>
+          <select name="employeeType" ${disabled}>
+            ${workerCategoryOptions(worker.employeeType)}
+          </select>
+        </label>
+        <label class="form-field">
+          <span>Designation</span>
+          <input name="designation" type="text" value="${escapeHtml(worker.designation || "")}" ${disabled} />
+        </label>
+        <label class="form-field">
+          <span>Shift</span>
+          <input name="shiftName" type="text" value="${escapeHtml(worker.shiftName || "General Shift")}" ${disabled} />
+        </label>
+        <label class="form-field">
+          <span>Start</span>
+          <input name="shiftStartTime" type="time" value="${escapeHtml(worker.shiftStartTime || "09:00")}" ${disabled} />
+        </label>
+        <label class="form-field">
+          <span>End</span>
+          <input name="shiftEndTime" type="time" value="${escapeHtml(worker.shiftEndTime || "18:00")}" ${disabled} />
+        </label>
+      </div>
+      <div class="admin-user-card__actions">
+        <button class="button button--ghost" type="button" data-workforce-action="save" ${disabled}>Save details</button>
+        <button class="button button--primary" type="button" data-workforce-action="approve" ${disabled}>Approve and activate QR</button>
+        <button class="button button--ghost" type="button" data-workforce-action="reject" ${disabled}>Reject</button>
+      </div>
+    </article>
+  `;
+}
+
+function workerCategoryOptions(selectedValue) {
+  const selected = String(selectedValue || "SUPPORT_STAFF").toUpperCase();
+  const options = [
+    ["CLEANER", "Cleaner"],
+    ["SWEEPER", "Sweeper"],
+    ["GARDENER", "Gardener"],
+    ["HELPER", "Helper"],
+    ["MAINTENANCE", "Maintenance"],
+    ["CONTRACT_LABOR", "Contract labor"],
+    ["SUPPORT_STAFF", "Support staff"],
+  ];
+  if (selected && !options.some(([value]) => value === selected)) {
+    options.push([selected, formatStatusLabel(selected)]);
+  }
+  return options.map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+}
+
+function workforcePayloadFromCard(card) {
+  return {
+    department: trim(card.querySelector("[name='department']")?.value),
+    employeeType: trim(card.querySelector("[name='employeeType']")?.value),
+    designation: trim(card.querySelector("[name='designation']")?.value),
+    shiftName: trim(card.querySelector("[name='shiftName']")?.value),
+    shiftStartTime: trim(card.querySelector("[name='shiftStartTime']")?.value),
+    shiftEndTime: trim(card.querySelector("[name='shiftEndTime']")?.value),
+  };
+}
+
 function renderUsers(users) {
   const list = document.querySelector("#user-management-list");
   if (!list) {
@@ -1820,10 +2009,12 @@ function renderUsers(users) {
 function userCard(user) {
   const role = (user.roles || []).join(", ");
   const primaryRole = (user.roles || [])[0] || "";
-  const disabled = !user.active || user.accountStatus === "DISABLED";
+  const pendingApproval = user.accountStatus === "PENDING_APPROVAL";
+  const rejectedApproval = user.accountStatus === "REJECTED";
+  const disabled = !user.active || user.accountStatus === "DISABLED" || pendingApproval || rejectedApproval;
   const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
   const canManageAdmin = !(user.roles || []).includes("ADMIN") || hasRole("SUPER_ADMIN");
-  const canManage = !platformOwner && canManageAdmin;
+  const canManage = !platformOwner && canManageAdmin && !pendingApproval && !rejectedApproval;
   const roleOptions = internalRoleOptions(primaryRole);
   const roleControls = platformOwner ? `
       <div class="admin-user-card__role">
@@ -1847,7 +2038,7 @@ function userCard(user) {
           <h3>${escapeHtml(user.fullName || user.email || "Unknown user")}</h3>
           <p>${escapeHtml(user.email || "No email")} · ${escapeHtml(user.username || "No username")}</p>
         </div>
-        <span class="status-badge status-badge--${disabled ? "rejected" : "approved"}">${disabled ? "Disabled" : "Active"}</span>
+        ${statusBadge(user.accountStatus || (user.active ? "ACTIVE" : "DISABLED"))}
       </div>
       <dl>
         <div><dt>Access</dt><dd>${escapeHtml(role)}</dd></div>
@@ -1996,8 +2187,8 @@ function renderHomepageSettings(data) {
 
 function resolveAllowedRoutes() {
   return hasRole("SUPER_ADMIN")
-    ? ["analytics", "users", "departments", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access"]
-    : ["analytics", "users", "departments", "reports", "visitor-access"];
+    ? ["analytics", "users", "departments", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access", "workforce-approvals"]
+    : ["analytics", "users", "departments", "reports", "visitor-access", "workforce-approvals"];
 }
 
 function hasRole(role) {

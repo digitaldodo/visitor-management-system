@@ -13,6 +13,7 @@ import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
 import com.visitor.management.entity.AccessAuditLog;
+import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Department;
 import com.visitor.management.entity.EmployeeAttendanceLog;
 import com.visitor.management.entity.EmployeeAttendanceState;
@@ -1064,6 +1065,86 @@ class VisitorManagementApplicationTests {
                 .andExpect(jsonPath("$.data.action").value("CHECKED_IN"))
                 .andExpect(jsonPath("$.data.attendance.state").value("IN"))
                 .andExpect(jsonPath("$.data.employee.employeeId").value("ACME-000001"));
+    }
+
+    @Test
+    void securityCreatedWorkerStaysPendingWithoutActiveAccess() throws Exception {
+        AtomicReference<User> savedWorker = new AtomicReference<>();
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId("worker-pending-id");
+            savedWorker.set(user);
+            return user;
+        });
+
+        mockMvc.perform(post("/api/v1/security/workforce-onboarding")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Maya Cleaner",
+                                  "department": "Facilities",
+                                  "employeeType": "CLEANER",
+                                  "designation": "Cleaning support"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountStatus").value("PENDING_APPROVAL"))
+                .andExpect(jsonPath("$.data.active").value(false))
+                .andExpect(jsonPath("$.data.employeeId").doesNotExist());
+
+        org.assertj.core.api.Assertions.assertThat(savedWorker.get().getEmployeeQrToken()).isNull();
+        org.assertj.core.api.Assertions.assertThat(savedWorker.get().getWorkforceOnboardingCreatedById()).isEqualTo("security-id");
+    }
+
+    @Test
+    void pendingWorkerQrCannotBeScannedBeforeAdminApproval() throws Exception {
+        User worker = user("worker-pending-id", Role.EMPLOYEE);
+        worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
+        worker.setActive(false);
+        worker.setEmployeeId("ACME-009999");
+        worker.setEmployeeQrToken("pending-token");
+        when(userRepository.findByEmployeeQrToken("pending-token")).thenReturn(Optional.of(worker));
+        when(userRepository.findById("worker-pending-id")).thenReturn(Optional.of(worker));
+
+        mockMvc.perform(post("/api/v1/security/employees/qr-scan")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "qrPayload": "ACCESSFLOW_EMPLOYEE:org-acme:ACME-009999:pending-token"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminApprovalActivatesWorkerQrAndAccess() throws Exception {
+        User worker = user("worker-pending-id", Role.EMPLOYEE);
+        worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
+        worker.setActive(false);
+        worker.setEmployeeType("HELPER");
+        when(userRepository.findById("worker-pending-id")).thenReturn(Optional.of(worker));
+
+        mockMvc.perform(patch("/api/v1/admin/workforce-onboarding/worker-pending-id/approve")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "department": "Facilities",
+                                  "employeeType": "HELPER",
+                                  "designation": "Floor helper",
+                                  "shiftName": "Morning Shift",
+                                  "shiftStartTime": "08:00",
+                                  "shiftEndTime": "16:00"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountStatus").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.active").value(true))
+                .andExpect(jsonPath("$.data.employeeId").value(org.hamcrest.Matchers.startsWith("ACME-")))
+                .andExpect(jsonPath("$.data.department").value("Facilities"))
+                .andExpect(jsonPath("$.data.workforceApprovedById").value("admin-id"));
     }
 
     @Test

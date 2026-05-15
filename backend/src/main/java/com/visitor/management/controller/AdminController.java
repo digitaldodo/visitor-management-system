@@ -20,6 +20,8 @@ import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
+import com.visitor.management.dto.WorkforceApprovalRequest;
+import com.visitor.management.dto.WorkforceRejectionRequest;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.service.AnalyticsService;
@@ -30,6 +32,7 @@ import com.visitor.management.service.DepartmentService;
 import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
+import com.visitor.management.service.WorkforceOnboardingService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -63,6 +66,7 @@ public class AdminController {
     private final AdminUserService adminUserService;
     private final DepartmentService departmentService;
     private final EmployeeAttendanceService employeeAttendanceService;
+    private final WorkforceOnboardingService workforceOnboardingService;
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
     private final AppProperties appProperties;
@@ -76,6 +80,7 @@ public class AdminController {
             AdminUserService adminUserService,
             DepartmentService departmentService,
             EmployeeAttendanceService employeeAttendanceService,
+            WorkforceOnboardingService workforceOnboardingService,
             HomepageService homepageService,
             AccessAuditService accessAuditService,
             AppProperties appProperties,
@@ -88,6 +93,7 @@ public class AdminController {
         this.adminUserService = adminUserService;
         this.departmentService = departmentService;
         this.employeeAttendanceService = employeeAttendanceService;
+        this.workforceOnboardingService = workforceOnboardingService;
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
         this.appProperties = appProperties;
@@ -203,6 +209,41 @@ public class AdminController {
     @GetMapping("/workforce-attendance")
     public ApiResponse<List<EmployeeAttendanceResponse>> workforceAttendance(Authentication authentication) {
         return ApiResponse.ok("Workforce presence logs loaded.", employeeAttendanceService.logs(authentication.getName()));
+    }
+
+    @GetMapping("/workforce-onboarding")
+    public ApiResponse<List<AdminUserResponse>> workforceOnboarding(Authentication authentication) {
+        return ApiResponse.ok("Pending workforce onboarding requests loaded.", workforceOnboardingService.pendingRequests(authentication.getName()));
+    }
+
+    @PutMapping("/workforce-onboarding/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<AdminUserResponse> updateWorkforceOnboarding(
+            @PathVariable String id,
+            @Valid @RequestBody WorkforceApprovalRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce onboarding details updated.", workforceOnboardingService.updateWorker(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/workforce-onboarding/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<AdminUserResponse> approveWorkforceOnboarding(
+            @PathVariable String id,
+            @Valid @RequestBody WorkforceApprovalRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce onboarding approved and access activated.", workforceOnboardingService.approve(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/workforce-onboarding/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<AdminUserResponse> rejectWorkforceOnboarding(
+            @PathVariable String id,
+            @Valid @RequestBody WorkforceRejectionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce onboarding rejected.", workforceOnboardingService.reject(id, request, authentication.getName()));
     }
 
     @GetMapping("/workforce-attendance/analytics")
