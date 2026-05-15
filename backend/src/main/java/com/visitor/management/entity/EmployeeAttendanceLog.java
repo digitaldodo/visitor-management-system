@@ -48,21 +48,15 @@ public class EmployeeAttendanceLog {
 
     private String shiftEndTime;
 
-    private Integer gracePeriodMinutes;
-
     private EmployeeAttendanceState state = EmployeeAttendanceState.OUT;
 
-    private EmployeeAttendanceStatus status = EmployeeAttendanceStatus.PRESENT;
+    private EmployeeAttendanceStatus status = EmployeeAttendanceStatus.OUTSIDE;
 
     private Set<EmployeeAttendanceStatus> flags = new HashSet<>();
 
     private Instant checkInTime;
 
     private Instant checkOutTime;
-
-    private Long workedMinutes;
-
-    private Long overtimeMinutes;
 
     private boolean manualCheckIn;
 
@@ -202,14 +196,6 @@ public class EmployeeAttendanceLog {
         this.shiftEndTime = shiftEndTime;
     }
 
-    public Integer getGracePeriodMinutes() {
-        return gracePeriodMinutes;
-    }
-
-    public void setGracePeriodMinutes(Integer gracePeriodMinutes) {
-        this.gracePeriodMinutes = gracePeriodMinutes;
-    }
-
     public EmployeeAttendanceState getState() {
         return state;
     }
@@ -248,22 +234,6 @@ public class EmployeeAttendanceLog {
 
     public void setCheckOutTime(Instant checkOutTime) {
         this.checkOutTime = checkOutTime;
-    }
-
-    public Long getWorkedMinutes() {
-        return workedMinutes;
-    }
-
-    public void setWorkedMinutes(Long workedMinutes) {
-        this.workedMinutes = workedMinutes;
-    }
-
-    public Long getOvertimeMinutes() {
-        return overtimeMinutes;
-    }
-
-    public void setOvertimeMinutes(Long overtimeMinutes) {
-        this.overtimeMinutes = overtimeMinutes;
     }
 
     public boolean isManualCheckIn() {

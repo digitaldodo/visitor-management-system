@@ -202,12 +202,12 @@ public class AdminController {
 
     @GetMapping("/workforce-attendance")
     public ApiResponse<List<EmployeeAttendanceResponse>> workforceAttendance(Authentication authentication) {
-        return ApiResponse.ok("Workforce attendance logs loaded.", employeeAttendanceService.logs(authentication.getName()));
+        return ApiResponse.ok("Workforce presence logs loaded.", employeeAttendanceService.logs(authentication.getName()));
     }
 
     @GetMapping("/workforce-attendance/analytics")
     public ApiResponse<Map<String, Object>> workforceAttendanceAnalytics(Authentication authentication) {
-        return ApiResponse.ok("Workforce attendance analytics loaded.", employeeAttendanceService.analytics(authentication.getName()));
+        return ApiResponse.ok("Workforce presence analytics loaded.", employeeAttendanceService.analytics(authentication.getName()));
     }
 
     @GetMapping("/monitoring")

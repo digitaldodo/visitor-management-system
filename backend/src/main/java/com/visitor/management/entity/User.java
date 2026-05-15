@@ -41,15 +41,9 @@ public class User {
 
     private String shiftName;
 
-    private Set<String> workingDays = new HashSet<>();
-
     private String shiftStartTime;
 
     private String shiftEndTime;
-
-    private Integer gracePeriodMinutes;
-
-    private String overtimePolicy;
 
     @Indexed(unique = true, sparse = true)
     private String employeeQrToken;
@@ -184,14 +178,6 @@ public class User {
         this.shiftName = shiftName;
     }
 
-    public Set<String> getWorkingDays() {
-        return workingDays;
-    }
-
-    public void setWorkingDays(Set<String> workingDays) {
-        this.workingDays = workingDays;
-    }
-
     public String getShiftStartTime() {
         return shiftStartTime;
     }
@@ -206,22 +192,6 @@ public class User {
 
     public void setShiftEndTime(String shiftEndTime) {
         this.shiftEndTime = shiftEndTime;
-    }
-
-    public Integer getGracePeriodMinutes() {
-        return gracePeriodMinutes;
-    }
-
-    public void setGracePeriodMinutes(Integer gracePeriodMinutes) {
-        this.gracePeriodMinutes = gracePeriodMinutes;
-    }
-
-    public String getOvertimePolicy() {
-        return overtimePolicy;
-    }
-
-    public void setOvertimePolicy(String overtimePolicy) {
-        this.overtimePolicy = overtimePolicy;
     }
 
     public String getEmployeeQrToken() {

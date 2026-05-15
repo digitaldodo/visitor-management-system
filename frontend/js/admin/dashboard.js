@@ -347,8 +347,8 @@ function analyticsTemplate() {
       <section class="panel employee-analytics-panel">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Workforce Attendance</p>
-            <h3>Shift Compliance</h3>
+            <p class="eyebrow">Workforce Presence</p>
+            <h3>Access Presence</h3>
           </div>
         </div>
         <div class="employee-analytics-table" id="workforce-attendance-table"></div>
@@ -425,24 +425,12 @@ function usersTemplate() {
             <input name="shiftName" type="text" placeholder="Morning Shift" value="General Shift" />
           </label>
           <label class="form-field" data-employee-workforce-field>
-            <span>Working days</span>
-            <input name="workingDays" type="text" placeholder="Mon,Fri or Mon-Fri" value="Mon-Fri" />
-          </label>
-          <label class="form-field" data-employee-workforce-field>
             <span>Shift start</span>
             <input name="shiftStartTime" type="time" value="09:00" />
           </label>
           <label class="form-field" data-employee-workforce-field>
             <span>Shift end</span>
             <input name="shiftEndTime" type="time" value="18:00" />
-          </label>
-          <label class="form-field" data-employee-workforce-field>
-            <span>Grace period</span>
-            <input name="gracePeriodMinutes" type="number" min="0" max="180" step="1" value="10" />
-          </label>
-          <label class="form-field" data-employee-workforce-field>
-            <span>Overtime policy</span>
-            <input name="overtimePolicy" type="text" placeholder="Optional policy note" />
           </label>
           <div class="admin-user-form__footer">
             <p>Visitor accounts are created through public onboarding. Workforce access is issued internally.</p>
@@ -1156,11 +1144,8 @@ function initAdminUserForm() {
       designation: trim(data.designation),
       employeeType: trim(data.employeeType),
       shiftName: trim(data.shiftName),
-      workingDays: parseWorkingDays(data.workingDays),
       shiftStartTime: trim(data.shiftStartTime),
       shiftEndTime: trim(data.shiftEndTime),
-      gracePeriodMinutes: data.gracePeriodMinutes === "" ? null : Number(data.gracePeriodMinutes),
-      overtimePolicy: trim(data.overtimePolicy),
     };
     const error = validateInternalUser(payload);
     if (error) {
@@ -1871,7 +1856,6 @@ function userCard(user) {
         <div><dt>Employee ID</dt><dd>${escapeHtml(user.employeeId || "Not issued")}</dd></div>
         <div><dt>Designation</dt><dd>${escapeHtml(user.designation || "Not set")}</dd></div>
         <div><dt>Shift</dt><dd>${escapeHtml(formatUserShift(user))}</dd></div>
-        <div><dt>Working days</dt><dd>${escapeHtml((user.workingDays || []).map((day) => day.slice(0, 3)).join(", ") || "Not set")}</dd></div>
         <div><dt>Account ID</dt><dd>${escapeHtml(user.id || "")}</dd></div>
       </dl>
       ${roleControls}
@@ -2882,7 +2866,6 @@ function renderWorkforceAttendanceAnalytics(data) {
   if (!table) {
     return;
   }
-  const compliance = data.shiftCompliance || {};
   const widgets = data.widgets || [];
   const recentLogs = data.recentLogs || [];
   table.innerHTML = `
@@ -2893,24 +2876,8 @@ function renderWorkforceAttendanceAnalytics(data) {
           <strong>${escapeHtml(item.value)}</strong>
           <small>${escapeHtml(item.note)}</small>
         </article>
-      `).join("") : `<div class="empty-state empty-state--inline"><h3>No workforce attendance yet</h3><p>Attendance metrics appear after employees scan or security records overrides.</p></div>`}
+      `).join("") : `<div class="empty-state empty-state--inline"><h3>No workforce presence yet</h3><p>Presence metrics appear after employees scan or security records overrides.</p></div>`}
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Signal</th>
-          <th>Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${Object.entries(compliance).map(([label, value]) => `
-          <tr>
-            <td data-label="Signal"><strong>${escapeHtml(formatMonitoringTitle(label))}</strong></td>
-            <td data-label="Count">${escapeHtml(value)}</td>
-          </tr>
-        `).join("") || `<tr><td colspan="2">No shift compliance signals today.</td></tr>`}
-      </tbody>
-    </table>
     <table>
       <thead>
         <tr>
@@ -3301,42 +3268,6 @@ function validateDepartmentValue(value, options = {}) {
   return "";
 }
 
-function parseWorkingDays(value) {
-  const input = String(value || "").trim();
-  if (!input) {
-    return [];
-  }
-  const aliases = {
-    mon: "MONDAY",
-    monday: "MONDAY",
-    tue: "TUESDAY",
-    tuesday: "TUESDAY",
-    wed: "WEDNESDAY",
-    wednesday: "WEDNESDAY",
-    thu: "THURSDAY",
-    thursday: "THURSDAY",
-    fri: "FRIDAY",
-    friday: "FRIDAY",
-    sat: "SATURDAY",
-    saturday: "SATURDAY",
-    sun: "SUNDAY",
-    sunday: "SUNDAY",
-  };
-  const order = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
-  const lower = input.toLowerCase().replaceAll(/\s+/g, "");
-  if (lower.includes("-")) {
-    const [start, end] = lower.split("-", 2);
-    const startDay = aliases[start];
-    const endDay = aliases[end];
-    const startIndex = order.indexOf(startDay);
-    const endIndex = order.indexOf(endDay);
-    if (startIndex >= 0 && endIndex >= startIndex) {
-      return order.slice(startIndex, endIndex + 1);
-    }
-  }
-  return [...new Set(lower.split(/[,+/]/).map((part) => aliases[part]).filter(Boolean))];
-}
-
 function maxValue(data) {
   return Math.max(1, ...data.map((item) => Number(item.value) || 0));
 }
@@ -3412,14 +3343,8 @@ function validateInternalUser(payload) {
     if (!payload.shiftName || payload.shiftName.length < 2) {
       return "Enter the shift name.";
     }
-    if (!Array.isArray(payload.workingDays) || !payload.workingDays.length) {
-      return "Enter at least one working day.";
-    }
     if (!/^\d{2}:\d{2}$/.test(payload.shiftStartTime || "") || !/^\d{2}:\d{2}$/.test(payload.shiftEndTime || "")) {
       return "Choose shift start and end times.";
-    }
-    if (Number(payload.gracePeriodMinutes) < 0 || Number(payload.gracePeriodMinutes) > 180) {
-      return "Grace period must be between 0 and 180 minutes.";
     }
   }
   if (!/[a-z]/.test(payload.password || "")

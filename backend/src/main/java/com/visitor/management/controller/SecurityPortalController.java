@@ -164,12 +164,12 @@ public class SecurityPortalController {
 
     @GetMapping("/employees/attendance")
     public ApiResponse<List<EmployeeAttendanceResponse>> employeeAttendance(Authentication authentication) {
-        return ApiResponse.ok("Employee attendance logs loaded.", employeeAttendanceService.logs(authentication.getName()));
+        return ApiResponse.ok("Employee presence logs loaded.", employeeAttendanceService.logs(authentication.getName()));
     }
 
     @PostMapping("/employees/qr-scan")
     public ApiResponse<EmployeeAttendanceScanResponse> employeeQrScan(@Valid @RequestBody QrVerificationRequest request, Authentication authentication) {
-        return ApiResponse.ok("Employee attendance scan completed.", employeeAttendanceService.scan(request.qrPayload(), authentication.getName()));
+        return ApiResponse.ok("Employee presence scan completed.", employeeAttendanceService.scan(request.qrPayload(), authentication.getName()));
     }
 
     @GetMapping("/employees/{id}/badge")

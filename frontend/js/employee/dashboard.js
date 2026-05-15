@@ -83,7 +83,7 @@ async function loadEmployeePortal() {
   if (attendance.status === "fulfilled") {
     renderOwnAttendance(attendance.value?.data || []);
   } else {
-    renderWorkList("#employee-attendance-list", [], (item) => item, "Attendance unavailable", attendance.reason?.message || "Attendance history could not be loaded.");
+    renderWorkList("#employee-attendance-list", [], (item) => item, "Presence unavailable", attendance.reason?.message || "Presence history could not be loaded.");
   }
 
   if (badge.status === "fulfilled") {
@@ -98,10 +98,10 @@ function renderOwnAttendance(items) {
   renderWorkList("#employee-attendance-list", items, (log) => `
     <article class="work-card">
       <h3>${escapeHtml(formatStatusLabel(log.status))}</h3>
-      <p>${escapeHtml(log.shiftName || "Shift")} · ${escapeHtml((log.flags || []).map(formatStatusLabel).join(", ") || "Present")}</p>
-      <small>In ${escapeHtml(formatDate(log.checkInTime))} · Out ${escapeHtml(formatDate(log.checkOutTime))} · ${escapeHtml(log.workedMinutes ?? 0)} minutes</small>
+      <p>${escapeHtml(log.shiftName || "Shift")} · ${escapeHtml(log.late ? "Late arrival" : "Presence recorded")}</p>
+      <small>In ${escapeHtml(formatDate(log.checkInTime))} · Out ${escapeHtml(formatDate(log.checkOutTime))}</small>
     </article>
-  `, "No attendance history", "Your check-ins and check-outs will appear after security scans your employee badge.");
+  `, "No presence history", "Your check-ins and check-outs will appear after security scans your employee badge.");
 }
 
 function renderOwnBadge(badge, error = "") {

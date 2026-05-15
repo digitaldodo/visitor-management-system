@@ -17,7 +17,6 @@ import com.visitor.management.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,8 +26,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,7 +35,6 @@ import java.util.Set;
 public class EmployeeAttendanceService {
 
     private static final String QR_PREFIX = "ACCESSFLOW_EMPLOYEE";
-    private static final Set<String> DEFAULT_WORKING_DAYS = Set.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -73,9 +69,6 @@ public class EmployeeAttendanceService {
             user.setEmployeeQrIssuedAt(Instant.now());
             user.setEmployeeQrRevokedAt(null);
         }
-        if (user.getWorkingDays() == null || user.getWorkingDays().isEmpty()) {
-            user.setWorkingDays(new HashSet<>(DEFAULT_WORKING_DAYS));
-        }
         if (trimToNull(user.getShiftName()) == null) {
             user.setShiftName("General Shift");
         }
@@ -84,9 +77,6 @@ public class EmployeeAttendanceService {
         }
         if (trimToNull(user.getShiftEndTime()) == null) {
             user.setShiftEndTime("18:00");
-        }
-        if (user.getGracePeriodMinutes() == null) {
-            user.setGracePeriodMinutes(10);
         }
     }
 
@@ -141,7 +131,6 @@ public class EmployeeAttendanceService {
         User employee = resolveEmployeeQr(qrPayload);
         requireSameOrganizationOrSuperAdmin(guard, employee);
         validateEmployeeAccess(employee);
-        boolean eligible = isShiftEligible(employee, Instant.now());
         EmployeeAttendanceLog log = currentlyIn(employee)
                 ? checkOut(employee.getId(), securityGuardId, false, null)
                 : checkIn(employee.getId(), securityGuardId, false, null);
@@ -151,8 +140,8 @@ public class EmployeeAttendanceService {
                 action,
                 action.equals("CHECKED_IN") ? "Employee checked in" : "Employee checked out",
                 "%s was %s using the static employee QR.".formatted(employee.getFullName(), action.equals("CHECKED_IN") ? "checked in" : "checked out"),
-                eligible ? "Shift timing accepted." : "Shift exception recorded for workforce review.",
-                eligible,
+                "Presence updated for access operations.",
+                true,
                 log.getState() == EmployeeAttendanceState.IN,
                 toDirectoryResponse(employee),
                 toAttendanceResponse(log)
@@ -186,7 +175,7 @@ public class EmployeeAttendanceService {
         log.setSecurityGuardId(guard.getId());
         log.setSecurityGuardName(guard.getFullName());
         log.setLastAction(manual ? "MANUAL_CHECK_IN" : "QR_CHECK_IN");
-        evaluateCheckIn(log, employee, now, zoneId);
+        markCheckInPresence(log, employee, now, zoneId);
         EmployeeAttendanceLog saved = attendanceRepository.save(log);
         accessAuditService.recordEmployeeAttendance(guard, employee, saved.getLastAction(),
                 manual ? "Manual employee check-in override: " + reason.trim() : "Static employee QR check-in recorded.");
@@ -214,7 +203,7 @@ public class EmployeeAttendanceService {
         log.setSecurityGuardId(guard.getId());
         log.setSecurityGuardName(guard.getFullName());
         log.setLastAction(manual ? "MANUAL_CHECK_OUT" : "QR_CHECK_OUT");
-        evaluateCheckOut(log, employee, now, zoneId);
+        markCheckOutPresence(log);
         EmployeeAttendanceLog saved = attendanceRepository.save(log);
         accessAuditService.recordEmployeeAttendance(guard, employee, saved.getLastAction(),
                 manual ? "Manual employee check-out override: " + reason.trim() : "Static employee QR check-out recorded.");
@@ -226,37 +215,21 @@ public class EmployeeAttendanceService {
         String organizationId = actor.getRoles().contains(Role.SUPER_ADMIN) ? null : requiredOrganizationId(actor);
         ZoneId zoneId = resolveZoneId(actor);
         LocalDate today = LocalDate.now(zoneId);
-        List<User> employees = organizationId == null
-                ? userRepository.findAllByRolesContaining(Role.EMPLOYEE)
-                : userRepository.findAllByOrganizationIdAndRolesContaining(organizationId, Role.EMPLOYEE);
         List<EmployeeAttendanceLog> todayLogs = organizationId == null
                 ? attendanceRepository.findAll().stream().filter(log -> today.equals(log.getAttendanceDate())).toList()
                 : attendanceRepository.findAllByOrganizationIdAndAttendanceDate(organizationId, today);
 
-        long activeEmployees = employees.stream().filter(this::employeeEnabled).count();
         long checkedIn = todayLogs.stream().filter(log -> log.getState() == EmployeeAttendanceState.IN).count();
-        long late = todayLogs.stream().filter(log -> hasFlag(log, EmployeeAttendanceStatus.LATE_ENTRY)).count();
-        long overtime = todayLogs.stream().filter(log -> hasFlag(log, EmployeeAttendanceStatus.OVERTIME)).count();
-        long violations = todayLogs.stream().filter(log -> hasFlag(log, EmployeeAttendanceStatus.SHIFT_VIOLATION) || hasFlag(log, EmployeeAttendanceStatus.EARLY_EXIT)).count();
-        long expectedToday = employees.stream().filter(this::employeeEnabled).filter(employee -> isWorkingDay(employee, today)).count();
-        long absent = Math.max(0, expectedToday - todayLogs.stream().map(EmployeeAttendanceLog::getEmployeeUserId).distinct().count());
+        long todayCheckIns = todayLogs.stream().filter(log -> log.getCheckInTime() != null).count();
+        long late = todayLogs.stream().filter(this::isLate).count();
 
         return Map.of(
                 "timezone", zoneId.getId(),
                 "widgets", List.of(
-                        Map.of("label", "Active employees", "value", activeEmployees, "note", "Workforce identities with reusable badges"),
-                        Map.of("label", "Checked in now", "value", checkedIn, "note", "Employees currently inside"),
-                        Map.of("label", "Late today", "value", late, "note", "Arrivals after grace period"),
-                        Map.of("label", "Overtime today", "value", overtime, "note", "Employees beyond shift end"),
-                        Map.of("label", "Absent today", "value", absent, "note", "Expected employees without attendance")
-                ),
-                "departmentTrends", departmentTrends(todayLogs),
-                "shiftCompliance", Map.of(
-                        "present", todayLogs.size(),
-                        "late", late,
-                        "overtime", overtime,
-                        "violations", violations,
-                        "absent", absent
+                        Map.of("label", "Currently inside", "value", checkedIn, "note", "Employees physically present"),
+                        Map.of("label", "Today check-ins", "value", todayCheckIns, "note", "Badge scans and assisted entries"),
+                        Map.of("label", "Late arrivals", "value", late, "note", "Optional shift-start signal"),
+                        Map.of("label", "Activity logs", "value", todayLogs.size(), "note", "Presence events recorded today")
                 ),
                 "recentLogs", todayLogs.stream()
                         .sorted(Comparator.comparing(EmployeeAttendanceLog::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -266,60 +239,16 @@ public class EmployeeAttendanceService {
         );
     }
 
-    private void evaluateCheckIn(EmployeeAttendanceLog log, User employee, Instant at, ZoneId zoneId) {
-        Set<EmployeeAttendanceStatus> flags = new HashSet<>();
+    private void markCheckInPresence(EmployeeAttendanceLog log, User employee, Instant at, ZoneId zoneId) {
         LocalDateTime local = LocalDateTime.ofInstant(at, zoneId);
-        if (!isWorkingDay(employee, local.toLocalDate())) {
-            flags.add(EmployeeAttendanceStatus.SHIFT_VIOLATION);
-        }
         LocalTime shiftStart = parseTime(employee.getShiftStartTime(), LocalTime.of(9, 0));
-        int grace = employee.getGracePeriodMinutes() == null ? 0 : Math.max(0, employee.getGracePeriodMinutes());
-        if (local.toLocalTime().isAfter(shiftStart.plusMinutes(grace))) {
-            flags.add(EmployeeAttendanceStatus.LATE_ENTRY);
-        }
-        if (flags.isEmpty()) {
-            flags.add(EmployeeAttendanceStatus.PRESENT);
-        }
-        log.setFlags(flags);
-        log.setStatus(primaryStatus(flags));
+        boolean late = local.toLocalTime().isAfter(shiftStart);
+        log.setFlags(late ? Set.of(EmployeeAttendanceStatus.LATE) : Set.of());
+        log.setStatus(late ? EmployeeAttendanceStatus.LATE : EmployeeAttendanceStatus.INSIDE);
     }
 
-    private void evaluateCheckOut(EmployeeAttendanceLog log, User employee, Instant at, ZoneId zoneId) {
-        Set<EmployeeAttendanceStatus> flags = new HashSet<>(log.getFlags() == null ? Set.of() : log.getFlags());
-        LocalDateTime local = LocalDateTime.ofInstant(at, zoneId);
-        LocalTime shiftEnd = parseTime(employee.getShiftEndTime(), LocalTime.of(18, 0));
-        if (local.toLocalTime().isBefore(shiftEnd)) {
-            flags.add(EmployeeAttendanceStatus.EARLY_EXIT);
-        }
-        if (local.toLocalTime().isAfter(shiftEnd)) {
-            flags.add(EmployeeAttendanceStatus.OVERTIME);
-            LocalDateTime shiftEndDateTime = LocalDateTime.of(local.toLocalDate(), shiftEnd);
-            log.setOvertimeMinutes(Math.max(0, Duration.between(shiftEndDateTime, local).toMinutes()));
-        }
-        if (log.getCheckInTime() != null) {
-            log.setWorkedMinutes(Math.max(0, Duration.between(log.getCheckInTime(), at).toMinutes()));
-        }
-        if (flags.isEmpty()) {
-            flags.add(EmployeeAttendanceStatus.PRESENT);
-        }
-        log.setFlags(flags);
-        log.setStatus(primaryStatus(flags));
-    }
-
-    private EmployeeAttendanceStatus primaryStatus(Set<EmployeeAttendanceStatus> flags) {
-        if (flags.contains(EmployeeAttendanceStatus.SHIFT_VIOLATION)) {
-            return EmployeeAttendanceStatus.SHIFT_VIOLATION;
-        }
-        if (flags.contains(EmployeeAttendanceStatus.LATE_ENTRY)) {
-            return EmployeeAttendanceStatus.LATE_ENTRY;
-        }
-        if (flags.contains(EmployeeAttendanceStatus.EARLY_EXIT)) {
-            return EmployeeAttendanceStatus.EARLY_EXIT;
-        }
-        if (flags.contains(EmployeeAttendanceStatus.OVERTIME)) {
-            return EmployeeAttendanceStatus.OVERTIME;
-        }
-        return EmployeeAttendanceStatus.PRESENT;
+    private void markCheckOutPresence(EmployeeAttendanceLog log) {
+        log.setStatus(EmployeeAttendanceStatus.OUTSIDE);
     }
 
     private void populateEmployeeSnapshot(EmployeeAttendanceLog log, User employee, LocalDate date, ZoneId zoneId) {
@@ -337,7 +266,6 @@ public class EmployeeAttendanceService {
         log.setShiftName(employee.getShiftName());
         log.setShiftStartTime(employee.getShiftStartTime());
         log.setShiftEndTime(employee.getShiftEndTime());
-        log.setGracePeriodMinutes(employee.getGracePeriodMinutes());
     }
 
     private EmployeeBadgeResponse toBadgeResponse(User employee) {
@@ -357,9 +285,6 @@ public class EmployeeAttendanceService {
                 employee.getShiftName(),
                 employee.getShiftStartTime(),
                 employee.getShiftEndTime(),
-                employee.getWorkingDays(),
-                employee.getGracePeriodMinutes(),
-                employee.getOvertimePolicy(),
                 payload,
                 qrCodeService.dataUri(payload),
                 employee.getEmployeeQrIssuedAt(),
@@ -382,9 +307,6 @@ public class EmployeeAttendanceService {
                 employee.getShiftName(),
                 employee.getShiftStartTime(),
                 employee.getShiftEndTime(),
-                employee.getWorkingDays(),
-                employee.getGracePeriodMinutes(),
-                employee.getOvertimePolicy(),
                 employee.isActive(),
                 employee.getAccountStatus(),
                 currentlyIn(employee)
@@ -412,14 +334,11 @@ public class EmployeeAttendanceService {
                 log.getShiftName(),
                 log.getShiftStartTime(),
                 log.getShiftEndTime(),
-                log.getGracePeriodMinutes(),
                 log.getState(),
-                log.getStatus(),
-                log.getFlags(),
+                presenceStatus(log),
+                isLate(log),
                 log.getCheckInTime(),
                 log.getCheckOutTime(),
-                log.getWorkedMinutes(),
-                log.getOvertimeMinutes(),
                 log.isManualCheckIn(),
                 log.isManualCheckOut(),
                 log.getOverrideReason(),
@@ -498,38 +417,17 @@ public class EmployeeAttendanceService {
                 && employee.getEmployeeQrRevokedAt() == null;
     }
 
-    private boolean isShiftEligible(User employee, Instant instant) {
-        ZoneId zoneId = resolveZoneId(employee);
-        LocalDateTime local = LocalDateTime.ofInstant(instant, zoneId);
-        if (!isWorkingDay(employee, local.toLocalDate())) {
-            return false;
+    private EmployeeAttendanceStatus presenceStatus(EmployeeAttendanceLog log) {
+        if (log.getState() == EmployeeAttendanceState.IN) {
+            return isLate(log) ? EmployeeAttendanceStatus.LATE : EmployeeAttendanceStatus.INSIDE;
         }
-        LocalTime shiftStart = parseTime(employee.getShiftStartTime(), LocalTime.of(9, 0));
-        LocalTime shiftEnd = parseTime(employee.getShiftEndTime(), LocalTime.of(18, 0));
-        LocalTime lowerBound = shiftStart.minusHours(4);
-        LocalTime upperBound = shiftEnd.plusHours(6);
-        LocalTime current = local.toLocalTime();
-        return !current.isBefore(lowerBound) && !current.isAfter(upperBound);
+        return EmployeeAttendanceStatus.OUTSIDE;
     }
 
-    private boolean isWorkingDay(User employee, LocalDate date) {
-        Set<String> days = employee.getWorkingDays() == null || employee.getWorkingDays().isEmpty()
-                ? DEFAULT_WORKING_DAYS
-                : employee.getWorkingDays();
-        return days.contains(date.getDayOfWeek().name());
-    }
-
-    private Map<String, Long> departmentTrends(List<EmployeeAttendanceLog> logs) {
-        Map<String, Long> trends = new LinkedHashMap<>();
-        for (EmployeeAttendanceLog log : logs) {
-            String key = trimToNull(log.getDepartment()) == null ? "Unassigned" : log.getDepartment();
-            trends.put(key, trends.getOrDefault(key, 0L) + 1L);
-        }
-        return trends;
-    }
-
-    private boolean hasFlag(EmployeeAttendanceLog log, EmployeeAttendanceStatus status) {
-        return log.getFlags() != null && log.getFlags().contains(status);
+    private boolean isLate(EmployeeAttendanceLog log) {
+        return log.getStatus() == EmployeeAttendanceStatus.LATE
+                || log.getStatus() == EmployeeAttendanceStatus.LATE_ENTRY
+                || (log.getFlags() != null && (log.getFlags().contains(EmployeeAttendanceStatus.LATE) || log.getFlags().contains(EmployeeAttendanceStatus.LATE_ENTRY)));
     }
 
     private boolean employeeMatches(User employee, String query) {
@@ -577,7 +475,7 @@ public class EmployeeAttendanceService {
 
     private void requireReason(String reason) {
         if (trimToNull(reason) == null || reason.trim().length() < 4) {
-            throw new BadRequestException("A reason is required for manual attendance overrides.");
+            throw new BadRequestException("A reason is required for manual workforce presence overrides.");
         }
     }
 

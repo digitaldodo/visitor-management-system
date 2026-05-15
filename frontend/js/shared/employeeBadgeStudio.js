@@ -18,7 +18,7 @@ export function employeeBadgeDialogMarkup(badge) {
         <div>
           <p class="eyebrow">Employee Badge</p>
           <h2>${escapeHtml(badge.fullName)}</h2>
-          <p class="enterprise-badge-dialog__lead">Reusable workforce credential for attendance and access operations.</p>
+          <p class="enterprise-badge-dialog__lead">Reusable workforce credential for access and presence operations.</p>
         </div>
         <button class="icon-button" type="button" data-employee-badge-action="close" aria-label="Close employee badge">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
@@ -37,7 +37,6 @@ export function employeeBadgeDialogMarkup(badge) {
 }
 
 export function employeeBadgeMarkup(badge) {
-  const workingDays = (badge.workingDays || []).map(dayLabel).join(", ") || "Working days not set";
   return `
     <article class="employee-badge" data-employee-badge-card>
       <header class="employee-badge__header">
@@ -61,15 +60,13 @@ export function employeeBadgeMarkup(badge) {
         </div>
         <div class="employee-badge__qr">
           <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static employee QR" />
-          <span>Reusable attendance QR</span>
+          <span>Reusable access QR</span>
         </div>
       </section>
       <dl class="employee-badge__meta">
         <div><dt>Employee type</dt><dd>${escapeHtml(badge.employeeType || "Not set")}</dd></div>
         <div><dt>Shift</dt><dd>${escapeHtml(badge.shiftName || "General Shift")}</dd></div>
         <div><dt>Timing</dt><dd>${escapeHtml(formatShift(badge))}</dd></div>
-        <div><dt>Working days</dt><dd>${escapeHtml(workingDays)}</dd></div>
-        <div><dt>Grace period</dt><dd>${escapeHtml(`${badge.gracePeriodMinutes ?? 0} minutes`)}</dd></div>
         <div><dt>Issued</dt><dd>${escapeHtml(formatDate(badge.issuedAt))}</dd></div>
       </dl>
     </article>
@@ -142,7 +139,6 @@ async function createEmployeeBadgeCanvas(badge) {
     ["Employee type", badge.employeeType || "Not set"],
     ["Shift", badge.shiftName || "General Shift"],
     ["Timing", formatShift(badge)],
-    ["Working days", (badge.workingDays || []).map(dayLabel).join(", ") || "Not set"],
   ];
   details.forEach(([label, value], index) => {
     const x = 550 + (index % 2) * 375;
@@ -166,10 +162,6 @@ async function createEmployeeBadgeCanvas(badge) {
 
 function formatShift(badge) {
   return badge.shiftStartTime && badge.shiftEndTime ? `${badge.shiftStartTime} to ${badge.shiftEndTime}` : "Shift timing not set";
-}
-
-function dayLabel(day) {
-  return String(day || "").slice(0, 3);
 }
 
 function fileName(badge, extension) {

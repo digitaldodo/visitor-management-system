@@ -27,11 +27,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.Duration;
-import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.security.SecureRandom;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -374,11 +372,8 @@ public class AdminUserService {
                 user.getEmployeeType(),
                 user.getEmployeePhotoUrl(),
                 user.getShiftName(),
-                user.getWorkingDays(),
                 user.getShiftStartTime(),
                 user.getShiftEndTime(),
-                user.getGracePeriodMinutes(),
-                user.getOvertimePolicy(),
                 user.getPhone(),
                 user.getPhoneCountryCode(),
                 user.getOrganizationId(),
@@ -430,9 +425,6 @@ public class AdminUserService {
         user.setShiftName(trimToNull(request.shiftName()) == null ? "General Shift" : trimToNull(request.shiftName()));
         user.setShiftStartTime(validateShiftTime(request.shiftStartTime(), "09:00"));
         user.setShiftEndTime(validateShiftTime(request.shiftEndTime(), "18:00"));
-        user.setGracePeriodMinutes(validateGracePeriod(request.gracePeriodMinutes()));
-        user.setOvertimePolicy(trimToNull(request.overtimePolicy()));
-        user.setWorkingDays(normalizeWorkingDays(request.workingDays()));
     }
 
     private String validateShiftTime(String value, String fallback) {
@@ -446,29 +438,6 @@ public class AdminUserService {
         } catch (DateTimeParseException ex) {
             throw new BadRequestException("Shift times must use HH:mm format.");
         }
-    }
-
-    private Integer validateGracePeriod(Integer value) {
-        int minutes = value == null ? 10 : value;
-        if (minutes < 0 || minutes > 180) {
-            throw new BadRequestException("Grace period must be between 0 and 180 minutes.");
-        }
-        return minutes;
-    }
-
-    private Set<String> normalizeWorkingDays(Set<String> workingDays) {
-        if (workingDays == null || workingDays.isEmpty()) {
-            return new HashSet<>(Set.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"));
-        }
-        Set<String> normalized = new HashSet<>();
-        for (String day : workingDays) {
-            try {
-                normalized.add(DayOfWeek.valueOf(day.trim().toUpperCase(Locale.ROOT)).name());
-            } catch (RuntimeException ex) {
-                throw new BadRequestException("Working days must be valid weekday names.");
-            }
-        }
-        return normalized;
     }
 
     private void requireSuperAdmin(Authentication authentication, User actor) {

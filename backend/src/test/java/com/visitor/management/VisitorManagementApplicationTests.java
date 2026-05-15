@@ -1049,7 +1049,6 @@ class VisitorManagementApplicationTests {
         employee.setShiftName("Morning Shift");
         employee.setShiftStartTime("09:00");
         employee.setShiftEndTime("18:00");
-        employee.setWorkingDays(Set.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"));
         when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(employee));
         when(userRepository.findByEmployeeQrToken("static-token")).thenReturn(Optional.of(employee));
 

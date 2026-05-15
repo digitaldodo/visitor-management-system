@@ -92,7 +92,7 @@ public class EmployeeController {
 
     @GetMapping("/attendance")
     public ApiResponse<List<EmployeeAttendanceResponse>> attendance(Authentication authentication) {
-        return ApiResponse.ok("Employee attendance history loaded.", employeeAttendanceService.ownLogs(authentication.getName()));
+        return ApiResponse.ok("Employee presence history loaded.", employeeAttendanceService.ownLogs(authentication.getName()));
     }
 
     @GetMapping("/badge")

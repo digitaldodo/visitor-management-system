@@ -5,7 +5,6 @@ import com.visitor.management.entity.EmployeeAttendanceStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Set;
 
 public record EmployeeAttendanceResponse(
         String id,
@@ -23,14 +22,11 @@ public record EmployeeAttendanceResponse(
         String shiftName,
         String shiftStartTime,
         String shiftEndTime,
-        Integer gracePeriodMinutes,
         EmployeeAttendanceState state,
         EmployeeAttendanceStatus status,
-        Set<EmployeeAttendanceStatus> flags,
+        boolean late,
         Instant checkInTime,
         Instant checkOutTime,
-        Long workedMinutes,
-        Long overtimeMinutes,
         boolean manualCheckIn,
         boolean manualCheckOut,
         String overrideReason,

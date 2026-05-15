@@ -8,8 +8,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-import java.util.Set;
-
 public record AdminUserCreateRequest(
         @NotBlank @Size(min = 2, max = 120) String fullName,
         @NotBlank @Size(min = UsernamePolicy.MIN_LENGTH, max = UsernamePolicy.MAX_LENGTH, message = UsernamePolicy.LENGTH_MESSAGE) @Pattern(regexp = UsernamePolicy.USERNAME_REGEX, message = UsernamePolicy.INVALID_MESSAGE) String username,
@@ -25,10 +23,7 @@ public record AdminUserCreateRequest(
         @Size(max = 40) String employeeType,
         @Size(max = 160) String employeePhotoUrl,
         @Size(max = 80) String shiftName,
-        Set<@Size(max = 12) String> workingDays,
         @Size(max = 5) String shiftStartTime,
-        @Size(max = 5) String shiftEndTime,
-        Integer gracePeriodMinutes,
-        @Size(max = 160) String overtimePolicy
+        @Size(max = 5) String shiftEndTime
 ) {
 }

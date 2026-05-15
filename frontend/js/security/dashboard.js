@@ -130,7 +130,7 @@ async function loadSecurityPortal(showErrors = true) {
   if (employeeLogs.status === "fulfilled") {
     renderEmployeeAttendanceLogs(employeeLogs.value?.data || []);
   } else if (showErrors) {
-    renderWorkList("#employee-attendance-log-list", [], (item) => item, "Attendance logs unavailable", employeeLogs.reason?.message || "Workforce attendance could not be loaded.");
+    renderWorkList("#employee-attendance-log-list", [], (item) => item, "Presence logs unavailable", employeeLogs.reason?.message || "Workforce presence could not be loaded.");
   }
 }
 
@@ -163,7 +163,7 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-recurring-active-list", data.activeRecurringVisitors || [], recurringCard, "No active recurring visitors", "Approved recurring profiles will appear here.");
   renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
   renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
-  renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No attendance today", "Today's check-in and check-out activity will appear here.");
+  renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No presence logs today", "Today's check-in and check-out activity will appear here.");
 }
 
 function initEmployeeAttendanceWorkspace() {
@@ -198,7 +198,7 @@ function initEmployeeAttendanceWorkspace() {
         openEmployeeBadgeModal(state.activeEmployeeBadge);
       }
       if (action === "check-in" || action === "check-out") {
-        const reason = window.prompt("Reason for manual attendance override.");
+        const reason = window.prompt("Reason for manual workforce presence override.");
         if (!reason?.trim()) {
           showToast("Reason required", "Manual workforce overrides require a reason.");
           return;
@@ -229,7 +229,7 @@ async function scanEmployeeValue(value) {
   try {
     const response = await scanEmployeeQr(trimmed);
     renderEmployeeScanResult(response?.data || null);
-    showToast(response?.data?.headline || "Employee scan complete", response?.data?.message || "Attendance state updated.");
+    showToast(response?.data?.headline || "Employee scan complete", response?.data?.message || "Presence updated.");
     await loadSecurityPortal(false);
   } catch (error) {
     renderEmployeeScanFailure(error.message);
@@ -242,7 +242,7 @@ async function scanEmployeeValue(value) {
 function renderEmployeeScanIdle() {
   const target = document.querySelector("#employee-qr-result");
   if (target) {
-    target.innerHTML = `<article class="qr-result qr-result--idle"><strong>Ready for employee scan</strong><p>Employee QR scans toggle attendance automatically: first scan checks in, next scan checks out.</p></article>`;
+    target.innerHTML = `<article class="qr-result qr-result--idle"><strong>Ready for employee scan</strong><p>Employee QR scans toggle presence automatically: first scan checks in, next scan checks out.</p></article>`;
   }
 }
 
@@ -267,7 +267,7 @@ function renderEmployeeScanResult(result) {
           <strong>${escapeHtml(result.headline || "Employee scan complete")}</strong>
           <p>${escapeHtml(result.message || "")}</p>
         </div>
-        <span class="status-badge status-badge--${attendance.state === "IN" ? "checked-in" : "checked-out"}">${escapeHtml(attendance.state || "OUT")}</span>
+        <span class="status-badge status-badge--${attendance.state === "IN" ? "checked-in" : "checked-out"}">${escapeHtml(formatPresenceStatus(attendance))}</span>
       </div>
       <div class="qr-result__identity">
         <div class="qr-result__photo-placeholder">${escapeHtml(employee.employeeId || "Employee")}</div>
@@ -276,8 +276,7 @@ function renderEmployeeScanResult(result) {
           <div><dt>Department</dt><dd>${escapeHtml(employee.department || "Not set")}</dd></div>
           <div><dt>Designation</dt><dd>${escapeHtml(employee.designation || "Not set")}</dd></div>
           <div><dt>Shift</dt><dd>${escapeHtml(formatEmployeeShift(employee))}</dd></div>
-          <div><dt>Status</dt><dd>${escapeHtml(formatStatusText(attendance.status))}</dd></div>
-          <div><dt>Flags</dt><dd>${escapeHtml((attendance.flags || []).map(formatStatusText).join(", ") || "None")}</dd></div>
+          <div><dt>Presence</dt><dd>${escapeHtml(formatPresenceStatus(attendance))}</dd></div>
           <div><dt>Check-in</dt><dd>${escapeHtml(formatDate(attendance.checkInTime))}</dd></div>
           <div><dt>Check-out</dt><dd>${escapeHtml(formatDate(attendance.checkOutTime))}</dd></div>
         </dl>
@@ -346,14 +345,14 @@ function employeeCard(employee) {
 }
 
 function renderEmployeeAttendanceLogs(logs) {
-  renderWorkList("#employee-attendance-log-list", logs, employeeLogCard, "No workforce attendance logs", "Employee check-ins, check-outs, and manual overrides will appear here.");
+  renderWorkList("#employee-attendance-log-list", logs, employeeLogCard, "No workforce presence logs", "Employee check-ins, check-outs, and manual overrides will appear here.");
 }
 
 function employeeLogCard(log) {
   return `
     <article class="work-card">
       <h3>${escapeHtml(log.employeeName || "Employee")}</h3>
-      <p>${escapeHtml(log.department || "Unassigned")} · ${escapeHtml(formatStatusText(log.status))} · ${escapeHtml(log.lastAction || "Attendance")}</p>
+      <p>${escapeHtml(log.department || "Unassigned")} · ${escapeHtml(formatPresenceStatus(log))} · ${escapeHtml(log.lastAction || "Presence")}</p>
       <small>In ${escapeHtml(formatDate(log.checkInTime))} · Out ${escapeHtml(formatDate(log.checkOutTime))} · Guard ${escapeHtml(log.securityGuardName || "System")}</small>
       ${log.overrideReason ? `<small>Override: ${escapeHtml(log.overrideReason)}</small>` : ""}
     </article>
@@ -887,6 +886,13 @@ function formatStatusText(value) {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ") || "Not recorded";
+}
+
+function formatPresenceStatus(record = {}) {
+  if (record.status) {
+    return formatStatusText(record.status);
+  }
+  return record.state === "IN" ? "Inside" : "Outside";
 }
 
 function setCount(selector, value) {
