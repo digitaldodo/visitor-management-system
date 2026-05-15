@@ -5,7 +5,7 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
-import { checkInVisitor, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/visitorApi.js";
+import { checkInVisitor, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges"];

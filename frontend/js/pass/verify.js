@@ -1,5 +1,5 @@
 import { formatDate } from "../shared/formatters.js";
-import { getPublicPassVerification } from "../shared/visitorApi.js";
+import { getPublicPassVerification } from "../shared/accessService.js";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">

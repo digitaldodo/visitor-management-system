@@ -1,4 +1,4 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./visitorApi.js";
+import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
 import { formatDate, formatDurationMinutes, minutesBetween } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
 import { showToast } from "./toast.js";

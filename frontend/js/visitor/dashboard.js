@@ -4,7 +4,7 @@ import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from 
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
 import { listOrganizations } from "../shared/organizationApi.js";
-import { getVisitorPass, getVisitorHistory, uploadVisitPhoto } from "../shared/visitorApi.js";
+import { getVisitorPass, getVisitorHistory, uploadVisitPhoto } from "../shared/accessService.js";
 import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";

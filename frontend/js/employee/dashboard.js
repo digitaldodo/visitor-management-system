@@ -4,7 +4,7 @@ import { formatDate, formatStatus, formatTime, toDatetimeLocal, toIsoInstant } f
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/visitorApi.js";
+import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/accessService.js";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history"];
