@@ -135,13 +135,6 @@ const INTERNAL_ROLE_DEPARTMENT_RULES = {
     placeholder: "Administration",
     department: "Administration",
   },
-  SUPER_ADMIN: {
-    mode: "hidden",
-    label: "Department",
-    meta: "Super admin access is platform-level and does not use an organization department.",
-    placeholder: "",
-    department: "",
-  },
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -373,7 +366,6 @@ function usersTemplate() {
               <option value="EMPLOYEE">Employee portal</option>
               <option value="SECURITY_GUARD">Security portal</option>
               <option value="ADMIN">Administration portal</option>
-              <option value="SUPER_ADMIN">Super admin</option>
             </select>
           </label>
           <label class="form-field" data-company-code-field>
@@ -1020,7 +1012,6 @@ function initAdminUserForm() {
   const departmentField = form.querySelector("[data-department-field]");
   if (roleSelect && !hasRole("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
-    roleSelect.querySelector("option[value='SUPER_ADMIN']")?.remove();
   }
   if (companyInput && currentSession?.organizationCode) {
     companyInput.value = currentSession.organizationCode;
@@ -1759,9 +1750,25 @@ function userCard(user) {
   const role = (user.roles || []).join(", ");
   const primaryRole = (user.roles || [])[0] || "";
   const disabled = !user.active || user.accountStatus === "DISABLED";
+  const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
   const canManageAdmin = !(user.roles || []).includes("ADMIN") || hasRole("SUPER_ADMIN");
-  const canManage = !(user.roles || []).includes("SUPER_ADMIN") && canManageAdmin;
+  const canManage = !platformOwner && canManageAdmin;
   const roleOptions = internalRoleOptions(primaryRole);
+  const roleControls = platformOwner ? `
+      <div class="admin-user-card__role">
+        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure backend workflows.</p>
+      </div>
+  ` : `
+      <div class="admin-user-card__role">
+        <label class="form-field">
+          <span>Portal access</span>
+          <select data-role-select ${canManage ? "" : "disabled"}>
+            ${roleOptions}
+          </select>
+        </label>
+        <button class="button button--ghost" type="button" data-user-action="role" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Update access</button>
+      </div>
+  `;
   return `
     <article class="admin-user-card">
       <div class="admin-user-card__header">
@@ -1777,15 +1784,7 @@ function userCard(user) {
         <div><dt>Department</dt><dd>${escapeHtml(user.department || "Not set")}</dd></div>
         <div><dt>Account ID</dt><dd>${escapeHtml(user.id || "")}</dd></div>
       </dl>
-      <div class="admin-user-card__role">
-        <label class="form-field">
-          <span>Portal access</span>
-          <select data-role-select ${canManage ? "" : "disabled"}>
-            ${roleOptions}
-          </select>
-        </label>
-        <button class="button button--ghost" type="button" data-user-action="role" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Update access</button>
-      </div>
+      ${roleControls}
       <div class="admin-user-card__actions">
         <button class="button button--ghost" type="button" data-user-action="reset-password" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Reset password</button>
         <button class="button ${disabled ? "button--primary" : "button--ghost"}" type="button" data-user-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>${disabled ? "Enable account" : "Disable account"}</button>
@@ -1802,7 +1801,7 @@ function internalRoleOptions(selectedRole) {
   if (hasRole("SUPER_ADMIN")) {
     roles.push(["ADMIN", "Administration portal"]);
   }
-  if (selectedRole && !roles.some(([role]) => role === selectedRole)) {
+  if (selectedRole && selectedRole !== "SUPER_ADMIN" && !roles.some(([role]) => role === selectedRole)) {
     roles.push([selectedRole, formatInternalRole(selectedRole)]);
   }
   return roles.map(([role, label]) => `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
@@ -2572,6 +2571,22 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
 
 function organizationAdminCard(user) {
   const disabled = !user.active || user.accountStatus === "DISABLED";
+  const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
+  const roleControls = platformOwner ? `
+      <div class="admin-user-card__role">
+        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure backend workflows.</p>
+      </div>
+  ` : `
+      <div class="admin-user-card__role">
+        <label class="form-field">
+          <span>Portal access</span>
+          <select data-role-select>
+            ${internalRoleOptions((user.roles || [])[0] || "ADMIN")}
+          </select>
+        </label>
+        <button class="button button--ghost button--small" type="button" data-organization-admin-action="role" data-user-id="${escapeHtml(user.id)}">Update access</button>
+      </div>
+  `;
   return `
     <article class="organization-admin-card" data-organization-admin-card>
       <div class="organization-admin-card__header">
@@ -2585,18 +2600,10 @@ function organizationAdminCard(user) {
         <span>${escapeHtml(user.department || "Department not set")}</span>
         <span>${escapeHtml(formatDateOnly(user.createdAt))}</span>
       </div>
-      <div class="admin-user-card__role">
-        <label class="form-field">
-          <span>Portal access</span>
-          <select data-role-select>
-            ${internalRoleOptions((user.roles || [])[0] || "ADMIN")}
-          </select>
-        </label>
-        <button class="button button--ghost button--small" type="button" data-organization-admin-action="role" data-user-id="${escapeHtml(user.id)}">Update access</button>
-      </div>
+      ${roleControls}
       <div class="organization-row__actions">
-        <button class="button button--ghost button--small" type="button" data-organization-admin-action="reset-password" data-user-id="${escapeHtml(user.id)}">Reset password</button>
-        <button class="button ${disabled ? "button--primary" : "button--ghost"} button--small" type="button" data-organization-admin-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}">${disabled ? "Enable" : "Disable"}</button>
+        <button class="button button--ghost button--small" type="button" data-organization-admin-action="reset-password" data-user-id="${escapeHtml(user.id)}" ${platformOwner ? "disabled" : ""}>Reset password</button>
+        <button class="button ${disabled ? "button--primary" : "button--ghost"} button--small" type="button" data-organization-admin-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}" ${platformOwner ? "disabled" : ""}>${disabled ? "Enable" : "Disable"}</button>
       </div>
     </article>
   `;
@@ -3001,12 +3008,9 @@ function updateInternalProvisioningRoleState(form, context = {}) {
   }
 
   if (companyField && companyInput) {
-    const hideCompanyField = hasRole("SUPER_ADMIN") && roleSelect?.value === "SUPER_ADMIN";
-    companyField.classList.toggle("is-hidden", !hasRole("SUPER_ADMIN") || hideCompanyField);
-    companyInput.required = hasRole("SUPER_ADMIN") && roleSelect?.value !== "SUPER_ADMIN";
-    if (hideCompanyField) {
-      companyInput.value = "";
-    } else if (!hasRole("SUPER_ADMIN") && currentSession?.organizationCode) {
+    companyField.classList.toggle("is-hidden", !hasRole("SUPER_ADMIN"));
+    companyInput.required = hasRole("SUPER_ADMIN");
+    if (!hasRole("SUPER_ADMIN") && currentSession?.organizationCode) {
       companyInput.value = currentSession.organizationCode;
     }
   }
@@ -3158,23 +3162,16 @@ function validateInternalUser(payload) {
   if (!isEmail(payload.email || "")) {
     return "Use a valid work email.";
   }
-  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN", "SUPER_ADMIN"].includes(payload.role)) {
+  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
   }
   const rule = provisioningRuleForRole(payload.role);
-  if (payload.role === "SUPER_ADMIN" && !hasRole("SUPER_ADMIN")) {
-    return "Only SUPER_ADMIN can issue super admin access.";
-  }
-  if (payload.role !== "SUPER_ADMIN" && hasRole("SUPER_ADMIN") && !payload.companyCode) {
+  if (hasRole("SUPER_ADMIN") && !payload.companyCode) {
     return "Enter the organization code for this account.";
   }
   if (rule.mode === "locked") {
     if (payload.department && departmentKey(payload.department) !== departmentKey(rule.department)) {
       return `${formatInternalRole(payload.role)} must use the ${rule.department} department.`;
-    }
-  } else if (rule.mode === "hidden") {
-    if (payload.department) {
-      return "Super admin access does not use a department.";
     }
   } else if (payload.department) {
     const departmentError = validateDepartmentValue(payload.department);

@@ -1,17 +1,23 @@
 package com.visitor.management.service;
 
 import com.visitor.management.dto.AdminPasswordResetRequest;
+import com.visitor.management.dto.SuperAdminCreateRequest;
+import com.visitor.management.dto.SuperAdminOtpRequest;
+import com.visitor.management.dto.SuperAdminOtpResponse;
 import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
+import com.visitor.management.exception.UnauthorizedException;
 import com.visitor.management.repository.RefreshTokenRepository;
+import com.visitor.management.repository.SuperAdminCreationOtpRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.validation.UsernamePolicy;
 import org.springframework.data.domain.Sort;
@@ -20,8 +26,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.Duration;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -31,28 +40,44 @@ public class AdminUserService {
     private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,128}$");
     private static final String SECURITY_DEPARTMENT = "Security";
     private static final String ADMINISTRATION_DEPARTMENT = "Administration";
+    private static final Duration SUPER_ADMIN_OTP_EXPIRY = Duration.ofMinutes(5);
+    private static final Duration SUPER_ADMIN_OTP_RESEND_COOLDOWN = Duration.ofSeconds(60);
+    private static final int SUPER_ADMIN_OTP_MAX_ATTEMPTS = 5;
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final SuperAdminCreationOtpRepository superAdminCreationOtpRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationService organizationService;
     private final DepartmentService departmentService;
     private final AccessAuditService accessAuditService;
+    private final TokenService tokenService;
+    private final EmailService emailService;
+    private final RateLimitService rateLimitService;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public AdminUserService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
+            SuperAdminCreationOtpRepository superAdminCreationOtpRepository,
             PasswordEncoder passwordEncoder,
             OrganizationService organizationService,
             DepartmentService departmentService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            TokenService tokenService,
+            EmailService emailService,
+            RateLimitService rateLimitService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.superAdminCreationOtpRepository = superAdminCreationOtpRepository;
         this.passwordEncoder = passwordEncoder;
         this.organizationService = organizationService;
         this.departmentService = departmentService;
         this.accessAuditService = accessAuditService;
+        this.tokenService = tokenService;
+        this.emailService = emailService;
+        this.rateLimitService = rateLimitService;
     }
 
     public List<AdminUserResponse> listUsers(Authentication authentication) {
@@ -69,8 +94,8 @@ public class AdminUserService {
 
     public AdminUserResponse createUser(AdminUserCreateRequest request, Authentication authentication) {
         Role role = request.role();
-        validateCreatableRole(role, authentication);
         User actor = currentUser(authentication);
+        validateCreatableRole(role, authentication, actor);
         Organization organization = resolveOrganizationForCreate(request, role, actor, authentication);
 
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
@@ -99,6 +124,88 @@ public class AdminUserService {
         user.setAccountStatus(AccountStatus.ACTIVE);
         User saved = userRepository.save(user);
         accessAuditService.recordAccountCreated(actor, saved);
+        return toResponse(saved);
+    }
+
+    public SuperAdminOtpResponse initiateSuperAdminCreation(SuperAdminOtpRequest request, Authentication authentication) {
+        User actor = currentUser(authentication);
+        requireSuperAdmin(authentication, actor);
+        rateLimitService.check("super-admin-creation-otp", actor.getId(), 3, Duration.ofMinutes(15));
+
+        if (!passwordEncoder.matches(request.password(), actor.getPasswordHash())) {
+            accessAuditService.recordSuperAdminOtpGeneration(actor, "DENIED", "Password confirmation failed before OTP generation.");
+            throw new UnauthorizedException("Password confirmation failed.");
+        }
+
+        Instant now = Instant.now();
+        Optional<SuperAdminCreationOtp> latest = superAdminCreationOtpRepository.findTopByActorUserIdAndUsedAtIsNullOrderByCreatedAtDesc(actor.getId());
+        if (latest.isPresent()) {
+            SuperAdminCreationOtp token = latest.get();
+            if (token.getResendAvailableAt() != null
+                    && token.getResendAvailableAt().isAfter(now)
+                    && token.getExpiresAt() != null
+                    && token.getExpiresAt().isAfter(now)
+                    && token.getLockedAt() == null
+                    && token.getVerifiedAt() == null) {
+                accessAuditService.recordSuperAdminOtpGeneration(actor, "DENIED", "OTP generation was requested before the resend cooldown elapsed.");
+                throw new BadRequestException("A SUPER_ADMIN verification code was already sent. Please wait before requesting another.");
+            }
+            token.setUsedAt(now);
+            superAdminCreationOtpRepository.save(token);
+        }
+
+        String otp = "%06d".formatted(secureRandom.nextInt(1_000_000));
+        Instant expiresAt = now.plus(SUPER_ADMIN_OTP_EXPIRY);
+        SuperAdminCreationOtp token = new SuperAdminCreationOtp();
+        token.setActorUserId(actor.getId());
+        token.setOtpHash(tokenService.hash(actor.getId() + ":" + otp));
+        token.setExpiresAt(expiresAt);
+        token.setResendAvailableAt(now.plus(SUPER_ADMIN_OTP_RESEND_COOLDOWN));
+        token.setMaxAttempts(SUPER_ADMIN_OTP_MAX_ATTEMPTS);
+        token.setCreatedAt(now);
+        superAdminCreationOtpRepository.save(token);
+
+        emailService.sendSuperAdminCreationOtp(actor.getEmail(), actor.getFullName(), otp);
+        accessAuditService.recordSuperAdminOtpGeneration(actor, "SUCCESS", "SUPER_ADMIN creation OTP generated and sent to the authenticated platform owner.");
+        return new SuperAdminOtpResponse(expiresAt, SUPER_ADMIN_OTP_MAX_ATTEMPTS);
+    }
+
+    public AdminUserResponse createSuperAdmin(SuperAdminCreateRequest request, Authentication authentication) {
+        User actor = currentUser(authentication);
+        requireSuperAdmin(authentication, actor);
+        rateLimitService.check("super-admin-creation-verify", actor.getId(), 10, Duration.ofMinutes(10));
+        accessAuditService.recordSuperAdminCreationAttempt(actor, request.email(), "PENDING", "SUPER_ADMIN creation requested through OTP-confirmed flow.");
+
+        if (!passwordEncoder.matches(request.currentPassword(), actor.getPasswordHash())) {
+            accessAuditService.recordSuperAdminOtpVerification(actor, "DENIED", "Password confirmation failed during SUPER_ADMIN creation.");
+            throw new UnauthorizedException("Password confirmation failed.");
+        }
+
+        verifySuperAdminCreationOtp(actor, request.otp());
+
+        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+            throw new ConflictException("An account with this email already exists.");
+        }
+
+        String username = normalizeUsername(request.username());
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new ConflictException("An account with this username already exists.");
+        }
+
+        validateStrongPassword(request.password());
+
+        User user = new User();
+        user.setFullName(request.fullName().trim());
+        user.setUsername(username);
+        user.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setPhone(trimToNull(request.phone()));
+        user.setRoles(Set.of(Role.SUPER_ADMIN));
+        user.setActive(true);
+        user.setAccountStatus(AccountStatus.ACTIVE);
+
+        User saved = userRepository.save(user);
+        accessAuditService.recordSuperAdminCreated(actor, saved);
         return toResponse(saved);
     }
 
@@ -143,7 +250,7 @@ public class AdminUserService {
         User user = findUser(id);
         validateMutableAccount(user, authentication);
         Role role = request.role();
-        validateReassignableRole(role, authentication);
+        validateReassignableRole(role, authentication, actor);
         if (user.getRoles().contains(role) && user.getRoles().size() == 1) {
             return toResponse(user);
         }
@@ -162,20 +269,29 @@ public class AdminUserService {
         return toResponse(saved);
     }
 
-    private void validateCreatableRole(Role role, Authentication authentication) {
+    private void validateCreatableRole(Role role, Authentication authentication, User actor) {
         if (role == Role.VISITOR) {
             throw new BadRequestException("This role cannot be created from internal user management.");
         }
-        if ((role == Role.ADMIN || role == Role.SUPER_ADMIN) && !hasRole(authentication, Role.SUPER_ADMIN)) {
+        if (role == Role.SUPER_ADMIN) {
+            accessAuditService.recordPrivilegeEscalationAttempt(actor, role,
+                    "SUPER_ADMIN creation was attempted through standard internal user management.");
+            throw new BadRequestException("SUPER_ADMIN accounts require the secure OTP-confirmed creation flow.");
+        }
+        if (role == Role.ADMIN && !hasRole(authentication, Role.SUPER_ADMIN)) {
             throw new BadRequestException("Only SUPER_ADMIN can create admin accounts.");
         }
-        if (role != Role.ADMIN && role != Role.EMPLOYEE && role != Role.SECURITY_GUARD && role != Role.SUPER_ADMIN) {
+        if (role != Role.ADMIN && role != Role.EMPLOYEE && role != Role.SECURITY_GUARD) {
             throw new BadRequestException("Unsupported internal account role.");
         }
     }
 
-    private void validateReassignableRole(Role role, Authentication authentication) {
+    private void validateReassignableRole(Role role, Authentication authentication, User actor) {
         if (role == Role.SUPER_ADMIN || role == Role.VISITOR) {
+            if (role == Role.SUPER_ADMIN) {
+                accessAuditService.recordPrivilegeEscalationAttempt(actor, role,
+                        "SUPER_ADMIN promotion was attempted through standard internal role management.");
+            }
             throw new BadRequestException("This role cannot be assigned from internal user management.");
         }
         if (role == Role.ADMIN && !hasRole(authentication, Role.SUPER_ADMIN)) {
@@ -189,7 +305,12 @@ public class AdminUserService {
     private void validateMutableAccount(User user, Authentication authentication) {
         User actor = currentUser(authentication);
         if (user.getRoles().contains(Role.SUPER_ADMIN)) {
-            throw new BadRequestException("SUPER_ADMIN accounts are managed by the secure environment bootstrap process.");
+            accessAuditService.recordPrivilegeEscalationAttempt(actor, Role.SUPER_ADMIN,
+                    "SUPER_ADMIN account mutation was attempted through standard internal user management.");
+            if (userRepository.countByRolesContainingAndActiveTrueAndAccountStatus(Role.SUPER_ADMIN, AccountStatus.ACTIVE) <= 1) {
+                throw new BadRequestException("The last active SUPER_ADMIN account cannot be changed.");
+            }
+            throw new BadRequestException("SUPER_ADMIN accounts require secure platform-owner workflows.");
         }
         if (user.getRoles().contains(Role.ADMIN) && !hasRole(authentication, Role.SUPER_ADMIN)) {
             throw new BadRequestException("Only SUPER_ADMIN can manage admin accounts.");
@@ -265,6 +386,50 @@ public class AdminUserService {
         }
         return userRepository.findById(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+    }
+
+    private void requireSuperAdmin(Authentication authentication, User actor) {
+        if (!hasRole(authentication, Role.SUPER_ADMIN) || actor.getRoles() == null || !actor.getRoles().contains(Role.SUPER_ADMIN)) {
+            accessAuditService.recordPrivilegeEscalationAttempt(actor, Role.SUPER_ADMIN,
+                    "Non-SUPER_ADMIN account attempted to use the secure SUPER_ADMIN creation flow.");
+            throw new BadRequestException("Only SUPER_ADMIN can use this platform-owner flow.");
+        }
+    }
+
+    private void verifySuperAdminCreationOtp(User actor, String otp) {
+        SuperAdminCreationOtp token = superAdminCreationOtpRepository.findTopByActorUserIdAndUsedAtIsNullOrderByCreatedAtDesc(actor.getId())
+                .orElseThrow(() -> invalidSuperAdminOtp(actor, "No active SUPER_ADMIN creation OTP was found."));
+
+        Instant now = Instant.now();
+        if (token.getLockedAt() != null
+                || token.getVerifiedAt() != null
+                || token.getUsedAt() != null
+                || token.getExpiresAt() == null
+                || token.getExpiresAt().isBefore(now)
+                || token.getOtpHash() == null) {
+            throw invalidSuperAdminOtp(actor, "SUPER_ADMIN creation OTP was expired, locked, used, or unavailable.");
+        }
+
+        String expectedHash = tokenService.hash(actor.getId() + ":" + otp);
+        if (!expectedHash.equals(token.getOtpHash())) {
+            token.setAttempts(token.getAttempts() + 1);
+            if (token.getAttempts() >= token.getMaxAttempts()) {
+                token.setLockedAt(now);
+            }
+            superAdminCreationOtpRepository.save(token);
+            throw invalidSuperAdminOtp(actor, "SUPER_ADMIN creation OTP verification failed.");
+        }
+
+        token.setOtpHash(null);
+        token.setVerifiedAt(now);
+        token.setUsedAt(now);
+        superAdminCreationOtpRepository.save(token);
+        accessAuditService.recordSuperAdminOtpVerification(actor, "SUCCESS", "SUPER_ADMIN creation OTP verified and invalidated.");
+    }
+
+    private UnauthorizedException invalidSuperAdminOtp(User actor, String detail) {
+        accessAuditService.recordSuperAdminOtpVerification(actor, "DENIED", detail);
+        return new UnauthorizedException("Invalid or expired SUPER_ADMIN verification code.");
     }
 
     private Organization resolveOrganizationForCreate(AdminUserCreateRequest request, Role role, User actor, Authentication authentication) {

@@ -12,6 +12,9 @@ import com.visitor.management.dto.DepartmentUpdateRequest;
 import com.visitor.management.dto.HomepageSettingsRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
+import com.visitor.management.dto.SuperAdminCreateRequest;
+import com.visitor.management.dto.SuperAdminOtpRequest;
+import com.visitor.management.dto.SuperAdminOtpResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
@@ -108,6 +111,24 @@ public class AdminController {
     @PostMapping("/users")
     public ApiResponse<AdminUserResponse> createUser(@Valid @RequestBody AdminUserCreateRequest request, Authentication authentication) {
         return ApiResponse.ok("Internal account created.", adminUserService.createUser(request, authentication));
+    }
+
+    @PostMapping("/super-admins/otp")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<SuperAdminOtpResponse> initiateSuperAdminCreation(
+            @Valid @RequestBody SuperAdminOtpRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("SUPER_ADMIN verification code sent.", adminUserService.initiateSuperAdminCreation(request, authentication));
+    }
+
+    @PostMapping("/super-admins")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<AdminUserResponse> createSuperAdmin(
+            @Valid @RequestBody SuperAdminCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("SUPER_ADMIN account created.", adminUserService.createSuperAdmin(request, authentication));
     }
 
     @PatchMapping("/users/{id}/disable")

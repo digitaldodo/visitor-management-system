@@ -32,9 +32,21 @@ public class SendGridEmailService implements EmailService {
                 toEmail,
                 safeName(recipientName),
                 "Your AccessFlow password reset code",
-                plainTextBody(recipientName, otp),
-                htmlBody(recipientName, otp),
+                passwordResetPlainTextBody(recipientName, otp),
+                passwordResetHtmlBody(recipientName, otp),
                 "Password reset verification code"
+        );
+    }
+
+    @Override
+    public void sendSuperAdminCreationOtp(String toEmail, String recipientName, String otp) {
+        sendEmail(
+                toEmail,
+                safeName(recipientName),
+                "Confirm AccessFlow platform-owner creation",
+                superAdminCreationPlainTextBody(recipientName, otp),
+                superAdminCreationHtmlBody(recipientName, otp),
+                "SUPER_ADMIN creation verification code"
         );
     }
 
@@ -127,7 +139,7 @@ public class SendGridEmailService implements EmailService {
                 """.formatted(escapedTitle, escapedName, escapedMessage, action);
     }
 
-    private String plainTextBody(String recipientName, String otp) {
+    private String passwordResetPlainTextBody(String recipientName, String otp) {
         return """
                 AccessFlow password reset
 
@@ -139,7 +151,7 @@ public class SendGridEmailService implements EmailService {
                 """.formatted(safeName(recipientName), otp);
     }
 
-    private String htmlBody(String recipientName, String otp) {
+    private String passwordResetHtmlBody(String recipientName, String otp) {
         String escapedName = escapeHtml(safeName(recipientName));
         String escapedOtp = escapeHtml(otp);
         return """
@@ -163,6 +175,53 @@ public class SendGridEmailService implements EmailService {
                                 <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1d4ed8;font-size:32px;font-weight:800;letter-spacing:8px;padding:18px 20px;text-align:center;">%s</div>
                                 <p style="margin:20px 0 0;font-size:14px;line-height:1.5;color:#475467;">This code expires in 5 minutes.</p>
                                 <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#b42318;"><strong>Security warning:</strong> If you did not request this reset, do not share this code and contact your administrator immediately.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </body>
+                </html>
+                """.formatted(escapedName, escapedOtp);
+    }
+
+    private String superAdminCreationPlainTextBody(String recipientName, String otp) {
+        return """
+                AccessFlow platform-owner confirmation
+
+                Hi %s,
+
+                Your verification code for creating another SUPER_ADMIN account is %s.
+
+                This code expires in 5 minutes. If you did not initiate this request, do not share this code and review platform audit logs immediately.
+                """.formatted(safeName(recipientName), otp);
+    }
+
+    private String superAdminCreationHtmlBody(String recipientName, String otp) {
+        String escapedName = escapeHtml(safeName(recipientName));
+        String escapedOtp = escapeHtml(otp);
+        return """
+                <!doctype html>
+                <html>
+                  <body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#101828;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;">
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e7ec;border-radius:8px;overflow:hidden;">
+                            <tr>
+                              <td style="background:#101828;color:#ffffff;padding:24px 28px;">
+                                <div style="font-size:13px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#bfdbfe;">AccessFlow Security</div>
+                                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">Platform-owner confirmation</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:28px;">
+                                <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Hi %s,</p>
+                                <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Use this verification code to confirm creating another AccessFlow SUPER_ADMIN account.</p>
+                                <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:32px;font-weight:800;letter-spacing:8px;padding:18px 20px;text-align:center;">%s</div>
+                                <p style="margin:20px 0 0;font-size:14px;line-height:1.5;color:#475467;">This code expires in 5 minutes.</p>
+                                <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#b42318;"><strong>Security warning:</strong> If you did not initiate this request, do not share this code and review platform audit logs immediately.</p>
                               </td>
                             </tr>
                           </table>

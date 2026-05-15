@@ -51,6 +51,29 @@ public class AccessAuditService {
                 "Created %s account for %s.".formatted(renderRoles(createdUser.getRoles()), normalize(createdUser.getEmail(), createdUser.getId())));
     }
 
+    public void recordSuperAdminCreated(User actor, User createdUser) {
+        record(actor, "SUPER_ADMIN_CREATED", "USER_ACCOUNT", createdUser.getId(), createdUser.getFullName(), "SUCCESS",
+                "Created SUPER_ADMIN account for %s through the OTP-confirmed flow.".formatted(normalize(createdUser.getEmail(), createdUser.getId())));
+    }
+
+    public void recordSuperAdminCreationAttempt(User actor, String targetEmail, String outcome, String detail) {
+        record(actor, "SUPER_ADMIN_CREATION_ATTEMPT", "USER_ACCOUNT", null, normalize(targetEmail, "pending SUPER_ADMIN"), outcome, detail);
+    }
+
+    public void recordSuperAdminOtpGeneration(User actor, String outcome, String detail) {
+        record(actor, "SUPER_ADMIN_OTP_GENERATION", "SUPER_ADMIN_CREATION_OTP", actor != null ? actor.getId() : null,
+                actor != null ? actor.getFullName() : null, outcome, detail);
+    }
+
+    public void recordSuperAdminOtpVerification(User actor, String outcome, String detail) {
+        record(actor, "SUPER_ADMIN_OTP_VERIFICATION", "SUPER_ADMIN_CREATION_OTP", actor != null ? actor.getId() : null,
+                actor != null ? actor.getFullName() : null, outcome, detail);
+    }
+
+    public void recordPrivilegeEscalationAttempt(User actor, Role attemptedRole, String detail) {
+        record(actor, "PRIVILEGE_ESCALATION_ATTEMPT", "USER_ACCOUNT", null, attemptedRole != null ? attemptedRole.name() : "UNKNOWN_ROLE", "DENIED", detail);
+    }
+
     public void recordRoleChanged(User actor, User targetUser, Set<Role> previousRoles, Set<Role> currentRoles) {
         record(actor, targetUser.getOrganizationId(), targetUser.getOrganizationName(), targetUser.getOrganizationCode(),
                 "ROLE_CHANGED", "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS",

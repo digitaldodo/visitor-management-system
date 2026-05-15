@@ -2,6 +2,7 @@ package com.visitor.management.config;
 
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.AccessAuditLog;
+import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorAuditLog;
 import org.slf4j.Logger;
@@ -13,6 +14,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
+
+import java.time.Duration;
 
 @Configuration
 @Profile("!test")
@@ -51,6 +54,10 @@ public class MongoIndexConfig {
                         .on("action", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("access_audit_action_created_idx"));
+                mongoTemplate.indexOps(SuperAdminCreationOtp.class).createIndex(new Index()
+                        .on("expiresAt", Sort.Direction.ASC)
+                        .expire(Duration.ZERO)
+                        .named("super_admin_creation_otp_ttl_idx"));
                 log.info("AccessFlow MongoDB indexes verified.");
             } catch (RuntimeException ex) {
                 log.warn("AccessFlow MongoDB indexes could not be verified during startup: {}", ex.getMessage());

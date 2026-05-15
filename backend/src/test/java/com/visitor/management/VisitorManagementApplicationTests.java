@@ -2,6 +2,7 @@ package com.visitor.management;
 
 import com.visitor.management.repository.PasswordResetTokenRepository;
 import com.visitor.management.repository.RefreshTokenRepository;
+import com.visitor.management.repository.SuperAdminCreationOtpRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.AccessAuditLogRepository;
@@ -15,10 +16,13 @@ import com.visitor.management.entity.Department;
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.security.JwtService;
+import com.visitor.management.service.EmailService;
+import com.visitor.management.service.TokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,10 +41,13 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.util.Optional;
 import java.util.Set;
 import java.util.List;
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -62,6 +69,9 @@ class VisitorManagementApplicationTests {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private TokenService tokenService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -95,6 +105,12 @@ class VisitorManagementApplicationTests {
 
     @MockitoBean
     private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @MockitoBean
+    private SuperAdminCreationOtpRepository superAdminCreationOtpRepository;
+
+    @MockitoBean
+    private EmailService emailService;
 
     @MockitoBean
     private MongoTemplate mongoTemplate;
@@ -140,6 +156,7 @@ class VisitorManagementApplicationTests {
             return department;
         });
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(superAdminCreationOtpRepository.save(any(SuperAdminCreationOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.save(any(AccessAuditLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of());
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -668,6 +685,167 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void standardInternalUserCreationRejectsSuperAdminForEveryActor() throws Exception {
+        String body = """
+                {
+                  "fullName": "Platform Owner",
+                  "username": "platformowner01",
+                  "email": "platform.owner@example.com",
+                  "password": "SecurePass123!",
+                  "role": "SUPER_ADMIN"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE))
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("visitor-id", Role.VISITOR))
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void tenantAdminCannotSelfPromoteToSuperAdmin() throws Exception {
+        mockMvc.perform(patch("/api/v1/admin/users/admin-id/role")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "role": "SUPER_ADMIN"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void superAdminCreationRequiresOtp() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/super-admins")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "currentPassword": "SecurePass123!",
+                                  "otp": "123456",
+                                  "fullName": "Platform Owner",
+                                  "username": "platformowner01",
+                                  "email": "platform.owner@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void superAdminCreationRejectsInvalidOtp() throws Exception {
+        SuperAdminCreationOtp token = superAdminCreationOtp("super-admin-id", "654321", Instant.now().plusSeconds(300));
+        when(superAdminCreationOtpRepository.findTopByActorUserIdAndUsedAtIsNullOrderByCreatedAtDesc("super-admin-id"))
+                .thenReturn(Optional.of(token));
+
+        mockMvc.perform(post("/api/v1/admin/super-admins")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "currentPassword": "SecurePass123!",
+                                  "otp": "123456",
+                                  "fullName": "Platform Owner",
+                                  "username": "platformowner01",
+                                  "email": "platform.owner@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void superAdminCreationRejectsExpiredOtp() throws Exception {
+        SuperAdminCreationOtp token = superAdminCreationOtp("super-admin-id", "123456", Instant.now().minusSeconds(1));
+        when(superAdminCreationOtpRepository.findTopByActorUserIdAndUsedAtIsNullOrderByCreatedAtDesc("super-admin-id"))
+                .thenReturn(Optional.of(token));
+
+        mockMvc.perform(post("/api/v1/admin/super-admins")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "currentPassword": "SecurePass123!",
+                                  "otp": "123456",
+                                  "fullName": "Platform Owner",
+                                  "username": "platformowner01",
+                                  "email": "platform.owner@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void superAdminCanCreateSuperAdminOnlyAfterPasswordAndOtpConfirmation() throws Exception {
+        AtomicReference<SuperAdminCreationOtp> tokenStore = new AtomicReference<>();
+        AtomicReference<String> deliveredOtp = new AtomicReference<>();
+        when(superAdminCreationOtpRepository.findTopByActorUserIdAndUsedAtIsNullOrderByCreatedAtDesc("super-admin-id"))
+                .thenAnswer(invocation -> Optional.ofNullable(tokenStore.get()));
+        when(superAdminCreationOtpRepository.save(any(SuperAdminCreationOtp.class))).thenAnswer(invocation -> {
+            SuperAdminCreationOtp token = invocation.getArgument(0);
+            tokenStore.set(token);
+            return token;
+        });
+        doAnswer(invocation -> {
+            deliveredOtp.set(invocation.getArgument(2));
+            return null;
+        }).when(emailService).sendSuperAdminCreationOtp(any(), any(), any());
+
+        mockMvc.perform(post("/api/v1/admin/super-admins/otp")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "password": "SecurePass123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiresAt").exists())
+                .andExpect(jsonPath("$.data.maxAttempts").value(5))
+                .andExpect(jsonPath("$.data.otp").doesNotExist());
+
+        mockMvc.perform(post("/api/v1/admin/super-admins")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "currentPassword": "SecurePass123!",
+                                  "otp": "%s",
+                                  "fullName": "Platform Owner",
+                                  "username": "platformowner01",
+                                  "email": "platform.owner@example.com",
+                                  "password": "SecurePass123!"
+                                }
+                                """.formatted(deliveredOtp.get())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("SUPER_ADMIN"))
+                .andExpect(jsonPath("$.data.organizationId").doesNotExist());
+
+        verify(emailService).sendSuperAdminCreationOtp(eq("super-admin-id@example.com"), eq("super-admin-id"), any());
+    }
+
+    @Test
     void adminCanChangeEmployeeToSecurityGuardInternally() throws Exception {
         mockMvc.perform(patch("/api/v1/admin/users/employee-target-id/role")
                         .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
@@ -896,6 +1074,16 @@ class VisitorManagementApplicationTests {
         user.setOrganizationName(organizationName);
         user.setOrganizationCode(organizationCode);
         return user;
+    }
+
+    private SuperAdminCreationOtp superAdminCreationOtp(String actorUserId, String otp, Instant expiresAt) {
+        SuperAdminCreationOtp token = new SuperAdminCreationOtp();
+        token.setActorUserId(actorUserId);
+        token.setOtpHash(tokenService.hash(actorUserId + ":" + otp));
+        token.setExpiresAt(expiresAt);
+        token.setMaxAttempts(5);
+        token.setCreatedAt(Instant.now());
+        return token;
     }
 
     private Organization organization(String id, String companyName, String companyCode) {
