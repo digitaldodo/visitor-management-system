@@ -58,7 +58,7 @@ const ROUTE_DEFINITIONS = {
     eyebrow: "Audit Exports",
     title: "Reports Workspace",
     description: "Review reporting and export activity in a dedicated oversight area designed for audit workflows.",
-    badges: ["Super admin only", "Audit oversight", "Export visibility"],
+    badges: ["Organization-scoped", "Audit oversight", "Export visibility"],
   },
   monitoring: {
     slug: "monitoring",
@@ -66,7 +66,7 @@ const ROUTE_DEFINITIONS = {
     eyebrow: "Platform Health",
     title: "Monitoring Workspace",
     description: "Keep system status, service signals, and operational health visible without crowding the rest of the admin experience.",
-    badges: ["Admin access", "Service health", "Operational signals"],
+    badges: ["Super admin only", "Service health", "Operational signals"],
   },
   "visitor-access": {
     slug: "visitor-access",

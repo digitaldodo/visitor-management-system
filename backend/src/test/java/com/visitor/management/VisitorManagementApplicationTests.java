@@ -1007,10 +1007,10 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
-    void superAdminCannotUseAdminVisitorWorkflowEndpoints() throws Exception {
+    void superAdminCanUseAdminVisitorWorkflowEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/admin/visitors?page=0&size=20")
                         .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     private void assertLoginPayload(String identifier, String companyCode, String portalAudience, Role expectedRole, String expectedUserId) throws Exception {

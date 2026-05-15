@@ -4,6 +4,7 @@ import com.mongodb.client.MongoCollection;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.UserRepository;
 import org.bson.Document;
 import org.springframework.cache.annotation.Cacheable;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,10 +29,12 @@ public class AnalyticsService {
 
     private final MongoTemplate mongoTemplate;
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
 
-    public AnalyticsService(MongoTemplate mongoTemplate, UserRepository userRepository) {
+    public AnalyticsService(MongoTemplate mongoTemplate, UserRepository userRepository, OrganizationRepository organizationRepository) {
         this.mongoTemplate = mongoTemplate;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     @Cacheable("adminAnalytics")
@@ -39,9 +43,11 @@ public class AnalyticsService {
     }
 
     public Map<String, Object> adminDashboard(String actorId) {
-        String organizationId = scopeOrganizationId(actorId);
-        Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant todayEnd = todayStart.plusSeconds(24 * 60 * 60);
+        AnalyticsScope scopeContext = analyticsScope(actorId);
+        String organizationId = scopeContext.organizationId();
+        ZoneId timezone = scopeContext.zoneId();
+        Instant todayStart = LocalDate.now(timezone).atStartOfDay(timezone).toInstant();
+        Instant todayEnd = LocalDate.now(timezone).plusDays(1).atStartOfDay(timezone).toInstant();
         Document scope = scopeFilter(organizationId);
 
         long totalVisitors = count(scope);
@@ -54,26 +60,27 @@ public class AnalyticsService {
                 widget("Total visitors", totalVisitors, "All registered visitor records"),
                 widget("Active visitors", activeVisitors, "Currently checked in"),
                 widget("Pending approvals", pendingApprovals, "Awaiting host action"),
-                widget("Today's check-ins", todayCheckIns, "Checked in since midnight UTC"),
+                widget("Today's check-ins", todayCheckIns, "Checked in since midnight " + timezone.getId()),
                 widget("Rejected visitors", rejectedVisitors, "Denied visit requests")
         );
 
         return Map.of(
+                "timezone", timezone.getId(),
                 "widgets", widgets,
                 "employeeAnalytics", employeeAnalytics(organizationId),
-                "dailyVisitors", dailyVisitors(organizationId),
-                "monthlyTrends", monthlyTrends(organizationId),
-                "peakHours", peakHours(organizationId),
+                "dailyVisitors", dailyVisitors(organizationId, timezone),
+                "monthlyTrends", monthlyTrends(organizationId, timezone),
+                "peakHours", peakHours(organizationId, timezone),
                 "approvalRates", approvalRates(organizationId)
         );
     }
 
-    private List<Map<String, Object>> dailyVisitors(String organizationId) {
-        LocalDate startDate = LocalDate.now(ZoneOffset.UTC).minusDays(13);
-        Instant start = startDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+    private List<Map<String, Object>> dailyVisitors(String organizationId, ZoneId timezone) {
+        LocalDate startDate = LocalDate.now(timezone).minusDays(13);
+        Instant start = startDate.atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
                 new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
-                new Document("$group", new Document("_id", dateString("$checkInTime", "%Y-%m-%d")).append("count", new Document("$sum", 1))),
+                new Document("$group", new Document("_id", dateString("$checkInTime", "%Y-%m-%d", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
 
@@ -86,12 +93,12 @@ public class AnalyticsService {
         return series;
     }
 
-    private List<Map<String, Object>> monthlyTrends(String organizationId) {
-        YearMonth startMonth = YearMonth.now(ZoneOffset.UTC).minusMonths(11);
-        Instant start = startMonth.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    private List<Map<String, Object>> monthlyTrends(String organizationId, ZoneId timezone) {
+        YearMonth startMonth = YearMonth.now(timezone).minusMonths(11);
+        Instant start = startMonth.atDay(1).atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
                 new Document("$match", withScope(new Document("createdAt", new Document("$gte", Date.from(start))), organizationId)),
-                new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m")).append("count", new Document("$sum", 1))),
+                new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
 
@@ -104,11 +111,11 @@ public class AnalyticsService {
         return series;
     }
 
-    private List<Map<String, Object>> peakHours(String organizationId) {
-        Instant start = LocalDate.now(ZoneOffset.UTC).minusDays(29).atStartOfDay().toInstant(ZoneOffset.UTC);
+    private List<Map<String, Object>> peakHours(String organizationId, ZoneId timezone) {
+        Instant start = LocalDate.now(timezone).minusDays(29).atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
                 new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
-                new Document("$group", new Document("_id", dateString("$checkInTime", "%H")).append("count", new Document("$sum", 1))),
+                new Document("$group", new Document("_id", dateString("$checkInTime", "%H", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
 
@@ -208,8 +215,8 @@ public class AnalyticsService {
         return new Document("$gte", Date.from(start)).append("$lt", Date.from(end));
     }
 
-    private Document dateString(String field, String format) {
-        return new Document("$dateToString", new Document("format", format).append("date", field).append("timezone", "UTC"));
+    private Document dateString(String field, String format, ZoneId timezone) {
+        return new Document("$dateToString", new Document("format", format).append("date", field).append("timezone", timezone.getId()));
     }
 
     private Document conditionalStatus(VisitorStatus status) {
@@ -251,14 +258,38 @@ public class AnalyticsService {
         return fallbackValue == null || fallbackValue.isBlank() ? "Unassigned" : fallbackValue;
     }
 
-    private String scopeOrganizationId(String actorId) {
+    private AnalyticsScope analyticsScope(String actorId) {
         if (actorId == null) {
-            return null;
+            return new AnalyticsScope(null, ZoneOffset.UTC);
         }
         User user = userRepository.findById(actorId).orElse(null);
         if (user == null || user.getRoles().contains(Role.SUPER_ADMIN)) {
-            return null;
+            return new AnalyticsScope(null, ZoneOffset.UTC);
         }
-        return user.getOrganizationId();
+        return new AnalyticsScope(user.getOrganizationId(), resolveZoneId(user));
+    }
+
+    private ZoneId resolveZoneId(User user) {
+        String timezone = null;
+        if (trimToNull(user.getOrganizationId()) != null) {
+            timezone = organizationRepository.findById(user.getOrganizationId())
+                    .map(organization -> trimToNull(organization.getTimezone()))
+                    .orElse(null);
+        }
+        if (timezone == null) {
+            timezone = trimToNull(user.getOrganizationTimezone());
+        }
+        try {
+            return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone);
+        } catch (RuntimeException ex) {
+            return ZoneOffset.UTC;
+        }
+    }
+
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private record AnalyticsScope(String organizationId, ZoneId zoneId) {
     }
 }

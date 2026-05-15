@@ -572,11 +572,12 @@ public class VisitorService {
 
     public List<Map<String, Object>> metrics(String actorId) {
         User actor = actorId == null ? null : currentUser(actorId);
-        Instant start = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant end = start.plusSeconds(24 * 60 * 60);
+        ZoneId timezone = organizationZoneId(actor);
+        Instant start = LocalDate.now(timezone).atStartOfDay(timezone).toInstant();
+        Instant end = LocalDate.now(timezone).plusDays(1).atStartOfDay(timezone).toInstant();
         String organizationId = scopeOrganizationId(actor);
         return List.of(
-                Map.of("label", "Visitors today", "value", countCheckIns(organizationId, start, end), "note", "Checked in"),
+                Map.of("label", "Visitors today", "value", countCheckIns(organizationId, start, end), "note", "Checked in since midnight " + timezone.getId()),
                 Map.of("label", "Pending", "value", countStatus(organizationId, VisitorStatus.PENDING), "note", "Awaiting approval"),
                 Map.of("label", "Approved", "value", countStatus(organizationId, VisitorStatus.APPROVED), "note", "Passes generated"),
                 Map.of("label", "On site", "value", countStatus(organizationId, VisitorStatus.CHECKED_IN), "note", "Currently checked in"),
@@ -960,6 +961,28 @@ public class VisitorService {
     private String organizationTimezone(Visitor visitor) {
         String timezone = trimToNull(visitor.getOrganizationTimezone());
         return timezone == null ? "UTC" : timezone;
+    }
+
+    private ZoneId organizationZoneId(User actor) {
+        if (actor == null || hasRole(actor, Role.SUPER_ADMIN)) {
+            return ZoneOffset.UTC;
+        }
+        String timezone = null;
+        if (trimToNull(actor.getOrganizationId()) != null) {
+            try {
+                timezone = trimToNull(organizationService.requireActive(actor.getOrganizationId()).getTimezone());
+            } catch (RuntimeException ex) {
+                timezone = null;
+            }
+        }
+        if (timezone == null) {
+            timezone = trimToNull(actor.getOrganizationTimezone());
+        }
+        try {
+            return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone);
+        } catch (DateTimeException ex) {
+            return ZoneOffset.UTC;
+        }
     }
 
     private String scopeOrganizationId(User actor) {

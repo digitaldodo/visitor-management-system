@@ -1,4 +1,4 @@
-import { formatDate } from "../shared/formatters.js";
+import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js";
 import { getPublicPassVerification } from "../shared/accessService.js";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
@@ -56,6 +56,7 @@ function renderVerification(result) {
     return;
   }
 
+  setDefaultTimezone(result.organizationTimezone || result.scheduledTimezone || "UTC");
   const tone = statusTone(result);
   const badgeLabel = statusLabel(result);
   document.title = `${badgeLabel} | AccessFlow`;
@@ -85,6 +86,7 @@ function renderVerification(result) {
         ${detailCard("Pass code", result.passCode || "Not issued")}
         ${detailCard("Workflow status", result.statusLabel || "Not recorded")}
         ${detailCard("Access window", formatWindow(result.scheduledStartTime, result.scheduledEndTime))}
+        ${detailCard("Timezone", timezoneLabel(result.organizationTimezone || result.scheduledTimezone || "UTC"))}
         ${detailCard("Issued", formatDate(result.issuedAt))}
         ${detailCard("Expires", formatDate(result.expiresAt))}
         ${detailCard("Check-in state", checkInState(result))}

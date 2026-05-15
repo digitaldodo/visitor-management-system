@@ -262,8 +262,8 @@ function preApprovalPayload(form, timezone) {
     email: trim(data.email),
     companyName: trim(data.companyName),
     purposeOfVisit: trim(data.purposeOfVisit),
-    scheduledStartTime: toIsoInstant(data.scheduledStartTime),
-    scheduledEndTime: toIsoInstant(data.scheduledEndTime),
+    scheduledStartTime: toIsoInstant(data.scheduledStartTime, timezone),
+    scheduledEndTime: toIsoInstant(data.scheduledEndTime, timezone),
     timezone,
     note: trim(data.note),
   };
@@ -307,7 +307,7 @@ function timezoneLabelText(timezone) {
 function setScheduleMinimums(form) {
   const start = form.querySelector("[name='scheduledStartTime']");
   const end = form.querySelector("[name='scheduledEndTime']");
-  const min = toDatetimeLocal(new Date(Date.now() + 5 * 60 * 1000));
+  const min = toDatetimeLocal(new Date(Date.now() + 5 * 60 * 1000), getDefaultTimezone());
   start?.setAttribute("min", min);
   end?.setAttribute("min", min);
 }

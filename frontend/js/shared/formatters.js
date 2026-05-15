@@ -58,18 +58,22 @@ export function minutesBetween(start, end = new Date()) {
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / 60000));
 }
 
-export function toIsoInstant(value) {
+export function toIsoInstant(value, timezone = getDefaultTimezone()) {
   if (!value) {
     return null;
   }
 
-  const date = new Date(value);
+  const date = parseDatetimeLocalInTimezone(value, timezone);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-export function toDatetimeLocal(date) {
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+export function toDatetimeLocal(date, timezone = getDefaultTimezone()) {
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+  const parts = datePartsInTimezone(value, timezone);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 export function timezoneLabel(timezone = getDefaultTimezone()) {
@@ -93,4 +97,55 @@ function isValidTimezone(timezone) {
   } catch {
     return false;
   }
+}
+
+function parseDatetimeLocalInTimezone(value, timezone) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) {
+    return new Date(value);
+  }
+
+  if (!isValidTimezone(timezone)) {
+    return new Date(value);
+  }
+
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const targetUtcMs = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  );
+  let instantMs = targetUtcMs - timezoneOffsetMs(new Date(targetUtcMs), timezone);
+  instantMs = targetUtcMs - timezoneOffsetMs(new Date(instantMs), timezone);
+  return new Date(instantMs);
+}
+
+function datePartsInTimezone(date, timezone) {
+  const safeTimezone = isValidTimezone(timezone) ? timezone : "UTC";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: safeTimezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
+
+function timezoneOffsetMs(date, timezone) {
+  const parts = datePartsInTimezone(date, timezone);
+  const zonedAsUtcMs = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+  );
+  return zonedAsUtcMs - date.getTime();
 }

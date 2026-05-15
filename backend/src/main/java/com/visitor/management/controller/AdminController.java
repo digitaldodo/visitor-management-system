@@ -222,49 +222,49 @@ public class AdminController {
     }
 
     @GetMapping("/visitors")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         return ApiResponse.ok("Admin visitor records loaded.", visitorService.search(request, authentication.getName()));
     }
 
     @GetMapping("/visitors/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> visitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Admin visitor loaded.", visitorService.get(id, authentication.getName()));
     }
 
     @PostMapping("/visitors")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request, Authentication authentication) {
         return ApiResponse.ok("Visitor registered.", visitorService.create(request, authentication.getName()));
     }
 
     @PostMapping(value = "/visitors/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorPhotoUploadResponse> uploadVisitorPhoto(@RequestPart("file") MultipartFile file) {
         return ApiResponse.ok("Visitor photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));
     }
 
     @PutMapping("/visitors/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> updateVisitor(@PathVariable String id, @Valid @RequestBody VisitorUpdateRequest request, Authentication authentication) {
         return ApiResponse.ok("Visitor updated.", visitorService.update(id, request, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-in")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> checkInVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id, authentication.getName()));
     }
 
     @PatchMapping("/visitors/{id}/check-out")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
     }
 
     @DeleteMapping("/visitors/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<ActionResponse> deleteVisitor(@PathVariable String id, Authentication authentication) {
         visitorService.delete(id, authentication.getName());
         return ApiResponse.ok("Visitor deleted.", ActionResponse.ok());
