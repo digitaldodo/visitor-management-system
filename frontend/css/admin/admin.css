@@ -262,6 +262,13 @@
   overflow: hidden;
 }
 
+.workforce-summary-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  padding: 0.85rem;
+}
+
 .employee-analytics-table table {
   border-collapse: collapse;
   width: 100%;

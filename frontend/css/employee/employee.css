@@ -1,5 +1,121 @@
 @import url("../shared/portal.css?v=20260515-recurring");
 
+.employee-badge {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  color: #101828;
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem;
+}
+
+.employee-badge__header,
+.employee-badge__body {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.employee-badge__brand {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+}
+
+.employee-badge__brand img {
+  height: 3rem;
+  object-fit: contain;
+  width: 3rem;
+}
+
+.employee-badge__brand h3,
+.employee-badge__brand p,
+.employee-badge__brand span,
+.employee-badge__identity h4,
+.employee-badge__identity p,
+.employee-badge__identity span {
+  margin: 0;
+}
+
+.employee-badge__brand p,
+.employee-badge__identity p,
+.employee-badge__meta dt,
+.employee-badge__qr span {
+  color: #607187;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.employee-badge__photo {
+  aspect-ratio: 4 / 5;
+  border-radius: 8px;
+  object-fit: cover;
+  width: min(30%, 9rem);
+}
+
+.employee-badge__identity {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.employee-badge__identity h4 {
+  font-size: clamp(1.4rem, 4vw, 2.4rem);
+  line-height: 1;
+}
+
+.employee-badge__identity strong {
+  display: block;
+  margin: 0.45rem 0;
+}
+
+.employee-badge__qr {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+}
+
+.employee-badge__qr img {
+  aspect-ratio: 1;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  object-fit: contain;
+  width: 9rem;
+}
+
+.employee-badge__meta {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  margin: 0;
+}
+
+.employee-badge__meta div {
+  background: #f6f9fc;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.employee-badge__meta dd {
+  font-weight: 800;
+  margin: 0.25rem 0 0;
+}
+
+@media (max-width: 900px) {
+  .employee-badge__header,
+  .employee-badge__body {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-badge__photo,
+  .employee-badge__qr img {
+    width: min(100%, 12rem);
+  }
+}
+
 :root {
   --role-accent: #0f766e;
   --role-accent-soft: #99f6e4;

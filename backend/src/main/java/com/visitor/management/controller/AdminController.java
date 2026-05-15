@@ -9,6 +9,7 @@ import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.DepartmentCreateRequest;
 import com.visitor.management.dto.DepartmentResponse;
 import com.visitor.management.dto.DepartmentUpdateRequest;
+import com.visitor.management.dto.EmployeeAttendanceResponse;
 import com.visitor.management.dto.HomepageSettingsRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
@@ -26,6 +27,7 @@ import com.visitor.management.service.AdminUserService;
 import com.visitor.management.service.AccessAuditService;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.DepartmentService;
+import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
@@ -60,6 +62,7 @@ public class AdminController {
     private final AnalyticsService analyticsService;
     private final AdminUserService adminUserService;
     private final DepartmentService departmentService;
+    private final EmployeeAttendanceService employeeAttendanceService;
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
     private final AppProperties appProperties;
@@ -72,6 +75,7 @@ public class AdminController {
             AnalyticsService analyticsService,
             AdminUserService adminUserService,
             DepartmentService departmentService,
+            EmployeeAttendanceService employeeAttendanceService,
             HomepageService homepageService,
             AccessAuditService accessAuditService,
             AppProperties appProperties,
@@ -83,6 +87,7 @@ public class AdminController {
         this.analyticsService = analyticsService;
         this.adminUserService = adminUserService;
         this.departmentService = departmentService;
+        this.employeeAttendanceService = employeeAttendanceService;
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
         this.appProperties = appProperties;
@@ -100,7 +105,9 @@ public class AdminController {
 
     @GetMapping("/analytics")
     public ApiResponse<Map<String, Object>> analytics(Authentication authentication) {
-        return ApiResponse.ok("Admin analytics loaded.", analyticsService.adminDashboard(authentication.getName()));
+        Map<String, Object> analytics = new java.util.LinkedHashMap<>(analyticsService.adminDashboard(authentication.getName()));
+        analytics.put("workforceAttendance", employeeAttendanceService.analytics(authentication.getName()));
+        return ApiResponse.ok("Admin analytics loaded.", analytics);
     }
 
     @GetMapping("/users")
@@ -191,6 +198,16 @@ public class AdminController {
     @GetMapping("/reports")
     public ApiResponse<List<Map<String, String>>> reports(Authentication authentication) {
         return ApiResponse.ok("Audit oversight loaded.", accessAuditService.latestSecurityOversight(authentication.getName()));
+    }
+
+    @GetMapping("/workforce-attendance")
+    public ApiResponse<List<EmployeeAttendanceResponse>> workforceAttendance(Authentication authentication) {
+        return ApiResponse.ok("Workforce attendance logs loaded.", employeeAttendanceService.logs(authentication.getName()));
+    }
+
+    @GetMapping("/workforce-attendance/analytics")
+    public ApiResponse<Map<String, Object>> workforceAttendanceAnalytics(Authentication authentication) {
+        return ApiResponse.ok("Workforce attendance analytics loaded.", employeeAttendanceService.analytics(authentication.getName()));
     }
 
     @GetMapping("/monitoring")

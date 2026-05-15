@@ -2,6 +2,8 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
+import com.visitor.management.dto.EmployeeAttendanceResponse;
+import com.visitor.management.dto.EmployeeBadgeResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.RescheduleDecisionRequest;
@@ -13,6 +15,7 @@ import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.NotificationService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
@@ -42,15 +45,18 @@ public class EmployeeController {
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
     private final NotificationService notificationService;
+    private final EmployeeAttendanceService employeeAttendanceService;
 
     public EmployeeController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            EmployeeAttendanceService employeeAttendanceService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.notificationService = notificationService;
+        this.employeeAttendanceService = employeeAttendanceService;
     }
 
     @GetMapping("/overview")
@@ -82,6 +88,16 @@ public class EmployeeController {
     @GetMapping("/notifications")
     public ApiResponse<List<NotificationResponse>> notifications(Authentication authentication) {
         return ApiResponse.ok("Employee notifications loaded.", notificationService.listForUser(authentication.getName(), 10).items());
+    }
+
+    @GetMapping("/attendance")
+    public ApiResponse<List<EmployeeAttendanceResponse>> attendance(Authentication authentication) {
+        return ApiResponse.ok("Employee attendance history loaded.", employeeAttendanceService.ownLogs(authentication.getName()));
+    }
+
+    @GetMapping("/badge")
+    public ApiResponse<EmployeeBadgeResponse> badge(Authentication authentication) {
+        return ApiResponse.ok("Employee badge loaded.", employeeAttendanceService.ownBadge(authentication.getName()));
     }
 
     @GetMapping("/scheduled-visitors")

@@ -27,7 +27,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.Duration;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.security.SecureRandom;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -55,6 +59,7 @@ public class AdminUserService {
     private final EmailService emailService;
     private final RateLimitService rateLimitService;
     private final PhoneNumberService phoneNumberService;
+    private final EmployeeAttendanceService employeeAttendanceService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AdminUserService(
@@ -68,7 +73,8 @@ public class AdminUserService {
             TokenService tokenService,
             EmailService emailService,
             RateLimitService rateLimitService,
-            PhoneNumberService phoneNumberService
+            PhoneNumberService phoneNumberService,
+            EmployeeAttendanceService employeeAttendanceService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -81,6 +87,7 @@ public class AdminUserService {
         this.emailService = emailService;
         this.rateLimitService = rateLimitService;
         this.phoneNumberService = phoneNumberService;
+        this.employeeAttendanceService = employeeAttendanceService;
     }
 
     public List<AdminUserResponse> listUsers(Authentication authentication) {
@@ -127,6 +134,10 @@ public class AdminUserService {
         user.setDepartmentId(departmentAssignment != null ? departmentAssignment.departmentId() : null);
         user.setDepartment(departmentAssignment != null ? departmentAssignment.departmentName() : null);
         user.setRoles(Set.of(role));
+        if (role == Role.EMPLOYEE) {
+            applyEmployeeWorkforceFields(user, request);
+            employeeAttendanceService.provisionEmployeeCredential(user);
+        }
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
         User saved = userRepository.save(user);
@@ -358,6 +369,16 @@ public class AdminUserService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getDepartment(),
+                user.getEmployeeId(),
+                user.getDesignation(),
+                user.getEmployeeType(),
+                user.getEmployeePhotoUrl(),
+                user.getShiftName(),
+                user.getWorkingDays(),
+                user.getShiftStartTime(),
+                user.getShiftEndTime(),
+                user.getGracePeriodMinutes(),
+                user.getOvertimePolicy(),
                 user.getPhone(),
                 user.getPhoneCountryCode(),
                 user.getOrganizationId(),
@@ -400,6 +421,54 @@ public class AdminUserService {
         }
         return userRepository.findById(authentication.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+    }
+
+    private void applyEmployeeWorkforceFields(User user, AdminUserCreateRequest request) {
+        user.setDesignation(trimToNull(request.designation()));
+        user.setEmployeeType(trimToNull(request.employeeType()) == null ? "FULL_TIME" : trimToNull(request.employeeType()).toUpperCase(Locale.ROOT));
+        user.setEmployeePhotoUrl(trimToNull(request.employeePhotoUrl()));
+        user.setShiftName(trimToNull(request.shiftName()) == null ? "General Shift" : trimToNull(request.shiftName()));
+        user.setShiftStartTime(validateShiftTime(request.shiftStartTime(), "09:00"));
+        user.setShiftEndTime(validateShiftTime(request.shiftEndTime(), "18:00"));
+        user.setGracePeriodMinutes(validateGracePeriod(request.gracePeriodMinutes()));
+        user.setOvertimePolicy(trimToNull(request.overtimePolicy()));
+        user.setWorkingDays(normalizeWorkingDays(request.workingDays()));
+    }
+
+    private String validateShiftTime(String value, String fallback) {
+        String candidate = trimToNull(value);
+        if (candidate == null) {
+            return fallback;
+        }
+        try {
+            LocalTime.parse(candidate);
+            return candidate;
+        } catch (DateTimeParseException ex) {
+            throw new BadRequestException("Shift times must use HH:mm format.");
+        }
+    }
+
+    private Integer validateGracePeriod(Integer value) {
+        int minutes = value == null ? 10 : value;
+        if (minutes < 0 || minutes > 180) {
+            throw new BadRequestException("Grace period must be between 0 and 180 minutes.");
+        }
+        return minutes;
+    }
+
+    private Set<String> normalizeWorkingDays(Set<String> workingDays) {
+        if (workingDays == null || workingDays.isEmpty()) {
+            return new HashSet<>(Set.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"));
+        }
+        Set<String> normalized = new HashSet<>();
+        for (String day : workingDays) {
+            try {
+                normalized.add(DayOfWeek.valueOf(day.trim().toUpperCase(Locale.ROOT)).name());
+            } catch (RuntimeException ex) {
+                throw new BadRequestException("Working days must be valid weekday names.");
+            }
+        }
+        return normalized;
     }
 
     private void requireSuperAdmin(Authentication authentication, User actor) {

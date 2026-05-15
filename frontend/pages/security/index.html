@@ -46,6 +46,18 @@
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
             Badge Printing
           </a>
+          <a class="nav-link" href="#employee-check-in" data-route="employee-check-in">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v4h3v14H4V7h3Zm2 4h6V5H9Zm3 7a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
+            Employee Check-In
+          </a>
+          <a class="nav-link" href="#employee-attendance" data-route="employee-attendance">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4Zm0 4h16v10H4Zm3 3v4h3v-4Zm5 0v4h5v-4Z"/></svg></span>
+            Employee Attendance
+          </a>
+          <a class="nav-link" href="#workforce-logs" data-route="workforce-logs">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5Zm4 5h6v2H9Zm0 4h6v2H9Zm0 4h3v2H9Z"/></svg></span>
+            Workforce Logs
+          </a>
         </nav>
 
         <div class="sidebar__footer">
@@ -263,11 +275,59 @@
               <div class="health-card" id="health-card"></div>
             </aside>
           </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="employee-check-in">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Workforce Access</p>
+                  <h2>Employee Check-In</h2>
+                </div>
+              </div>
+              <form class="qr-verify-form" id="employee-qr-form">
+                <label class="form-field">
+                  <span>Employee badge scan</span>
+                  <input id="employee-qr-input" type="text" autocomplete="off" placeholder="Scan or paste the static employee QR payload" />
+                </label>
+                <div class="qr-verify-form__actions">
+                  <button class="button button--ghost" id="employee-qr-camera-button" type="button">Camera Scan</button>
+                  <button class="button button--primary" type="submit">Scan employee</button>
+                </div>
+              </form>
+              <video class="qr-scan-video is-hidden" id="employee-qr-scan-video" autoplay playsinline muted></video>
+              <div id="employee-qr-result"></div>
+            </article>
+
+            <article class="panel" id="employee-attendance">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Guard Assist</p>
+                  <h2>Employee Attendance</h2>
+                </div>
+                <label class="search-field security-monitor-search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 18.6-4.2-4.2a7 7 0 1 0-1.4 1.4l4.2 4.2ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"/></svg>
+                  <input id="employee-search" type="search" placeholder="Search employee, department, ID" />
+                </label>
+              </div>
+              <div class="work-list" id="employee-directory-list"></div>
+            </article>
+          </section>
+
+          <section class="panel" id="workforce-logs">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Audit Trail</p>
+                <h2>Workforce Attendance Logs</h2>
+              </div>
+            </div>
+            <div class="work-list" id="employee-attendance-log-list"></div>
+          </section>
         </main>
       </div>
     </div>
 
     <div class="visitor-modal is-hidden" id="security-badge-modal"></div>
+    <div class="visitor-modal is-hidden" id="employee-badge-modal"></div>
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>

@@ -5,14 +5,18 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
+import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
-const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges"];
+const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "employee-attendance", "workforce-logs"];
 const state = {
   monitoringQuery: "",
   monitoringDebounce: 0,
+  employeeQuery: "",
+  employeeDebounce: 0,
   activeBadge: null,
+  activeEmployeeBadge: null,
   activeVerification: null,
 };
 
@@ -40,9 +44,12 @@ async function bootSecurityPortal() {
     enableRecurring: true,
   }), { toastTitle: "Visitor registration unavailable" });
   initQrVerification();
+  initEmployeeAttendanceWorkspace();
   initBadgeActions();
+  initEmployeeBadgeActions();
   initMonitoringSearch();
   renderVerificationIdle();
+  renderEmployeeScanIdle();
   await loadSecurityPortal();
   window.setInterval(() => loadSecurityPortal(false), 15000);
 }
@@ -62,13 +69,17 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-recurring-expired-list");
     renderLoadingList("#monitor-suspended-list");
     renderLoadingList("#monitor-attendance-list");
+    renderLoadingList("#employee-directory-list");
+    renderLoadingList("#employee-attendance-log-list");
   }
 
-  const [overview, queue, photo, monitoring] = await Promise.allSettled([
+  const [overview, queue, photo, monitoring, employees, employeeLogs] = await Promise.allSettled([
     request("/security/overview"),
     request("/security/queue"),
     request("/security/photo-capture"),
     getSecurityMonitoring(state.monitoringQuery),
+    searchEmployees(state.employeeQuery),
+    getEmployeeAttendanceLogs("/security"),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -109,6 +120,18 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#monitor-suspended-list", [], (item) => item, "Monitoring unavailable", message);
     renderWorkList("#monitor-attendance-list", [], (item) => item, "Monitoring unavailable", message);
   }
+
+  if (employees.status === "fulfilled") {
+    renderEmployeeDirectory(employees.value?.data || []);
+  } else if (showErrors) {
+    renderWorkList("#employee-directory-list", [], (item) => item, "Employee lookup unavailable", employees.reason?.message || "Employee directory could not be loaded.");
+  }
+
+  if (employeeLogs.status === "fulfilled") {
+    renderEmployeeAttendanceLogs(employeeLogs.value?.data || []);
+  } else if (showErrors) {
+    renderWorkList("#employee-attendance-log-list", [], (item) => item, "Attendance logs unavailable", employeeLogs.reason?.message || "Workforce attendance could not be loaded.");
+  }
 }
 
 function initMonitoringSearch() {
@@ -141,6 +164,245 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
   renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
   renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No attendance today", "Today's check-in and check-out activity will appear here.");
+}
+
+function initEmployeeAttendanceWorkspace() {
+  const search = document.querySelector("#employee-search");
+  search?.addEventListener("input", () => {
+    window.clearTimeout(state.employeeDebounce);
+    state.employeeDebounce = window.setTimeout(async () => {
+      state.employeeQuery = search.value.trim();
+      await loadSecurityPortal(false);
+    }, 240);
+  });
+
+  const form = document.querySelector("#employee-qr-form");
+  const input = document.querySelector("#employee-qr-input");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await scanEmployeeValue(input?.value || "");
+  });
+  document.querySelector("#employee-qr-camera-button")?.addEventListener("click", startEmployeeCameraScan);
+
+  document.querySelector("#employee-directory-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-employee-action]");
+    if (!button) {
+      return;
+    }
+    const employeeId = button.dataset.employeeId;
+    const action = button.dataset.employeeAction;
+    try {
+      if (action === "badge") {
+        const response = await getEmployeeBadge("/security", employeeId);
+        state.activeEmployeeBadge = response?.data || null;
+        openEmployeeBadgeModal(state.activeEmployeeBadge);
+      }
+      if (action === "check-in" || action === "check-out") {
+        const reason = window.prompt("Reason for manual attendance override.");
+        if (!reason?.trim()) {
+          showToast("Reason required", "Manual workforce overrides require a reason.");
+          return;
+        }
+        if (action === "check-in") {
+          await manualEmployeeCheckIn(employeeId, reason.trim());
+          showToast("Employee checked in", "Manual override was recorded with audit details.");
+        } else {
+          await manualEmployeeCheckOut(employeeId, reason.trim());
+          showToast("Employee checked out", "Manual override was recorded with audit details.");
+        }
+        await loadSecurityPortal(false);
+      }
+    } catch (error) {
+      showToast("Employee action failed", error.message);
+    }
+  });
+}
+
+async function scanEmployeeValue(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    showToast("Scan needed", "Scan or paste an employee badge QR.");
+    return;
+  }
+  const submit = document.querySelector("#employee-qr-form button[type='submit']");
+  submit?.toggleAttribute("disabled", true);
+  try {
+    const response = await scanEmployeeQr(trimmed);
+    renderEmployeeScanResult(response?.data || null);
+    showToast(response?.data?.headline || "Employee scan complete", response?.data?.message || "Attendance state updated.");
+    await loadSecurityPortal(false);
+  } catch (error) {
+    renderEmployeeScanFailure(error.message);
+    showToast("Employee scan failed", error.message);
+  } finally {
+    submit?.toggleAttribute("disabled", false);
+  }
+}
+
+function renderEmployeeScanIdle() {
+  const target = document.querySelector("#employee-qr-result");
+  if (target) {
+    target.innerHTML = `<article class="qr-result qr-result--idle"><strong>Ready for employee scan</strong><p>Employee QR scans toggle attendance automatically: first scan checks in, next scan checks out.</p></article>`;
+  }
+}
+
+function renderEmployeeScanFailure(message) {
+  const target = document.querySelector("#employee-qr-result");
+  if (target) {
+    target.innerHTML = `<article class="qr-result qr-result--danger"><strong>Employee QR rejected</strong><p>${escapeHtml(message)}</p></article>`;
+  }
+}
+
+function renderEmployeeScanResult(result) {
+  const target = document.querySelector("#employee-qr-result");
+  if (!target || !result) {
+    return;
+  }
+  const employee = result.employee || {};
+  const attendance = result.attendance || {};
+  target.innerHTML = `
+    <article class="qr-result qr-result--${result.valid ? "success" : "danger"}">
+      <div class="qr-result__header">
+        <div>
+          <strong>${escapeHtml(result.headline || "Employee scan complete")}</strong>
+          <p>${escapeHtml(result.message || "")}</p>
+        </div>
+        <span class="status-badge status-badge--${attendance.state === "IN" ? "checked-in" : "checked-out"}">${escapeHtml(attendance.state || "OUT")}</span>
+      </div>
+      <div class="qr-result__identity">
+        <div class="qr-result__photo-placeholder">${escapeHtml(employee.employeeId || "Employee")}</div>
+        <dl>
+          <div><dt>Employee</dt><dd>${escapeHtml(employee.fullName || "Unknown")}</dd></div>
+          <div><dt>Department</dt><dd>${escapeHtml(employee.department || "Not set")}</dd></div>
+          <div><dt>Designation</dt><dd>${escapeHtml(employee.designation || "Not set")}</dd></div>
+          <div><dt>Shift</dt><dd>${escapeHtml(formatEmployeeShift(employee))}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(formatStatusText(attendance.status))}</dd></div>
+          <div><dt>Flags</dt><dd>${escapeHtml((attendance.flags || []).map(formatStatusText).join(", ") || "None")}</dd></div>
+          <div><dt>Check-in</dt><dd>${escapeHtml(formatDate(attendance.checkInTime))}</dd></div>
+          <div><dt>Check-out</dt><dd>${escapeHtml(formatDate(attendance.checkOutTime))}</dd></div>
+        </dl>
+      </div>
+      ${result.recommendedAction ? `<div class="qr-result__guidance">${escapeHtml(result.recommendedAction)}</div>` : ""}
+    </article>
+  `;
+}
+
+async function startEmployeeCameraScan() {
+  if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
+    showToast("Camera scan unavailable", "Use a hardware scanner or paste the employee QR payload.");
+    return;
+  }
+  const video = document.querySelector("#employee-qr-scan-video");
+  const input = document.querySelector("#employee-qr-input");
+  if (!video) {
+    return;
+  }
+  const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    video.srcObject = stream;
+    video.classList.remove("is-hidden");
+  } catch {
+    showToast("Camera unavailable", "Allow camera access or paste the employee QR payload manually.");
+    return;
+  }
+  const scan = async () => {
+    const codes = await detector.detect(video).catch(() => []);
+    if (codes.length) {
+      const scanned = codes[0].rawValue;
+      input.value = scanned;
+      stream.getTracks().forEach((track) => track.stop());
+      video.classList.add("is-hidden");
+      await scanEmployeeValue(scanned);
+      return;
+    }
+    window.requestAnimationFrame(scan);
+  };
+  window.requestAnimationFrame(scan);
+}
+
+function renderEmployeeDirectory(employees) {
+  renderWorkList("#employee-directory-list", employees, employeeCard, "No employees found", "Search employees to assist with check-in, check-out, and badge lookup.");
+}
+
+function employeeCard(employee) {
+  const state = employee.currentlyIn ? "Currently in" : "Out";
+  return `
+    <article class="work-card employee-work-card">
+      <div>
+        <h3>${escapeHtml(employee.fullName || "Employee")}</h3>
+        <p>${escapeHtml(employee.employeeId || "No employee ID")} · ${escapeHtml(employee.department || "Unassigned")} · ${escapeHtml(employee.designation || "No designation")}</p>
+        <small>${escapeHtml(formatEmployeeShift(employee))} · ${escapeHtml(state)}</small>
+      </div>
+      <div class="employee-work-card__actions">
+        <button class="button button--ghost" type="button" data-employee-action="badge" data-employee-id="${escapeHtml(employee.id)}">Badge</button>
+        ${employee.currentlyIn
+          ? `<button class="button button--ghost" type="button" data-employee-action="check-out" data-employee-id="${escapeHtml(employee.id)}">Manual check-out</button>`
+          : `<button class="button button--primary" type="button" data-employee-action="check-in" data-employee-id="${escapeHtml(employee.id)}">Manual check-in</button>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderEmployeeAttendanceLogs(logs) {
+  renderWorkList("#employee-attendance-log-list", logs, employeeLogCard, "No workforce attendance logs", "Employee check-ins, check-outs, and manual overrides will appear here.");
+}
+
+function employeeLogCard(log) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(log.employeeName || "Employee")}</h3>
+      <p>${escapeHtml(log.department || "Unassigned")} · ${escapeHtml(formatStatusText(log.status))} · ${escapeHtml(log.lastAction || "Attendance")}</p>
+      <small>In ${escapeHtml(formatDate(log.checkInTime))} · Out ${escapeHtml(formatDate(log.checkOutTime))} · Guard ${escapeHtml(log.securityGuardName || "System")}</small>
+      ${log.overrideReason ? `<small>Override: ${escapeHtml(log.overrideReason)}</small>` : ""}
+    </article>
+  `;
+}
+
+function initEmployeeBadgeActions() {
+  const modal = document.querySelector("#employee-badge-modal");
+  modal?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-employee-badge-action]");
+    if (!button || !state.activeEmployeeBadge) {
+      if (event.target === modal) {
+        closeEmployeeBadgeModal();
+      }
+      return;
+    }
+    try {
+      const action = button.dataset.employeeBadgeAction;
+      if (action === "close") {
+        closeEmployeeBadgeModal();
+      }
+      if (action === "print") {
+        await printEmployeeBadge(state.activeEmployeeBadge);
+      }
+      if (action === "png" || action === "pdf") {
+        await downloadEmployeeBadge(state.activeEmployeeBadge, action);
+        showToast("Employee badge downloaded", `Saved ${action.toUpperCase()} badge export.`);
+      }
+    } catch (error) {
+      showToast("Employee badge failed", error.message);
+    }
+  });
+}
+
+function openEmployeeBadgeModal(badge) {
+  const modal = document.querySelector("#employee-badge-modal");
+  if (!modal || !badge) {
+    return;
+  }
+  modal.classList.remove("is-hidden");
+  modal.innerHTML = employeeBadgeDialogMarkup(badge);
+}
+
+function closeEmployeeBadgeModal() {
+  const modal = document.querySelector("#employee-badge-modal");
+  modal?.classList.add("is-hidden");
+  if (modal) {
+    modal.innerHTML = "";
+  }
 }
 
 function renderPhotoCapturePanel(data = {}) {
@@ -611,6 +873,20 @@ function formatWindow(start, end) {
     return `Until ${formatDate(end)}`;
   }
   return "Open until expiry";
+}
+
+function formatEmployeeShift(employee = {}) {
+  const timing = employee.shiftStartTime && employee.shiftEndTime ? `${employee.shiftStartTime}-${employee.shiftEndTime}` : "Shift timing not set";
+  return `${employee.shiftName || "General Shift"} · ${timing}`;
+}
+
+function formatStatusText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || "Not recorded";
 }
 
 function setCount(selector, value) {

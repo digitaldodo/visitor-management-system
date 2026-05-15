@@ -2,6 +2,7 @@ package com.visitor.management.config;
 
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.AccessAuditLog;
+import com.visitor.management.entity.EmployeeAttendanceLog;
 import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorAuditLog;
@@ -64,6 +65,15 @@ public class MongoIndexConfig {
                         .on("action", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("access_audit_action_created_idx"));
+                mongoTemplate.indexOps(EmployeeAttendanceLog.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("attendanceDate", Sort.Direction.DESC)
+                        .on("state", Sort.Direction.ASC)
+                        .named("employee_attendance_org_date_state_idx"));
+                mongoTemplate.indexOps(EmployeeAttendanceLog.class).createIndex(new Index()
+                        .on("employeeUserId", Sort.Direction.ASC)
+                        .on("checkInTime", Sort.Direction.DESC)
+                        .named("employee_attendance_employee_checkin_idx"));
                 mongoTemplate.indexOps(SuperAdminCreationOtp.class).createIndex(new Index()
                         .on("expiresAt", Sort.Direction.ASC)
                         .expire(Duration.ZERO)

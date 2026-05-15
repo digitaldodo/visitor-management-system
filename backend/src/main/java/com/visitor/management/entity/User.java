@@ -30,6 +30,34 @@ public class User {
 
     private String departmentId;
 
+    @Indexed(sparse = true)
+    private String employeeId;
+
+    private String designation;
+
+    private String employeeType;
+
+    private String employeePhotoUrl;
+
+    private String shiftName;
+
+    private Set<String> workingDays = new HashSet<>();
+
+    private String shiftStartTime;
+
+    private String shiftEndTime;
+
+    private Integer gracePeriodMinutes;
+
+    private String overtimePolicy;
+
+    @Indexed(unique = true, sparse = true)
+    private String employeeQrToken;
+
+    private Instant employeeQrIssuedAt;
+
+    private Instant employeeQrRevokedAt;
+
     private String phone;
 
     private String phoneCountryCode;
@@ -114,6 +142,110 @@ public class User {
 
     public void setDepartmentId(String departmentId) {
         this.departmentId = departmentId;
+    }
+
+    public String getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
+    }
+
+    public String getDesignation() {
+        return designation;
+    }
+
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
+
+    public String getEmployeeType() {
+        return employeeType;
+    }
+
+    public void setEmployeeType(String employeeType) {
+        this.employeeType = employeeType;
+    }
+
+    public String getEmployeePhotoUrl() {
+        return employeePhotoUrl;
+    }
+
+    public void setEmployeePhotoUrl(String employeePhotoUrl) {
+        this.employeePhotoUrl = employeePhotoUrl;
+    }
+
+    public String getShiftName() {
+        return shiftName;
+    }
+
+    public void setShiftName(String shiftName) {
+        this.shiftName = shiftName;
+    }
+
+    public Set<String> getWorkingDays() {
+        return workingDays;
+    }
+
+    public void setWorkingDays(Set<String> workingDays) {
+        this.workingDays = workingDays;
+    }
+
+    public String getShiftStartTime() {
+        return shiftStartTime;
+    }
+
+    public void setShiftStartTime(String shiftStartTime) {
+        this.shiftStartTime = shiftStartTime;
+    }
+
+    public String getShiftEndTime() {
+        return shiftEndTime;
+    }
+
+    public void setShiftEndTime(String shiftEndTime) {
+        this.shiftEndTime = shiftEndTime;
+    }
+
+    public Integer getGracePeriodMinutes() {
+        return gracePeriodMinutes;
+    }
+
+    public void setGracePeriodMinutes(Integer gracePeriodMinutes) {
+        this.gracePeriodMinutes = gracePeriodMinutes;
+    }
+
+    public String getOvertimePolicy() {
+        return overtimePolicy;
+    }
+
+    public void setOvertimePolicy(String overtimePolicy) {
+        this.overtimePolicy = overtimePolicy;
+    }
+
+    public String getEmployeeQrToken() {
+        return employeeQrToken;
+    }
+
+    public void setEmployeeQrToken(String employeeQrToken) {
+        this.employeeQrToken = employeeQrToken;
+    }
+
+    public Instant getEmployeeQrIssuedAt() {
+        return employeeQrIssuedAt;
+    }
+
+    public void setEmployeeQrIssuedAt(Instant employeeQrIssuedAt) {
+        this.employeeQrIssuedAt = employeeQrIssuedAt;
+    }
+
+    public Instant getEmployeeQrRevokedAt() {
+        return employeeQrRevokedAt;
+    }
+
+    public void setEmployeeQrRevokedAt(Instant employeeQrRevokedAt) {
+        this.employeeQrRevokedAt = employeeQrRevokedAt;
     }
 
     public String getPhone() {

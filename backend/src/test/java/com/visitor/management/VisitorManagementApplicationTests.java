@@ -8,11 +8,14 @@ import com.visitor.management.repository.VisitorRepository;
 import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.DepartmentRepository;
+import com.visitor.management.repository.EmployeeAttendanceLogRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
 import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.Department;
+import com.visitor.management.entity.EmployeeAttendanceLog;
+import com.visitor.management.entity.EmployeeAttendanceState;
 import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
@@ -98,6 +101,9 @@ class VisitorManagementApplicationTests {
     private DepartmentRepository departmentRepository;
 
     @MockitoBean
+    private EmployeeAttendanceLogRepository employeeAttendanceLogRepository;
+
+    @MockitoBean
     private HomepageSettingsRepository homepageSettingsRepository;
 
     @MockitoBean
@@ -147,6 +153,8 @@ class VisitorManagementApplicationTests {
         when(userRepository.findByUsernameIgnoreCase("visitor-id")).thenReturn(Optional.of(visitorAccount("visitor-id", "visitor@example.com", "org-acme", "Acme Corp", "ACME")));
         when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
+        when(employeeAttendanceLogRepository.findTopByEmployeeUserIdAndStateOrderByCheckInTimeDesc(any(), any(EmployeeAttendanceState.class))).thenReturn(Optional.empty());
+        when(employeeAttendanceLogRepository.findTopByEmployeeUserIdAndAttendanceDateOrderByCreatedAtDesc(any(), any())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(departmentRepository.save(any(Department.class))).thenAnswer(invocation -> {
             Department department = invocation.getArgument(0);
@@ -156,6 +164,13 @@ class VisitorManagementApplicationTests {
             return department;
         });
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(employeeAttendanceLogRepository.save(any(EmployeeAttendanceLog.class))).thenAnswer(invocation -> {
+            EmployeeAttendanceLog log = invocation.getArgument(0);
+            if (log.getId() == null) {
+                log.setId("attendance-generated");
+            }
+            return log;
+        });
         when(superAdminCreationOtpRepository.save(any(SuperAdminCreationOtp.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.save(any(AccessAuditLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accessAuditLogRepository.findTop50ByOrderByCreatedAtDesc()).thenReturn(List.of());
@@ -1011,6 +1026,58 @@ class VisitorManagementApplicationTests {
         mockMvc.perform(get("/api/v1/admin/visitors?page=0&size=20")
                         .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void employeeCanLoadStaticWorkforceBadge() throws Exception {
+        mockMvc.perform(get("/api/v1/employee/badge")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.employeeUserId").value("employee-id"))
+                .andExpect(jsonPath("$.data.qrPayload").value(org.hamcrest.Matchers.startsWith("ACCESSFLOW_EMPLOYEE:")))
+                .andExpect(jsonPath("$.data.qrImageDataUri").value(org.hamcrest.Matchers.startsWith("data:image/png;base64,")))
+                .andExpect(jsonPath("$.data.shiftStartTime").value("09:00"))
+                .andExpect(jsonPath("$.data.shiftEndTime").value("18:00"));
+    }
+
+    @Test
+    void securityEmployeeQrScanTogglesAttendanceCheckIn() throws Exception {
+        User employee = user("employee-target-id", Role.EMPLOYEE);
+        employee.setEmployeeId("ACME-000001");
+        employee.setEmployeeQrToken("static-token");
+        employee.setEmployeeQrIssuedAt(Instant.now());
+        employee.setShiftName("Morning Shift");
+        employee.setShiftStartTime("09:00");
+        employee.setShiftEndTime("18:00");
+        employee.setWorkingDays(Set.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"));
+        when(userRepository.findById("employee-target-id")).thenReturn(Optional.of(employee));
+        when(userRepository.findByEmployeeQrToken("static-token")).thenReturn(Optional.of(employee));
+
+        mockMvc.perform(post("/api/v1/security/employees/qr-scan")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "qrPayload": "ACCESSFLOW_EMPLOYEE:org-acme:ACME-000001:static-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.action").value("CHECKED_IN"))
+                .andExpect(jsonPath("$.data.attendance.state").value("IN"))
+                .andExpect(jsonPath("$.data.employee.employeeId").value("ACME-000001"));
+    }
+
+    @Test
+    void securityManualEmployeeOverrideRequiresReason() throws Exception {
+        mockMvc.perform(patch("/api/v1/security/employees/employee-target-id/check-in")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "reason": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     private void assertLoginPayload(String identifier, String companyCode, String portalAudience, Role expectedRole, String expectedUserId) throws Exception {

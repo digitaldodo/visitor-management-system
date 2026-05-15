@@ -4,12 +4,14 @@ import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
-import { approveRescheduleRequest, approveVisitor, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js?v=20260515-scheduling";
+import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js?v=20260515-scheduling";
+import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
-const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history"];
+const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history", "attendance", "badge"];
 let approvalPollTimer;
+let activeEmployeeBadge = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootEmployeePortal();
@@ -37,6 +39,7 @@ async function bootEmployeePortal() {
   initApprovalActions();
   initScheduledActions();
   initPreApprovalForm();
+  initEmployeeBadgeActions();
   await loadEmployeePortal();
   approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
   window.addEventListener("beforeunload", () => window.clearInterval(approvalPollTimer));
@@ -47,11 +50,14 @@ async function loadEmployeePortal() {
   renderLoadingList("#approvals-list");
   renderLoadingList("#notifications-list");
   renderLoadingList("#scheduled-list");
+  renderLoadingList("#employee-attendance-list");
 
-  const [overview, notifications, scheduled] = await Promise.allSettled([
+  const [overview, notifications, scheduled, attendance, badge] = await Promise.allSettled([
     request("/employee/overview"),
     request("/employee/notifications"),
     request("/employee/scheduled-visitors"),
+    getOwnEmployeeAttendance(),
+    getEmployeeBadge("/employee"),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -73,6 +79,69 @@ async function loadEmployeePortal() {
   } else {
     renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
   }
+
+  if (attendance.status === "fulfilled") {
+    renderOwnAttendance(attendance.value?.data || []);
+  } else {
+    renderWorkList("#employee-attendance-list", [], (item) => item, "Attendance unavailable", attendance.reason?.message || "Attendance history could not be loaded.");
+  }
+
+  if (badge.status === "fulfilled") {
+    activeEmployeeBadge = badge.value?.data || null;
+    renderOwnBadge(activeEmployeeBadge);
+  } else {
+    renderOwnBadge(null, badge.reason?.message || "Employee badge could not be loaded.");
+  }
+}
+
+function renderOwnAttendance(items) {
+  renderWorkList("#employee-attendance-list", items, (log) => `
+    <article class="work-card">
+      <h3>${escapeHtml(formatStatusLabel(log.status))}</h3>
+      <p>${escapeHtml(log.shiftName || "Shift")} · ${escapeHtml((log.flags || []).map(formatStatusLabel).join(", ") || "Present")}</p>
+      <small>In ${escapeHtml(formatDate(log.checkInTime))} · Out ${escapeHtml(formatDate(log.checkOutTime))} · ${escapeHtml(log.workedMinutes ?? 0)} minutes</small>
+    </article>
+  `, "No attendance history", "Your check-ins and check-outs will appear after security scans your employee badge.");
+}
+
+function renderOwnBadge(badge, error = "") {
+  const panel = document.querySelector("#employee-badge-panel");
+  if (!panel) {
+    return;
+  }
+  if (!badge) {
+    panel.innerHTML = `<article class="approval-empty"><h3>Badge unavailable</h3><p>${escapeHtml(error || "Your employee badge is not ready yet.")}</p></article>`;
+    return;
+  }
+  panel.innerHTML = `
+    ${employeeBadgeMarkup(badge)}
+    <div class="approval-card__actions">
+      <button class="button button--ghost" type="button" data-own-badge-action="print">Print</button>
+      <button class="button button--ghost" type="button" data-own-badge-action="png">Download PNG</button>
+      <button class="button button--primary" type="button" data-own-badge-action="pdf">Download PDF</button>
+    </div>
+  `;
+}
+
+function initEmployeeBadgeActions() {
+  document.querySelector("#employee-badge-panel")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-own-badge-action]");
+    if (!button || !activeEmployeeBadge) {
+      return;
+    }
+    try {
+      const action = button.dataset.ownBadgeAction;
+      if (action === "print") {
+        await printEmployeeBadge(activeEmployeeBadge);
+      }
+      if (action === "png" || action === "pdf") {
+        await downloadEmployeeBadge(activeEmployeeBadge, action);
+        showToast("Badge downloaded", `Saved ${action.toUpperCase()} employee badge.`);
+      }
+    } catch (error) {
+      showToast("Badge action failed", error.message);
+    }
+  });
 }
 
 function initPreApprovalForm() {
@@ -371,6 +440,15 @@ function validatePreApproval(payload) {
 
 function timezoneLabelText(timezone) {
   return timezoneLabel(timezone);
+}
+
+function formatStatusLabel(status) {
+  return String(status || "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || "Not recorded";
 }
 
 function setScheduleMinimums(form) {

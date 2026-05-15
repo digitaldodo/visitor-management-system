@@ -89,6 +89,11 @@ public class AccessAuditService {
                 action, "USER_ACCOUNT", targetUser.getId(), targetUser.getFullName(), "SUCCESS", detail);
     }
 
+    public void recordEmployeeAttendance(User actor, User employee, String action, String detail) {
+        record(actor, employee.getOrganizationId(), employee.getOrganizationName(), employee.getOrganizationCode(),
+                action, "EMPLOYEE_ATTENDANCE", employee.getId(), employee.getFullName(), "SUCCESS", detail);
+    }
+
     public void recordOrganizationChanged(User actor, Organization organization, String action, String detail) {
         if (organization == null) {
             return;

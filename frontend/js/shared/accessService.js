@@ -129,6 +129,47 @@ export function getSecurityMonitoring(query = "") {
   return request(`/security/monitoring${suffix}`);
 }
 
+export function searchEmployees(query = "") {
+  const suffix = query ? `?query=${encodeURIComponent(query)}` : "";
+  return request(`/security/employees${suffix}`);
+}
+
+export function getEmployeeAttendanceLogs(basePath = "/security") {
+  return request(`${basePath}/employees/attendance`);
+}
+
+export function scanEmployeeQr(qrPayload) {
+  return request("/security/employees/qr-scan", {
+    method: "POST",
+    body: JSON.stringify({ qrPayload }),
+  });
+}
+
+export function getEmployeeBadge(basePath, id) {
+  if (basePath === "/employee") {
+    return request("/employee/badge");
+  }
+  return request(`${basePath}/employees/${encodeURIComponent(id)}/badge`);
+}
+
+export function manualEmployeeCheckIn(id, reason) {
+  return request(`/security/employees/${encodeURIComponent(id)}/check-in`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function manualEmployeeCheckOut(id, reason) {
+  return request(`/security/employees/${encodeURIComponent(id)}/check-out`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function getOwnEmployeeAttendance() {
+  return request("/employee/attendance");
+}
+
 export function getVisitorHistory(basePath, id) {
   if (basePath === "/visitor") {
     return request("/visitor/history");

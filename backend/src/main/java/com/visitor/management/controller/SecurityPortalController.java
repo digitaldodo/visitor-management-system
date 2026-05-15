@@ -2,6 +2,11 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
+import com.visitor.management.dto.EmployeeAttendanceOverrideRequest;
+import com.visitor.management.dto.EmployeeAttendanceResponse;
+import com.visitor.management.dto.EmployeeAttendanceScanResponse;
+import com.visitor.management.dto.EmployeeBadgeResponse;
+import com.visitor.management.dto.EmployeeDirectoryResponse;
 import com.visitor.management.dto.ManualOverrideCheckInRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.QrVerificationRequest;
@@ -17,6 +22,7 @@ import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -45,15 +51,18 @@ public class SecurityPortalController {
 
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
+    private final EmployeeAttendanceService employeeAttendanceService;
     private final AppProperties appProperties;
 
     public SecurityPortalController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
+            EmployeeAttendanceService employeeAttendanceService,
             AppProperties appProperties
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
+        this.employeeAttendanceService = employeeAttendanceService;
         this.appProperties = appProperties;
     }
 
@@ -146,6 +155,50 @@ public class SecurityPortalController {
     @GetMapping("/hosts")
     public ApiResponse<List<EmployeeDirectoryEntryResponse>> hosts(@RequestParam(required = false) String query, Authentication authentication) {
         return ApiResponse.ok("Host directory loaded.", visitorService.searchHosts(query, null, authentication.getName()));
+    }
+
+    @GetMapping("/employees")
+    public ApiResponse<List<EmployeeDirectoryResponse>> employees(@RequestParam(required = false) String query, Authentication authentication) {
+        return ApiResponse.ok("Employee directory loaded.", employeeAttendanceService.searchEmployees(query, authentication.getName()));
+    }
+
+    @GetMapping("/employees/attendance")
+    public ApiResponse<List<EmployeeAttendanceResponse>> employeeAttendance(Authentication authentication) {
+        return ApiResponse.ok("Employee attendance logs loaded.", employeeAttendanceService.logs(authentication.getName()));
+    }
+
+    @PostMapping("/employees/qr-scan")
+    public ApiResponse<EmployeeAttendanceScanResponse> employeeQrScan(@Valid @RequestBody QrVerificationRequest request, Authentication authentication) {
+        return ApiResponse.ok("Employee attendance scan completed.", employeeAttendanceService.scan(request.qrPayload(), authentication.getName()));
+    }
+
+    @GetMapping("/employees/{id}/badge")
+    public ApiResponse<EmployeeBadgeResponse> employeeBadge(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Employee badge loaded.", employeeAttendanceService.badgeForEmployee(id, authentication.getName()));
+    }
+
+    @PatchMapping("/employees/{id}/check-in")
+    public ApiResponse<EmployeeAttendanceResponse> employeeManualCheckIn(
+            @PathVariable String id,
+            @Valid @RequestBody EmployeeAttendanceOverrideRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok(
+                "Employee manually checked in.",
+                employeeAttendanceService.toResponse(employeeAttendanceService.checkIn(id, authentication.getName(), true, request.reason()))
+        );
+    }
+
+    @PatchMapping("/employees/{id}/check-out")
+    public ApiResponse<EmployeeAttendanceResponse> employeeManualCheckOut(
+            @PathVariable String id,
+            @Valid @RequestBody EmployeeAttendanceOverrideRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok(
+                "Employee manually checked out.",
+                employeeAttendanceService.toResponse(employeeAttendanceService.checkOut(id, authentication.getName(), true, request.reason()))
+        );
     }
 
     @GetMapping("/visitors/{id}")
