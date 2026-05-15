@@ -1,8 +1,10 @@
 package com.visitor.management.dto;
 
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.entity.VisitorType;
 
 import java.time.Instant;
+import java.util.List;
 
 public record VisitorPassResponse(
         String visitorId,
@@ -13,8 +15,18 @@ public record VisitorPassResponse(
         String organizationCode,
         String organizationTimezone,
         String purposeOfVisit,
+        VisitorType visitorType,
+        String vendorCompanyName,
         String hostEmployee,
         String hostEmployeeDepartment,
+        String sponsorEmployee,
+        String department,
+        Instant validityStartDate,
+        Instant validityEndDate,
+        String recurringSchedule,
+        List<String> allowedWeekdays,
+        String allowedEntryStartTime,
+        String allowedEntryEndTime,
         String photoUrl,
         VisitorStatus status,
         String statusLabel,

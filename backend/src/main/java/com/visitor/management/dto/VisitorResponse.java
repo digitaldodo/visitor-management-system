@@ -1,6 +1,7 @@
 package com.visitor.management.dto;
 
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.entity.VisitorType;
 
 import java.time.Instant;
 import java.util.List;
@@ -18,8 +19,20 @@ public record VisitorResponse(
         String organizationTimezone,
         String organizationRegionCountry,
         String purposeOfVisit,
+        VisitorType visitorType,
+        String vendorCompanyName,
         String hostEmployee,
         String hostEmployeeDepartment,
+        String sponsorEmployee,
+        String department,
+        Instant validityStartDate,
+        Instant validityEndDate,
+        String recurringSchedule,
+        List<String> allowedWeekdays,
+        String allowedEntryStartTime,
+        String allowedEntryEndTime,
+        String emergencyContact,
+        String notes,
         String photoUrl,
         String hostEmployeeId,
         String badgeId,
@@ -40,6 +53,12 @@ public record VisitorResponse(
         String approvedBy,
         String rejectedBy,
         String rejectionReason,
+        Instant suspendedAt,
+        String suspendedBy,
+        String suspensionReason,
+        Instant revokedAt,
+        String revokedBy,
+        String revocationReason,
         List<VisitorStatusHistoryResponse> statusHistory,
         Instant createdAt,
         Instant updatedAt

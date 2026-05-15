@@ -3,6 +3,7 @@ package com.visitor.management.service;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
+import com.visitor.management.dto.ManualOverrideCheckInRequest;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
@@ -23,6 +24,7 @@ import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.entity.VisitorStatusHistoryEntry;
+import com.visitor.management.entity.VisitorType;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
@@ -47,13 +49,16 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -77,6 +82,8 @@ public class VisitorService {
             "checkOutTime",
             "scheduledStartTime",
             "scheduledEndTime",
+            "validityEndDate",
+            "visitorType",
             "status"
     );
 
@@ -192,17 +199,32 @@ public class VisitorService {
         visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), forcedHostEmployeeId, visitor.getOrganizationId()));
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
+        applyVisitorTypeProfile(visitor, request, actor);
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
-        visitor.setStatus(VisitorStatus.PENDING);
-        visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
+        if (isRecurringVisitor(visitor)) {
+            visitor.setPreApproved(true);
+            visitor.setStatus(VisitorStatus.APPROVED);
+            visitor.setApprovedAt(now);
+            visitor.setApprovedBy(actorId);
+            issuePassCredentials(visitor, now);
+        } else {
+            visitor.setStatus(VisitorStatus.PENDING);
+            visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
+        }
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
         enforceActiveVisitorRules(visitor);
-        addHistory(visitor, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
+        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : "REGISTERED";
+        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : "Approval requested.";
+        addHistory(visitor, visitor.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
         Visitor saved = visitorRepository.save(visitor);
-        audit(saved.getId(), null, VisitorStatus.PENDING, "REGISTERED", visitor.getHostEmployeeId(), "Approval requested.", now);
-        visitorNotificationService.visitorApprovalRequested(saved);
+        audit(saved.getId(), null, saved.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
+        if (isRecurringVisitor(saved)) {
+            visitorNotificationService.visitorApproved(saved);
+        } else {
+            visitorNotificationService.visitorApprovalRequested(saved);
+        }
         return toResponse(saved);
     }
 
@@ -429,6 +451,73 @@ public class VisitorService {
         return toPassResponse(saved);
     }
 
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse suspend(String id, String reason, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        if (!isRecurringVisitor(visitor)) {
+            throw new BadRequestException("Only recurring visitor profiles can be suspended.");
+        }
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        visitor.setStatus(VisitorStatus.SUSPENDED);
+        visitor.setSuspendedAt(now);
+        visitor.setSuspendedBy(actorId);
+        visitor.setSuspensionReason(requiredTrim(reason, "Suspension reason is required."));
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.SUSPENDED, "SUSPENDED", actorId, visitor.getSuspensionReason(), now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.SUSPENDED, "SUSPENDED", actorId, visitor.getSuspensionReason(), now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse revoke(String id, String reason, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        if (!isRecurringVisitor(visitor)) {
+            throw new BadRequestException("Only recurring visitor profiles can be revoked.");
+        }
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        visitor.setStatus(VisitorStatus.EXPIRED);
+        visitor.setRevokedAt(now);
+        visitor.setRevokedBy(actorId);
+        visitor.setRevocationReason(requiredTrim(reason, "Revocation reason is required."));
+        clearPassCredentials(visitor);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.EXPIRED, "REVOKED", actorId, visitor.getRevocationReason(), now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.EXPIRED, "REVOKED", actorId, visitor.getRevocationReason(), now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse reactivateRecurring(String id, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        if (!isRecurringVisitor(visitor)) {
+            throw new BadRequestException("Only recurring visitor profiles can be reactivated.");
+        }
+        Instant now = Instant.now();
+        if (visitor.getValidityEndDate() != null && !visitor.getValidityEndDate().isAfter(now)) {
+            throw new BadRequestException("Expired recurring profiles require an updated validity end date before reactivation.");
+        }
+        VisitorStatus from = visitor.getStatus();
+        visitor.setStatus(VisitorStatus.APPROVED);
+        visitor.setSuspendedAt(null);
+        visitor.setSuspendedBy(null);
+        visitor.setSuspensionReason(null);
+        if (visitor.getQrCode() == null || visitor.getPassTokenId() == null || visitor.getQrExpiresAt() == null || !visitor.getQrExpiresAt().isAfter(now)) {
+            issuePassCredentials(visitor, now);
+        }
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.APPROVED, "REACTIVATED", actorId, "Recurring visitor profile reactivated.", now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.APPROVED, "REACTIVATED", actorId, "Recurring visitor profile reactivated.", now);
+        return toResponse(saved);
+    }
+
     public QrVerificationResponse verifyQrPayload(String scannedPayload) {
         return verifyQrPayload(scannedPayload, null);
     }
@@ -509,19 +598,49 @@ public class VisitorService {
     public VisitorResponse checkIn(String id, String actorId) {
         Visitor visitor = find(id);
         requireOrganizationAccess(visitor, currentUser(actorId));
-        return checkIn(visitor, actorId);
+        return checkIn(visitor, actorId, false, null);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse checkInWithQr(String qrPayload, String actorId) {
+        User actor = currentUser(actorId);
+        QrVerificationResponse verification = verifyQrPayload(qrPayload, actorId);
+        if (!verification.valid() || verification.visitorId() == null) {
+            throw new BadRequestException("QR validation failed: " + verification.headline());
+        }
+        Visitor visitor = find(verification.visitorId());
+        requireOrganizationAccess(visitor, actor);
+        return checkIn(visitor, actorId, true, "QR scan validated: " + verification.resultCode());
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse overrideCheckIn(String id, ManualOverrideCheckInRequest request, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        String reason = requiredTrim(request == null ? null : request.reason(), "Override reason is required.");
+        return checkIn(visitor, actorId, true, "Manual override: " + reason);
     }
 
     private VisitorResponse checkIn(Visitor visitor, String actorId) {
+        return checkIn(visitor, actorId, false, null);
+    }
+
+    private VisitorResponse checkIn(Visitor visitor, String actorId, boolean qrValidatedOrOverride, String noteOverride) {
         Instant now = Instant.now();
         if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
             throw new BadRequestException("Visitor is already checked in.");
         }
-        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT && !isRecurringVisitor(visitor)) {
             throw new BadRequestException("Checked-out visitors cannot be checked in again.");
         }
-        if (visitor.getStatus() != VisitorStatus.APPROVED) {
+        if (visitor.getStatus() == VisitorStatus.SUSPENDED) {
+            throw new BadRequestException("Suspended visitors cannot be checked in.");
+        }
+        if (visitor.getStatus() != VisitorStatus.APPROVED && !(isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT)) {
             throw new BadRequestException("Only approved visitors can be checked in.");
+        }
+        if (visitor.isPreApproved() && !qrValidatedOrOverride) {
+            throw new BadRequestException("Pre-approved visitors must be checked in by scanning and validating their QR badge.");
         }
         requireVisitorWithinAllowedWindow(visitor, now);
 
@@ -530,9 +649,11 @@ public class VisitorService {
         visitor.setCheckOutTime(null);
         visitor.setStatus(VisitorStatus.CHECKED_IN);
         visitor.setUpdatedAt(now);
-        addHistory(visitor, VisitorStatus.CHECKED_IN, "CHECKED_IN", actorId, "Visitor checked in.", now);
+        String action = noteOverride != null && noteOverride.startsWith("Manual override:") ? "MANUAL_OVERRIDE_CHECK_IN" : "CHECKED_IN";
+        String note = noteOverride != null ? noteOverride : "Visitor checked in.";
+        addHistory(visitor, VisitorStatus.CHECKED_IN, action, actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
-        audit(saved.getId(), from, VisitorStatus.CHECKED_IN, "CHECKED_IN", actorId, "Visitor checked in.", now);
+        audit(saved.getId(), from, VisitorStatus.CHECKED_IN, action, actorId, note, now);
         visitorNotificationService.visitorCheckedIn(saved);
         return toResponse(saved);
     }
@@ -623,13 +744,21 @@ public class VisitorService {
                         "overdueVisitors", countForMonitoring(organizationId, query, overdueCriteria(now)),
                         "checkedOutVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_OUT)),
                         "rejectedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.REJECTED)),
-                        "approvedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED))
+                        "approvedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED)),
+                        "activeRecurringVisitors", countForMonitoring(organizationId, query, activeRecurringCriteria(now)),
+                        "expiredRecurringVisitors", countForMonitoring(organizationId, query, expiredRecurringCriteria(now)),
+                        "suspendedVisitors", countForMonitoring(organizationId, query, Criteria.where("status").is(VisitorStatus.SUSPENDED)),
+                        "dailyAttendanceLogs", countForMonitoring(organizationId, query, dailyAttendanceCriteria(now, actor))
                 ),
                 monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_IN), Sort.by(Sort.Direction.DESC, "checkInTime")),
                 monitorVisitors(organizationId, query, overdueCriteria(now), Sort.by(Sort.Direction.ASC, "scheduledEndTime").and(Sort.by(Sort.Direction.ASC, "qrExpiresAt"))),
                 monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.CHECKED_OUT), Sort.by(Sort.Direction.DESC, "checkOutTime")),
                 monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.REJECTED), Sort.by(Sort.Direction.DESC, "rejectedAt")),
-                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED), Sort.by(Sort.Direction.ASC, "scheduledStartTime").and(Sort.by(Sort.Direction.DESC, "createdAt")))
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.APPROVED), Sort.by(Sort.Direction.ASC, "scheduledStartTime").and(Sort.by(Sort.Direction.DESC, "createdAt"))),
+                monitorVisitors(organizationId, query, activeRecurringCriteria(now), Sort.by(Sort.Direction.ASC, "validityEndDate").and(Sort.by(Sort.Direction.ASC, "fullName"))),
+                monitorVisitors(organizationId, query, expiredRecurringCriteria(now), Sort.by(Sort.Direction.DESC, "validityEndDate")),
+                monitorVisitors(organizationId, query, Criteria.where("status").is(VisitorStatus.SUSPENDED), Sort.by(Sort.Direction.DESC, "suspendedAt")),
+                monitorVisitors(organizationId, query, dailyAttendanceCriteria(now, actor), Sort.by(Sort.Direction.DESC, "checkInTime").and(Sort.by(Sort.Direction.DESC, "checkOutTime")))
         );
     }
 
@@ -665,7 +794,8 @@ public class VisitorService {
                 "rejected", countStatus(organizationId, VisitorStatus.REJECTED),
                 "checkedIn", countStatus(organizationId, VisitorStatus.CHECKED_IN),
                 "checkedOut", countStatus(organizationId, VisitorStatus.CHECKED_OUT),
-                "expired", countStatus(organizationId, VisitorStatus.EXPIRED)
+                "expired", countStatus(organizationId, VisitorStatus.EXPIRED),
+                "suspended", countStatus(organizationId, VisitorStatus.SUSPENDED)
         );
     }
 
@@ -675,7 +805,12 @@ public class VisitorService {
         Query query = new Query(new Criteria().orOperator(
                 Criteria.where("status").is(VisitorStatus.PENDING).and("approvalExpiresAt").lte(now),
                 Criteria.where("status").is(VisitorStatus.APPROVED).and("scheduledEndTime").lte(now),
-                Criteria.where("status").is(VisitorStatus.APPROVED).and("qrExpiresAt").lte(now)
+                Criteria.where("status").is(VisitorStatus.APPROVED).and("qrExpiresAt").lte(now),
+                new Criteria().andOperator(
+                        Criteria.where("visitorType").in(VisitorType.RECURRING, VisitorType.CONTRACTOR_VENDOR),
+                        Criteria.where("status").in(VisitorStatus.APPROVED, VisitorStatus.CHECKED_IN, VisitorStatus.CHECKED_OUT),
+                        Criteria.where("validityEndDate").lte(now)
+                )
         ));
 
         List<Visitor> dueVisitors = mongoTemplate.find(query, Visitor.class);
@@ -693,8 +828,11 @@ public class VisitorService {
                     Criteria.where("phone").regex(pattern),
                     Criteria.where("email").regex(pattern),
                     Criteria.where("companyName").regex(pattern),
+                    Criteria.where("vendorCompanyName").regex(pattern),
                     Criteria.where("purposeOfVisit").regex(pattern),
                     Criteria.where("hostEmployee").regex(pattern),
+                    Criteria.where("department").regex(pattern),
+                    Criteria.where("visitorType").regex(pattern),
                     Criteria.where("qrCode").regex(pattern)
             ));
         }
@@ -760,10 +898,108 @@ public class VisitorService {
         }
         setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(trimToNull(value)));
         setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(trimToNull(value)));
+        applyVisitorTypeProfile(visitor, request);
         if (request.status() != null) {
             applyDirectStatusUpdate(visitor, request.status());
         }
         visitor.setUpdatedAt(Instant.now());
+    }
+
+    private void applyVisitorTypeProfile(Visitor visitor, VisitorCreateRequest request, User actor) {
+        VisitorType requestedType = request.visitorType() == null ? VisitorType.ONE_TIME : request.visitorType();
+        if (requestedType != VisitorType.ONE_TIME && actor != null && !hasRole(actor, Role.SECURITY_GUARD) && !hasRole(actor, Role.ADMIN) && !hasRole(actor, Role.SUPER_ADMIN)) {
+            throw new BadRequestException("Only security or admin users can create recurring visitor profiles.");
+        }
+        visitor.setVisitorType(requestedType);
+        visitor.setVendorCompanyName(trimToNull(request.vendorCompanyName()));
+        visitor.setSponsorEmployee(trimToNull(request.sponsorEmployee()));
+        visitor.setDepartment(trimToNull(request.department()));
+        visitor.setValidityStartDate(request.validityStartDate());
+        visitor.setValidityEndDate(request.validityEndDate());
+        visitor.setRecurringSchedule(trimToNull(request.recurringSchedule()));
+        visitor.setAllowedWeekdays(normalizeWeekdays(request.allowedWeekdays()));
+        visitor.setAllowedEntryStartTime(normalizeEntryTime(request.allowedEntryStartTime(), "Allowed entry start time is invalid."));
+        visitor.setAllowedEntryEndTime(normalizeEntryTime(request.allowedEntryEndTime(), "Allowed entry end time is invalid."));
+        visitor.setEmergencyContact(trimToNull(request.emergencyContact()));
+        visitor.setNotes(trimToNull(request.notes()));
+        validateRecurringProfile(visitor);
+    }
+
+    private void applyVisitorTypeProfile(Visitor visitor, VisitorUpdateRequest request) {
+        if (request.visitorType() != null) {
+            visitor.setVisitorType(request.visitorType());
+        }
+        setIfPresent(request.vendorCompanyName(), value -> visitor.setVendorCompanyName(trimToNull(value)));
+        setIfPresent(request.sponsorEmployee(), value -> visitor.setSponsorEmployee(trimToNull(value)));
+        setIfPresent(request.department(), value -> visitor.setDepartment(trimToNull(value)));
+        if (request.validityStartDate() != null) {
+            visitor.setValidityStartDate(request.validityStartDate());
+        }
+        if (request.validityEndDate() != null) {
+            visitor.setValidityEndDate(request.validityEndDate());
+            if (isRecurringVisitor(visitor) && visitor.getQrExpiresAt() != null) {
+                visitor.setQrExpiresAt(request.validityEndDate());
+            }
+        }
+        setIfPresent(request.recurringSchedule(), value -> visitor.setRecurringSchedule(trimToNull(value)));
+        if (request.allowedWeekdays() != null) {
+            visitor.setAllowedWeekdays(normalizeWeekdays(request.allowedWeekdays()));
+        }
+        setIfPresent(request.allowedEntryStartTime(), value -> visitor.setAllowedEntryStartTime(normalizeEntryTime(value, "Allowed entry start time is invalid.")));
+        setIfPresent(request.allowedEntryEndTime(), value -> visitor.setAllowedEntryEndTime(normalizeEntryTime(value, "Allowed entry end time is invalid.")));
+        setIfPresent(request.emergencyContact(), value -> visitor.setEmergencyContact(trimToNull(value)));
+        setIfPresent(request.notes(), value -> visitor.setNotes(trimToNull(value)));
+        validateRecurringProfile(visitor);
+    }
+
+    private void validateRecurringProfile(Visitor visitor) {
+        if (!isRecurringVisitor(visitor)) {
+            return;
+        }
+        if (visitor.getValidityStartDate() == null || visitor.getValidityEndDate() == null) {
+            throw new BadRequestException("Recurring visitors require validity start and end dates.");
+        }
+        if (!visitor.getValidityEndDate().isAfter(visitor.getValidityStartDate())) {
+            throw new BadRequestException("Recurring visitor validity end date must be after the start date.");
+        }
+        String start = trimToNull(visitor.getAllowedEntryStartTime());
+        String end = trimToNull(visitor.getAllowedEntryEndTime());
+        if ((start == null) != (end == null)) {
+            throw new BadRequestException("Recurring visitors require both allowed entry start and end times.");
+        }
+        if (start != null && !LocalTime.parse(end).isAfter(LocalTime.parse(start))) {
+            throw new BadRequestException("Allowed entry end time must be after the start time.");
+        }
+    }
+
+    private List<String> normalizeWeekdays(List<String> weekdays) {
+        if (weekdays == null) {
+            return List.of();
+        }
+        return weekdays.stream()
+                .map(this::trimToNull)
+                .filter(value -> value != null)
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .map(value -> value.length() >= 3 ? value.substring(0, 3) : value)
+                .distinct()
+                .peek(value -> {
+                    if (!Set.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN").contains(value)) {
+                        throw new BadRequestException("Allowed weekdays must use MON, TUE, WED, THU, FRI, SAT, or SUN.");
+                    }
+                })
+                .toList();
+    }
+
+    private String normalizeEntryTime(String value, String message) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        try {
+            return LocalTime.parse(trimmed).toString();
+        } catch (DateTimeException ex) {
+            throw new BadRequestException(message);
+        }
     }
 
     private void applyDirectStatusUpdate(Visitor visitor, VisitorStatus status) {
@@ -844,8 +1080,20 @@ public class VisitorService {
                 organizationTimezone(visitor),
                 visitor.getOrganizationRegionCountry(),
                 visitor.getPurposeOfVisit(),
+                visitor.getVisitorType() == null ? VisitorType.ONE_TIME : visitor.getVisitorType(),
+                visitor.getVendorCompanyName(),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
+                visitor.getSponsorEmployee(),
+                visitor.getDepartment(),
+                visitor.getValidityStartDate(),
+                visitor.getValidityEndDate(),
+                visitor.getRecurringSchedule(),
+                visitor.getAllowedWeekdays() == null ? List.of() : visitor.getAllowedWeekdays(),
+                visitor.getAllowedEntryStartTime(),
+                visitor.getAllowedEntryEndTime(),
+                visitor.getEmergencyContact(),
+                visitor.getNotes(),
                 visitor.getPhotoUrl(),
                 visitor.getHostEmployeeId(),
                 resolveBadgeId(visitor),
@@ -866,6 +1114,12 @@ public class VisitorService {
                 visitor.getApprovedBy(),
                 visitor.getRejectedBy(),
                 visitor.getRejectionReason(),
+                visitor.getSuspendedAt(),
+                visitor.getSuspendedBy(),
+                visitor.getSuspensionReason(),
+                visitor.getRevokedAt(),
+                visitor.getRevokedBy(),
+                visitor.getRevocationReason(),
                 visitor.getStatusHistory() == null ? List.of() : visitor.getStatusHistory()
                         .stream()
                         .map(entry -> new VisitorStatusHistoryResponse(
@@ -893,8 +1147,18 @@ public class VisitorService {
                 visitor.getOrganizationCode(),
                 organizationTimezone(visitor),
                 visitor.getPurposeOfVisit(),
+                visitor.getVisitorType() == null ? VisitorType.ONE_TIME : visitor.getVisitorType(),
+                visitor.getVendorCompanyName(),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
+                visitor.getSponsorEmployee(),
+                visitor.getDepartment(),
+                visitor.getValidityStartDate(),
+                visitor.getValidityEndDate(),
+                visitor.getRecurringSchedule(),
+                visitor.getAllowedWeekdays() == null ? List.of() : visitor.getAllowedWeekdays(),
+                visitor.getAllowedEntryStartTime(),
+                visitor.getAllowedEntryEndTime(),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
                 displayStatus(visitor.getStatus()),
@@ -1068,13 +1332,24 @@ public class VisitorService {
     }
 
     private void requirePassReady(Visitor visitor) {
-        if (visitor.getStatus() != VisitorStatus.APPROVED && visitor.getStatus() != VisitorStatus.CHECKED_IN) {
+        if (visitor.getStatus() != VisitorStatus.APPROVED
+                && visitor.getStatus() != VisitorStatus.CHECKED_IN
+                && !(isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT)) {
             throw new BadRequestException("A visitor pass is available only after approval.");
         }
         if (visitor.getQrCode() == null || visitor.getQrExpiresAt() == null || visitor.getQrExpiresAt().isBefore(Instant.now())) {
             throw new BadRequestException("Visitor pass is missing or expired.");
         }
+        if (isRecurringVisitor(visitor)) {
+            requireRecurringWithinValidity(visitor, Instant.now());
+            return;
+        }
         requireVisitorWithinAllowedWindow(visitor, Instant.now());
+    }
+
+    private boolean isRecurringVisitor(Visitor visitor) {
+        VisitorType type = visitor.getVisitorType();
+        return type == VisitorType.RECURRING || type == VisitorType.CONTRACTOR_VENDOR;
     }
 
     private String normalizeLegacyQrPayload(String scannedPayload) {
@@ -1099,6 +1374,16 @@ public class VisitorService {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
                 null,
                 null,
                 null,
@@ -1151,6 +1436,9 @@ public class VisitorService {
     }
 
     private Instant resolveQrExpiry(Visitor visitor, Instant now) {
+        if (isRecurringVisitor(visitor) && visitor.getValidityEndDate() != null) {
+            return visitor.getValidityEndDate();
+        }
         if (visitor.getScheduledEndTime() != null) {
             return visitor.getScheduledEndTime();
         }
@@ -1158,12 +1446,56 @@ public class VisitorService {
     }
 
     private void requireVisitorWithinAllowedWindow(Visitor visitor, Instant now) {
+        if (isRecurringVisitor(visitor)) {
+            requireRecurringAllowedNow(visitor, now);
+            return;
+        }
         if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
             throw new BadRequestException("Visitor pass is not active until the scheduled start time.");
         }
         if (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime())) {
             throw new BadRequestException("Visitor pass has expired for the scheduled visit window.");
         }
+    }
+
+    private void requireRecurringAllowedNow(Visitor visitor, Instant now) {
+        if (!isRecurringAllowedNow(visitor, now)) {
+            throw new BadRequestException("Recurring visitor access is outside the approved validity, weekday, or entry window.");
+        }
+    }
+
+    private void requireRecurringWithinValidity(Visitor visitor, Instant now) {
+        if (visitor.getValidityEndDate() != null && !now.isBefore(visitor.getValidityEndDate())) {
+            throw new BadRequestException("Recurring visitor badge has expired.");
+        }
+    }
+
+    private boolean isRecurringAllowedNow(Visitor visitor, Instant now) {
+        if (visitor.getValidityStartDate() != null && now.isBefore(visitor.getValidityStartDate())) {
+            return false;
+        }
+        if (visitor.getValidityEndDate() != null && !now.isBefore(visitor.getValidityEndDate())) {
+            return false;
+        }
+        ZoneId zone = ZoneId.of(organizationTimezone(visitor));
+        List<String> weekdays = visitor.getAllowedWeekdays() == null ? List.of() : visitor.getAllowedWeekdays();
+        if (!weekdays.isEmpty()) {
+            String today = dayCode(now.atZone(zone).getDayOfWeek());
+            if (!weekdays.contains(today)) {
+                return false;
+            }
+        }
+        String start = trimToNull(visitor.getAllowedEntryStartTime());
+        String end = trimToNull(visitor.getAllowedEntryEndTime());
+        if (start != null && end != null) {
+            LocalTime current = now.atZone(zone).toLocalTime();
+            return !current.isBefore(LocalTime.parse(start)) && current.isBefore(LocalTime.parse(end));
+        }
+        return true;
+    }
+
+    private String dayCode(DayOfWeek dayOfWeek) {
+        return dayOfWeek.name().substring(0, 3);
     }
 
     private void enforceActiveVisitorRules(Visitor candidate) {
@@ -1317,9 +1649,12 @@ public class VisitorService {
                 Criteria.where("phone").regex(pattern),
                 Criteria.where("email").regex(pattern),
                 Criteria.where("companyName").regex(pattern),
+                Criteria.where("vendorCompanyName").regex(pattern),
                 Criteria.where("purposeOfVisit").regex(pattern),
                 Criteria.where("hostEmployee").regex(pattern),
                 Criteria.where("hostEmployeeDepartment").regex(pattern),
+                Criteria.where("department").regex(pattern),
+                Criteria.where("visitorType").regex(pattern),
                 Criteria.where("qrCode").regex(pattern),
                 Criteria.where("username").regex(pattern),
                 Criteria.where("department").regex(pattern)
@@ -1381,14 +1716,50 @@ public class VisitorService {
         );
     }
 
+    private Criteria activeRecurringCriteria(Instant now) {
+        return new Criteria().andOperator(
+                Criteria.where("visitorType").in(VisitorType.RECURRING, VisitorType.CONTRACTOR_VENDOR),
+                Criteria.where("status").in(VisitorStatus.APPROVED, VisitorStatus.CHECKED_IN, VisitorStatus.CHECKED_OUT),
+                new Criteria().orOperator(
+                        Criteria.where("validityStartDate").exists(false),
+                        Criteria.where("validityStartDate").lte(now)
+                ),
+                new Criteria().orOperator(
+                        Criteria.where("validityEndDate").exists(false),
+                        Criteria.where("validityEndDate").gt(now)
+                )
+        );
+    }
+
+    private Criteria expiredRecurringCriteria(Instant now) {
+        return new Criteria().andOperator(
+                Criteria.where("visitorType").in(VisitorType.RECURRING, VisitorType.CONTRACTOR_VENDOR),
+                new Criteria().orOperator(
+                        Criteria.where("status").is(VisitorStatus.EXPIRED),
+                        Criteria.where("validityEndDate").lte(now)
+                )
+        );
+    }
+
+    private Criteria dailyAttendanceCriteria(Instant now, User actor) {
+        ZoneId timezone = organizationZoneId(actor);
+        Instant start = LocalDate.now(timezone).atStartOfDay(timezone).toInstant();
+        Instant end = LocalDate.now(timezone).plusDays(1).atStartOfDay(timezone).toInstant();
+        return new Criteria().orOperator(
+                Criteria.where("checkInTime").gte(start).lt(end),
+                Criteria.where("checkOutTime").gte(start).lt(end)
+        );
+    }
+
     private boolean isPassValid(Visitor visitor, Instant now) {
         return visitor.getQrCode() != null
                 && visitor.getPassTokenId() != null
                 && visitor.getQrExpiresAt() != null
                 && visitor.getQrExpiresAt().isAfter(now)
-                && visitor.getStatus() == VisitorStatus.APPROVED
+                && (visitor.getStatus() == VisitorStatus.APPROVED || (isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT))
                 && (visitor.getScheduledStartTime() == null || !now.isBefore(visitor.getScheduledStartTime()))
-                && (visitor.getScheduledEndTime() == null || now.isBefore(visitor.getScheduledEndTime()));
+                && (visitor.getScheduledEndTime() == null || now.isBefore(visitor.getScheduledEndTime()))
+                && (!isRecurringVisitor(visitor) || isRecurringAllowedNow(visitor, now));
     }
 
     private boolean isOverdue(Visitor visitor, Instant now) {
@@ -1398,11 +1769,17 @@ public class VisitorService {
     }
 
     private String passValidityStatus(Visitor visitor, Instant now) {
-        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT && !isRecurringVisitor(visitor)) {
             return "Checked out";
+        }
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT && isRecurringVisitor(visitor)) {
+            return isRecurringAllowedNow(visitor, now) ? "Valid recurring pass" : "Outside recurring window";
         }
         if (visitor.getStatus() == VisitorStatus.REJECTED) {
             return "Rejected";
+        }
+        if (visitor.getStatus() == VisitorStatus.SUSPENDED) {
+            return "Suspended";
         }
         if (visitor.getStatus() == VisitorStatus.EXPIRED) {
             return "Expired";
@@ -1415,6 +1792,9 @@ public class VisitorService {
         }
         if (visitor.getQrExpiresAt() == null || !visitor.getQrExpiresAt().isAfter(now)) {
             return "Expired";
+        }
+        if (isRecurringVisitor(visitor) && !isRecurringAllowedNow(visitor, now)) {
+            return "Outside recurring window";
         }
         if (isOverdue(visitor, now)) {
             return "Overdue";
@@ -1536,6 +1916,19 @@ public class VisitorService {
             );
         }
 
+        if (visitor.getStatus() == VisitorStatus.SUSPENDED) {
+            return verificationResponse(
+                    false,
+                    true,
+                    "SUSPENDED_VISITOR",
+                    "Visitor suspended",
+                    "This recurring visitor or badge has been suspended.",
+                    "Do not admit the visitor until an authorized user reactivates the profile.",
+                    visitor,
+                    now
+            );
+        }
+
         if (visitor.getStatus() == VisitorStatus.PENDING) {
             return verificationResponse(
                     false,
@@ -1549,7 +1942,7 @@ public class VisitorService {
             );
         }
 
-        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT && !isRecurringVisitor(visitor)) {
             return verificationResponse(
                     false,
                     true,
@@ -1565,6 +1958,7 @@ public class VisitorService {
         if (visitor.getStatus() == VisitorStatus.EXPIRED
                 || visitor.getQrExpiresAt() == null
                 || !visitor.getQrExpiresAt().isAfter(now)
+                || (isRecurringVisitor(visitor) && !isRecurringAllowedNow(visitor, now))
                 || (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime()))) {
             return verificationResponse(
                     false,
@@ -1573,6 +1967,19 @@ public class VisitorService {
                     "Pass expired",
                     "This visitor pass is outside its approved access window.",
                     "Do not admit the visitor until a new approval is issued.",
+                    visitor,
+                    now
+            );
+        }
+
+        if (visitor.getStatus() == VisitorStatus.CHECKED_OUT && isRecurringVisitor(visitor)) {
+            return verificationResponse(
+                    true,
+                    true,
+                    "VALID_RECURRING_PASS",
+                    "Recurring pass verified",
+                    "The reusable recurring badge is active for this entry window.",
+                    "Confirm the visitor photo and identity, then complete check-in.",
                     visitor,
                     now
             );
@@ -1705,8 +2112,18 @@ public class VisitorService {
                 visitor.getOrganizationName(),
                 visitor.getOrganizationCode(),
                 organizationTimezone(visitor),
+                visitor.getVisitorType() == null ? VisitorType.ONE_TIME : visitor.getVisitorType(),
+                visitor.getVendorCompanyName(),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
+                visitor.getSponsorEmployee(),
+                visitor.getDepartment(),
+                visitor.getValidityStartDate(),
+                visitor.getValidityEndDate(),
+                visitor.getRecurringSchedule(),
+                visitor.getAllowedWeekdays() == null ? List.of() : visitor.getAllowedWeekdays(),
+                visitor.getAllowedEntryStartTime(),
+                visitor.getAllowedEntryEndTime(),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
                 displayStatus(visitor.getStatus()),
@@ -1720,7 +2137,7 @@ public class VisitorService {
                 visitor.getCheckOutTime(),
                 overdue,
                 passValidityStatus(visitor, now),
-                valid && visitor.getStatus() == VisitorStatus.APPROVED,
+                valid && (visitor.getStatus() == VisitorStatus.APPROVED || (isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT)),
                 visitor.getStatus() == VisitorStatus.CHECKED_IN
         );
     }
@@ -1733,6 +2150,7 @@ public class VisitorService {
             case CHECKED_IN -> "Checked in";
             case CHECKED_OUT -> "Checked out";
             case EXPIRED -> "Expired";
+            case SUSPENDED -> "Suspended";
         };
     }
 
@@ -1754,6 +2172,9 @@ public class VisitorService {
         }
         if (visitor.getStatus() == VisitorStatus.EXPIRED) {
             return "Visit expired";
+        }
+        if (visitor.getStatus() == VisitorStatus.SUSPENDED) {
+            return "Visitor suspended";
         }
         return displayStatus(visitor.getStatus());
     }

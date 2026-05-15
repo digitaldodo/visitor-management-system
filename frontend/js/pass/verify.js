@@ -1,5 +1,5 @@
 import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js";
-import { getPublicPassVerification } from "../shared/accessService.js";
+import { getPublicPassVerification } from "../shared/accessService.js?v=20260515-recurring";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
@@ -80,12 +80,14 @@ function renderVerification(result) {
       </div>
       <div class="pass-verify-grid">
         ${detailCard("Organization", result.organizationName || result.organizationCode || "Not recorded")}
+        ${detailCard("Visitor type", visitorTypeLabel(result.visitorType))}
+        ${detailCard("Vendor", result.vendorCompanyName || "Not recorded")}
         ${detailCard("Host employee", result.hostEmployee || "Not recorded")}
         ${detailCard("Host team", result.hostEmployeeDepartment || "Not recorded")}
         ${detailCard("Badge ID", result.badgeId || "Not issued")}
         ${detailCard("Pass code", result.passCode || "Not issued")}
         ${detailCard("Workflow status", result.statusLabel || "Not recorded")}
-        ${detailCard("Access window", formatWindow(result.scheduledStartTime, result.scheduledEndTime))}
+        ${detailCard("Access window", accessWindow(result))}
         ${detailCard("Timezone", timezoneLabel(result.organizationTimezone || result.scheduledTimezone || "UTC"))}
         ${detailCard("Issued", formatDate(result.issuedAt))}
         ${detailCard("Expires", formatDate(result.expiresAt))}
@@ -153,10 +155,34 @@ function statusTone(result) {
   if (["PENDING_APPROVAL", "NOT_ACTIVE_YET", "ALREADY_USED", "OVERDUE_VISIT"].includes(result.resultCode)) {
     return "warning";
   }
+  if (result.resultCode === "SUSPENDED_VISITOR") {
+    return "danger";
+  }
   if (result.resultCode === "EXPIRED_PASS") {
     return "neutral";
   }
   return "danger";
+}
+
+function visitorTypeLabel(type) {
+  if (type === "RECURRING") {
+    return "Recurring visitor";
+  }
+  if (type === "CONTRACTOR_VENDOR") {
+    return "Contractor / vendor";
+  }
+  return "One-time visitor";
+}
+
+function accessWindow(result) {
+  if (result.visitorType === "RECURRING" || result.visitorType === "CONTRACTOR_VENDOR") {
+    const validity = formatWindow(result.validityStartDate, result.validityEndDate);
+    const entry = result.allowedEntryStartTime && result.allowedEntryEndTime
+      ? `, ${result.allowedEntryStartTime}-${result.allowedEntryEndTime}`
+      : "";
+    return `${validity}${entry}`;
+  }
+  return formatWindow(result.scheduledStartTime, result.scheduledEndTime);
 }
 
 function statusLabel(result) {

@@ -1,4 +1,4 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
+import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js?v=20260515-recurring";
 import { formatDate, formatDurationMinutes, minutesBetween } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
@@ -11,6 +11,13 @@ const STATUS_LABELS = {
   CHECKED_IN: "Checked in",
   CHECKED_OUT: "Checked out",
   EXPIRED: "Expired",
+  SUSPENDED: "Suspended",
+};
+
+const VISITOR_TYPE_LABELS = {
+  ONE_TIME: "One-time visitor",
+  RECURRING: "Recurring visitor",
+  CONTRACTOR_VENDOR: "Contractor / vendor",
 };
 
 export function initVisitorModule(selector, options) {
@@ -45,6 +52,7 @@ export function initVisitorModule(selector, options) {
   if (options.showHostFields !== false) {
     initHostPicker(root, { basePath: options.basePath });
   }
+  initRecurringFields(root, options);
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -64,10 +72,15 @@ export function initVisitorModule(selector, options) {
       }
       payload.photoUrl = photoData.url;
       payload.photoPublicId = photoData.publicId;
-      await createVisitor(options.basePath, payload);
+      const created = await createVisitor(options.basePath, payload);
       form.reset();
       resetPhotoState(root, state);
-      showToast("Visitor registered", "The visitor record is ready for check-in.");
+      const visitor = created?.data || {};
+      const registeredRecurring = isRecurring(visitor) || payload.visitorType === "RECURRING" || payload.visitorType === "CONTRACTOR_VENDOR";
+      showToast(
+        registeredRecurring ? "Recurring profile created" : "Visitor registered",
+        registeredRecurring ? "Reusable badge access is ready for QR verification." : "Approval request submitted. Badge and QR stay inactive until approved."
+      );
       state.page = 0;
       await load();
     } catch (error) {
@@ -155,6 +168,15 @@ export function initVisitorModule(selector, options) {
         await checkInVisitor(options.basePath, id);
         showToast("Checked in", "Visitor status updated.");
       }
+      if (type === "override-check-in") {
+        const reason = window.prompt("Enter the override reason after verifying the visitor photo and identity.");
+        if (!reason || reason.trim().length < 8) {
+          showToast("Override reason required", "Enter at least 8 characters before manual check-in.");
+          return;
+        }
+        await overrideCheckInVisitor(options.basePath, id, reason.trim());
+        showToast("Override recorded", "Visitor checked in with an audit trail.");
+      }
       if (type === "check-out") {
         await checkOutVisitor(options.basePath, id);
         showToast("Checked out", "Visitor status updated.");
@@ -236,6 +258,64 @@ function template(options) {
         <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" value="${escapeHtml(options.organizationCode || "")}" />
       </label>
   ` : "";
+  const recurringFields = options.enableRecurring ? `
+      <label class="form-field">
+        <span>Visitor Type</span>
+        <select name="visitorType" data-visitor-type>
+          <option value="ONE_TIME">One-Time Visitor</option>
+          <option value="RECURRING">Recurring Visitor</option>
+          <option value="CONTRACTOR_VENDOR">Contractor/Vendor</option>
+        </select>
+      </label>
+      <div class="visitor-recurring-fields form-field--wide is-hidden" data-recurring-fields>
+        <label class="form-field">
+          <span>Vendor / Company Name</span>
+          <input name="vendorCompanyName" type="text" autocomplete="organization" placeholder="Vendor or contractor company" />
+        </label>
+        <label class="form-field">
+          <span>Sponsor Employee</span>
+          <input name="sponsorEmployee" type="text" placeholder="Sponsor or site owner" />
+        </label>
+        <label class="form-field">
+          <span>Department</span>
+          <input name="department" type="text" placeholder="Department or service area" />
+        </label>
+        <label class="form-field">
+          <span>Validity Start</span>
+          <input name="validityStartDate" type="datetime-local" />
+        </label>
+        <label class="form-field">
+          <span>Validity End</span>
+          <input name="validityEndDate" type="datetime-local" />
+        </label>
+        <label class="form-field">
+          <span>Recurring Schedule</span>
+          <input name="recurringSchedule" type="text" placeholder="Daily, weekly, shift pattern" />
+        </label>
+        <label class="form-field form-field--wide">
+          <span>Allowed Weekdays</span>
+          <div class="weekday-picker">
+            ${["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map((day) => `<label><input type="checkbox" name="allowedWeekdays" value="${day}" />${day}</label>`).join("")}
+          </div>
+        </label>
+        <label class="form-field">
+          <span>Entry Window Start</span>
+          <input name="allowedEntryStartTime" type="time" />
+        </label>
+        <label class="form-field">
+          <span>Entry Window End</span>
+          <input name="allowedEntryEndTime" type="time" />
+        </label>
+        <label class="form-field">
+          <span>Emergency Contact</span>
+          <input name="emergencyContact" type="text" autocomplete="tel" placeholder="Emergency phone or contact" />
+        </label>
+        <label class="form-field form-field--wide">
+          <span>Notes</span>
+          <textarea name="notes" rows="3" placeholder="Access notes, restrictions, or service area"></textarea>
+        </label>
+      </div>
+  ` : "";
 
   return `
     <div class="panel__header">
@@ -262,6 +342,7 @@ function template(options) {
         <span>Company Name</span>
         <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
       </label>
+      ${recurringFields}
       ${organizationCodeField}
       <label class="form-field form-field--wide">
         <span>Purpose of Visit</span>
@@ -304,6 +385,7 @@ function template(options) {
         <option value="CHECKED_IN">Checked in</option>
         <option value="CHECKED_OUT">Checked out</option>
         <option value="EXPIRED">Expired</option>
+        <option value="SUSPENDED">Suspended</option>
       </select>
       <select data-visitor-size aria-label="Rows per page">
         <option value="10">10 rows</option>
@@ -338,6 +420,20 @@ function template(options) {
     <div class="visitor-modal is-hidden" data-visitor-modal></div>
     <div class="visitor-modal is-hidden" data-photo-modal></div>
   `;
+}
+
+function initRecurringFields(root, options) {
+  if (!options.enableRecurring) {
+    return;
+  }
+  const typeSelect = root.querySelector("[data-visitor-type]");
+  const section = root.querySelector("[data-recurring-fields]");
+  const sync = () => {
+    const recurring = typeSelect?.value === "RECURRING" || typeSelect?.value === "CONTRACTOR_VENDOR";
+    section?.classList.toggle("is-hidden", !recurring);
+  };
+  typeSelect?.addEventListener("change", sync);
+  sync();
 }
 
 function renderSkeleton(root) {
@@ -384,6 +480,7 @@ function row(visitor, options) {
       <td data-label="Visitor">
         <strong>${escapeHtml(visitor.fullName)}</strong>
         <small>${escapeHtml(visitor.phone)}${visitor.email ? ` · ${escapeHtml(visitor.email)}` : ""}</small>
+        <small>${escapeHtml(VISITOR_TYPE_LABELS[visitor.visitorType] || "One-time visitor")}</small>
       </td>
       <td data-label="Company">${escapeHtml(visitor.companyName || "Unlisted")}</td>
       <td data-label="Host">${escapeHtml(visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}</td>
@@ -396,7 +493,9 @@ function row(visitor, options) {
           <button class="icon-button" type="button" title="View details" data-visitor-action="detail" data-visitor-id="${escapeHtml(visitor.id)}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7s-9-4.5-10-7c1-2.5 5-7 10-7Zm0 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Z"/></svg>
           </button>
-          ${visitor.status === "APPROVED" ? actionButton("check-in", visitor.id, "Check in") : ""}
+          ${visitor.status === "APPROVED" && !visitor.preApproved ? actionButton("check-in", visitor.id, "Check in") : ""}
+          ${visitor.status === "APPROVED" && visitor.preApproved ? actionButton("override-check-in", visitor.id, "Override check-in") : ""}
+          ${visitor.status === "CHECKED_OUT" && isRecurring(visitor) ? actionButton("override-check-in", visitor.id, "Override recurring check-in") : ""}
           ${visitor.status === "CHECKED_IN" ? actionButton("check-out", visitor.id, "Check out") : ""}
           ${options.canDelete ? actionButton("delete", visitor.id, "Delete") : ""}
         </div>
@@ -414,6 +513,10 @@ function actionButton(action, id, label) {
       <svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
     </button>
   `;
+}
+
+function isRecurring(visitor) {
+  return visitor?.visitorType === "RECURRING" || visitor?.visitorType === "CONTRACTOR_VENDOR";
 }
 
 function renderPagination(root, state, totalItems) {
@@ -454,10 +557,20 @@ function openDetail(root, visitor) {
         ${detail("Phone", visitor.phone)}
         ${detail("Email", visitor.email || "Unlisted")}
         ${detail("Company", visitor.companyName || "Unlisted")}
+        ${detail("Visitor Type", VISITOR_TYPE_LABELS[visitor.visitorType] || "One-time visitor")}
+        ${detail("Vendor / Company", visitor.vendorCompanyName || visitor.companyName || "Unlisted")}
         ${detail("Organization", visitor.organizationName || visitor.organizationCode || "Unlisted")}
         ${detail("Purpose", visitor.purposeOfVisit)}
         ${detail("Host Employee", visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}
         ${detail("Host Department", visitor.hostEmployeeDepartment || "Not recorded")}
+        ${detail("Sponsor Employee", visitor.sponsorEmployee || "Not recorded")}
+        ${detail("Department", visitor.department || "Not recorded")}
+        ${detail("Validity Start", formatDate(visitor.validityStartDate))}
+        ${detail("Validity End", formatDate(visitor.validityEndDate))}
+        ${detail("Allowed Weekdays", (visitor.allowedWeekdays || []).join(", ") || "Any")}
+        ${detail("Entry Window", visitor.allowedEntryStartTime && visitor.allowedEntryEndTime ? `${visitor.allowedEntryStartTime} to ${visitor.allowedEntryEndTime}` : "Any")}
+        ${detail("Emergency Contact", visitor.emergencyContact || "Not recorded")}
+        ${detail("Notes", visitor.notes || "None")}
         ${detail("Badge ID", visitor.badgeId || "Not issued")}
         ${detail("Scheduled Start", formatDate(visitor.scheduledStartTime))}
         ${detail("Scheduled End", formatDate(visitor.scheduledEndTime))}
@@ -525,6 +638,22 @@ function formPayload(form, options) {
     payload.hostEmployee = trim(data.hostEmployee);
     payload.hostEmployeeId = trim(data.hostEmployeeId);
   }
+  if (options.enableRecurring) {
+    payload.visitorType = trim(data.visitorType) || "ONE_TIME";
+    if (payload.visitorType !== "ONE_TIME") {
+      payload.vendorCompanyName = trim(data.vendorCompanyName);
+      payload.sponsorEmployee = trim(data.sponsorEmployee);
+      payload.department = trim(data.department);
+      payload.validityStartDate = dateTimeLocalToIso(data.validityStartDate);
+      payload.validityEndDate = dateTimeLocalToIso(data.validityEndDate);
+      payload.recurringSchedule = trim(data.recurringSchedule);
+      payload.allowedWeekdays = new FormData(form).getAll("allowedWeekdays");
+      payload.allowedEntryStartTime = trim(data.allowedEntryStartTime);
+      payload.allowedEntryEndTime = trim(data.allowedEntryEndTime);
+      payload.emergencyContact = trim(data.emergencyContact);
+      payload.notes = trim(data.notes);
+    }
+  }
   return payload;
 }
 
@@ -547,6 +676,20 @@ function validate(payload, options, state) {
   }
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
     return "Select a host employee from the directory.";
+  }
+  if (options.enableRecurring && payload.visitorType && payload.visitorType !== "ONE_TIME") {
+    if (!payload.validityStartDate || !payload.validityEndDate) {
+      return "Enter validity start and end dates for recurring visitors.";
+    }
+    if (new Date(payload.validityEndDate) <= new Date(payload.validityStartDate)) {
+      return "Validity end must be after the start date.";
+    }
+    if ((payload.allowedEntryStartTime && !payload.allowedEntryEndTime) || (!payload.allowedEntryStartTime && payload.allowedEntryEndTime)) {
+      return "Enter both start and end times for the entry window.";
+    }
+    if (payload.allowedEntryStartTime && payload.allowedEntryEndTime && payload.allowedEntryEndTime <= payload.allowedEntryStartTime) {
+      return "Entry window end must be after the start time.";
+    }
   }
   if (!state.photoBlob || !state.photoAccepted) {
     return "Capture the visitor photo.";
@@ -708,16 +851,20 @@ function exportVisitors(items, label) {
     return;
   }
 
-  const headers = ["Full name", "Phone", "Email", "Company", "Organization", "Host", "Department", "Status", "Created", "Check-in", "Check-out", "QR code", "Badge ID"];
+  const headers = ["Full name", "Phone", "Email", "Visitor type", "Company", "Vendor", "Organization", "Host", "Department", "Status", "Validity start", "Validity end", "Created", "Check-in", "Check-out", "QR code", "Badge ID"];
   const rows = items.map((visitor) => [
     visitor.fullName,
     visitor.phone,
     visitor.email,
+    VISITOR_TYPE_LABELS[visitor.visitorType] || visitor.visitorType,
     visitor.companyName,
+    visitor.vendorCompanyName,
     visitor.organizationName || visitor.organizationCode,
     visitor.hostEmployee,
-    visitor.hostEmployeeDepartment,
+    visitor.department || visitor.hostEmployeeDepartment,
     STATUS_LABELS[visitor.status] || visitor.status,
+    formatDate(visitor.validityStartDate),
+    formatDate(visitor.validityEndDate),
     formatDate(visitor.createdAt),
     formatDate(visitor.checkInTime),
     formatDate(visitor.checkOutTime),
@@ -755,6 +902,15 @@ function debounce(callback, delay) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function dateTimeLocalToIso(value) {
+  const trimmed = trim(value);
+  if (!trimmed) {
+    return null;
+  }
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function csvCell(value) {

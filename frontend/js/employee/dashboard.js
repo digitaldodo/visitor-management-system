@@ -3,8 +3,8 @@ import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/accessService.js";
+import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
+import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/accessService.js?v=20260515-recurring";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 

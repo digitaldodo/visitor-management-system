@@ -3,9 +3,9 @@ import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js";
-import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
-import { checkInVisitor, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js";
+import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-recurring";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-recurring";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges"];
@@ -37,6 +37,7 @@ async function bootSecurityPortal() {
     title: "Front Desk Registration",
     eyebrow: "Reception Operations",
     canDelete: false,
+    enableRecurring: true,
   }), { toastTitle: "Visitor registration unavailable" });
   initQrVerification();
   initBadgeActions();
@@ -57,6 +58,10 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-overdue-list");
     renderLoadingList("#monitor-checkedout-list");
     renderLoadingList("#monitor-rejected-list");
+    renderLoadingList("#monitor-recurring-active-list");
+    renderLoadingList("#monitor-recurring-expired-list");
+    renderLoadingList("#monitor-suspended-list");
+    renderLoadingList("#monitor-attendance-list");
   }
 
   const [overview, queue, photo, monitoring] = await Promise.allSettled([
@@ -99,6 +104,10 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#monitor-overdue-list", [], (item) => item, "Monitoring unavailable", message);
     renderWorkList("#monitor-checkedout-list", [], (item) => item, "Monitoring unavailable", message);
     renderWorkList("#monitor-rejected-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-recurring-active-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-recurring-expired-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-suspended-list", [], (item) => item, "Monitoring unavailable", message);
+    renderWorkList("#monitor-attendance-list", [], (item) => item, "Monitoring unavailable", message);
   }
 }
 
@@ -119,11 +128,19 @@ function renderMonitoring(data = {}) {
   setCount("#monitor-count-overdue", counts.overdueVisitors || 0);
   setCount("#monitor-count-checkedout", counts.checkedOutVisitors || 0);
   setCount("#monitor-count-rejected", counts.rejectedVisitors || 0);
+  setCount("#monitor-count-recurring-active", counts.activeRecurringVisitors || 0);
+  setCount("#monitor-count-recurring-expired", counts.expiredRecurringVisitors || 0);
+  setCount("#monitor-count-suspended", counts.suspendedVisitors || 0);
+  setCount("#monitor-count-attendance", counts.dailyAttendanceLogs || 0);
 
   renderWorkList("#monitor-inside-list", data.currentlyInside || [], monitorCard, "No visitors inside", "Checked-in visitors will appear here.");
   renderWorkList("#monitor-overdue-list", data.overdueVisitors || [], overdueCard, "No overdue visitors", "Visitors who exceed the approved window will appear here.");
   renderWorkList("#monitor-checkedout-list", data.checkedOutVisitors || [], monitorCard, "No recent check-outs", "Completed departures will appear here.");
   renderWorkList("#monitor-rejected-list", data.rejectedVisitors || [], rejectedCard, "No rejected visitors", "Denied requests will appear here.");
+  renderWorkList("#monitor-recurring-active-list", data.activeRecurringVisitors || [], recurringCard, "No active recurring visitors", "Approved recurring profiles will appear here.");
+  renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
+  renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
+  renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No attendance today", "Today's check-in and check-out activity will appear here.");
 }
 
 function renderPhotoCapturePanel(data = {}) {
@@ -283,7 +300,7 @@ function initQrVerification() {
         await capturePhotoForVisitor(state.activeVerification.visitorId);
       }
       if (button.dataset.qrAction === "check-in" && state.activeVerification.canCheckIn) {
-        await checkInVisitor("/security", state.activeVerification.visitorId);
+        await checkInWithQr("/security", document.querySelector("#qr-payload-input")?.value || "");
         showToast("Visitor checked in", "Physical entry approved and recorded.");
       }
       if (button.dataset.qrAction === "check-out" && state.activeVerification.canCheckOut) {
@@ -376,9 +393,12 @@ function renderVerification(result) {
           </div>
           <dl>
             <div><dt>Visitor</dt><dd>${escapeHtml(result.fullName || "Unknown visitor")}</dd></div>
+            <div><dt>Visitor type</dt><dd>${escapeHtml(visitorTypeLabel(result.visitorType))}</dd></div>
             <div><dt>Company</dt><dd>${escapeHtml(result.companyName || "Unlisted")}</dd></div>
+            <div><dt>Vendor</dt><dd>${escapeHtml(result.vendorCompanyName || "Unlisted")}</dd></div>
             <div><dt>Host</dt><dd>${escapeHtml(result.hostEmployee || "Unassigned")}</dd></div>
             <div><dt>Host team</dt><dd>${escapeHtml(result.hostEmployeeDepartment || "Not recorded")}</dd></div>
+            <div><dt>Department</dt><dd>${escapeHtml(result.department || "Not recorded")}</dd></div>
             <div><dt>Badge ID</dt><dd>${escapeHtml(result.badgeId || "Not issued")}</dd></div>
             <div><dt>Pass code</dt><dd>${escapeHtml(result.passCode || "Not issued")}</dd></div>
             <div><dt>Workflow status</dt><dd>${escapeHtml(result.statusLabel || result.status || "Not recorded")}</dd></div>
@@ -386,6 +406,8 @@ function renderVerification(result) {
             <div><dt>Issued</dt><dd>${escapeHtml(formatDate(result.issuedAt))}</dd></div>
             <div><dt>Expires</dt><dd>${escapeHtml(formatDate(result.expiresAt))}</dd></div>
             <div><dt>Visit window</dt><dd>${escapeHtml(formatWindow(result.scheduledStartTime, result.scheduledEndTime))}</dd></div>
+            <div><dt>Recurring validity</dt><dd>${escapeHtml(formatWindow(result.validityStartDate, result.validityEndDate))}</dd></div>
+            <div><dt>Entry window</dt><dd>${escapeHtml(result.allowedEntryStartTime && result.allowedEntryEndTime ? `${result.allowedEntryStartTime} to ${result.allowedEntryEndTime}` : "Any")}</dd></div>
             <div><dt>Check-in state</dt><dd>${escapeHtml(checkpointStateText(result))}</dd></div>
           </dl>
         </div>
@@ -488,6 +510,36 @@ function rejectedCard(visitor) {
   `;
 }
 
+function recurringCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.vendorCompanyName || visitor.companyName || "Unlisted vendor")} · ${escapeHtml(visitor.department || visitor.hostEmployeeDepartment || "No department")}</p>
+      <small>${escapeHtml(visitorTypeLabel(visitor.visitorType))} · Valid ${escapeHtml(formatWindow(visitor.validityStartDate, visitor.validityEndDate))}</small>
+    </article>
+  `;
+}
+
+function attendanceCard(visitor) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(visitor.fullName)}</h3>
+      <p>${escapeHtml(visitor.companyName || visitor.vendorCompanyName || "Unlisted")} · ${escapeHtml(visitor.hostEmployee || "Unassigned")}</p>
+      <small>In ${escapeHtml(formatDate(visitor.checkInTime))} · Out ${escapeHtml(formatDate(visitor.checkOutTime))}</small>
+    </article>
+  `;
+}
+
+function visitorTypeLabel(type) {
+  if (type === "RECURRING") {
+    return "Recurring visitor";
+  }
+  if (type === "CONTRACTOR_VENDOR") {
+    return "Contractor / vendor";
+  }
+  return "One-time visitor";
+}
+
 function passBadgeTone(pass) {
   const value = String(pass.validityStatus || pass.status || "").toLowerCase();
   if (value.includes("checked in")) {
@@ -498,6 +550,9 @@ function passBadgeTone(pass) {
   }
   if (value.includes("expired") || value.includes("denied") || value.includes("rejected")) {
     return "expired";
+  }
+  if (value.includes("suspended")) {
+    return "suspended";
   }
   if (value.includes("overdue") || value.includes("scheduled") || value.includes("pending")) {
     return "pending";
@@ -524,6 +579,9 @@ function verificationStatusTone(result) {
   }
   if (result.resultCode === "PENDING_APPROVAL" || result.resultCode === "NOT_ACTIVE_YET") {
     return "pending";
+  }
+  if (result.resultCode === "SUSPENDED_VISITOR") {
+    return "suspended";
   }
   return "expired";
 }

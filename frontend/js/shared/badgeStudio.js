@@ -28,9 +28,10 @@ export function badgeMarkup(pass, options = {}) {
   const checkInState = pass.checkInState || deriveCheckInState(pass);
   const hostDepartment = pass.hostEmployeeDepartment || "Workplace team";
   const purpose = pass.purposeOfVisit || "General visit";
+  const typeLabel = visitorTypeLabel(pass.visitorType);
 
   return `
-    <article class="enterprise-badge enterprise-badge--${tone}" data-badge-card>
+    <article class="enterprise-badge enterprise-badge--${tone} ${isRecurring(pass) ? "enterprise-badge--recurring" : ""}" data-badge-card>
       <div class="enterprise-badge__hero">
         <div class="enterprise-badge__brandlockup">
           <img class="enterprise-badge__brand-icon" src="${escapeHtml(BRAND_ICON)}" alt="AccessFlow" />
@@ -41,6 +42,7 @@ export function badgeMarkup(pass, options = {}) {
           </div>
         </div>
         <div class="enterprise-badge__status-stack">
+          <span class="enterprise-badge__chip enterprise-badge__chip--neutral">${escapeHtml(typeLabel)}</span>
           <span class="enterprise-badge__chip enterprise-badge__chip--${tone}">${escapeHtml(statusLabel)}</span>
           <span class="enterprise-badge__subtle">${escapeHtml(checkInState)}</span>
         </div>
@@ -64,11 +66,12 @@ export function badgeMarkup(pass, options = {}) {
           <div class="enterprise-badge__detail-grid">
             ${detailTile("Host employee", pass.hostEmployee || "Front desk assigned")}
             ${detailTile("Host team", hostDepartment)}
+            ${detailTile("Visitor type", typeLabel)}
+            ${detailTile("Vendor", pass.vendorCompanyName || pass.companyName || "Not recorded")}
             ${detailTile("Visit date", visitDate)}
             ${detailTile("Access window", accessWindow)}
             ${detailTile("Badge ID", pass.badgeId || "Pending issuance")}
             ${detailTile("Pass code", pass.passCode || "Pending issuance")}
-            ${detailTile("Issued", issuedAt)}
             ${detailTile("Expires", expiry)}
           </div>
           <div class="enterprise-badge__purpose">
@@ -324,11 +327,11 @@ async function createBadgeCanvas(pass) {
   const detailCards = [
     ["Host employee", pass.hostEmployee || "Front desk assigned"],
     ["Host team", pass.hostEmployeeDepartment || "Workplace team"],
+    ["Visitor type", visitorTypeLabel(pass.visitorType)],
+    ["Vendor", pass.vendorCompanyName || pass.companyName || "Not recorded"],
     ["Visit date", formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt)],
     ["Access window", accessWindowLabel(pass)],
     ["Badge ID", pass.badgeId || "Pending issuance"],
-    ["Pass code", pass.passCode || "Pending issuance"],
-    ["Issued", formatDate(pass.issuedAt)],
     ["Expires", formatDate(pass.expiresAt)],
   ];
 
@@ -654,6 +657,15 @@ function detailTile(label, value) {
 }
 
 function accessWindowLabel(pass) {
+  if (isRecurring(pass)) {
+    const start = pass.validityStartDate ? formatDate(pass.validityStartDate) : null;
+    const end = pass.validityEndDate ? formatDate(pass.validityEndDate) : null;
+    const dates = start && end ? `${start} to ${end}` : end ? `Until ${end}` : "During recurring validity";
+    const time = pass.allowedEntryStartTime && pass.allowedEntryEndTime
+      ? `, ${pass.allowedEntryStartTime}-${pass.allowedEntryEndTime}`
+      : "";
+    return `${dates}${time}`;
+  }
   const start = pass.scheduledStartTime ? formatDate(pass.scheduledStartTime) : null;
   const end = pass.scheduledEndTime ? formatDate(pass.scheduledEndTime) : null;
   if (start && end) {
@@ -663,6 +675,20 @@ function accessWindowLabel(pass) {
     return `Until ${end}`;
   }
   return "Open until badge expiry";
+}
+
+function isRecurring(pass) {
+  return pass?.visitorType === "RECURRING" || pass?.visitorType === "CONTRACTOR_VENDOR";
+}
+
+function visitorTypeLabel(type) {
+  if (type === "RECURRING") {
+    return "Recurring visitor";
+  }
+  if (type === "CONTRACTOR_VENDOR") {
+    return "Contractor / vendor";
+  }
+  return "One-time visitor";
 }
 
 function deriveCheckInState(pass) {

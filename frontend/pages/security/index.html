@@ -6,7 +6,7 @@
     <meta name="description" content="AccessFlow security portal" />
     <title>AccessFlow | Security Portal</title>
     <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
-    <link rel="stylesheet" href="../../css/security/security.css?v=20260511-passflow" />
+    <link rel="stylesheet" href="../../css/security/security.css?v=20260515-recurring" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -140,6 +140,46 @@
                 </div>
                 <div class="work-list" id="monitor-rejected-list"></div>
               </article>
+              <article class="security-monitor-card">
+                <div class="security-monitor-card__header">
+                  <div>
+                    <p class="eyebrow">Recurring</p>
+                    <h3>Active Profiles</h3>
+                  </div>
+                  <span class="status-badge status-badge--approved" id="monitor-count-recurring-active">0</span>
+                </div>
+                <div class="work-list" id="monitor-recurring-active-list"></div>
+              </article>
+              <article class="security-monitor-card">
+                <div class="security-monitor-card__header">
+                  <div>
+                    <p class="eyebrow">Recurring</p>
+                    <h3>Expired Profiles</h3>
+                  </div>
+                  <span class="status-badge status-badge--expired" id="monitor-count-recurring-expired">0</span>
+                </div>
+                <div class="work-list" id="monitor-recurring-expired-list"></div>
+              </article>
+              <article class="security-monitor-card">
+                <div class="security-monitor-card__header">
+                  <div>
+                    <p class="eyebrow">Restricted</p>
+                    <h3>Suspended Visitors</h3>
+                  </div>
+                  <span class="status-badge status-badge--suspended" id="monitor-count-suspended">0</span>
+                </div>
+                <div class="work-list" id="monitor-suspended-list"></div>
+              </article>
+              <article class="security-monitor-card">
+                <div class="security-monitor-card__header">
+                  <div>
+                    <p class="eyebrow">Attendance</p>
+                    <h3>Daily Logs</h3>
+                  </div>
+                  <span class="status-badge status-badge--checked-in" id="monitor-count-attendance">0</span>
+                </div>
+                <div class="work-list" id="monitor-attendance-list"></div>
+              </article>
             </div>
           </section>
 
@@ -231,6 +271,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/security/dashboard.js?v=20260515-auth-normalize"></script>
+    <script type="module" src="../../js/security/dashboard.js?v=20260515-recurring"></script>
   </body>
 </html>

@@ -5,7 +5,7 @@ import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageA
 import { createOrganization, getOrganizationWorkspace, listManagedOrganizations, listOrganizationWorkspaceItems, updateOrganization } from "../shared/organizationApi.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js";
+import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";

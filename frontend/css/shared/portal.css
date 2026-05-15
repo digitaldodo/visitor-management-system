@@ -766,6 +766,41 @@ body.has-mobile-sidebar {
   align-self: end;
 }
 
+.visitor-recurring-fields {
+  border-top: 1px solid var(--color-line);
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  margin-top: 0.25rem;
+  padding-top: 0.9rem;
+}
+
+.weekday-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.weekday-picker label {
+  align-items: center;
+  background: var(--field-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  min-height: 2.4rem;
+  padding: 0 0.65rem;
+}
+
+.weekday-picker input {
+  accent-color: var(--color-primary);
+  min-height: auto;
+  width: auto;
+}
+
 .visitor-camera {
   background: rgba(11, 18, 31, 0.76);
   border: 1px solid var(--color-line);
@@ -953,6 +988,12 @@ body.has-mobile-sidebar {
   background: #fff1f2;
   border-color: #fecdd3;
   color: #9f1239;
+}
+
+.status-badge--suspended {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #6b21a8;
 }
 
 .status-badge--cancelled {
@@ -1284,6 +1325,10 @@ body.has-mobile-sidebar {
   --badge-accent-line: #d0dae6;
 }
 
+.enterprise-badge--recurring::before {
+  background: linear-gradient(180deg, rgba(21, 94, 117, 0.96), rgba(12, 74, 110, 0.94));
+}
+
 .enterprise-badge__hero {
   align-items: center;
   display: flex;
@@ -1357,6 +1402,12 @@ body.has-mobile-sidebar {
   min-height: 2rem;
   padding: 0 0.8rem;
   text-transform: uppercase;
+}
+
+.enterprise-badge__chip--neutral {
+  background: #eef2f6;
+  border-color: #d0dae6;
+  color: #334155;
 }
 
 .enterprise-badge__layout {

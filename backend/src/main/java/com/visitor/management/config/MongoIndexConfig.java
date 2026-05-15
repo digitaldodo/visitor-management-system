@@ -41,6 +41,16 @@ public class MongoIndexConfig {
                         .on("status", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("visitor_org_status_created_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("visitorType", Sort.Direction.ASC)
+                        .on("validityEndDate", Sort.Direction.ASC)
+                        .named("visitor_org_type_validity_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .on("checkOutTime", Sort.Direction.DESC)
+                        .named("visitor_org_status_checkout_idx"));
                 mongoTemplate.indexOps(Notification.class).createIndex(new Index()
                         .on("recipientUserId", Sort.Direction.ASC)
                         .on("read", Sort.Direction.ASC)

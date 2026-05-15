@@ -2,6 +2,7 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
+import com.visitor.management.dto.ManualOverrideCheckInRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.QrVerificationRequest;
 import com.visitor.management.dto.QrVerificationResponse;
@@ -95,6 +96,11 @@ public class SecurityPortalController {
         return ApiResponse.ok("Security QR verification completed.", visitorService.verifyQrPayload(request.qrPayload(), authentication.getName()));
     }
 
+    @PostMapping("/qr-check-in")
+    public ApiResponse<VisitorResponse> qrCheckIn(@Valid @RequestBody QrVerificationRequest request, Authentication authentication) {
+        return ApiResponse.ok("Visitor checked in from validated QR.", visitorService.checkInWithQr(request.qrPayload(), authentication.getName()));
+    }
+
     @GetMapping("/badges")
     public ApiResponse<PageResponse<VisitorResponse>> badges(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         SearchRequest approved = new SearchRequest(
@@ -182,9 +188,41 @@ public class SecurityPortalController {
         return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id, authentication.getName()));
     }
 
+    @PatchMapping("/visitors/{id}/override-check-in")
+    public ApiResponse<VisitorResponse> overrideCheckInVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor checked in with audited override.", visitorService.overrideCheckIn(id, request, authentication.getName()));
+    }
+
     @PatchMapping("/visitors/{id}/check-out")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/suspend")
+    public ApiResponse<VisitorResponse> suspendVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Recurring visitor suspended.", visitorService.suspend(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/revoke")
+    public ApiResponse<VisitorResponse> revokeVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Recurring visitor revoked.", visitorService.revoke(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reactivate")
+    public ApiResponse<VisitorResponse> reactivateVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Recurring visitor reactivated.", visitorService.reactivateRecurring(id, authentication.getName()));
     }
 
     private boolean isCloudinaryConfigured() {

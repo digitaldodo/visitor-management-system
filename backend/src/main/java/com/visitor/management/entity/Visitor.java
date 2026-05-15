@@ -44,12 +44,41 @@ public class Visitor {
     private String purposeOfVisit;
 
     @Indexed
+    private VisitorType visitorType = VisitorType.ONE_TIME;
+
+    @Indexed
+    private String vendorCompanyName;
+
+    @Indexed
     private String hostEmployeeId;
 
     @Indexed
     private String hostEmployee;
 
     private String hostEmployeeDepartment;
+
+    private String sponsorEmployee;
+
+    @Indexed
+    private String department;
+
+    @Indexed
+    private Instant validityStartDate;
+
+    @Indexed
+    private Instant validityEndDate;
+
+    private String recurringSchedule;
+
+    private List<String> allowedWeekdays = new ArrayList<>();
+
+    private String allowedEntryStartTime;
+
+    private String allowedEntryEndTime;
+
+    private String emergencyContact;
+
+    private String notes;
 
     @Indexed
     private Instant checkInTime;
@@ -86,6 +115,18 @@ public class Visitor {
     private String rejectedBy;
 
     private String rejectionReason;
+
+    private Instant suspendedAt;
+
+    private String suspendedBy;
+
+    private String suspensionReason;
+
+    private Instant revokedAt;
+
+    private String revokedBy;
+
+    private String revocationReason;
 
     private List<VisitorStatusHistoryEntry> statusHistory = new ArrayList<>();
 
@@ -207,6 +248,22 @@ public class Visitor {
         this.purposeOfVisit = purposeOfVisit;
     }
 
+    public VisitorType getVisitorType() {
+        return visitorType;
+    }
+
+    public void setVisitorType(VisitorType visitorType) {
+        this.visitorType = visitorType;
+    }
+
+    public String getVendorCompanyName() {
+        return vendorCompanyName;
+    }
+
+    public void setVendorCompanyName(String vendorCompanyName) {
+        this.vendorCompanyName = vendorCompanyName;
+    }
+
     public String getHostEmployeeId() {
         return hostEmployeeId;
     }
@@ -229,6 +286,86 @@ public class Visitor {
 
     public void setHostEmployeeDepartment(String hostEmployeeDepartment) {
         this.hostEmployeeDepartment = hostEmployeeDepartment;
+    }
+
+    public String getSponsorEmployee() {
+        return sponsorEmployee;
+    }
+
+    public void setSponsorEmployee(String sponsorEmployee) {
+        this.sponsorEmployee = sponsorEmployee;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public Instant getValidityStartDate() {
+        return validityStartDate;
+    }
+
+    public void setValidityStartDate(Instant validityStartDate) {
+        this.validityStartDate = validityStartDate;
+    }
+
+    public Instant getValidityEndDate() {
+        return validityEndDate;
+    }
+
+    public void setValidityEndDate(Instant validityEndDate) {
+        this.validityEndDate = validityEndDate;
+    }
+
+    public String getRecurringSchedule() {
+        return recurringSchedule;
+    }
+
+    public void setRecurringSchedule(String recurringSchedule) {
+        this.recurringSchedule = recurringSchedule;
+    }
+
+    public List<String> getAllowedWeekdays() {
+        return allowedWeekdays;
+    }
+
+    public void setAllowedWeekdays(List<String> allowedWeekdays) {
+        this.allowedWeekdays = allowedWeekdays;
+    }
+
+    public String getAllowedEntryStartTime() {
+        return allowedEntryStartTime;
+    }
+
+    public void setAllowedEntryStartTime(String allowedEntryStartTime) {
+        this.allowedEntryStartTime = allowedEntryStartTime;
+    }
+
+    public String getAllowedEntryEndTime() {
+        return allowedEntryEndTime;
+    }
+
+    public void setAllowedEntryEndTime(String allowedEntryEndTime) {
+        this.allowedEntryEndTime = allowedEntryEndTime;
+    }
+
+    public String getEmergencyContact() {
+        return emergencyContact;
+    }
+
+    public void setEmergencyContact(String emergencyContact) {
+        this.emergencyContact = emergencyContact;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
     public Instant getCheckInTime() {
@@ -349,6 +486,54 @@ public class Visitor {
 
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
+    }
+
+    public Instant getSuspendedAt() {
+        return suspendedAt;
+    }
+
+    public void setSuspendedAt(Instant suspendedAt) {
+        this.suspendedAt = suspendedAt;
+    }
+
+    public String getSuspendedBy() {
+        return suspendedBy;
+    }
+
+    public void setSuspendedBy(String suspendedBy) {
+        this.suspendedBy = suspendedBy;
+    }
+
+    public String getSuspensionReason() {
+        return suspensionReason;
+    }
+
+    public void setSuspensionReason(String suspensionReason) {
+        this.suspensionReason = suspensionReason;
+    }
+
+    public Instant getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(Instant revokedAt) {
+        this.revokedAt = revokedAt;
+    }
+
+    public String getRevokedBy() {
+        return revokedBy;
+    }
+
+    public void setRevokedBy(String revokedBy) {
+        this.revokedBy = revokedBy;
+    }
+
+    public String getRevocationReason() {
+        return revocationReason;
+    }
+
+    public void setRevocationReason(String revocationReason) {
+        this.revocationReason = revocationReason;
     }
 
     public List<VisitorStatusHistoryEntry> getStatusHistory() {

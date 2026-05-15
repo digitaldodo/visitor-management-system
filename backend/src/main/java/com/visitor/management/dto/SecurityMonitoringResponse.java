@@ -9,6 +9,10 @@ public record SecurityMonitoringResponse(
         List<VisitorResponse> overdueVisitors,
         List<VisitorResponse> checkedOutVisitors,
         List<VisitorResponse> rejectedVisitors,
-        List<VisitorResponse> approvedVisitors
+        List<VisitorResponse> approvedVisitors,
+        List<VisitorResponse> activeRecurringVisitors,
+        List<VisitorResponse> expiredRecurringVisitors,
+        List<VisitorResponse> suspendedVisitors,
+        List<VisitorResponse> dailyAttendanceLogs
 ) {
 }

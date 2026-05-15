@@ -83,6 +83,13 @@ export function verifyQrPayload(basePath, qrPayload) {
   });
 }
 
+export function checkInWithQr(basePath, qrPayload) {
+  return request(`${basePath}/qr-check-in`, {
+    method: "POST",
+    body: JSON.stringify({ qrPayload }),
+  });
+}
+
 export function getPublicPassVerification(passToken) {
   return request(`/public/passes/${encodeURIComponent(passToken)}`, {
     auth: false,
@@ -105,6 +112,13 @@ export function getVisitorHistory(basePath, id) {
 export function checkInVisitor(basePath, id) {
   return request(`${basePath}/visitors/${id}/check-in`, {
     method: "PATCH",
+  });
+}
+
+export function overrideCheckInVisitor(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/override-check-in`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
   });
 }
 
