@@ -109,6 +109,8 @@ export function normalizeAuthResponse(response, options = {}) {
     organizationId: firstNullable(source.organizationId, user.organizationId),
     organizationName: firstNullable(source.organizationName, user.organizationName),
     organizationCode: firstNullable(source.organizationCode, user.organizationCode),
+    organizationTimezone: firstNullable(source.organizationTimezone, user.organizationTimezone),
+    organizationRegionCountry: firstNullable(source.organizationRegionCountry, user.organizationRegionCountry),
     roles,
     user: {
       id: user.id || source.userId || null,
@@ -117,6 +119,8 @@ export function normalizeAuthResponse(response, options = {}) {
       role: user.role || roles[0] || null,
       organizationCode: firstNullable(user.organizationCode, source.organizationCode),
       organizationName: firstNullable(user.organizationName, source.organizationName),
+      organizationTimezone: firstNullable(user.organizationTimezone, source.organizationTimezone),
+      organizationRegionCountry: firstNullable(user.organizationRegionCountry, source.organizationRegionCountry),
       fullName: user.fullName || source.fullName || null,
       organizationId: firstNullable(user.organizationId, source.organizationId),
       roles,

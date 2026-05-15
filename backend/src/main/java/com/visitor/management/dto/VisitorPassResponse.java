@@ -11,6 +11,7 @@ public record VisitorPassResponse(
         String companyName,
         String organizationName,
         String organizationCode,
+        String organizationTimezone,
         String purposeOfVisit,
         String hostEmployee,
         String hostEmployeeDepartment,

@@ -1,3 +1,13 @@
+let defaultTimezone = "";
+
+export function setDefaultTimezone(timezone) {
+  defaultTimezone = isValidTimezone(timezone) ? timezone : "";
+}
+
+export function getDefaultTimezone() {
+  return defaultTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 export function formatDate(value, options = { dateStyle: "medium", timeStyle: "short" }) {
   if (!value) {
     return "Not recorded";
@@ -8,7 +18,7 @@ export function formatDate(value, options = { dateStyle: "medium", timeStyle: "s
     return "Not recorded";
   }
 
-  return new Intl.DateTimeFormat(undefined, options).format(date);
+  return new Intl.DateTimeFormat(undefined, withDefaultTimezone(options)).format(date);
 }
 
 export function formatTime(value) {
@@ -60,4 +70,27 @@ export function toIsoInstant(value) {
 export function toDatetimeLocal(date) {
   const offsetMs = date.getTimezoneOffset() * 60 * 1000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+export function timezoneLabel(timezone = getDefaultTimezone()) {
+  return isValidTimezone(timezone) ? timezone : "UTC";
+}
+
+function withDefaultTimezone(options = {}) {
+  if (options.timeZone || !defaultTimezone) {
+    return options;
+  }
+  return { ...options, timeZone: defaultTimezone };
+}
+
+function isValidTimezone(timezone) {
+  if (!timezone || typeof timezone !== "string") {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: timezone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
 }

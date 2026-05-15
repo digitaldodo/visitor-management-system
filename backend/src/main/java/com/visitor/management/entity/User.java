@@ -32,6 +32,8 @@ public class User {
 
     private String phone;
 
+    private String phoneCountryCode;
+
     @Indexed
     private String organizationId;
 
@@ -39,6 +41,10 @@ public class User {
 
     @Indexed
     private String organizationCode;
+
+    private String organizationTimezone;
+
+    private String organizationRegionCountry;
 
     private Set<Role> roles = new HashSet<>();
 
@@ -118,6 +124,14 @@ public class User {
         this.phone = phone;
     }
 
+    public String getPhoneCountryCode() {
+        return phoneCountryCode;
+    }
+
+    public void setPhoneCountryCode(String phoneCountryCode) {
+        this.phoneCountryCode = phoneCountryCode;
+    }
+
     public String getOrganizationId() {
         return organizationId;
     }
@@ -140,6 +154,22 @@ public class User {
 
     public void setOrganizationCode(String organizationCode) {
         this.organizationCode = organizationCode;
+    }
+
+    public String getOrganizationTimezone() {
+        return organizationTimezone;
+    }
+
+    public void setOrganizationTimezone(String organizationTimezone) {
+        this.organizationTimezone = organizationTimezone;
+    }
+
+    public String getOrganizationRegionCountry() {
+        return organizationRegionCountry;
+    }
+
+    public void setOrganizationRegionCountry(String organizationRegionCountry) {
+        this.organizationRegionCountry = organizationRegionCountry;
     }
 
     public Set<Role> getRoles() {

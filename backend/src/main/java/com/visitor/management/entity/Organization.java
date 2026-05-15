@@ -24,6 +24,10 @@ public class Organization {
 
     private String contactEmail;
 
+    private String regionCountry;
+
+    private String timezone = "UTC";
+
     @Indexed
     private boolean activeStatus = true;
 
@@ -71,6 +75,22 @@ public class Organization {
 
     public void setContactEmail(String contactEmail) {
         this.contactEmail = contactEmail;
+    }
+
+    public String getRegionCountry() {
+        return regionCountry;
+    }
+
+    public void setRegionCountry(String regionCountry) {
+        this.regionCountry = regionCountry;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
     }
 
     public boolean isActiveStatus() {

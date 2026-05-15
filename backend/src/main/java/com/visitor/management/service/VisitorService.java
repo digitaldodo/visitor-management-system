@@ -91,6 +91,7 @@ public class VisitorService {
     private final CorsOriginResolver corsOriginResolver;
     private final VisitorNotificationService visitorNotificationService;
     private final OrganizationService organizationService;
+    private final PhoneNumberService phoneNumberService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -103,7 +104,8 @@ public class VisitorService {
             AppProperties appProperties,
             CorsOriginResolver corsOriginResolver,
             VisitorNotificationService visitorNotificationService,
-            OrganizationService organizationService
+            OrganizationService organizationService,
+            PhoneNumberService phoneNumberService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -116,6 +118,7 @@ public class VisitorService {
         this.corsOriginResolver = corsOriginResolver;
         this.visitorNotificationService = visitorNotificationService;
         this.organizationService = organizationService;
+        this.phoneNumberService = phoneNumberService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -130,7 +133,7 @@ public class VisitorService {
                 : organizationService.resolveRequired(request.companyCode(), request.companyName());
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(account.getFullName(), "Account name is required."));
-        visitor.setPhone(requiredTrim(request.phone() != null ? request.phone() : account.getPhone(), "Phone is required."));
+        applyPhone(visitor, request.phoneCountryCode() != null ? request.phoneCountryCode() : account.getPhoneCountryCode(), request.phone() != null ? request.phone() : account.getPhone(), true);
         visitor.setEmail(account.getEmail());
         applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
@@ -182,7 +185,7 @@ public class VisitorService {
         Instant now = Instant.now();
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(request.fullName(), "Full name is required."));
-        visitor.setPhone(requiredTrim(request.phone(), "Phone is required."));
+        applyPhone(visitor, request.phoneCountryCode(), request.phone(), true);
         visitor.setEmail(trimToNull(request.email()));
         applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
@@ -210,12 +213,12 @@ public class VisitorService {
         Instant now = Instant.now();
         Instant start = request.scheduledStartTime();
         Instant end = request.scheduledEndTime();
-        String timezone = resolveTimezone(request.timezone());
+        String timezone = resolveTimezone(request.timezone(), organization.getTimezone());
         validateScheduleWindow(start, end, now);
 
         Visitor visitor = new Visitor();
         visitor.setFullName(requiredTrim(request.fullName(), "Full name is required."));
-        visitor.setPhone(requiredTrim(request.phone(), "Phone is required."));
+        applyPhone(visitor, request.phoneCountryCode(), request.phone(), true);
         visitor.setEmail(trimToNull(request.email()));
         applyOrganization(visitor, organization);
         visitor.setPurposeOfVisit(requiredTrim(request.purposeOfVisit(), "Purpose of visit is required."));
@@ -735,7 +738,9 @@ public class VisitorService {
 
     private void applyUpdate(Visitor visitor, VisitorUpdateRequest request) {
         setIfPresent(request.fullName(), value -> visitor.setFullName(requiredTrim(value, "Full name is required.")));
-        setIfPresent(request.phone(), value -> visitor.setPhone(requiredTrim(value, "Phone is required.")));
+        if (request.phone() != null || request.phoneCountryCode() != null) {
+            applyPhone(visitor, request.phoneCountryCode() != null ? request.phoneCountryCode() : visitor.getPhoneCountryCode(), request.phone(), false);
+        }
         setIfPresent(request.email(), value -> visitor.setEmail(trimToNull(value)));
         setIfPresent(request.companyName(), value -> {
             Organization organization = organizationService.resolve(request.companyCode(), value);
@@ -829,11 +834,14 @@ public class VisitorService {
                 visitor.getId(),
                 visitor.getFullName(),
                 visitor.getPhone(),
+                visitor.getPhoneCountryCode(),
                 visitor.getEmail(),
                 visitor.getCompanyName(),
                 visitor.getOrganizationId(),
                 visitor.getOrganizationName(),
                 visitor.getOrganizationCode(),
+                organizationTimezone(visitor),
+                visitor.getOrganizationRegionCountry(),
                 visitor.getPurposeOfVisit(),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
@@ -882,6 +890,7 @@ public class VisitorService {
                 visitor.getCompanyName(),
                 visitor.getOrganizationName(),
                 visitor.getOrganizationCode(),
+                organizationTimezone(visitor),
                 visitor.getPurposeOfVisit(),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
@@ -934,7 +943,23 @@ public class VisitorService {
         visitor.setOrganizationId(organization.getId());
         visitor.setOrganizationCode(organization.getCompanyCode());
         visitor.setOrganizationName(organization.getCompanyName());
+        visitor.setOrganizationTimezone(organization.getTimezone());
+        visitor.setOrganizationRegionCountry(organization.getRegionCountry());
         visitor.setCompanyName(organization.getCompanyName());
+    }
+
+    private void applyPhone(Visitor visitor, String countryCode, String phone, boolean required) {
+        PhoneNumberService.NormalizedPhone normalizedPhone = phoneNumberService.normalize(countryCode, phone, required);
+        if (normalizedPhone == null) {
+            return;
+        }
+        visitor.setPhone(normalizedPhone.e164());
+        visitor.setPhoneCountryCode(normalizedPhone.countryCode());
+    }
+
+    private String organizationTimezone(Visitor visitor) {
+        String timezone = trimToNull(visitor.getOrganizationTimezone());
+        return timezone == null ? "UTC" : timezone;
     }
 
     private String scopeOrganizationId(User actor) {
@@ -1063,6 +1088,7 @@ public class VisitorService {
                 null,
                 null,
                 null,
+                null,
                 false,
                 "Invalid",
                 false,
@@ -1086,10 +1112,13 @@ public class VisitorService {
         }
     }
 
-    private String resolveTimezone(String timezone) {
+    private String resolveTimezone(String timezone, String fallbackTimezone) {
         String value = trimToNull(timezone);
         if (value == null) {
-            return ZoneOffset.UTC.getId();
+            value = trimToNull(fallbackTimezone);
+        }
+        if (value == null) {
+            value = ZoneOffset.UTC.getId();
         }
         try {
             return ZoneId.of(value).getId();
@@ -1652,6 +1681,7 @@ public class VisitorService {
                 visitor.getCompanyName(),
                 visitor.getOrganizationName(),
                 visitor.getOrganizationCode(),
+                organizationTimezone(visitor),
                 visitor.getHostEmployee(),
                 hostDepartmentFor(visitor),
                 visitor.getPhotoUrl(),

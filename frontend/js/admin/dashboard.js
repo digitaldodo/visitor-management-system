@@ -8,6 +8,8 @@ import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtm
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
+import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
+import { formatDate as formatOrgDate } from "../shared/formatters.js";
 
 const ROUTE_DEFINITIONS = {
   analytics: {
@@ -111,6 +113,18 @@ const DEFAULT_DEPARTMENT_PRESETS = [
   "Reception",
   "Facilities",
   "Management",
+];
+
+const ORGANIZATION_TIMEZONES = [
+  "Asia/Kolkata",
+  "Europe/London",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Europe/Berlin",
+  "Asia/Singapore",
+  "Asia/Dubai",
+  "Australia/Sydney",
+  "UTC",
 ];
 
 const INTERNAL_ROLE_DEPARTMENT_RULES = {
@@ -355,6 +369,10 @@ function usersTemplate() {
           <label class="form-field">
             <span>Email</span>
             <input name="email" type="email" autocomplete="email" placeholder="person@company.com" required />
+          </label>
+          <label class="form-field">
+            <span>Mobile</span>
+            <input name="phone" type="tel" autocomplete="tel" placeholder="Mobile number" />
           </label>
           <label class="form-field">
             <span>Temporary password</span>
@@ -1010,6 +1028,7 @@ function initAdminUserForm() {
   const companyInput = form.querySelector("input[name='companyCode']");
   const departmentInput = form.querySelector("input[name='department']");
   const departmentField = form.querySelector("[data-department-field]");
+  initPhoneInput(form);
   if (roleSelect && !hasRole("SUPER_ADMIN")) {
     roleSelect.querySelector("option[value='ADMIN']")?.remove();
   }
@@ -1075,6 +1094,7 @@ function initAdminUserForm() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
     const department = normalizeDepartmentValue(data.department);
+    const phone = phonePayload(data);
     const payload = {
       fullName: trim(data.fullName),
       username: trim(data.username),
@@ -1083,6 +1103,8 @@ function initAdminUserForm() {
       role: data.role,
       companyCode: trim(data.companyCode) || currentSession?.organizationCode || null,
       department,
+      phoneCountryCode: phone.phoneCountryCode,
+      phone: phone.phone || null,
     };
     const error = validateInternalUser(payload);
     if (error) {
@@ -1361,6 +1383,8 @@ function initOrganizationsWorkspace() {
         companyCode: organization.companyCode,
         contactEmail: organization.contactEmail || null,
         address: organization.address || null,
+        regionCountry: organization.regionCountry || "Global",
+        timezone: organization.timezone || "UTC",
         activeStatus: !organization.activeStatus,
       });
       showToast("Organization updated", organization.activeStatus ? "Organization access has been paused." : "Organization is active again.");
@@ -1549,6 +1573,7 @@ function renderOrganizationWorkspaceModal(workspace, options = {}) {
 
   modal.innerHTML = organizationWorkspaceModalMarkup(workspace, mode);
   renderOrganizationDepartmentEditor();
+  initPhoneInput(modal.querySelector("#organization-admin-form"));
 
   const form = modal.querySelector("#organization-form");
   if (form && workspace?.organization) {
@@ -1573,6 +1598,8 @@ async function submitOrganizationWorkspaceForm(form) {
     companyCode: String(data.get("companyCode") || "").trim().toUpperCase(),
     contactEmail: trim(data.get("contactEmail")),
     address: trim(data.get("address")),
+    regionCountry: trim(data.get("regionCountry")),
+    timezone: trim(data.get("timezone")),
     activeStatus: data.get("activeStatus") === "on",
     departmentNames: organizationDepartmentDraft.slice(),
   };
@@ -1603,6 +1630,7 @@ async function submitOrganizationAdminForm(form) {
   }
 
   const data = Object.fromEntries(new FormData(form).entries());
+  const phone = phonePayload(data);
   const payload = {
     fullName: trim(data.fullName),
     username: trim(data.username),
@@ -1611,6 +1639,8 @@ async function submitOrganizationAdminForm(form) {
     role: "ADMIN",
     companyCode: activeOrganizationWorkspace.organization.companyCode,
     department: normalizeDepartmentValue(data.department),
+    phoneCountryCode: phone.phoneCountryCode,
+    phone: phone.phone || null,
   };
   const error = validateInternalUser(payload);
   if (error) {
@@ -1911,7 +1941,7 @@ function renderHomepageSettings(data) {
   const meta = document.querySelector("#homepage-settings-meta");
   if (meta) {
     meta.textContent = settings.updatedAt
-      ? `Last updated ${new Date(settings.updatedAt).toLocaleString()}${settings.updatedBy ? ` by ${settings.updatedBy}` : ""}.`
+      ? `Last updated ${formatDateTime(settings.updatedAt)}${settings.updatedBy ? ` by ${settings.updatedBy}` : ""}.`
       : canEdit
         ? "Homepage controls are ready to configure."
         : "Homepage controls are visible here, but only SUPER_ADMIN can change them.";
@@ -1921,7 +1951,7 @@ function renderHomepageSettings(data) {
 function resolveAllowedRoutes() {
   return hasRole("SUPER_ADMIN")
     ? ["analytics", "users", "departments", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access"]
-    : ["analytics", "users", "departments", "monitoring", "visitor-access"];
+    : ["analytics", "users", "departments", "reports", "visitor-access"];
 }
 
 function hasRole(role) {
@@ -2154,7 +2184,7 @@ function organizationCard(organization) {
       <td data-label="Organization">
         <div class="organization-row__identity">
           <strong>${escapeHtml(organization.companyName)}</strong>
-          <small>${escapeHtml(organization.companyCode)}${organization.contactEmail ? ` · ${escapeHtml(organization.contactEmail)}` : ""}</small>
+          <small>${escapeHtml(organization.companyCode)} · ${escapeHtml(organization.timezone || "UTC")}${organization.contactEmail ? ` · ${escapeHtml(organization.contactEmail)}` : ""}</small>
         </div>
       </td>
       <td data-label="Admins">${escapeHtml(organization.adminCount)}</td>
@@ -2310,6 +2340,8 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
               <dl class="organization-overview-list">
                 <div><dt>Code</dt><dd>${escapeHtml(organization.companyCode || "Not set")}</dd></div>
                 <div><dt>Status</dt><dd>${escapeHtml(organization.activeStatus ? "Active" : "Inactive")}</dd></div>
+                <div><dt>Region</dt><dd>${escapeHtml(organization.regionCountry || "Global")}</dd></div>
+                <div><dt>Timezone</dt><dd>${escapeHtml(organization.timezone || "UTC")}</dd></div>
                 <div><dt>Created</dt><dd>${escapeHtml(formatDateTime(organization.createdAt))}</dd></div>
                 <div><dt>Public directory</dt><dd>${escapeHtml(summary.publicDirectoryVisible ? "Visible while active" : "Hidden while inactive")}</dd></div>
                 <div><dt>Address</dt><dd>${escapeHtml(organization.address || "No address recorded")}</dd></div>
@@ -2382,6 +2414,10 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
                 <label class="form-field">
                   <span>Email</span>
                   <input name="email" type="email" autocomplete="email" placeholder="admin@organization.com" />
+                </label>
+                <label class="form-field">
+                  <span>Mobile</span>
+                  <input name="phone" type="tel" autocomplete="tel" placeholder="Mobile number" />
                 </label>
                 <label class="form-field">
                   <span>Department</span>
@@ -2529,6 +2565,16 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
               <label class="form-field">
                 <span>Contact email</span>
                 <input name="contactEmail" type="email" autocomplete="email" placeholder="ops@northstar.com" />
+              </label>
+              <label class="form-field">
+                <span>Organization region/country</span>
+                <input name="regionCountry" type="text" autocomplete="country-name" placeholder="India" required />
+              </label>
+              <label class="form-field">
+                <span>Organization timezone</span>
+                <select name="timezone" required>
+                  ${ORGANIZATION_TIMEZONES.map((timezone) => `<option value="${escapeHtml(timezone)}">${escapeHtml(timezone)}</option>`).join("")}
+                </select>
               </label>
               <label class="form-field form-field--wide">
                 <span>Address</span>
@@ -2774,6 +2820,8 @@ function populateOrganizationForm(form, organization, departments = []) {
   form.querySelector("input[name='companyName']").value = organization.companyName || "";
   form.querySelector("input[name='companyCode']").value = organization.companyCode || "";
   form.querySelector("input[name='contactEmail']").value = organization.contactEmail || "";
+  form.querySelector("input[name='regionCountry']").value = organization.regionCountry || "";
+  form.querySelector("select[name='timezone']").value = organization.timezone || "UTC";
   form.querySelector("input[name='address']").value = organization.address || "";
   form.querySelector("input[name='activeStatus']").checked = Boolean(organization.activeStatus);
   organizationDepartmentDraft = (departments || []).map((department) => department.departmentName);
@@ -2788,6 +2836,7 @@ function resetOrganizationForm(form) {
   form.reset();
   form.querySelector("input[name='organizationId']").value = "";
   form.querySelector("input[name='activeStatus']").checked = true;
+  form.querySelector("select[name='timezone']").value = "Asia/Kolkata";
   resetOrganizationDepartmentDraft(true);
   renderOrganizationDepartmentEditor();
   const meta = document.querySelector("#organization-form-meta");
@@ -3142,6 +3191,12 @@ function validateOrganization(payload) {
   if (payload.contactEmail && !isEmail(payload.contactEmail)) {
     return "Use a valid contact email.";
   }
+  if (!payload.regionCountry || payload.regionCountry.length < 2) {
+    return "Enter the organization region or country.";
+  }
+  if (!payload.timezone || !ORGANIZATION_TIMEZONES.includes(payload.timezone)) {
+    return "Choose a supported organization timezone.";
+  }
   for (const departmentName of payload.departmentNames || []) {
     const error = validateDepartmentValue(departmentName, { required: true });
     if (error) {
@@ -3161,6 +3216,10 @@ function validateInternalUser(payload) {
   }
   if (!isEmail(payload.email || "")) {
     return "Use a valid work email.";
+  }
+  const phoneError = validatePhonePayload(payload, { required: false });
+  if (phoneError) {
+    return phoneError;
   }
   if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
@@ -3202,11 +3261,11 @@ function trim(value) {
 }
 
 function formatDateTime(value) {
-  return value ? new Date(value).toLocaleString() : "Not available";
+  return value ? formatOrgDate(value, { dateStyle: "medium", timeStyle: "short" }) : "Not available";
 }
 
 function formatDateOnly(value) {
-  return value ? new Date(value).toLocaleDateString() : "Not available";
+  return value ? formatOrgDate(value, { dateStyle: "medium" }) : "Not available";
 }
 
 function formatRelativeTime(value) {

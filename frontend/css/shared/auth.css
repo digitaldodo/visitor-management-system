@@ -694,6 +694,18 @@ h3 {
   padding-right: 4.8rem;
 }
 
+.phone-input-control {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(8.5rem, 0.8fr) minmax(0, 1.2fr);
+  min-width: 0;
+}
+
+.phone-input-control select,
+.phone-input-control input {
+  min-width: 0;
+}
+
 .password-toggle,
 .link-button {
   background: transparent;
@@ -1161,6 +1173,10 @@ h3 {
 
   .auth-form__actions {
     flex-direction: column;
+  }
+
+  .phone-input-control {
+    grid-template-columns: 1fr;
   }
 
   .auth-layout--compact {

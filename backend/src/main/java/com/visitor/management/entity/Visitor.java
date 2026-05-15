@@ -22,6 +22,8 @@ public class Visitor {
     @Indexed
     private String phone;
 
+    private String phoneCountryCode;
+
     @Indexed
     private String email;
 
@@ -34,6 +36,10 @@ public class Visitor {
     private String organizationCode;
 
     private String organizationName;
+
+    private String organizationTimezone;
+
+    private String organizationRegionCountry;
 
     private String purposeOfVisit;
 
@@ -129,6 +135,14 @@ public class Visitor {
         this.phone = phone;
     }
 
+    public String getPhoneCountryCode() {
+        return phoneCountryCode;
+    }
+
+    public void setPhoneCountryCode(String phoneCountryCode) {
+        this.phoneCountryCode = phoneCountryCode;
+    }
+
     public String getEmail() {
         return email;
     }
@@ -167,6 +181,22 @@ public class Visitor {
 
     public void setOrganizationName(String organizationName) {
         this.organizationName = organizationName;
+    }
+
+    public String getOrganizationTimezone() {
+        return organizationTimezone;
+    }
+
+    public void setOrganizationTimezone(String organizationTimezone) {
+        this.organizationTimezone = organizationTimezone;
+    }
+
+    public String getOrganizationRegionCountry() {
+        return organizationRegionCountry;
+    }
+
+    public void setOrganizationRegionCountry(String organizationRegionCountry) {
+        this.organizationRegionCountry = organizationRegionCountry;
     }
 
     public String getPurposeOfVisit() {

@@ -13,6 +13,7 @@ public record SuperAdminCreateRequest(
         @NotBlank @Size(min = UsernamePolicy.MIN_LENGTH, max = UsernamePolicy.MAX_LENGTH, message = UsernamePolicy.LENGTH_MESSAGE) @Pattern(regexp = UsernamePolicy.USERNAME_REGEX, message = UsernamePolicy.INVALID_MESSAGE) String username,
         @Email @NotBlank @Size(max = 160) String email,
         @NotBlank @Size(min = 12, max = 128) String password,
+        @Size(max = 6) String phoneCountryCode,
         @Size(max = 32) String phone
 ) {
 }

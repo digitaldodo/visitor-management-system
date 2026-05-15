@@ -5,6 +5,8 @@ import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.AccessAuditLogRepository;
+import com.visitor.management.repository.UserRepository;
+import com.visitor.management.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,9 +18,11 @@ import java.util.stream.Collectors;
 public class AccessAuditService {
 
     private final AccessAuditLogRepository accessAuditLogRepository;
+    private final UserRepository userRepository;
 
-    public AccessAuditService(AccessAuditLogRepository accessAuditLogRepository) {
+    public AccessAuditService(AccessAuditLogRepository accessAuditLogRepository, UserRepository userRepository) {
         this.accessAuditLogRepository = accessAuditLogRepository;
+        this.userRepository = userRepository;
     }
 
     public void recordLoginSuccess(User user, String audience) {
@@ -96,11 +100,31 @@ public class AccessAuditService {
     public List<Map<String, String>> latestSecurityOversight() {
         return accessAuditLogRepository.findTop50ByOrderByCreatedAtDesc()
                 .stream()
-                .map(log -> Map.of(
-                        "title", "%s · %s".formatted(log.getAction(), normalize(log.getActorName(), normalize(log.getActorId(), "Unknown actor"))),
-                        "status", normalize(log.getDetails(), normalize(log.getOutcome(), "Recorded"))
-                ))
+                .map(this::toReportItem)
                 .toList();
+    }
+
+    public List<Map<String, String>> latestSecurityOversight(String actorId) {
+        User actor = userRepository.findById(actorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+        if (actor.getRoles() != null && actor.getRoles().contains(Role.SUPER_ADMIN)) {
+            return latestSecurityOversight();
+        }
+        String organizationId = normalize(actor.getOrganizationId(), null);
+        if (organizationId == null) {
+            return List.of();
+        }
+        return accessAuditLogRepository.findTop50ByOrganizationIdOrderByCreatedAtDesc(organizationId)
+                .stream()
+                .map(this::toReportItem)
+                .toList();
+    }
+
+    private Map<String, String> toReportItem(AccessAuditLog log) {
+        return Map.of(
+                "title", "%s · %s".formatted(log.getAction(), normalize(log.getActorName(), normalize(log.getActorId(), "Unknown actor"))),
+                "status", normalize(log.getDetails(), normalize(log.getOutcome(), "Recorded"))
+        );
     }
 
     private void record(User actor, String action, String targetType, String targetId, String targetName, String outcome, String details) {

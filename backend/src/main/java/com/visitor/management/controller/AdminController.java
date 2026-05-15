@@ -189,12 +189,12 @@ public class AdminController {
     }
 
     @GetMapping("/reports")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ApiResponse<List<Map<String, String>>> reports() {
-        return ApiResponse.ok("Audit oversight loaded.", accessAuditService.latestSecurityOversight());
+    public ApiResponse<List<Map<String, String>>> reports(Authentication authentication) {
+        return ApiResponse.ok("Audit oversight loaded.", accessAuditService.latestSecurityOversight(authentication.getName()));
     }
 
     @GetMapping("/monitoring")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ApiResponse<Map<String, Object>> monitoring(Authentication authentication) {
         return ApiResponse.ok("Admin system monitoring loaded.", Map.of(
                 "runtime", "UP",

@@ -30,6 +30,9 @@ public class RegisterRequest {
     @Size(max = 32)
     private String phone;
 
+    @Size(max = 6)
+    private String phoneCountryCode;
+
     @Size(max = 24)
     private String companyCode;
 
@@ -85,6 +88,14 @@ public class RegisterRequest {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String phoneCountryCode() {
+        return phoneCountryCode;
+    }
+
+    public void setPhoneCountryCode(String phoneCountryCode) {
+        this.phoneCountryCode = phoneCountryCode;
     }
 
     public String companyCode() {

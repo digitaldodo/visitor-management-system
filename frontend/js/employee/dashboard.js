@@ -1,11 +1,12 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatStatus, formatTime, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
+import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/accessService.js";
 import { showToast } from "../shared/toast.js";
+import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
 const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history"];
 let approvalPollTimer;
@@ -79,10 +80,11 @@ function initPreApprovalForm() {
     return;
   }
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  initPhoneInput(form);
+  const timezone = getDefaultTimezone();
   const timezoneLabel = document.querySelector("#preapproval-timezone");
   if (timezoneLabel) {
-    timezoneLabel.textContent = `Times use ${timezone}`;
+    timezoneLabel.textContent = `Times use ${timezoneLabelText(timezone)}`;
   }
   setScheduleMinimums(form);
 
@@ -252,9 +254,11 @@ function setApprovalLoading(card, loading) {
 
 function preApprovalPayload(form, timezone) {
   const data = Object.fromEntries(new FormData(form).entries());
+  const phone = phonePayload(data);
   return {
     fullName: trim(data.fullName),
-    phone: trim(data.phone),
+    phoneCountryCode: phone.phoneCountryCode,
+    phone: phone.phone,
     email: trim(data.email),
     companyName: trim(data.companyName),
     purposeOfVisit: trim(data.purposeOfVisit),
@@ -269,8 +273,9 @@ function validatePreApproval(payload) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the visitor full name.";
   }
-  if (!payload.phone || payload.phone.length < 7) {
-    return "Enter a valid phone number.";
+  const phoneError = validatePhonePayload(payload);
+  if (phoneError) {
+    return phoneError;
   }
   if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
     return "Enter a valid email address.";
@@ -293,6 +298,10 @@ function validatePreApproval(payload) {
     return "The visit window must be at least 15 minutes.";
   }
   return "";
+}
+
+function timezoneLabelText(timezone) {
+  return timezoneLabel(timezone);
 }
 
 function setScheduleMinimums(form) {

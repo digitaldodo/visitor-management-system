@@ -5,12 +5,13 @@ import { LOGIN_FROM_PORTAL } from "./config.js";
 import { clearSession, getRefreshToken } from "./session.js?v=20260515-auth-normalize";
 import { showToast } from "./toast.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
-import { formatDate, formatStatus } from "./formatters.js";
+import { formatDate, formatStatus, setDefaultTimezone, timezoneLabel } from "./formatters.js";
 
 let notificationPollTimer;
 let latestNotificationSeenAt = "";
 
 export function initPortalShell(session, options = {}) {
+  setDefaultTimezone(session.organizationTimezone || session.user?.organizationTimezone || "UTC");
   safeShellInit("sidebar", initSidebar);
   safeShellInit("logout", initLogout);
   safeShellInit("route navigation", () => initRouteNavigation(options));
@@ -18,7 +19,8 @@ export function initPortalShell(session, options = {}) {
   safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
 
   const organization = session.organizationName || session.organizationCode;
-  const context = organization ? `${organization} · ` : "Platform · ";
+  const timezone = organization ? `${timezoneLabel(session.organizationTimezone || session.user?.organizationTimezone || "UTC")} · ` : "";
+  const context = organization ? `${organization} · ${timezone}` : "Platform · ";
   setText("#user-chip", `${session.fullName || session.email || "Signed in"} · ${context}${formatRole(session.roles?.[0])}`);
   refreshHealth(false);
 }

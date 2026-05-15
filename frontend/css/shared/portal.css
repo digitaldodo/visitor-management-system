@@ -537,6 +537,18 @@ body.has-mobile-sidebar {
   position: relative;
 }
 
+.phone-input-control {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(8.5rem, 0.8fr) minmax(0, 1.2fr);
+  min-width: 0;
+}
+
+.phone-input-control select,
+.phone-input-control input {
+  min-width: 0;
+}
+
 .host-picker__meta {
   color: var(--color-muted);
   font-size: 0.78rem;
@@ -1700,6 +1712,10 @@ body.has-mobile-sidebar {
   }
 
   .visitor-form {
+    grid-template-columns: 1fr;
+  }
+
+  .phone-input-control {
     grid-template-columns: 1fr;
   }
 

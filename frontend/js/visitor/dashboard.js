@@ -8,6 +8,7 @@ import { getVisitorPass, getVisitorHistory, uploadVisitPhoto } from "../shared/a
 import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";
+import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
 const ROUTES = ["visits", "history", "request"];
 let activeBadge = null;
@@ -78,13 +79,16 @@ function initRequestForm() {
   if (!form) {
     return;
   }
+  initPhoneInput(form);
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
+    const phone = phonePayload(data);
     const photoFile = form.querySelector("[name='photoFile']")?.files?.[0] || null;
     const payload = {
-      phone: trim(data.phone),
+      phoneCountryCode: phone.phoneCountryCode,
+      phone: phone.phone,
       companyCode: trim(data.companyCode),
       hostEmployee: trim(data.hostEmployee),
       hostEmployeeId: trim(data.hostEmployeeId),
@@ -314,8 +318,9 @@ function historyCard(record) {
 }
 
 function validateVisitRequest(payload, photoFile) {
-  if (!payload.phone || payload.phone.length < 7) {
-    return "Enter a reachable phone number.";
+  const phoneError = validatePhonePayload(payload);
+  if (phoneError) {
+    return phoneError;
   }
   if (!payload.companyCode) {
     return "Choose the organization you are visiting.";

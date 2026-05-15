@@ -412,14 +412,21 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
-    void adminCannotAccessSuperAdminControls() throws Exception {
+    void adminCannotAccessSuperAdminOnlyControls() throws Exception {
         mockMvc.perform(get("/api/v1/admin/homepage-settings")
                         .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(get("/api/v1/admin/reports")
+        mockMvc.perform(get("/api/v1/admin/monitoring")
                         .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanAccessOrganizationScopedReports() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/reports")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN)))
+                .andExpect(status().isOk());
     }
 
     @Test

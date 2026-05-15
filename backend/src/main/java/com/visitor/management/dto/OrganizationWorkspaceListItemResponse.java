@@ -8,6 +8,8 @@ public record OrganizationWorkspaceListItemResponse(
         String companyCode,
         String address,
         String contactEmail,
+        String regionCountry,
+        String timezone,
         boolean activeStatus,
         Instant createdAt,
         Instant updatedAt,

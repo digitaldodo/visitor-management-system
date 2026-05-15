@@ -11,6 +11,8 @@ public record AuthUserResponse(
         String role,
         String organizationCode,
         String organizationName,
+        String organizationTimezone,
+        String organizationRegionCountry,
         String fullName,
         String organizationId,
         Set<Role> roles

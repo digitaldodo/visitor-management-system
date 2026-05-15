@@ -11,9 +11,12 @@ public record UserProfileResponse(
         String fullName,
         String department,
         String phone,
+        String phoneCountryCode,
         String organizationId,
         String organizationName,
         String organizationCode,
+        String organizationTimezone,
+        String organizationRegionCountry,
         Set<Role> roles
 ) {
 }

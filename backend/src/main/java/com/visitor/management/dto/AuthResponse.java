@@ -19,6 +19,8 @@ public record AuthResponse(
         String organizationId,
         String organizationName,
         String organizationCode,
+        String organizationTimezone,
+        String organizationRegionCountry,
         Set<Role> roles
 ) {
     public AuthResponse(
@@ -33,6 +35,8 @@ public record AuthResponse(
             String organizationId,
             String organizationName,
             String organizationCode,
+            String organizationTimezone,
+            String organizationRegionCountry,
             Set<Role> roles
     ) {
         this(
@@ -48,6 +52,8 @@ public record AuthResponse(
                         primaryRole(roles),
                         organizationCode,
                         organizationName,
+                        organizationTimezone,
+                        organizationRegionCountry,
                         fullName,
                         organizationId,
                         roles
@@ -59,6 +65,8 @@ public record AuthResponse(
                 organizationId,
                 organizationName,
                 organizationCode,
+                organizationTimezone,
+                organizationRegionCountry,
                 roles
         );
     }

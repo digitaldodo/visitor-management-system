@@ -7,5 +7,6 @@ import java.util.List;
 
 public interface AccessAuditLogRepository extends MongoRepository<AccessAuditLog, String> {
     List<AccessAuditLog> findTop50ByOrderByCreatedAtDesc();
+    List<AccessAuditLog> findTop50ByOrganizationIdOrderByCreatedAtDesc(String organizationId);
     List<AccessAuditLog> findTop12ByOrganizationIdOrderByCreatedAtDesc(String organizationId);
 }

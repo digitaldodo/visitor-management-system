@@ -17,6 +17,7 @@ public record AdminUserCreateRequest(
         @Size(max = 80) String organizationId,
         @Size(max = 24) String companyCode,
         @Size(max = 80) String department,
+        @Size(max = 6) String phoneCountryCode,
         @Size(max = 32) String phone
 ) {
 }

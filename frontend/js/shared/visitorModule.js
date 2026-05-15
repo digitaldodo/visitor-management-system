@@ -1,6 +1,7 @@
 import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
 import { formatDate, formatDurationMinutes, minutesBetween } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
+import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
 
 const STATUS_LABELS = {
@@ -39,6 +40,7 @@ export function initVisitorModule(selector, options) {
   const searchInput = root.querySelector("[data-visitor-search]");
   const statusFilter = root.querySelector("[data-visitor-status]");
   const pageSize = root.querySelector("[data-visitor-size]");
+  initPhoneInput(form);
   initCamera(root, state);
   if (options.showHostFields !== false) {
     initHostPicker(root, { basePath: options.basePath });
@@ -509,9 +511,11 @@ function timelineDetail(history = []) {
 
 function formPayload(form, options) {
   const data = Object.fromEntries(new FormData(form).entries());
+  const phone = phonePayload(data);
   const payload = {
     fullName: trim(data.fullName),
-    phone: trim(data.phone),
+    phoneCountryCode: phone.phoneCountryCode,
+    phone: phone.phone,
     email: trim(data.email),
     companyName: trim(data.companyName),
     companyCode: trim(data.companyCode) || options.organizationCode || null,
@@ -528,8 +532,9 @@ function validate(payload, options, state) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the visitor full name.";
   }
-  if (!payload.phone || payload.phone.length < 7) {
-    return "Enter a valid phone number.";
+  const phoneError = validatePhonePayload(payload);
+  if (phoneError) {
+    return phoneError;
   }
   if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
     return "Enter a valid email address.";

@@ -60,6 +60,7 @@ public class AuthService {
     private final RateLimitService rateLimitService;
     private final OrganizationService organizationService;
     private final AccessAuditService accessAuditService;
+    private final PhoneNumberService phoneNumberService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -72,7 +73,8 @@ public class AuthService {
             EmailService emailService,
             RateLimitService rateLimitService,
             OrganizationService organizationService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            PhoneNumberService phoneNumberService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -84,6 +86,7 @@ public class AuthService {
         this.rateLimitService = rateLimitService;
         this.organizationService = organizationService;
         this.accessAuditService = accessAuditService;
+        this.phoneNumberService = phoneNumberService;
     }
 
     public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
@@ -106,7 +109,11 @@ public class AuthService {
         user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setDepartment(null);
-        user.setPhone(trimToNull(request.phone()));
+        PhoneNumberService.NormalizedPhone phone = phoneNumberService.normalize(request.phoneCountryCode(), request.phone(), false);
+        if (phone != null) {
+            user.setPhone(phone.e164());
+            user.setPhoneCountryCode(phone.countryCode());
+        }
         applyOrganization(user, organization);
         user.setRoles(Set.of(Role.VISITOR));
         user.setActive(true);
@@ -248,6 +255,7 @@ public class AuthService {
     }
 
     private AuthResponse issueTokens(User user) {
+        refreshOrganizationContext(user);
         String accessToken = jwtService.generateAccessToken(user);
         String refreshToken = tokenService.generateOpaqueToken();
 
@@ -269,6 +277,8 @@ public class AuthService {
                 user.getOrganizationId(),
                 user.getOrganizationName(),
                 user.getOrganizationCode(),
+                user.getOrganizationTimezone(),
+                user.getOrganizationRegionCountry(),
                 user.getRoles()
         );
     }
@@ -294,9 +304,12 @@ public class AuthService {
                 user.getFullName(),
                 user.getDepartment(),
                 user.getPhone(),
+                user.getPhoneCountryCode(),
                 user.getOrganizationId(),
                 user.getOrganizationName(),
                 user.getOrganizationCode(),
+                user.getOrganizationTimezone(),
+                user.getOrganizationRegionCountry(),
                 user.getRoles()
         );
     }
@@ -311,6 +324,18 @@ public class AuthService {
         user.setOrganizationId(organization.getId());
         user.setOrganizationName(organization.getCompanyName());
         user.setOrganizationCode(organization.getCompanyCode());
+        user.setOrganizationTimezone(organization.getTimezone());
+        user.setOrganizationRegionCountry(organization.getRegionCountry());
+    }
+
+    private void refreshOrganizationContext(User user) {
+        String organizationId = trimToNull(user.getOrganizationId());
+        if (organizationId == null) {
+            return;
+        }
+        Organization organization = organizationService.requireActive(organizationId);
+        applyOrganization(user, organization);
+        userRepository.save(user);
     }
 
     private void validateOrganizationLogin(User user, String companyCode) {

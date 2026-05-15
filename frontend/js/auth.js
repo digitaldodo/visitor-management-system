@@ -8,6 +8,7 @@ import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleG
 import { getTokenRoles, setSession } from "./shared/session.js?v=20260515-auth-normalize";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
+import { initPhoneInput, phonePayload, validatePhonePayload } from "./shared/phoneInput.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   initAppErrorBoundary();
@@ -147,6 +148,7 @@ function initRegisterForm() {
   const form = $("#register-form");
   const usernameInput = form?.querySelector("input[name='username']");
   const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
+  initPhoneInput(form);
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -154,8 +156,10 @@ function initRegisterForm() {
     const data = getFormData(currentForm);
     const usernameError = runUsernameValidation();
 
-    if (!data.fullName || usernameError || !isEmail(data.email) || !validatePassword(data.password) || !data.companyCode) {
-      showToast("Check the form", usernameError || "Use a valid email, password, and organization.");
+    const phone = phonePayload(data);
+    const phoneError = validatePhonePayload(phone, { required: false });
+    if (!data.fullName || usernameError || !isEmail(data.email) || !validatePassword(data.password) || !data.companyCode || phoneError) {
+      showToast("Check the form", usernameError || phoneError || "Use a valid email, password, and organization.");
       return;
     }
 
@@ -165,7 +169,8 @@ function initRegisterForm() {
         username: data.username,
         email: data.email,
         password: data.password,
-        phone: data.phone || null,
+        phoneCountryCode: phone.phoneCountryCode,
+        phone: phone.phone || null,
         companyCode: data.companyCode,
         hostEmployee: data.hostEmployee || null,
         purposeOfVisit: data.purposeOfVisit || null,

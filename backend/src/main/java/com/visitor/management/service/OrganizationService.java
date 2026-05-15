@@ -28,6 +28,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 
@@ -102,6 +104,8 @@ public class OrganizationService {
                         organization.companyCode(),
                         organization.address(),
                         organization.contactEmail(),
+                        organization.regionCountry(),
+                        organization.timezone(),
                         organization.activeStatus(),
                         organization.createdAt(),
                         organization.updatedAt(),
@@ -175,6 +179,8 @@ public class OrganizationService {
         organization.setCompanyCode(companyCode);
         organization.setAddress(trimToNull(request.address()));
         organization.setContactEmail(trimToNull(request.contactEmail()));
+        organization.setRegionCountry(requiredTrim(request.regionCountry(), "Organization region/country is required."));
+        organization.setTimezone(resolveTimezone(request.timezone()));
         organization.setActiveStatus(request.activeStatus() == null || request.activeStatus());
         Organization saved = organizationRepository.save(organization);
         departmentService.syncDepartmentsForOrganization(saved.getId(), request.departmentNames());
@@ -203,6 +209,8 @@ public class OrganizationService {
         organization.setCompanyCode(companyCode);
         organization.setAddress(trimToNull(request.address()));
         organization.setContactEmail(trimToNull(request.contactEmail()));
+        organization.setRegionCountry(requiredTrim(request.regionCountry(), "Organization region/country is required."));
+        organization.setTimezone(resolveTimezone(request.timezone()));
         organization.setActiveStatus(request.activeStatus() == null || request.activeStatus());
         Organization saved = organizationRepository.save(organization);
         departmentService.syncDepartmentsForOrganization(saved.getId(), request.departmentNames());
@@ -260,6 +268,8 @@ public class OrganizationService {
                 organization.getCompanyCode(),
                 organization.getAddress(),
                 organization.getContactEmail(),
+                organization.getRegionCountry(),
+                organizationTimezone(organization),
                 organization.isActiveStatus(),
                 organization.getCreatedAt(),
                 organization.getUpdatedAt()
@@ -274,9 +284,12 @@ public class OrganizationService {
                 user.getFullName(),
                 user.getDepartment(),
                 user.getPhone(),
+                user.getPhoneCountryCode(),
                 user.getOrganizationId(),
                 user.getOrganizationName(),
                 user.getOrganizationCode(),
+                user.getOrganizationTimezone(),
+                user.getOrganizationRegionCountry(),
                 user.getRoles(),
                 user.isActive(),
                 user.getAccountStatus(),
@@ -327,6 +340,28 @@ public class OrganizationService {
 
     private String normalizeCode(String value) {
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String resolveTimezone(String timezone) {
+        String value = requiredTrim(timezone, "Organization timezone is required.");
+        try {
+            return ZoneId.of(value).getId();
+        } catch (DateTimeException ex) {
+            throw new BadRequestException("Organization timezone is invalid.");
+        }
+    }
+
+    private String organizationTimezone(Organization organization) {
+        String timezone = trimToNull(organization.getTimezone());
+        return timezone == null ? "UTC" : timezone;
+    }
+
+    private String requiredTrim(String value, String message) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            throw new BadRequestException(message);
+        }
+        return trimmed;
     }
 
     private String trimToNull(String value) {

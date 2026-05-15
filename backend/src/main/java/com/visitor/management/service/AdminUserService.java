@@ -54,6 +54,7 @@ public class AdminUserService {
     private final TokenService tokenService;
     private final EmailService emailService;
     private final RateLimitService rateLimitService;
+    private final PhoneNumberService phoneNumberService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AdminUserService(
@@ -66,7 +67,8 @@ public class AdminUserService {
             AccessAuditService accessAuditService,
             TokenService tokenService,
             EmailService emailService,
-            RateLimitService rateLimitService
+            RateLimitService rateLimitService,
+            PhoneNumberService phoneNumberService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -78,6 +80,7 @@ public class AdminUserService {
         this.tokenService = tokenService;
         this.emailService = emailService;
         this.rateLimitService = rateLimitService;
+        this.phoneNumberService = phoneNumberService;
     }
 
     public List<AdminUserResponse> listUsers(Authentication authentication) {
@@ -114,7 +117,11 @@ public class AdminUserService {
         user.setUsername(username);
         user.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setPhone(trimToNull(request.phone()));
+        PhoneNumberService.NormalizedPhone phone = phoneNumberService.normalize(request.phoneCountryCode(), request.phone(), false);
+        if (phone != null) {
+            user.setPhone(phone.e164());
+            user.setPhoneCountryCode(phone.countryCode());
+        }
         applyOrganization(user, organization);
         DepartmentService.DepartmentAssignment departmentAssignment = resolveDepartmentAssignment(role, organization, request.department());
         user.setDepartmentId(departmentAssignment != null ? departmentAssignment.departmentId() : null);
@@ -199,7 +206,11 @@ public class AdminUserService {
         user.setUsername(username);
         user.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setPhone(trimToNull(request.phone()));
+        PhoneNumberService.NormalizedPhone phone = phoneNumberService.normalize(request.phoneCountryCode(), request.phone(), false);
+        if (phone != null) {
+            user.setPhone(phone.e164());
+            user.setPhoneCountryCode(phone.countryCode());
+        }
         user.setRoles(Set.of(Role.SUPER_ADMIN));
         user.setActive(true);
         user.setAccountStatus(AccountStatus.ACTIVE);
@@ -348,9 +359,12 @@ public class AdminUserService {
                 user.getFullName(),
                 user.getDepartment(),
                 user.getPhone(),
+                user.getPhoneCountryCode(),
                 user.getOrganizationId(),
                 user.getOrganizationName(),
                 user.getOrganizationCode(),
+                user.getOrganizationTimezone(),
+                user.getOrganizationRegionCountry(),
                 user.getRoles(),
                 user.isActive(),
                 user.getAccountStatus(),
@@ -457,11 +471,15 @@ public class AdminUserService {
             user.setOrganizationId(null);
             user.setOrganizationName(null);
             user.setOrganizationCode(null);
+            user.setOrganizationTimezone(null);
+            user.setOrganizationRegionCountry(null);
             return;
         }
         user.setOrganizationId(organization.getId());
         user.setOrganizationName(organization.getCompanyName());
         user.setOrganizationCode(organization.getCompanyCode());
+        user.setOrganizationTimezone(organization.getTimezone());
+        user.setOrganizationRegionCountry(organization.getRegionCountry());
     }
 
     private DepartmentService.DepartmentAssignment resolveDepartmentAssignment(Role role, Organization organization, String requestedDepartment) {

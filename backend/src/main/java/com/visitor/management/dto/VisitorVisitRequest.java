@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 
 public record VisitorVisitRequest(
+        @Size(max = 6) String phoneCountryCode,
         @Size(min = 7, max = 32) String phone,
         @Size(max = 120) String companyName,
         @Size(max = 24) String companyCode,

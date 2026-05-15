@@ -16,6 +16,7 @@ public record QrVerificationResponse(
         String companyName,
         String organizationName,
         String organizationCode,
+        String organizationTimezone,
         String hostEmployee,
         String hostEmployeeDepartment,
         String photoUrl,
