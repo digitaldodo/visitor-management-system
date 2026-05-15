@@ -1,5 +1,5 @@
-import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js";
-import { getPublicPassVerification } from "../shared/accessService.js?v=20260515-recurring";
+import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js?v=20260515-scheduling";
+import { getPublicPassVerification } from "../shared/accessService.js?v=20260515-scheduling";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
@@ -171,6 +171,12 @@ function visitorTypeLabel(type) {
   if (type === "CONTRACTOR_VENDOR") {
     return "Contractor / vendor";
   }
+  if (type === "WALK_IN") {
+    return "Walk-in visitor";
+  }
+  if (type === "EMERGENCY") {
+    return "Emergency access";
+  }
   return "One-time visitor";
 }
 
@@ -182,7 +188,7 @@ function accessWindow(result) {
       : "";
     return `${validity}${entry}`;
   }
-  return formatWindow(result.scheduledStartTime, result.scheduledEndTime);
+  return formatWindow(result.accessWindowStartTime || result.scheduledStartTime, result.accessWindowEndTime || result.scheduledEndTime);
 }
 
 function statusLabel(result) {

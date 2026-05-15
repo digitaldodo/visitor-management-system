@@ -42,6 +42,9 @@ public record VisitorPassResponse(
         Instant approvedAt,
         Instant scheduledStartTime,
         Instant scheduledEndTime,
+        Instant accessWindowStartTime,
+        Instant accessWindowEndTime,
+        Long expectedDurationMinutes,
         Instant checkInTime,
         Instant checkOutTime,
         Instant badgePrintedAt

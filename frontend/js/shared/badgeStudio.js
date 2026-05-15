@@ -1,4 +1,4 @@
-import { formatDate, formatDateOnly, formatStatus } from "./formatters.js";
+import { formatDate, formatDateOnly, formatStatus, timezoneLabel } from "./formatters.js?v=20260515-scheduling";
 
 const BRAND_LOGO = new URL("../../assets/branding/logo-dark.png", import.meta.url).href;
 const BRAND_ICON = new URL("../../assets/branding/logo-icon.png", import.meta.url).href;
@@ -332,7 +332,7 @@ async function createBadgeCanvas(pass) {
     ["Visit date", formatDateOnly(pass.scheduledStartTime || pass.approvedAt || pass.issuedAt)],
     ["Access window", accessWindowLabel(pass)],
     ["Badge ID", pass.badgeId || "Pending issuance"],
-    ["Expires", formatDate(pass.expiresAt)],
+    ["Expires", `${formatDate(pass.expiresAt)} ${timezoneLabel(pass.organizationTimezone || "UTC")}`],
   ];
 
   detailCards.forEach(([label, value], index) => {
@@ -666,10 +666,10 @@ function accessWindowLabel(pass) {
       : "";
     return `${dates}${time}`;
   }
-  const start = pass.scheduledStartTime ? formatDate(pass.scheduledStartTime) : null;
-  const end = pass.scheduledEndTime ? formatDate(pass.scheduledEndTime) : null;
+  const start = pass.accessWindowStartTime ? formatDate(pass.accessWindowStartTime) : pass.scheduledStartTime ? formatDate(pass.scheduledStartTime) : null;
+  const end = pass.accessWindowEndTime ? formatDate(pass.accessWindowEndTime) : pass.scheduledEndTime ? formatDate(pass.scheduledEndTime) : null;
   if (start && end) {
-    return `${start} to ${end}`;
+    return `${start} to ${end} ${timezoneLabel(pass.organizationTimezone || "UTC")}`;
   }
   if (end) {
     return `Until ${end}`;

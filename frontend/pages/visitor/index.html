@@ -114,6 +114,22 @@
                   <span>Purpose</span>
                   <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
                 </label>
+                <label class="form-field">
+                  <span>Visit date and arrival</span>
+                  <input name="scheduledStartTime" type="datetime-local" required />
+                </label>
+                <label class="form-field">
+                  <span>Expected duration</span>
+                  <select name="expectedDurationMinutes">
+                    <option value="60">1 hour</option>
+                    <option value="30">30 minutes</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                    <option value="240">4 hours</option>
+                    <option value="480">Full day</option>
+                  </select>
+                </label>
+                <p class="form-hint form-field--wide" id="visitor-schedule-hint">Access opens early and expires after the approved visit window.</p>
                 <label class="form-field form-field--wide">
                   <span>Visitor photo</span>
                   <input name="photoFile" type="file" accept="image/*" capture="user" required />
@@ -162,6 +178,6 @@
     <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
     <div class="backdrop" id="sidebar-backdrop"></div>
     <script src="../../assets/js/env.js"></script>
-    <script type="module" src="../../js/visitor/dashboard.js?v=20260515-auth-normalize"></script>
+    <script type="module" src="../../js/visitor/dashboard.js?v=20260515-scheduling"></script>
   </body>
 </html>

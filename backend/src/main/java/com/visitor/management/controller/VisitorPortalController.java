@@ -2,6 +2,7 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
+import com.visitor.management.dto.RescheduleRequest;
 import com.visitor.management.dto.VisitorHistorySummaryResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
@@ -101,6 +102,15 @@ public class VisitorPortalController {
     @GetMapping("/visits/{id}/pass")
     public ApiResponse<VisitorPassResponse> pass(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor pass loaded.", visitorService.passForVisitorAccount(id, currentUser(authentication)));
+    }
+
+    @PostMapping("/visits/{id}/reschedule-request")
+    public ApiResponse<VisitorResponse> requestReschedule(
+            @PathVariable String id,
+            @Valid @RequestBody RescheduleRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Reschedule request sent to host.", visitorService.requestReschedule(id, request, authentication.getName()));
     }
 
     private User currentUser(Authentication authentication) {

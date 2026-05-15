@@ -64,14 +64,18 @@ public class AnalyticsService {
                 widget("Rejected visitors", rejectedVisitors, "Denied visit requests")
         );
 
-        return Map.of(
-                "timezone", timezone.getId(),
-                "widgets", widgets,
-                "employeeAnalytics", employeeAnalytics(organizationId),
-                "dailyVisitors", dailyVisitors(organizationId, timezone),
-                "monthlyTrends", monthlyTrends(organizationId, timezone),
-                "peakHours", peakHours(organizationId, timezone),
-                "approvalRates", approvalRates(organizationId)
+        return Map.ofEntries(
+                Map.entry("timezone", timezone.getId()),
+                Map.entry("widgets", widgets),
+                Map.entry("employeeAnalytics", employeeAnalytics(organizationId)),
+                Map.entry("dailyVisitors", dailyVisitors(organizationId, timezone)),
+                Map.entry("monthlyTrends", monthlyTrends(organizationId, timezone)),
+                Map.entry("peakHours", peakHours(organizationId, timezone)),
+                Map.entry("visitorFlow", visitorFlow(organizationId, timezone)),
+                Map.entry("staffingInsights", staffingInsights(organizationId, timezone)),
+                Map.entry("approvalWorkload", approvalWorkload(organizationId, timezone)),
+                Map.entry("checkInTrends", checkInTrends(organizationId, timezone)),
+                Map.entry("approvalRates", approvalRates(organizationId))
         );
     }
 
@@ -125,6 +129,53 @@ public class AnalyticsService {
             series.add(point(key + ":00", counts.getOrDefault(key, 0L)));
         }
         return series;
+    }
+
+    private List<Map<String, Object>> visitorFlow(String organizationId, ZoneId timezone) {
+        Instant start = LocalDate.now(timezone).minusDays(29).atStartOfDay(timezone).toInstant();
+        Map<String, Long> scheduled = aggregateCounts(List.of(
+                new Document("$match", withScope(new Document("scheduledStartTime", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$group", new Document("_id", dateString("$scheduledStartTime", "%H", timezone)).append("count", new Document("$sum", 1))),
+                new Document("$sort", new Document("_id", 1))
+        ));
+        List<Map<String, Object>> series = new ArrayList<>();
+        for (int hour = 0; hour < 24; hour++) {
+            String key = String.format("%02d", hour);
+            series.add(point(key + ":00", scheduled.getOrDefault(key, 0L)));
+        }
+        return series;
+    }
+
+    private List<Map<String, Object>> staffingInsights(String organizationId, ZoneId timezone) {
+        List<Map<String, Object>> peak = peakHours(organizationId, timezone);
+        return peak.stream()
+                .sorted((left, right) -> Long.compare(asLong(right.get("value")), asLong(left.get("value"))))
+                .limit(4)
+                .map(point -> Map.of(
+                        "label", point.get("label"),
+                        "value", point.get("value"),
+                        "note", asLong(point.get("value")) > 0 ? "Consider front-desk coverage" : "No check-in demand recorded"
+                ))
+                .toList();
+    }
+
+    private List<Map<String, Object>> approvalWorkload(String organizationId, ZoneId timezone) {
+        Instant start = LocalDate.now(timezone).minusDays(6).atStartOfDay(timezone).toInstant();
+        Map<String, Long> counts = aggregateCounts(List.of(
+                new Document("$match", withScope(new Document("createdAt", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m-%d", timezone)).append("count", new Document("$sum", 1))),
+                new Document("$sort", new Document("_id", 1))
+        ));
+        List<Map<String, Object>> series = new ArrayList<>();
+        for (int index = 0; index < 7; index++) {
+            LocalDate day = LocalDate.now(timezone).minusDays(6 - index);
+            series.add(point(day.getDayOfWeek().name().substring(0, 3), counts.getOrDefault(day.toString(), 0L)));
+        }
+        return series;
+    }
+
+    private List<Map<String, Object>> checkInTrends(String organizationId, ZoneId timezone) {
+        return dailyVisitors(organizationId, timezone);
     }
 
     private List<Map<String, Object>> approvalRates(String organizationId) {
@@ -267,6 +318,10 @@ public class AnalyticsService {
             return new AnalyticsScope(null, ZoneOffset.UTC);
         }
         return new AnalyticsScope(user.getOrganizationId(), resolveZoneId(user));
+    }
+
+    private long asLong(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
     }
 
     private ZoneId resolveZoneId(User user) {

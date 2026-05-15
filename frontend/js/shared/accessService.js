@@ -70,6 +70,34 @@ export function getVisitorPass(basePath, id) {
   return request(`${basePath}/visitors/${id}/pass`);
 }
 
+export function requestVisitReschedule(id, payload) {
+  return request(`/visitor/visits/${id}/reschedule-request`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveRescheduleRequest(basePath, id, note = "") {
+  return request(`${basePath}/visitors/${id}/reschedule-request/approve`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function rejectRescheduleRequest(basePath, id, note = "") {
+  return request(`${basePath}/visitors/${id}/reschedule-request/reject`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function hostRescheduleVisitor(basePath, id, payload) {
+  return request(`${basePath}/visitors/${id}/reschedule`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function markBadgePrinted(basePath, id) {
   return request(`${basePath}/visitors/${id}/badge-printed`, {
     method: "PATCH",

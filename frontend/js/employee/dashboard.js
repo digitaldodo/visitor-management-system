@@ -1,10 +1,10 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
+import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js?v=20260515-scheduling";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
-import { approveVisitor, preApproveVisitor, rejectVisitor } from "../shared/accessService.js?v=20260515-recurring";
+import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
+import { approveRescheduleRequest, approveVisitor, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js?v=20260515-scheduling";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
@@ -35,6 +35,7 @@ async function bootEmployeePortal() {
     canDelete: false,
   }), { toastTitle: "Visitor history unavailable" });
   initApprovalActions();
+  initScheduledActions();
   initPreApprovalForm();
   await loadEmployeePortal();
   approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
@@ -157,7 +158,16 @@ function initApprovalActions() {
         await rejectVisitor("/employee", id, note || "Rejected by host employee.");
         showToast("Visitor rejected", "Security will see the updated status.");
       }
+      if (action === "approve-reschedule") {
+        await approveRescheduleRequest("/employee", id, note);
+        showToast("Reschedule approved", "The previous QR was invalidated and a new pass window is active.");
+      }
+      if (action === "reject-reschedule") {
+        await rejectRescheduleRequest("/employee", id, note || "Timing change declined by host employee.");
+        showToast("Reschedule rejected", "The original approved timing remains active.");
+      }
       await loadApprovals(false);
+      await loadEmployeePortal();
     } catch (error) {
       showToast("Approval failed", error.message);
     } finally {
@@ -181,9 +191,10 @@ function renderScheduledVisitors(items) {
 }
 
 function scheduledCard(visitor) {
-  const windowText = `${formatDate(visitor.scheduledStartTime)} - ${formatTime(visitor.scheduledEndTime)}`;
+  const windowText = `${formatDate(visitor.accessWindowStartTime || visitor.scheduledStartTime)} - ${formatTime(visitor.accessWindowEndTime || visitor.scheduledEndTime)}`;
   const company = visitor.companyName || "Unlisted company";
   const status = formatStatus(visitor.status);
+  const pending = visitor.rescheduleStatus === "PENDING" && visitor.pendingScheduledStartTime;
   return `
     <article class="scheduled-card">
       <div>
@@ -192,14 +203,68 @@ function scheduledCard(visitor) {
       </div>
       <dl>
         <div><dt>Window</dt><dd>${escapeHtml(windowText)}</dd></div>
+        <div><dt>Meeting</dt><dd>${escapeHtml(formatDate(visitor.scheduledStartTime))}</dd></div>
+        <div><dt>Reschedule</dt><dd>${escapeHtml(pending ? formatDate(visitor.pendingScheduledStartTime) : visitor.rescheduleStatus || "None")}</dd></div>
         <div><dt>Pass</dt><dd>${escapeHtml(visitor.qrCode || "Pending")}</dd></div>
       </dl>
       <div class="scheduled-card__footer">
         <span>${escapeHtml(visitor.scheduledTimezone || "UTC")}</span>
         <span class="status-badge status-badge--${String(visitor.status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(status)}</span>
       </div>
+      <div class="scheduled-card__actions">
+        ${pending ? `<button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button><button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Reject timing</button>` : ""}
+        <button class="button button--ghost" type="button" data-direct-reschedule="${escapeHtml(visitor.id)}">Modify timing</button>
+      </div>
     </article>
   `;
+}
+
+function initScheduledActions() {
+  document.querySelector("#scheduled-list")?.addEventListener("click", async (event) => {
+    const decisionButton = event.target.closest("[data-approval-action]");
+    if (decisionButton) {
+      try {
+        if (decisionButton.dataset.approvalAction === "approve-reschedule") {
+          await approveRescheduleRequest("/employee", decisionButton.dataset.visitorId, "");
+          showToast("Reschedule approved", "The badge was regenerated for the new timing.");
+        }
+        if (decisionButton.dataset.approvalAction === "reject-reschedule") {
+          const note = window.prompt("Reason for rejecting this timing change.") || "Timing change declined by host employee.";
+          await rejectRescheduleRequest("/employee", decisionButton.dataset.visitorId, note);
+          showToast("Reschedule rejected", "The original timing remains active.");
+        }
+        await loadEmployeePortal();
+      } catch (error) {
+        showToast("Reschedule failed", error.message);
+      }
+      return;
+    }
+    const rescheduleButton = event.target.closest("[data-direct-reschedule]");
+    if (!rescheduleButton) {
+      return;
+    }
+    const dateTime = window.prompt("Enter the new visit date and arrival time as YYYY-MM-DD HH:mm.");
+    if (!dateTime) {
+      return;
+    }
+    const scheduledStartTime = toIsoInstant(dateTime.trim().replace(" ", "T"), getDefaultTimezone());
+    if (!scheduledStartTime || new Date(scheduledStartTime) <= new Date()) {
+      showToast("Invalid timing", "Enter a future date and time.");
+      return;
+    }
+    try {
+      await hostRescheduleVisitor("/employee", rescheduleButton.dataset.directReschedule, {
+        scheduledStartTime,
+        expectedDurationMinutes: 60,
+        timezone: getDefaultTimezone(),
+        note: "Timing modified by host.",
+      });
+      showToast("Timing updated", "The previous QR was invalidated and the new access window is active.");
+      await loadEmployeePortal();
+    } catch (error) {
+      showToast("Reschedule failed", error.message);
+    }
+  });
 }
 
 function approvalCard(visitor) {
@@ -219,6 +284,9 @@ function approvalCard(visitor) {
         <dl class="approval-meta">
           <div><dt>Purpose</dt><dd>${escapeHtml(visitor.purposeOfVisit)}</dd></div>
           <div><dt>Requested</dt><dd>${formatDate(visitor.createdAt)}</dd></div>
+          <div><dt>Arrival</dt><dd>${formatDate(visitor.scheduledStartTime)}</dd></div>
+          <div><dt>Access window</dt><dd>${formatDate(visitor.accessWindowStartTime)} - ${formatTime(visitor.accessWindowEndTime)}</dd></div>
+          ${visitor.rescheduleStatus === "PENDING" ? `<div><dt>Requested timing</dt><dd>${formatDate(visitor.pendingScheduledStartTime)}</dd></div>` : ""}
         </dl>
         ${approvalTimeline(visitor.statusHistory)}
         <label class="form-field">
@@ -228,6 +296,7 @@ function approvalCard(visitor) {
         <div class="approval-card__actions">
           <button class="button button--ghost" type="button" data-approval-action="reject" data-visitor-id="${escapeHtml(visitor.id)}">Reject</button>
           <button class="button button--primary" type="button" data-approval-action="approve" data-visitor-id="${escapeHtml(visitor.id)}">Approve</button>
+          ${visitor.rescheduleStatus === "PENDING" ? `<button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Reject timing</button><button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button>` : ""}
         </div>
       </div>
     </article>

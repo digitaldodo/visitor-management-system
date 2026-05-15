@@ -1,7 +1,7 @@
 import { login, registerAccount } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { $, $$ } from "./shared/dom.js";
-import { formatStatus } from "./shared/formatters.js";
+import { formatStatus } from "./shared/formatters.js?v=20260515-scheduling";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";

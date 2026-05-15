@@ -6,6 +6,8 @@ import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
 import com.visitor.management.dto.ManualOverrideCheckInRequest;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.QrVerificationResponse;
+import com.visitor.management.dto.RescheduleDecisionRequest;
+import com.visitor.management.dto.RescheduleRequest;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.SecurityMonitoringResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
@@ -50,6 +52,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -71,6 +74,12 @@ public class VisitorService {
     private static final long PASS_VALID_HOURS = 12;
     private static final long MIN_VISIT_WINDOW_MINUTES = 15;
     private static final long MAX_VISIT_WINDOW_HOURS = 24;
+    private static final long DEFAULT_EXPECTED_DURATION_MINUTES = 60;
+    private static final long EARLY_ENTRY_BUFFER_MINUTES = 60;
+    private static final long POST_MEETING_GRACE_MINUTES = 60;
+    private static final String RESCHEDULE_PENDING = "PENDING";
+    private static final String RESCHEDULE_APPROVED = "APPROVED";
+    private static final String RESCHEDULE_REJECTED = "REJECTED";
 
     private static final Set<String> SORT_FIELDS = Set.of(
             "createdAt",
@@ -147,6 +156,15 @@ public class VisitorService {
         visitor.setHostEmployeeId(resolveHostEmployeeId(request.hostEmployeeId(), request.hostEmployee(), null, visitor.getOrganizationId()));
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
+        applyOneTimeSchedule(
+                visitor,
+                request.scheduledStartTime(),
+                request.scheduledEndTime(),
+                request.expectedDurationMinutes(),
+                request.timezone(),
+                now,
+                false
+        );
         visitor.setPhotoUrl(trimToNull(request.photoUrl()));
         visitor.setPhotoPublicId(trimToNull(request.photoPublicId()));
         visitor.setStatus(VisitorStatus.PENDING);
@@ -200,10 +218,25 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
         applyVisitorTypeProfile(visitor, request, actor);
+        applyOneTimeSchedule(
+                visitor,
+                request.scheduledStartTime(),
+                request.scheduledEndTime(),
+                request.expectedDurationMinutes(),
+                request.timezone(),
+                now,
+                shouldRequireSchedule(visitor, actor)
+        );
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
         if (isRecurringVisitor(visitor)) {
             visitor.setPreApproved(true);
+            visitor.setStatus(VisitorStatus.APPROVED);
+            visitor.setApprovedAt(now);
+            visitor.setApprovedBy(actorId);
+            issuePassCredentials(visitor, now);
+        } else if (isImmediateAccessVisitor(visitor)) {
+            visitor.setPreApproved(false);
             visitor.setStatus(VisitorStatus.APPROVED);
             visitor.setApprovedAt(now);
             visitor.setApprovedBy(actorId);
@@ -215,8 +248,8 @@ public class VisitorService {
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
         enforceActiveVisitorRules(visitor);
-        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : "REGISTERED";
-        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : "Approval requested.";
+        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : isImmediateAccessVisitor(visitor) ? "IMMEDIATE_ACCESS_REGISTERED" : "REGISTERED";
+        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : isImmediateAccessVisitor(visitor) ? "Walk-in or emergency access approved at registration." : "Approval requested.";
         addHistory(visitor, visitor.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), null, saved.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
@@ -250,6 +283,8 @@ public class VisitorService {
         visitor.setScheduledStartTime(start);
         visitor.setScheduledEndTime(end);
         visitor.setScheduledTimezone(timezone);
+        visitor.setExpectedDurationMinutes(Duration.between(start, end).toMinutes());
+        applyControlledAccessWindow(visitor);
         visitor.setPreApproved(true);
         visitor.setStatus(VisitorStatus.APPROVED);
         visitor.setApprovedAt(now);
@@ -396,6 +431,118 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(null, hostEmployeeId));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(hostEmployeeId));
         return toResponse(visitorRepository.save(visitor));
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse requestReschedule(String id, RescheduleRequest request, String actorId) {
+        Visitor visitor = find(id);
+        User actor = currentUser(actorId);
+        if (visitor.getEmail() == null || actor.getEmail() == null || !visitor.getEmail().equalsIgnoreCase(actor.getEmail())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        if (actor.getOrganizationId() != null && !actor.getOrganizationId().equals(visitor.getOrganizationId())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        if (isRecurringVisitor(visitor)) {
+            throw new BadRequestException("Recurring visitor profiles use validity windows instead of meeting reschedules.");
+        }
+        Instant now = Instant.now();
+        ScheduleCandidate candidate = scheduleCandidate(request.scheduledStartTime(), request.scheduledEndTime(), request.expectedDurationMinutes(), request.timezone(), visitor.getOrganizationTimezone(), now);
+        visitor.setPendingScheduledStartTime(candidate.start());
+        visitor.setPendingScheduledEndTime(candidate.end());
+        visitor.setPendingScheduledTimezone(candidate.timezone());
+        visitor.setRescheduleRequestedBy(actorId);
+        visitor.setRescheduleRequestedAt(now);
+        visitor.setRescheduleRequestNote(trimToNull(request.note()));
+        visitor.setRescheduleStatus(RESCHEDULE_PENDING);
+        visitor.setRescheduleRejectedAt(null);
+        visitor.setRescheduleRejectedBy(null);
+        visitor.setRescheduleRejectionReason(null);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, visitor.getStatus(), "RESCHEDULE_REQUESTED", actorId, visitor.getRescheduleRequestNote(), now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "RESCHEDULE_REQUESTED", actorId, visitor.getRescheduleRequestNote(), now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse approveReschedule(String id, RescheduleDecisionRequest request, String hostEmployeeId) {
+        Visitor visitor = find(id);
+        requireHostAccess(visitor, hostEmployeeId);
+        if (!RESCHEDULE_PENDING.equals(visitor.getRescheduleStatus())
+                || visitor.getPendingScheduledStartTime() == null
+                || visitor.getPendingScheduledEndTime() == null) {
+            throw new BadRequestException("No pending reschedule request is available for this visitor.");
+        }
+        Instant now = Instant.now();
+        if (!visitor.getPendingScheduledStartTime().isAfter(now)) {
+            throw new BadRequestException("Pending reschedule request has expired.");
+        }
+        applyApprovedSchedule(
+                visitor,
+                visitor.getPendingScheduledStartTime(),
+                visitor.getPendingScheduledEndTime(),
+                visitor.getPendingScheduledTimezone(),
+                hostEmployeeId,
+                now
+        );
+        visitor.setRescheduleStatus(RESCHEDULE_APPROVED);
+        visitor.setRescheduleApprovedAt(now);
+        visitor.setRescheduleApprovedBy(hostEmployeeId);
+        visitor.setPendingScheduledStartTime(null);
+        visitor.setPendingScheduledEndTime(null);
+        visitor.setPendingScheduledTimezone(null);
+        String note = trimToNull(request == null ? null : request.note());
+        addHistory(visitor, visitor.getStatus(), "RESCHEDULE_APPROVED", hostEmployeeId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "RESCHEDULE_APPROVED", hostEmployeeId, note, now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse rejectReschedule(String id, RescheduleDecisionRequest request, String hostEmployeeId) {
+        Visitor visitor = find(id);
+        requireHostAccess(visitor, hostEmployeeId);
+        if (!RESCHEDULE_PENDING.equals(visitor.getRescheduleStatus())) {
+            throw new BadRequestException("No pending reschedule request is available for this visitor.");
+        }
+        Instant now = Instant.now();
+        String note = requiredTrim(request == null ? null : request.note(), "Reschedule rejection reason is required.");
+        visitor.setRescheduleStatus(RESCHEDULE_REJECTED);
+        visitor.setRescheduleRejectedAt(now);
+        visitor.setRescheduleRejectedBy(hostEmployeeId);
+        visitor.setRescheduleRejectionReason(note);
+        visitor.setPendingScheduledStartTime(null);
+        visitor.setPendingScheduledEndTime(null);
+        visitor.setPendingScheduledTimezone(null);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, visitor.getStatus(), "RESCHEDULE_REJECTED", hostEmployeeId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "RESCHEDULE_REJECTED", hostEmployeeId, note, now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse rescheduleForHost(String id, RescheduleRequest request, String hostEmployeeId) {
+        Visitor visitor = find(id);
+        requireHostAccess(visitor, hostEmployeeId);
+        if (isRecurringVisitor(visitor)) {
+            throw new BadRequestException("Recurring visitor profiles use validity windows instead of meeting reschedules.");
+        }
+        Instant now = Instant.now();
+        ScheduleCandidate candidate = scheduleCandidate(request.scheduledStartTime(), request.scheduledEndTime(), request.expectedDurationMinutes(), request.timezone(), visitor.getOrganizationTimezone(), now);
+        applyApprovedSchedule(visitor, candidate.start(), candidate.end(), candidate.timezone(), hostEmployeeId, now);
+        visitor.setRescheduleStatus(RESCHEDULE_APPROVED);
+        visitor.setRescheduleApprovedAt(now);
+        visitor.setRescheduleApprovedBy(hostEmployeeId);
+        visitor.setPendingScheduledStartTime(null);
+        visitor.setPendingScheduledEndTime(null);
+        visitor.setPendingScheduledTimezone(null);
+        String note = trimToNull(request.note());
+        addHistory(visitor, visitor.getStatus(), "HOST_RESCHEDULED", hostEmployeeId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "HOST_RESCHEDULED", hostEmployeeId, note, now);
+        return toResponse(saved);
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
@@ -804,7 +951,7 @@ public class VisitorService {
         Instant now = Instant.now();
         Query query = new Query(new Criteria().orOperator(
                 Criteria.where("status").is(VisitorStatus.PENDING).and("approvalExpiresAt").lte(now),
-                Criteria.where("status").is(VisitorStatus.APPROVED).and("scheduledEndTime").lte(now),
+                Criteria.where("status").is(VisitorStatus.APPROVED).and("accessWindowEndTime").lte(now),
                 Criteria.where("status").is(VisitorStatus.APPROVED).and("qrExpiresAt").lte(now),
                 new Criteria().andOperator(
                         Criteria.where("visitorType").in(VisitorType.RECURRING, VisitorType.CONTRACTOR_VENDOR),
@@ -899,6 +1046,15 @@ public class VisitorService {
         setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(trimToNull(value)));
         setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(trimToNull(value)));
         applyVisitorTypeProfile(visitor, request);
+        applyOneTimeSchedule(
+                visitor,
+                request.scheduledStartTime(),
+                request.scheduledEndTime(),
+                request.expectedDurationMinutes(),
+                request.timezone(),
+                Instant.now(),
+                false
+        );
         if (request.status() != null) {
             applyDirectStatusUpdate(visitor, request.status());
         }
@@ -907,7 +1063,11 @@ public class VisitorService {
 
     private void applyVisitorTypeProfile(Visitor visitor, VisitorCreateRequest request, User actor) {
         VisitorType requestedType = request.visitorType() == null ? VisitorType.ONE_TIME : request.visitorType();
-        if (requestedType != VisitorType.ONE_TIME && actor != null && !hasRole(actor, Role.SECURITY_GUARD) && !hasRole(actor, Role.ADMIN) && !hasRole(actor, Role.SUPER_ADMIN)) {
+        if ((requestedType == VisitorType.RECURRING || requestedType == VisitorType.CONTRACTOR_VENDOR)
+                && actor != null
+                && !hasRole(actor, Role.SECURITY_GUARD)
+                && !hasRole(actor, Role.ADMIN)
+                && !hasRole(actor, Role.SUPER_ADMIN)) {
             throw new BadRequestException("Only security or admin users can create recurring visitor profiles.");
         }
         visitor.setVisitorType(requestedType);
@@ -950,6 +1110,91 @@ public class VisitorService {
         setIfPresent(request.emergencyContact(), value -> visitor.setEmergencyContact(trimToNull(value)));
         setIfPresent(request.notes(), value -> visitor.setNotes(trimToNull(value)));
         validateRecurringProfile(visitor);
+    }
+
+    private void applyOneTimeSchedule(
+            Visitor visitor,
+            Instant requestedStart,
+            Instant requestedEnd,
+            Long expectedDurationMinutes,
+            String timezone,
+            Instant now,
+            boolean required
+    ) {
+        if (isRecurringVisitor(visitor)) {
+            return;
+        }
+        if (requestedStart == null && requestedEnd == null && expectedDurationMinutes == null) {
+            if (required) {
+                throw new BadRequestException("Visit date and expected arrival time are required.");
+            }
+            if (isImmediateAccessVisitor(visitor) && visitor.getScheduledStartTime() == null) {
+                ScheduleCandidate candidate = scheduleCandidate(now.plusSeconds(60), null, DEFAULT_EXPECTED_DURATION_MINUTES, timezone, visitor.getOrganizationTimezone(), now);
+                applyScheduleFields(visitor, now, candidate.start(), candidate.end(), candidate.timezone());
+            }
+            return;
+        }
+        ScheduleCandidate candidate = scheduleCandidate(requestedStart, requestedEnd, expectedDurationMinutes, timezone, visitor.getOrganizationTimezone(), now);
+        applyScheduleFields(visitor, now, candidate.start(), candidate.end(), candidate.timezone());
+    }
+
+    private ScheduleCandidate scheduleCandidate(
+            Instant requestedStart,
+            Instant requestedEnd,
+            Long expectedDurationMinutes,
+            String timezone,
+            String fallbackTimezone,
+            Instant now
+    ) {
+        if (requestedStart == null) {
+            throw new BadRequestException("Visit date and expected arrival time are required.");
+        }
+        long durationMinutes = expectedDurationMinutes == null ? DEFAULT_EXPECTED_DURATION_MINUTES : expectedDurationMinutes;
+        if (durationMinutes < MIN_VISIT_WINDOW_MINUTES || durationMinutes > MAX_VISIT_WINDOW_HOURS * 60) {
+            throw new BadRequestException("Expected duration must be between 15 minutes and 24 hours.");
+        }
+        Instant end = requestedEnd != null ? requestedEnd : requestedStart.plus(Duration.ofMinutes(durationMinutes));
+        validateScheduleWindow(requestedStart, end, now);
+        return new ScheduleCandidate(requestedStart, end, resolveTimezone(timezone, fallbackTimezone));
+    }
+
+    private void applyScheduleFields(Visitor visitor, Instant now, Instant start, Instant end, String timezone) {
+        visitor.setScheduledStartTime(start);
+        visitor.setScheduledEndTime(end);
+        visitor.setScheduledTimezone(timezone);
+        visitor.setExpectedDurationMinutes(Duration.between(start, end).toMinutes());
+        applyControlledAccessWindow(visitor);
+        if (visitor.getQrCode() != null && visitor.getStatus() == VisitorStatus.APPROVED) {
+            issuePassCredentials(visitor, now);
+        }
+    }
+
+    private void applyApprovedSchedule(Visitor visitor, Instant start, Instant end, String timezone, String actorId, Instant now) {
+        if (visitor.getOriginalScheduledStartTime() == null && visitor.getScheduledStartTime() != null) {
+            visitor.setOriginalScheduledStartTime(visitor.getScheduledStartTime());
+            visitor.setOriginalScheduledEndTime(visitor.getScheduledEndTime());
+        }
+        applyScheduleFields(visitor, now, start, end, timezone);
+        visitor.setScheduleUpdatedBy(actorId);
+        visitor.setScheduleUpdatedAt(now);
+        visitor.setUpdatedAt(now);
+    }
+
+    private void applyControlledAccessWindow(Visitor visitor) {
+        if (visitor.getScheduledStartTime() == null || visitor.getScheduledEndTime() == null) {
+            visitor.setAccessWindowStartTime(null);
+            visitor.setAccessWindowEndTime(null);
+            return;
+        }
+        visitor.setAccessWindowStartTime(visitor.getScheduledStartTime().minus(Duration.ofMinutes(EARLY_ENTRY_BUFFER_MINUTES)));
+        visitor.setAccessWindowEndTime(visitor.getScheduledEndTime().plus(Duration.ofMinutes(POST_MEETING_GRACE_MINUTES)));
+    }
+
+    private boolean shouldRequireSchedule(Visitor visitor, User actor) {
+        if (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor)) {
+            return false;
+        }
+        return actor == null || !hasRole(actor, Role.SECURITY_GUARD);
     }
 
     private void validateRecurringProfile(Visitor visitor) {
@@ -1102,6 +1347,25 @@ public class VisitorService {
                 visitor.getScheduledStartTime(),
                 visitor.getScheduledEndTime(),
                 visitor.getScheduledTimezone(),
+                visitor.getAccessWindowStartTime(),
+                visitor.getAccessWindowEndTime(),
+                visitor.getExpectedDurationMinutes(),
+                visitor.getOriginalScheduledStartTime(),
+                visitor.getOriginalScheduledEndTime(),
+                visitor.getPendingScheduledStartTime(),
+                visitor.getPendingScheduledEndTime(),
+                visitor.getPendingScheduledTimezone(),
+                visitor.getRescheduleRequestedBy(),
+                visitor.getRescheduleRequestedAt(),
+                visitor.getRescheduleRequestNote(),
+                visitor.getRescheduleStatus(),
+                visitor.getScheduleUpdatedBy(),
+                visitor.getScheduleUpdatedAt(),
+                visitor.getRescheduleApprovedAt(),
+                visitor.getRescheduleApprovedBy(),
+                visitor.getRescheduleRejectedAt(),
+                visitor.getRescheduleRejectedBy(),
+                visitor.getRescheduleRejectionReason(),
                 visitor.getApprovalExpiresAt(),
                 visitor.isPreApproved(),
                 visitor.getStatus(),
@@ -1174,6 +1438,9 @@ public class VisitorService {
                 visitor.getApprovedAt(),
                 visitor.getScheduledStartTime(),
                 visitor.getScheduledEndTime(),
+                visitor.getAccessWindowStartTime(),
+                visitor.getAccessWindowEndTime(),
+                visitor.getExpectedDurationMinutes(),
                 visitor.getCheckInTime(),
                 visitor.getCheckOutTime(),
                 visitor.getBadgePrintedAt()
@@ -1342,14 +1609,17 @@ public class VisitorService {
         }
         if (isRecurringVisitor(visitor)) {
             requireRecurringWithinValidity(visitor, Instant.now());
-            return;
         }
-        requireVisitorWithinAllowedWindow(visitor, Instant.now());
     }
 
     private boolean isRecurringVisitor(Visitor visitor) {
         VisitorType type = visitor.getVisitorType();
         return type == VisitorType.RECURRING || type == VisitorType.CONTRACTOR_VENDOR;
+    }
+
+    private boolean isImmediateAccessVisitor(Visitor visitor) {
+        VisitorType type = visitor.getVisitorType();
+        return type == VisitorType.WALK_IN || type == VisitorType.EMERGENCY;
     }
 
     private String normalizeLegacyQrPayload(String scannedPayload) {
@@ -1384,6 +1654,9 @@ public class VisitorService {
                 null,
                 null,
                 List.of(),
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -1439,8 +1712,11 @@ public class VisitorService {
         if (isRecurringVisitor(visitor) && visitor.getValidityEndDate() != null) {
             return visitor.getValidityEndDate();
         }
+        if (visitor.getAccessWindowEndTime() != null) {
+            return visitor.getAccessWindowEndTime();
+        }
         if (visitor.getScheduledEndTime() != null) {
-            return visitor.getScheduledEndTime();
+            return visitor.getScheduledEndTime().plus(Duration.ofMinutes(POST_MEETING_GRACE_MINUTES));
         }
         return now.plusSeconds(PASS_VALID_HOURS * 60 * 60);
     }
@@ -1450,11 +1726,13 @@ public class VisitorService {
             requireRecurringAllowedNow(visitor, now);
             return;
         }
-        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
-            throw new BadRequestException("Visitor pass is not active until the scheduled start time.");
+        Instant accessStart = visitor.getAccessWindowStartTime() != null ? visitor.getAccessWindowStartTime() : visitor.getScheduledStartTime();
+        Instant accessEnd = visitor.getAccessWindowEndTime() != null ? visitor.getAccessWindowEndTime() : visitor.getScheduledEndTime();
+        if (accessStart != null && now.isBefore(accessStart)) {
+            throw new BadRequestException("Visitor pass is not active until the approved access window opens.");
         }
-        if (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime())) {
-            throw new BadRequestException("Visitor pass has expired for the scheduled visit window.");
+        if (accessEnd != null && !now.isBefore(accessEnd)) {
+            throw new BadRequestException("Visitor pass has expired for the approved access window.");
         }
     }
 
@@ -1710,7 +1988,7 @@ public class VisitorService {
         return new Criteria().andOperator(
                 Criteria.where("status").is(VisitorStatus.CHECKED_IN),
                 new Criteria().orOperator(
-                        Criteria.where("scheduledEndTime").lte(now),
+                        Criteria.where("accessWindowEndTime").lte(now),
                         Criteria.where("qrExpiresAt").lte(now)
                 )
         );
@@ -1757,8 +2035,8 @@ public class VisitorService {
                 && visitor.getQrExpiresAt() != null
                 && visitor.getQrExpiresAt().isAfter(now)
                 && (visitor.getStatus() == VisitorStatus.APPROVED || (isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT))
-                && (visitor.getScheduledStartTime() == null || !now.isBefore(visitor.getScheduledStartTime()))
-                && (visitor.getScheduledEndTime() == null || now.isBefore(visitor.getScheduledEndTime()))
+                && (visitor.getAccessWindowStartTime() == null || !now.isBefore(visitor.getAccessWindowStartTime()))
+                && (visitor.getAccessWindowEndTime() == null || now.isBefore(visitor.getAccessWindowEndTime()))
                 && (!isRecurringVisitor(visitor) || isRecurringAllowedNow(visitor, now));
     }
 
@@ -1787,7 +2065,9 @@ public class VisitorService {
         if (visitor.getStatus() == VisitorStatus.PENDING) {
             return "Awaiting approval";
         }
-        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
+        Instant accessStart = visitor.getAccessWindowStartTime() != null ? visitor.getAccessWindowStartTime() : visitor.getScheduledStartTime();
+        Instant accessEnd = visitor.getAccessWindowEndTime() != null ? visitor.getAccessWindowEndTime() : visitor.getScheduledEndTime();
+        if (accessStart != null && now.isBefore(accessStart)) {
             return "Scheduled";
         }
         if (visitor.getQrExpiresAt() == null || !visitor.getQrExpiresAt().isAfter(now)) {
@@ -1890,7 +2170,8 @@ public class VisitorService {
             );
         }
 
-        if (visitor.getScheduledStartTime() != null && now.isBefore(visitor.getScheduledStartTime())) {
+        Instant accessStart = visitor.getAccessWindowStartTime() != null ? visitor.getAccessWindowStartTime() : visitor.getScheduledStartTime();
+        if (accessStart != null && now.isBefore(accessStart)) {
             return verificationResponse(
                     false,
                     true,
@@ -1959,7 +2240,7 @@ public class VisitorService {
                 || visitor.getQrExpiresAt() == null
                 || !visitor.getQrExpiresAt().isAfter(now)
                 || (isRecurringVisitor(visitor) && !isRecurringAllowedNow(visitor, now))
-                || (visitor.getScheduledEndTime() != null && !now.isBefore(visitor.getScheduledEndTime()))) {
+                || (visitor.getAccessWindowEndTime() != null && !now.isBefore(visitor.getAccessWindowEndTime()))) {
             return verificationResponse(
                     false,
                     true,
@@ -2133,6 +2414,9 @@ public class VisitorService {
                 visitor.getQrExpiresAt(),
                 visitor.getScheduledStartTime(),
                 visitor.getScheduledEndTime(),
+                visitor.getAccessWindowStartTime(),
+                visitor.getAccessWindowEndTime(),
+                visitor.getExpectedDurationMinutes(),
                 visitor.getCheckInTime(),
                 visitor.getCheckOutTime(),
                 overdue,
@@ -2177,5 +2461,8 @@ public class VisitorService {
             return "Visitor suspended";
         }
         return displayStatus(visitor.getStatus());
+    }
+
+    private record ScheduleCandidate(Instant start, Instant end, String timezone) {
     }
 }

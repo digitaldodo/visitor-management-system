@@ -197,6 +197,13 @@
   justify-content: space-between;
 }
 
+.scheduled-card__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 @media (max-width: 1040px) {
   .approval-card {
     grid-template-columns: 1fr;
@@ -215,7 +222,8 @@
   }
 
   .preapproval-form__footer,
-  .scheduled-card__footer {
+  .scheduled-card__footer,
+  .scheduled-card__actions {
     align-items: stretch;
     flex-direction: column;
   }

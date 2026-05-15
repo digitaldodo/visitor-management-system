@@ -94,6 +94,46 @@ public class Visitor {
     private String scheduledTimezone;
 
     @Indexed
+    private Instant accessWindowStartTime;
+
+    @Indexed
+    private Instant accessWindowEndTime;
+
+    private Long expectedDurationMinutes;
+
+    private Instant originalScheduledStartTime;
+
+    private Instant originalScheduledEndTime;
+
+    private Instant pendingScheduledStartTime;
+
+    private Instant pendingScheduledEndTime;
+
+    private String pendingScheduledTimezone;
+
+    private String rescheduleRequestedBy;
+
+    private Instant rescheduleRequestedAt;
+
+    private String rescheduleRequestNote;
+
+    private String rescheduleStatus;
+
+    private String scheduleUpdatedBy;
+
+    private Instant scheduleUpdatedAt;
+
+    private Instant rescheduleApprovedAt;
+
+    private String rescheduleApprovedBy;
+
+    private Instant rescheduleRejectedAt;
+
+    private String rescheduleRejectedBy;
+
+    private String rescheduleRejectionReason;
+
+    @Indexed
     private Instant approvalExpiresAt;
 
     @Indexed
@@ -406,6 +446,158 @@ public class Visitor {
 
     public void setScheduledTimezone(String scheduledTimezone) {
         this.scheduledTimezone = scheduledTimezone;
+    }
+
+    public Instant getAccessWindowStartTime() {
+        return accessWindowStartTime;
+    }
+
+    public void setAccessWindowStartTime(Instant accessWindowStartTime) {
+        this.accessWindowStartTime = accessWindowStartTime;
+    }
+
+    public Instant getAccessWindowEndTime() {
+        return accessWindowEndTime;
+    }
+
+    public void setAccessWindowEndTime(Instant accessWindowEndTime) {
+        this.accessWindowEndTime = accessWindowEndTime;
+    }
+
+    public Long getExpectedDurationMinutes() {
+        return expectedDurationMinutes;
+    }
+
+    public void setExpectedDurationMinutes(Long expectedDurationMinutes) {
+        this.expectedDurationMinutes = expectedDurationMinutes;
+    }
+
+    public Instant getOriginalScheduledStartTime() {
+        return originalScheduledStartTime;
+    }
+
+    public void setOriginalScheduledStartTime(Instant originalScheduledStartTime) {
+        this.originalScheduledStartTime = originalScheduledStartTime;
+    }
+
+    public Instant getOriginalScheduledEndTime() {
+        return originalScheduledEndTime;
+    }
+
+    public void setOriginalScheduledEndTime(Instant originalScheduledEndTime) {
+        this.originalScheduledEndTime = originalScheduledEndTime;
+    }
+
+    public Instant getPendingScheduledStartTime() {
+        return pendingScheduledStartTime;
+    }
+
+    public void setPendingScheduledStartTime(Instant pendingScheduledStartTime) {
+        this.pendingScheduledStartTime = pendingScheduledStartTime;
+    }
+
+    public Instant getPendingScheduledEndTime() {
+        return pendingScheduledEndTime;
+    }
+
+    public void setPendingScheduledEndTime(Instant pendingScheduledEndTime) {
+        this.pendingScheduledEndTime = pendingScheduledEndTime;
+    }
+
+    public String getPendingScheduledTimezone() {
+        return pendingScheduledTimezone;
+    }
+
+    public void setPendingScheduledTimezone(String pendingScheduledTimezone) {
+        this.pendingScheduledTimezone = pendingScheduledTimezone;
+    }
+
+    public String getRescheduleRequestedBy() {
+        return rescheduleRequestedBy;
+    }
+
+    public void setRescheduleRequestedBy(String rescheduleRequestedBy) {
+        this.rescheduleRequestedBy = rescheduleRequestedBy;
+    }
+
+    public Instant getRescheduleRequestedAt() {
+        return rescheduleRequestedAt;
+    }
+
+    public void setRescheduleRequestedAt(Instant rescheduleRequestedAt) {
+        this.rescheduleRequestedAt = rescheduleRequestedAt;
+    }
+
+    public String getRescheduleRequestNote() {
+        return rescheduleRequestNote;
+    }
+
+    public void setRescheduleRequestNote(String rescheduleRequestNote) {
+        this.rescheduleRequestNote = rescheduleRequestNote;
+    }
+
+    public String getRescheduleStatus() {
+        return rescheduleStatus;
+    }
+
+    public void setRescheduleStatus(String rescheduleStatus) {
+        this.rescheduleStatus = rescheduleStatus;
+    }
+
+    public String getScheduleUpdatedBy() {
+        return scheduleUpdatedBy;
+    }
+
+    public void setScheduleUpdatedBy(String scheduleUpdatedBy) {
+        this.scheduleUpdatedBy = scheduleUpdatedBy;
+    }
+
+    public Instant getScheduleUpdatedAt() {
+        return scheduleUpdatedAt;
+    }
+
+    public void setScheduleUpdatedAt(Instant scheduleUpdatedAt) {
+        this.scheduleUpdatedAt = scheduleUpdatedAt;
+    }
+
+    public Instant getRescheduleApprovedAt() {
+        return rescheduleApprovedAt;
+    }
+
+    public void setRescheduleApprovedAt(Instant rescheduleApprovedAt) {
+        this.rescheduleApprovedAt = rescheduleApprovedAt;
+    }
+
+    public String getRescheduleApprovedBy() {
+        return rescheduleApprovedBy;
+    }
+
+    public void setRescheduleApprovedBy(String rescheduleApprovedBy) {
+        this.rescheduleApprovedBy = rescheduleApprovedBy;
+    }
+
+    public Instant getRescheduleRejectedAt() {
+        return rescheduleRejectedAt;
+    }
+
+    public void setRescheduleRejectedAt(Instant rescheduleRejectedAt) {
+        this.rescheduleRejectedAt = rescheduleRejectedAt;
+    }
+
+    public String getRescheduleRejectedBy() {
+        return rescheduleRejectedBy;
+    }
+
+    public void setRescheduleRejectedBy(String rescheduleRejectedBy) {
+        this.rescheduleRejectedBy = rescheduleRejectedBy;
+    }
+
+    public String getRescheduleRejectionReason() {
+        return rescheduleRejectionReason;
+    }
+
+    public void setRescheduleRejectionReason(String rescheduleRejectionReason) {
+        this.rescheduleRejectionReason = rescheduleRejectionReason;
     }
 
     public Instant getApprovalExpiresAt() {

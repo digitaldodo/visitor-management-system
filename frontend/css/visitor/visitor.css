@@ -19,6 +19,7 @@
   border-radius: var(--radius-card);
   display: grid;
   gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   padding: 1rem;
 }
 

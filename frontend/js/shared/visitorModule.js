@@ -1,5 +1,5 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js?v=20260515-recurring";
-import { formatDate, formatDurationMinutes, minutesBetween } from "./formatters.js";
+import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js?v=20260515-scheduling";
+import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "./formatters.js?v=20260515-scheduling";
 import { initHostPicker } from "./hostPicker.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
@@ -16,6 +16,8 @@ const STATUS_LABELS = {
 
 const VISITOR_TYPE_LABELS = {
   ONE_TIME: "One-time visitor",
+  WALK_IN: "Walk-in visitor",
+  EMERGENCY: "Emergency access",
   RECURRING: "Recurring visitor",
   CONTRACTOR_VENDOR: "Contractor / vendor",
 };
@@ -263,6 +265,8 @@ function template(options) {
         <span>Visitor Type</span>
         <select name="visitorType" data-visitor-type>
           <option value="ONE_TIME">One-Time Visitor</option>
+          <option value="WALK_IN">Walk-in Visitor</option>
+          <option value="EMERGENCY">Emergency Access</option>
           <option value="RECURRING">Recurring Visitor</option>
           <option value="CONTRACTOR_VENDOR">Contractor/Vendor</option>
         </select>
@@ -316,6 +320,27 @@ function template(options) {
         </label>
       </div>
   ` : "";
+  const scheduleFields = `
+      <div class="visitor-schedule-fields form-field--wide" data-schedule-fields>
+        <label class="form-field">
+          <span>Visit Date and Arrival</span>
+          <input name="scheduledStartTime" type="datetime-local" />
+        </label>
+        <label class="form-field">
+          <span>Expected Duration</span>
+          <select name="expectedDurationMinutes">
+            <option value="">1 hour</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="90">1.5 hours</option>
+            <option value="120">2 hours</option>
+            <option value="240">4 hours</option>
+            <option value="480">Full day</option>
+          </select>
+        </label>
+        <small class="form-hint">Access window opens 1 hour before arrival and expires 1 hour after the expected end in ${escapeHtml(timezoneLabel(getDefaultTimezone()))}.</small>
+      </div>
+  `;
 
   return `
     <div class="panel__header">
@@ -343,6 +368,7 @@ function template(options) {
         <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
       </label>
       ${recurringFields}
+      ${scheduleFields}
       ${organizationCodeField}
       <label class="form-field form-field--wide">
         <span>Purpose of Visit</span>
@@ -423,14 +449,13 @@ function template(options) {
 }
 
 function initRecurringFields(root, options) {
-  if (!options.enableRecurring) {
-    return;
-  }
   const typeSelect = root.querySelector("[data-visitor-type]");
   const section = root.querySelector("[data-recurring-fields]");
+  const schedule = root.querySelector("[data-schedule-fields]");
   const sync = () => {
     const recurring = typeSelect?.value === "RECURRING" || typeSelect?.value === "CONTRACTOR_VENDOR";
     section?.classList.toggle("is-hidden", !recurring);
+    schedule?.classList.toggle("is-hidden", recurring || typeSelect?.value === "WALK_IN" || typeSelect?.value === "EMERGENCY");
   };
   typeSelect?.addEventListener("change", sync);
   sync();
@@ -481,6 +506,7 @@ function row(visitor, options) {
         <strong>${escapeHtml(visitor.fullName)}</strong>
         <small>${escapeHtml(visitor.phone)}${visitor.email ? ` · ${escapeHtml(visitor.email)}` : ""}</small>
         <small>${escapeHtml(VISITOR_TYPE_LABELS[visitor.visitorType] || "One-time visitor")}</small>
+        ${visitor.accessWindowStartTime && visitor.accessWindowEndTime ? `<small>Window ${escapeHtml(formatWindow(visitor.accessWindowStartTime, visitor.accessWindowEndTime, visitor.organizationTimezone))}</small>` : ""}
       </td>
       <td data-label="Company">${escapeHtml(visitor.companyName || "Unlisted")}</td>
       <td data-label="Host">${escapeHtml(visitor.hostEmployee || visitor.hostEmployeeId || "Unassigned")}</td>
@@ -574,7 +600,10 @@ function openDetail(root, visitor) {
         ${detail("Badge ID", visitor.badgeId || "Not issued")}
         ${detail("Scheduled Start", formatDate(visitor.scheduledStartTime))}
         ${detail("Scheduled End", formatDate(visitor.scheduledEndTime))}
+        ${detail("Access Window", formatWindow(visitor.accessWindowStartTime, visitor.accessWindowEndTime, visitor.organizationTimezone))}
+        ${detail("Expected Duration", visitor.expectedDurationMinutes ? formatDurationMinutes(visitor.expectedDurationMinutes) : "Not recorded")}
         ${detail("Timezone", visitor.scheduledTimezone || "Not scheduled")}
+        ${detail("Reschedule", visitor.rescheduleStatus ? `${visitor.rescheduleStatus}${visitor.pendingScheduledStartTime ? ` · ${formatDate(visitor.pendingScheduledStartTime)}` : ""}` : "None")}
         ${detail("Check-in Time", formatDate(visitor.checkInTime))}
         ${detail("Check-out Time", formatDate(visitor.checkOutTime))}
         ${detail("Visit Duration", formatDurationMinutes(minutesBetween(visitor.checkInTime, visitor.checkOutTime || new Date())))}
@@ -634,13 +663,16 @@ function formPayload(form, options) {
     companyCode: trim(data.companyCode) || options.organizationCode || null,
     purposeOfVisit: trim(data.purposeOfVisit),
   };
+  payload.scheduledStartTime = toIsoInstant(data.scheduledStartTime, getDefaultTimezone());
+  payload.expectedDurationMinutes = data.expectedDurationMinutes ? Number(data.expectedDurationMinutes) : 60;
+  payload.timezone = getDefaultTimezone();
   if (options.showHostFields !== false) {
     payload.hostEmployee = trim(data.hostEmployee);
     payload.hostEmployeeId = trim(data.hostEmployeeId);
   }
   if (options.enableRecurring) {
     payload.visitorType = trim(data.visitorType) || "ONE_TIME";
-    if (payload.visitorType !== "ONE_TIME") {
+    if (payload.visitorType === "RECURRING" || payload.visitorType === "CONTRACTOR_VENDOR") {
       payload.vendorCompanyName = trim(data.vendorCompanyName);
       payload.sponsorEmployee = trim(data.sponsorEmployee);
       payload.department = trim(data.department);
@@ -652,6 +684,10 @@ function formPayload(form, options) {
       payload.allowedEntryEndTime = trim(data.allowedEntryEndTime);
       payload.emergencyContact = trim(data.emergencyContact);
       payload.notes = trim(data.notes);
+    }
+    if (payload.visitorType === "WALK_IN" || payload.visitorType === "EMERGENCY") {
+      payload.scheduledStartTime = null;
+      payload.expectedDurationMinutes = null;
     }
   }
   return payload;
@@ -677,7 +713,16 @@ function validate(payload, options, state) {
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
     return "Select a host employee from the directory.";
   }
-  if (options.enableRecurring && payload.visitorType && payload.visitorType !== "ONE_TIME") {
+  if ((!payload.visitorType || payload.visitorType === "ONE_TIME") && !payload.scheduledStartTime) {
+    return "Choose the visit date and expected arrival time.";
+  }
+  if (payload.scheduledStartTime && new Date(payload.scheduledStartTime) <= new Date()) {
+    return "Choose a future visit time.";
+  }
+  if (payload.expectedDurationMinutes && (payload.expectedDurationMinutes < 15 || payload.expectedDurationMinutes > 1440)) {
+    return "Expected duration must be between 15 minutes and 24 hours.";
+  }
+  if (options.enableRecurring && (payload.visitorType === "RECURRING" || payload.visitorType === "CONTRACTOR_VENDOR")) {
     if (!payload.validityStartDate || !payload.validityEndDate) {
       return "Enter validity start and end dates for recurring visitors.";
     }
@@ -911,6 +956,14 @@ function dateTimeLocalToIso(value) {
   }
   const date = new Date(trimmed);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function formatWindow(start, end, timezone) {
+  if (!start || !end) {
+    return "Not scheduled";
+  }
+  const zone = timezone || getDefaultTimezone();
+  return `${formatDate(start, { dateStyle: "medium", timeStyle: "short", timeZone: zone })} - ${formatDate(end, { timeStyle: "short", timeZone: zone })} ${timezoneLabel(zone)}`;
 }
 
 function csvCell(value) {

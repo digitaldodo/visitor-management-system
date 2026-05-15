@@ -4,6 +4,8 @@ import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.PreApprovalRequest;
+import com.visitor.management.dto.RescheduleDecisionRequest;
+import com.visitor.management.dto.RescheduleRequest;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.NotificationResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
@@ -137,5 +139,32 @@ public class EmployeeController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Visitor updated.", visitorService.updateForHost(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reschedule")
+    public ApiResponse<VisitorResponse> rescheduleVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody RescheduleRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor schedule updated and pass regenerated.", visitorService.rescheduleForHost(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reschedule-request/approve")
+    public ApiResponse<VisitorResponse> approveReschedule(
+            @PathVariable String id,
+            @Valid @RequestBody(required = false) RescheduleDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Reschedule request approved and pass regenerated.", visitorService.approveReschedule(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reschedule-request/reject")
+    public ApiResponse<VisitorResponse> rejectReschedule(
+            @PathVariable String id,
+            @Valid @RequestBody RescheduleDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Reschedule request rejected.", visitorService.rejectReschedule(id, request, authentication.getName()));
     }
 }

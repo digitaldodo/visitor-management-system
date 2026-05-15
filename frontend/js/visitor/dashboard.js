@@ -1,12 +1,12 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
+import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js?v=20260515-scheduling";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
 import { listOrganizations } from "../shared/organizationApi.js";
-import { getVisitorPass, getVisitorHistory, uploadVisitPhoto } from "../shared/accessService.js";
+import { getVisitorPass, getVisitorHistory, requestVisitReschedule, uploadVisitPhoto } from "../shared/accessService.js?v=20260515-scheduling";
 import { initHostPicker } from "../shared/hostPicker.js";
-import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
@@ -36,6 +36,7 @@ async function bootVisitorPortal() {
     toastTitle: "Host search unavailable",
   });
   initRequestForm();
+  initScheduleHints();
   initVisitActions();
   initBadgeActions();
   await loadVisitorPortal();
@@ -93,6 +94,9 @@ function initRequestForm() {
       hostEmployee: trim(data.hostEmployee),
       hostEmployeeId: trim(data.hostEmployeeId),
       purposeOfVisit: trim(data.purposeOfVisit),
+      scheduledStartTime: toIsoInstant(data.scheduledStartTime, getDefaultTimezone()),
+      expectedDurationMinutes: Number(data.expectedDurationMinutes || 60),
+      timezone: getDefaultTimezone(),
     };
     const error = validateVisitRequest(payload, photoFile);
     if (error) {
@@ -132,6 +136,10 @@ function initVisitActions() {
       return;
     }
     const visitorId = button.dataset.visitorId;
+    if (button.dataset.visitAction === "reschedule") {
+      await handleRescheduleRequest(visitorId);
+      return;
+    }
     if (button.dataset.visitAction !== "badge") {
       return;
     }
@@ -209,6 +217,38 @@ function renderVisits(items) {
   `;
 }
 
+function initScheduleHints() {
+  const hint = document.querySelector("#visitor-schedule-hint");
+  if (hint) {
+    hint.textContent = `Access opens 1 hour before arrival and closes 1 hour after expected end in ${timezoneLabel(getDefaultTimezone())}.`;
+  }
+}
+
+async function handleRescheduleRequest(visitorId) {
+  const dateTime = window.prompt("Suggest a new visit date and arrival time as YYYY-MM-DD HH:mm.");
+  if (!dateTime) {
+    return;
+  }
+  const scheduledStartTime = toIsoInstant(dateTime.trim().replace(" ", "T"), getDefaultTimezone());
+  if (!scheduledStartTime || new Date(scheduledStartTime) <= new Date()) {
+    showToast("Invalid timing", "Enter a future date and time.");
+    return;
+  }
+  const note = window.prompt("Optional note for your host.") || "";
+  try {
+    await requestVisitReschedule(visitorId, {
+      scheduledStartTime,
+      expectedDurationMinutes: 60,
+      timezone: getDefaultTimezone(),
+      note: note.trim(),
+    });
+    showToast("Reschedule requested", "Your host will approve or reject the new timing.");
+    await loadVisitorPortal();
+  } catch (error) {
+    showToast("Reschedule failed", error.message);
+  }
+}
+
 function visitCard(visit) {
   const status = formatStatus(visit.status);
   const passReady = ["APPROVED", "CHECKED_IN"].includes(visit.status) && visit.qrCode;
@@ -232,12 +272,16 @@ function visitCard(visit) {
         <div><dt>Requested</dt><dd>${escapeHtml(formatDate(visit.createdAt))}</dd></div>
         <div><dt>Organization</dt><dd>${escapeHtml(visit.organizationName || visit.organizationCode || "Not provided")}</dd></div>
         <div><dt>Visitor company</dt><dd>${escapeHtml(visit.companyName || "Not provided")}</dd></div>
+        <div><dt>Arrival</dt><dd>${escapeHtml(formatDate(visit.scheduledStartTime))}</dd></div>
+        <div><dt>Access window</dt><dd>${escapeHtml(formatWindow(visit.accessWindowStartTime, visit.accessWindowEndTime, visit.organizationTimezone))}</dd></div>
         <div><dt>Badge ID</dt><dd>${escapeHtml(visit.badgeId || "Issued after approval")}</dd></div>
         <div><dt>Pass code</dt><dd>${escapeHtml(visit.qrCode || "Available after approval")}</dd></div>
         <div><dt>Visit duration</dt><dd>${escapeHtml(duration)}</dd></div>
+        <div><dt>Reschedule</dt><dd>${escapeHtml(visit.rescheduleStatus || "None")}</dd></div>
       </dl>
       <div class="visitor-visit-card__footer">
         <span>${escapeHtml(passMessage)}</span>
+        ${["PENDING", "APPROVED"].includes(visit.status) ? `<button class="button button--ghost" type="button" data-visit-action="reschedule" data-visitor-id="${escapeHtml(visit.id)}">Request reschedule</button>` : ""}
         ${passReady ? `<button class="button button--primary" type="button" data-visit-action="badge" data-visitor-id="${escapeHtml(visit.id)}">Open badge</button>` : ""}
       </div>
     </article>
@@ -331,6 +375,12 @@ function validateVisitRequest(payload, photoFile) {
   if (!payload.purposeOfVisit || payload.purposeOfVisit.length < 2) {
     return "Enter the purpose of your visit.";
   }
+  if (!payload.scheduledStartTime || new Date(payload.scheduledStartTime) <= new Date()) {
+    return "Choose a future visit date and arrival time.";
+  }
+  if (!payload.expectedDurationMinutes || payload.expectedDurationMinutes < 15 || payload.expectedDurationMinutes > 1440) {
+    return "Choose a valid expected duration.";
+  }
   if (!photoFile) {
     return "Attach a visitor photo for badge generation.";
   }
@@ -399,4 +449,12 @@ function resetHostPicker(form) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function formatWindow(start, end, timezone) {
+  if (!start || !end) {
+    return "Pending schedule";
+  }
+  const zone = timezone || getDefaultTimezone();
+  return `${formatDate(start, { dateStyle: "medium", timeStyle: "short", timeZone: zone })} - ${formatDate(end, { timeStyle: "short", timeZone: zone })} ${timezoneLabel(zone)}`;
 }

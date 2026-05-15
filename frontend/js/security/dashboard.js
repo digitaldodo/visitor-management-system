@@ -1,11 +1,11 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
+import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js?v=20260515-scheduling";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
-import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-recurring";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-recurring";
+import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, getSecurityMonitoring, getVisitorPass, markBadgePrinted, updateVisitor, uploadVisitorPhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
 import { showToast } from "../shared/toast.js";
 
 const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges"];
@@ -406,6 +406,7 @@ function renderVerification(result) {
             <div><dt>Issued</dt><dd>${escapeHtml(formatDate(result.issuedAt))}</dd></div>
             <div><dt>Expires</dt><dd>${escapeHtml(formatDate(result.expiresAt))}</dd></div>
             <div><dt>Visit window</dt><dd>${escapeHtml(formatWindow(result.scheduledStartTime, result.scheduledEndTime))}</dd></div>
+            <div><dt>Valid entry window</dt><dd>${escapeHtml(formatWindow(result.accessWindowStartTime, result.accessWindowEndTime))}</dd></div>
             <div><dt>Recurring validity</dt><dd>${escapeHtml(formatWindow(result.validityStartDate, result.validityEndDate))}</dd></div>
             <div><dt>Entry window</dt><dd>${escapeHtml(result.allowedEntryStartTime && result.allowedEntryEndTime ? `${result.allowedEntryStartTime} to ${result.allowedEntryEndTime}` : "Any")}</dd></div>
             <div><dt>Check-in state</dt><dd>${escapeHtml(checkpointStateText(result))}</dd></div>
@@ -536,6 +537,12 @@ function visitorTypeLabel(type) {
   }
   if (type === "CONTRACTOR_VENDOR") {
     return "Contractor / vendor";
+  }
+  if (type === "WALK_IN") {
+    return "Walk-in visitor";
+  }
+  if (type === "EMERGENCY") {
+    return "Emergency access";
   }
   return "One-time visitor";
 }

@@ -3,6 +3,8 @@ package com.visitor.management.dto;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotBlank;
 
+import java.time.Instant;
+
 public record VisitorVisitRequest(
         @Size(max = 6) String phoneCountryCode,
         @Size(min = 7, max = 32) String phone,
@@ -11,6 +13,10 @@ public record VisitorVisitRequest(
         @NotBlank @Size(min = 2, max = 160) String purposeOfVisit,
         @Size(max = 120) String hostEmployee,
         @Size(max = 80) String hostEmployeeId,
+        Instant scheduledStartTime,
+        Instant scheduledEndTime,
+        Long expectedDurationMinutes,
+        @Size(max = 80) String timezone,
         @Size(max = 500) String photoUrl,
         @Size(max = 255) String photoPublicId
 ) {
