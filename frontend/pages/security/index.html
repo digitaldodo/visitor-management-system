@@ -22,7 +22,11 @@
         <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
-          <a class="nav-link is-active" href="#queue" data-route="queue">
+          <a class="nav-link is-active" href="#visitor-registration" data-route="visitor-registration">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 1 0 4 4 4 4 0 0 0-4-4ZM5 21a7 7 0 0 1 14 0Zm14-10h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
+            Register Visitor
+          </a>
+          <a class="nav-link" href="#queue" data-route="queue">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v2H4Zm0 4h16v2H4Zm0 4h10v2H4Z"/></svg></span>
             Live Queue
           </a>
@@ -102,9 +106,41 @@
         <main class="portal-main" id="main-content" tabindex="-1">
           <section class="metric-grid" id="metric-grid" aria-label="Security metrics"></section>
 
-          <section class="panel" data-security-visitors></section>
+          <nav class="security-quick-actions" aria-label="Security quick actions">
+            <a class="security-quick-action" href="#visitor-registration" data-route="visitor-registration">
+              <span aria-hidden="true">+</span>
+              Register Visitor
+            </a>
+            <a class="security-quick-action" href="#qr" data-route="qr">
+              <span aria-hidden="true">QR</span>
+              Scan QR
+            </a>
+            <a class="security-quick-action" href="#employee-check-in" data-route="employee-check-in">
+              <span aria-hidden="true">IN</span>
+              Employee Check-In
+            </a>
+            <a class="security-quick-action" href="#badges" data-route="badges">
+              <span aria-hidden="true">ID</span>
+              Verify Badge
+            </a>
+            <a class="security-quick-action" href="#workforce-onboarding" data-route="workforce-onboarding">
+              <span aria-hidden="true">UP</span>
+              Workforce Onboarding
+            </a>
+          </nav>
 
-          <section class="panel" id="monitoring">
+          <section class="operations-zone operations-zone--visitor" aria-labelledby="visitor-operations-title">
+            <div class="operations-zone__header">
+              <div>
+                <p class="eyebrow">Visitor Operations</p>
+                <h2 id="visitor-operations-title">Visitor Desk</h2>
+              </div>
+              <span>Registration, arrivals, QR checks, photos, and badges</span>
+            </div>
+
+          <section class="panel" id="visitor-registration" data-security-visitors data-operational-module></section>
+
+          <section class="panel" id="monitoring" data-operational-module>
             <div class="panel__header">
               <div>
                 <p class="eyebrow">Operations Monitor</p>
@@ -200,7 +236,7 @@
           </section>
 
           <section class="portal-grid">
-            <article class="panel" id="queue">
+            <article class="panel" id="queue" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Live Desk</p>
@@ -210,7 +246,7 @@
               <div class="work-list" id="queue-list"></div>
             </article>
 
-            <aside class="panel" id="photo">
+            <aside class="panel" id="photo" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Identity</p>
@@ -225,7 +261,7 @@
           </section>
 
           <section class="portal-grid">
-            <article class="panel" id="check-in">
+            <article class="panel" id="check-in" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Access</p>
@@ -235,7 +271,7 @@
               <div class="work-list" id="checkins-list"></div>
             </article>
 
-            <article class="panel" id="qr">
+            <article class="panel" id="qr" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Verification</p>
@@ -259,7 +295,7 @@
           </section>
 
           <section class="portal-grid">
-            <article class="panel" id="badges">
+            <article class="panel" id="badges" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Print Station</p>
@@ -279,8 +315,18 @@
               <div class="health-card" id="health-card"></div>
             </aside>
           </section>
+          </section>
 
-          <section class="panel" id="workforce-onboarding">
+          <section class="operations-zone operations-zone--workforce" aria-labelledby="workforce-operations-title">
+            <div class="operations-zone__header">
+              <div>
+                <p class="eyebrow">Workforce Operations</p>
+                <h2 id="workforce-operations-title">Employee And Worker Access</h2>
+              </div>
+              <span>Employee scans, assisted overrides, onboarding, and presence logs</span>
+            </div>
+
+          <section class="panel" id="workforce-onboarding" data-operational-module>
             <div class="panel__header">
               <div>
                 <p class="eyebrow">Admin Approval Required</p>
@@ -342,7 +388,7 @@
           </section>
 
           <section class="portal-grid">
-            <article class="panel" id="employee-check-in">
+            <article class="panel" id="employee-check-in" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Workforce Access</p>
@@ -363,7 +409,7 @@
               <div id="employee-qr-result"></div>
             </article>
 
-            <article class="panel" id="employee-attendance">
+            <article class="panel" id="employee-attendance" data-operational-module>
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Guard Assist</p>
@@ -378,7 +424,7 @@
             </article>
           </section>
 
-          <section class="panel" id="workforce-logs">
+          <section class="panel" id="workforce-logs" data-operational-module>
             <div class="panel__header">
               <div>
                 <p class="eyebrow">Audit Trail</p>
@@ -386,6 +432,7 @@
               </div>
             </div>
             <div class="work-list" id="employee-attendance-log-list"></div>
+          </section>
           </section>
         </main>
       </div>

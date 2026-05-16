@@ -10,7 +10,9 @@ import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboardi
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
-const ROUTES = ["queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
+const ROUTES = ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
+const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
+const MODULE_STATE_PREFIX = "accessflow.security.module";
 const state = {
   monitoringQuery: "",
   monitoringDebounce: 0,
@@ -19,6 +21,8 @@ const state = {
   activeBadge: null,
   activeEmployeeBadge: null,
   activeVerification: null,
+  activeScrollUntil: 0,
+  approvedBadgeVisitors: [],
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -47,6 +51,7 @@ async function bootSecurityPortal() {
     canDelete: false,
     enableRecurring: true,
   }), { toastTitle: "Visitor registration unavailable" });
+  initOperationalWorkspace();
   initQrVerification();
   initEmployeeAttendanceWorkspace();
   initWorkforceOnboarding();
@@ -111,7 +116,8 @@ async function loadSecurityPortal(showErrors = true) {
     const monitoringData = monitoring.value?.data || {};
     renderWorkList("#checkins-list", monitoringData.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
     renderMonitoring(monitoringData);
-    await renderBadgeList(monitoringData.approvedVisitors || []);
+    state.approvedBadgeVisitors = monitoringData.approvedVisitors || [];
+    await refreshBadgeListIfVisible();
   } else if (showErrors) {
     const message = monitoring.reason?.message || "Monitoring could not be loaded.";
     renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", message);
@@ -136,6 +142,208 @@ async function loadSecurityPortal(showErrors = true) {
     renderEmployeeAttendanceLogs(employeeLogs.value?.data || []);
   } else if (showErrors) {
     renderWorkList("#employee-attendance-log-list", [], (item) => item, "Presence logs unavailable", employeeLogs.reason?.message || "Workforce presence could not be loaded.");
+  }
+}
+
+function initOperationalWorkspace() {
+  const activeRoute = resolveInitialActiveRoute();
+  prepareOperationalModules(activeRoute);
+  bindOperationalNavigation();
+  initActiveSectionObserver();
+  state.activeScrollUntil = Date.now() + 1200;
+  setActiveOperationalSection(activeRoute, { persist: false });
+
+  if (!window.location.hash && activeRoute !== ROUTES[0]) {
+    window.requestAnimationFrame(() => focusOperationalSection(activeRoute, { updateHash: false, smooth: false }));
+  }
+}
+
+function prepareOperationalModules(activeRoute) {
+  document.querySelectorAll("[data-operational-module]").forEach((module) => {
+    if (!module.id || module.dataset.operationalReady === "true") {
+      return;
+    }
+
+    const header = module.querySelector(".panel__header");
+    if (!header) {
+      return;
+    }
+
+    module.dataset.operationalReady = "true";
+    module.classList.add("operational-module");
+    module.setAttribute("tabindex", "-1");
+
+    const body = document.createElement("div");
+    const bodyInner = document.createElement("div");
+    body.className = "operational-module__body";
+    body.id = `${module.id}-module-body`;
+    bodyInner.className = "operational-module__body-inner";
+
+    let sibling = header.nextSibling;
+    while (sibling) {
+      const current = sibling;
+      sibling = sibling.nextSibling;
+      bodyInner.append(current);
+    }
+    body.append(bodyInner);
+    module.append(body);
+
+    const toggle = document.createElement("button");
+    toggle.className = "icon-button operational-module__toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-controls", body.id);
+    toggle.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5Z"/></svg>`;
+    header.append(toggle);
+
+    const saved = readSessionValue(moduleStateKey(module.id));
+    const shouldExpand = module.id === activeRoute || saved === "expanded" || (!saved && module.id === ROUTES[0]);
+    setModuleExpanded(module, shouldExpand, { persist: false });
+
+    toggle.addEventListener("click", () => {
+      const nextExpanded = module.classList.contains("is-collapsed");
+      setModuleExpanded(module, nextExpanded);
+      if (nextExpanded) {
+        setActiveOperationalSection(module.id);
+        if (module.id === "badges") {
+          void refreshBadgeListIfVisible(true);
+        }
+      }
+    });
+  });
+}
+
+function bindOperationalNavigation() {
+  document.querySelectorAll("#sidebar-nav .nav-link[href^='#'], .security-quick-action[href^='#']").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const route = link.getAttribute("href")?.slice(1);
+      if (!route || !ROUTES.includes(route)) {
+        return;
+      }
+      event.preventDefault();
+      focusOperationalSection(route);
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const route = window.location.hash.replace("#", "");
+    if (ROUTES.includes(route)) {
+      focusOperationalSection(route, { updateHash: false, smooth: false });
+    }
+  });
+}
+
+function initActiveSectionObserver() {
+  if (!("IntersectionObserver" in window)) {
+    return;
+  }
+
+  const sections = ROUTES.map((route) => document.getElementById(route)).filter(Boolean);
+  const observer = new IntersectionObserver((entries) => {
+    if (Date.now() < state.activeScrollUntil) {
+      return;
+    }
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+    if (visible?.target?.id) {
+      setActiveOperationalSection(visible.target.id);
+    }
+  }, {
+    rootMargin: "-30% 0px -55% 0px",
+    threshold: [0.05, 0.2, 0.55],
+  });
+
+  sections.forEach((section) => observer.observe(section));
+}
+
+function focusOperationalSection(route, options = {}) {
+  const { updateHash = true, smooth = true } = options;
+  const section = document.getElementById(route);
+  if (!section) {
+    return;
+  }
+
+  setModuleExpanded(section, true);
+  setActiveOperationalSection(route);
+  state.activeScrollUntil = Date.now() + 1400;
+  if (updateHash) {
+    window.history.pushState(null, "", `#${route}`);
+  }
+  section.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+  window.setTimeout(() => section.focus({ preventScroll: true }), smooth ? 260 : 0);
+  if (route === "badges") {
+    void refreshBadgeListIfVisible(true);
+  }
+}
+
+function setActiveOperationalSection(route, options = {}) {
+  const { persist = true } = options;
+  if (!ROUTES.includes(route)) {
+    return;
+  }
+
+  document.querySelectorAll("#sidebar-nav .nav-link, .security-quick-action").forEach((link) => {
+    const isActive = link.dataset.route === route;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
+  document.querySelectorAll("[data-operational-module]").forEach((module) => {
+    module.classList.toggle("is-active-section", module.id === route);
+  });
+
+  if (persist) {
+    writeSessionValue(ACTIVE_SECTION_KEY, route);
+  }
+}
+
+function setModuleExpanded(module, expanded, options = {}) {
+  const { persist = true } = options;
+  const toggle = module.querySelector(".operational-module__toggle");
+  const body = module.querySelector(".operational-module__body");
+  module.classList.toggle("is-collapsed", !expanded);
+  toggle?.setAttribute("aria-expanded", String(expanded));
+  toggle?.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} ${moduleLabel(module)}`);
+  body?.setAttribute("aria-hidden", String(!expanded));
+  if (persist) {
+    writeSessionValue(moduleStateKey(module.id), expanded ? "expanded" : "collapsed");
+  }
+}
+
+function resolveInitialActiveRoute() {
+  const hashRoute = window.location.hash.replace("#", "");
+  if (ROUTES.includes(hashRoute)) {
+    return hashRoute;
+  }
+  const savedRoute = readSessionValue(ACTIVE_SECTION_KEY);
+  return ROUTES.includes(savedRoute) ? savedRoute : ROUTES[0];
+}
+
+function moduleLabel(module) {
+  return module.querySelector(".panel__header h2")?.textContent?.trim() || "section";
+}
+
+function moduleStateKey(route) {
+  return `${MODULE_STATE_PREFIX}:${route}`;
+}
+
+function readSessionValue(key) {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Session persistence is progressive enhancement for kiosk browsers.
   }
 }
 
@@ -521,6 +729,26 @@ function renderPhotoCapturePanel(data = {}) {
     ["Accepted input", data.acceptedInput || "image/*"],
     ["Storage policy", data.storagePolicy || "Visitor photos stay attached to scoped visitor records."],
   ], ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
+}
+
+async function refreshBadgeListIfVisible(force = false) {
+  const badgesModule = document.querySelector("#badges");
+  const list = document.querySelector("#badge-list");
+  if (!badgesModule || !list) {
+    return;
+  }
+
+  if (badgesModule.classList.contains("is-collapsed") && !force) {
+    list.innerHTML = `
+      <article class="badge-empty">
+        <h3>Badge station ready</h3>
+        <p>Expand this module to load approved badge previews.</p>
+      </article>
+    `;
+    return;
+  }
+
+  await renderBadgeList(state.approvedBadgeVisitors);
 }
 
 async function renderBadgeList(visitors) {
