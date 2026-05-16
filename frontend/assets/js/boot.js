@@ -9,20 +9,26 @@
   const LEGACY_SESSION_PREFIXES = ["accessflow.", "accessflow.sidebar:", "passwordReset"];
   const DEFAULT_LOGIN_PATH = "/";
   const VERSION_POLL_MS = 60000;
+  const ENV_SYNC_TIMEOUT_MS = 5000;
 
   const scriptUrl = document.currentScript?.src || "";
+  const envScriptUrl = resolveEnvScriptUrl();
   const manifestUrl = resolveManifestUrl(scriptUrl);
-  const currentVersion = readCurrentVersion();
+  let currentVersion = readCurrentVersion();
   let ready = false;
   let versionMonitor = 0;
 
   injectRuntimeStyles();
 
+  const runtimeConfigReady = syncRuntimeEnvironment();
+
   const runtime = {
     version: currentVersion,
+    envScriptUrl,
     manifestUrl,
     registerApp,
     ensureVersion,
+    waitForRuntimeConfig,
     markReady,
     recover,
     reportError,
@@ -42,6 +48,10 @@
   function registerApp(details = {}) {
     const pageLabel = typeof details.label === "string" && details.label.trim() ? details.label.trim() : document.title || "AccessFlow";
     document.documentElement.dataset.accessflowPage = pageLabel;
+  }
+
+  function waitForRuntimeConfig() {
+    return runtimeConfigReady;
   }
 
   function ensureVersion() {
@@ -420,6 +430,151 @@
       return new URL("../app-manifest.json", source).toString();
     } catch {
       return "";
+    }
+  }
+
+  function resolveEnvScriptUrl() {
+    const envScript = document.querySelector('script[src*="assets/js/env.js"]');
+    return envScript?.src || "";
+  }
+
+  async function syncRuntimeEnvironment() {
+    if (!envScriptUrl || typeof fetch !== "function") {
+      return { synced: false, reason: "env-script-unavailable" };
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), ENV_SYNC_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(withCacheBust(envScriptUrl), {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        return { synced: false, reason: `env-fetch-${response.status}` };
+      }
+
+      const source = await response.text();
+      const parsed = parseRuntimeEnvironment(source);
+      if (!parsed) {
+        return { synced: false, reason: "env-parse-failed" };
+      }
+
+      applyRuntimeEnvironment(parsed);
+      currentVersion = readCurrentVersion();
+      runtime.version = currentVersion;
+      return {
+        synced: true,
+        reason: "env-refresh-applied",
+        apiBaseUrl: typeof parsed.apiBaseUrl === "string" ? parsed.apiBaseUrl : "",
+        appVersion: typeof parsed.appVersion === "string" ? parsed.appVersion : currentVersion,
+      };
+    } catch (error) {
+      if (typeof console !== "undefined" && typeof console.warn === "function") {
+        console.warn("[runtime] AccessFlow could not refresh env.js before bootstrap.", {
+          message: readableMessage(error),
+        });
+      }
+      return { synced: false, reason: "env-fetch-failed" };
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function withCacheBust(url) {
+    try {
+      const nextUrl = new URL(url, window.location.href);
+      nextUrl.searchParams.set("t", String(Date.now()));
+      return nextUrl.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  function parseRuntimeEnvironment(source) {
+    const environmentPayload = parseEnvironmentObject(source);
+    if (environmentPayload) {
+      return environmentPayload;
+    }
+
+    const apiBaseUrl = readAssignedString(source, "API_BASE_URL");
+    const visitorApiBaseUrl = readAssignedString(source, "VISITOR_API_BASE_URL");
+    const appVersion = readAssignedString(source, "APP_VERSION");
+    const appAssetToken = readAssignedString(source, "APP_ASSET_TOKEN");
+    const appBuildTimestamp = readAssignedString(source, "APP_BUILD_TIMESTAMP");
+    const appBuildRevision = readAssignedString(source, "APP_BUILD_REVISION");
+
+    if (!apiBaseUrl && !visitorApiBaseUrl && !appVersion) {
+      return null;
+    }
+
+    return {
+      apiBaseUrl: apiBaseUrl || visitorApiBaseUrl || "",
+      visitorApiBaseUrl: visitorApiBaseUrl || apiBaseUrl || "",
+      appVersion: appVersion || "",
+      appAssetToken: appAssetToken || "",
+      appBuildTimestamp: appBuildTimestamp || null,
+      appBuildRevision: appBuildRevision || null,
+    };
+  }
+
+  function parseEnvironmentObject(source) {
+    const match = source.match(/window\.ACCESSFLOW_ENV\s*=\s*Object\.freeze\((\{[\s\S]*?\})\)\s*;/);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[1]);
+    } catch {
+      return null;
+    }
+  }
+
+  function readAssignedString(source, key) {
+    const expression = new RegExp(`window\\.${key}\\s*=\\s*(?:window\\.[A-Z_]+\\s*\\|\\|\\s*)?("([^"\\\\]|\\\\.)*"|'([^'\\\\]|\\\\.)*'|null)\\s*;`);
+    const match = source.match(expression);
+    if (!match?.[1] || match[1] === "null") {
+      return "";
+    }
+
+    try {
+      return JSON.parse(match[1].replace(/^'/, "\"").replace(/'$/, "\""));
+    } catch {
+      return "";
+    }
+  }
+
+  function applyRuntimeEnvironment(env) {
+    const nextEnv = {
+      apiBaseUrl: typeof env.apiBaseUrl === "string" ? env.apiBaseUrl : "",
+      visitorApiBaseUrl: typeof env.visitorApiBaseUrl === "string" ? env.visitorApiBaseUrl : "",
+      appVersion: typeof env.appVersion === "string" ? env.appVersion : "",
+      appAssetToken: typeof env.appAssetToken === "string" ? env.appAssetToken : "",
+      appBuildTimestamp: typeof env.appBuildTimestamp === "string" ? env.appBuildTimestamp : null,
+      appBuildRevision: typeof env.appBuildRevision === "string" ? env.appBuildRevision : null,
+    };
+
+    window.ACCESSFLOW_ENV = Object.freeze(nextEnv);
+    window.ACCESSFLOW_RUNTIME_ENV = Object.freeze(nextEnv);
+
+    if (nextEnv.apiBaseUrl) {
+      window.API_BASE_URL = nextEnv.apiBaseUrl;
+      window.VISITOR_API_BASE_URL = nextEnv.visitorApiBaseUrl || nextEnv.apiBaseUrl;
+    }
+    if (nextEnv.appVersion) {
+      window.APP_VERSION = nextEnv.appVersion;
+    }
+    if (nextEnv.appAssetToken) {
+      window.APP_ASSET_TOKEN = nextEnv.appAssetToken;
+    }
+    if (nextEnv.appBuildTimestamp) {
+      window.APP_BUILD_TIMESTAMP = nextEnv.appBuildTimestamp;
+    }
+    if (nextEnv.appBuildRevision || nextEnv.appBuildRevision === null) {
+      window.APP_BUILD_REVISION = nextEnv.appBuildRevision;
     }
   }
 

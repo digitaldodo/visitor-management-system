@@ -44,11 +44,13 @@ function resolveBuildApiBaseUrl(value) {
   if (!normalized) {
     return "";
   }
-  if (new URL(normalized).host.toLowerCase() === legacyApiHost()) {
-    throw new Error("API_BASE_URL points to the retired AccessFlow backend.");
-  }
-  if (isRenderBuild() && isLocalApiBaseUrl(normalized)) {
-    throw new Error("Render builds must not use a local API_BASE_URL.");
+  if (isRenderBuild()) {
+    if (isLocalApiBaseUrl(normalized)) {
+      throw new Error("Render builds must not use a local API_BASE_URL.");
+    }
+    if (new URL(normalized).host.toLowerCase() !== productionApiHost()) {
+      throw new Error("Render builds must use the active AccessFlow production API_BASE_URL.");
+    }
   }
   return normalized;
 }
@@ -88,13 +90,13 @@ function isRenderBuild() {
   return Boolean(process.env.RENDER || process.env.RENDER_SERVICE_NAME);
 }
 
-function legacyApiHost() {
-  return ["accessflow-api", "onrender", "com"].join(".");
-}
-
 function isLocalApiBaseUrl(value) {
   const host = new URL(value).hostname.toLowerCase();
   return /(?:^|\.)localhost$|^127\.0\.0\.1$|^\[::1\]$/.test(host);
+}
+
+function productionApiHost() {
+  return new URL("https://accessflow-api-goww.onrender.com/api/v1").host.toLowerCase();
 }
 
 async function copyWorkspace(sourceDir, targetDir) {
@@ -122,11 +124,21 @@ async function copyWorkspace(sourceDir, targetDir) {
 async function writeGeneratedAssets(targetDir, apiUrl, meta) {
   const assetsJsDir = path.join(targetDir, "assets", "js");
   const manifestPath = path.join(targetDir, "assets", "app-manifest.json");
+  const runtimeEnv = {
+    apiBaseUrl: apiUrl,
+    visitorApiBaseUrl: apiUrl,
+    appVersion: meta.version,
+    appAssetToken: meta.assetToken,
+    appBuildTimestamp: meta.builtAt,
+    appBuildRevision: meta.revision,
+  };
 
   await mkdir(assetsJsDir, { recursive: true });
   await writeFile(
     path.join(assetsJsDir, "env.js"),
     [
+      `window.ACCESSFLOW_ENV = Object.freeze(${JSON.stringify(runtimeEnv, null, 2)});`,
+      "window.ACCESSFLOW_RUNTIME_ENV = window.ACCESSFLOW_ENV;",
       `window.API_BASE_URL = ${JSON.stringify(apiUrl)};`,
       "window.VISITOR_API_BASE_URL = window.API_BASE_URL;",
       `window.APP_VERSION = ${JSON.stringify(meta.version)};`,

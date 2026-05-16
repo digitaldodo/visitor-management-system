@@ -1,5 +1,7 @@
 import { validateApiConfiguration } from "./config.js";
 
+const BOOTSTRAP_ABORT = Symbol("accessflow.bootstrap.abort");
+
 const noopRuntime = {
   clearAppStorage() {},
   ensureVersion() {
@@ -19,6 +21,9 @@ const noopRuntime = {
   registerApp() {},
   reportError() {},
   showNotice() {},
+  waitForRuntimeConfig() {
+    return Promise.resolve({ synced: false, reason: "runtime-unavailable" });
+  },
 };
 
 export const APP_VERSION =
@@ -30,19 +35,25 @@ export function bootstrapApplication(label, action, options = {}) {
   const runtime = getRuntime();
   runtime.registerApp({ label, ...options });
 
-  const state = runtime.ensureVersion({ label, ...options }) || {};
-  if (state.reloading) {
-    return Promise.resolve(null);
-  }
-
-  const apiState = validateApiConfiguration();
-  if (apiState.needsRecovery) {
-    reportApiConfigurationRecovery(runtime, label, apiState);
-  }
-
   return Promise.resolve()
-    .then(() => action())
+    .then(() => runtime.waitForRuntimeConfig?.())
+    .then(() => {
+      const state = runtime.ensureVersion({ label, ...options }) || {};
+      if (state.reloading) {
+        return BOOTSTRAP_ABORT;
+      }
+
+      const apiState = validateApiConfiguration();
+      if (apiState.needsRecovery) {
+        reportApiConfigurationRecovery(runtime, label, apiState);
+      }
+
+      return action();
+    })
     .then((value) => {
+      if (value === BOOTSTRAP_ABORT) {
+        return null;
+      }
       runtime.markReady({ label });
       return value;
     })
@@ -91,7 +102,7 @@ function reportApiConfigurationRecovery(runtime, label, apiState) {
     source: apiState.source,
   });
 
-  if (apiState.usedFallback || apiState.productionUsingLocalApi || apiState.previousWasStale) {
+  if (apiState.usedFallback || apiState.productionUsingLocalApi || apiState.previousWasInvalid) {
     runtime.showNotice("AccessFlow recovered the API endpoint for this deployment.", {
       primaryLabel: "Refresh now",
       primaryAction: () => {

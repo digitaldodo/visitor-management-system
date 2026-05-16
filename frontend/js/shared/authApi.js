@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./config.js";
+import { buildApiUrl } from "./config.js";
 import { request } from "./httpClient.js";
 import { normalizeAuthResponse } from "./session.js";
 
@@ -22,7 +22,7 @@ export function registerAccount(payload) {
 export function logout(refreshToken, options = {}) {
   const { keepalive = false } = options;
   if (keepalive && typeof fetch === "function") {
-    return fetch(`${API_BASE_URL}/auth/logout`, {
+    return fetch(buildApiUrl("/auth/logout"), {
       method: "POST",
       headers: {
         Accept: "application/json",

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./config.js";
+import { buildApiUrl } from "./config.js";
 import { handleUnauthorizedSession, reportRuntimeError } from "./appRuntime.js";
 import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js";
 
@@ -28,7 +28,7 @@ export async function request(path, options = {}) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(buildApiUrl(path), {
       ...fetchOptions,
       headers,
       signal: controller.signal,
@@ -76,7 +76,7 @@ async function refreshAccessToken() {
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    response = await fetch(buildApiUrl("/auth/refresh"), {
       method: "POST",
       headers: {
         Accept: "application/json",

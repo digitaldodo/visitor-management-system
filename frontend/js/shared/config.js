@@ -3,38 +3,70 @@ export const PRODUCTION_FRONTEND_ORIGIN = "https://accessflow-web.onrender.com";
 
 const API_VERSION_PATH = "/api/v1";
 const API_CONFIG_STORAGE_KEY = "accessflow.api.config";
-const LEGACY_API_HOSTS = new Set(["accessflow-api"].map((serviceName) => `${serviceName}.onrender.com`));
+const PRODUCTION_API_HOST = hostFromUrl(PRODUCTION_API_BASE_URL);
 
+ensureRuntimeEnvironmentSnapshot();
 const resolvedApiConfig = resolveApiBaseUrl(readRuntimeApiBaseUrl());
 
 export const API_BASE_URL = resolvedApiConfig.apiBaseUrl;
 export const API_CONFIG_DIAGNOSTIC = Object.freeze({ ...resolvedApiConfig });
 
-publishResolvedApiBaseUrl(resolvedApiConfig.apiBaseUrl);
+publishResolvedApiBaseUrl(resolvedApiConfig);
 logApiDiagnostics(resolvedApiConfig);
 
 export function validateApiConfiguration() {
+  const currentResolvedApiConfig = resolveCurrentApiConfig();
+  const currentApiBaseUrl = currentResolvedApiConfig.apiBaseUrl;
   const previousConfig = readStoredApiConfig();
   const previousApiBaseUrl = normalizeApiBaseUrl(previousConfig?.apiBaseUrl || "");
-  const previousWasStale = Boolean(previousApiBaseUrl && isLegacyApiBaseUrl(previousApiBaseUrl));
-  const apiBaseChanged = Boolean(previousApiBaseUrl && previousApiBaseUrl !== API_BASE_URL);
+  const previousWasInvalid = Boolean(previousApiBaseUrl && isUnexpectedProductionApiBaseUrl(previousApiBaseUrl));
+  const apiBaseChanged = Boolean(previousApiBaseUrl && previousApiBaseUrl !== currentApiBaseUrl);
   const productionOrigin = getCurrentOrigin() === PRODUCTION_FRONTEND_ORIGIN;
-  const productionUsingLocalApi = productionOrigin && isLocalApiBaseUrl(API_BASE_URL);
+  const productionUsingLocalApi = productionOrigin && isLocalApiBaseUrl(currentApiBaseUrl);
+  const runtimeValue = normalizeApiBaseUrl(readRuntimeApiBaseUrl());
+  const runtimeVersion = readRuntimeAppVersion();
+  const appVersion = readAppVersion();
 
   persistApiConfig({
-    apiBaseUrl: API_BASE_URL,
-    appVersion: readAppVersion(),
+    apiBaseUrl: currentApiBaseUrl,
+    apiHost: hostFromUrl(currentApiBaseUrl),
+    appVersion,
+    runtimeVersion,
+    source: currentResolvedApiConfig.source,
+    reason: currentResolvedApiConfig.reason,
   });
 
   return Object.freeze({
-    ...resolvedApiConfig,
+    ...currentResolvedApiConfig,
     apiBaseChanged,
     previousApiBaseUrl,
-    previousWasStale,
+    previousWasInvalid,
     productionOrigin,
     productionUsingLocalApi,
-    needsRecovery: resolvedApiConfig.usedFallback || previousWasStale || productionUsingLocalApi,
+    runtimeValue,
+    runtimeVersion,
+    appVersion,
+    currentOrigin: getCurrentOrigin(),
+    apiHost: hostFromUrl(currentApiBaseUrl),
+    runtimeMissing: !runtimeValue,
+    needsRecovery: currentResolvedApiConfig.usedFallback || previousWasInvalid || productionUsingLocalApi,
   });
+}
+
+export function buildApiUrl(path = "") {
+  const apiBaseUrl = getApiBaseUrl();
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return apiBaseUrl;
+  }
+
+  const url = new URL(`${apiBaseUrl}/`);
+  const relativePath = `.${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+  return new URL(relativePath, url).toString();
+}
+
+export function getApiBaseUrl() {
+  return resolveCurrentApiConfig().apiBaseUrl;
 }
 
 export function normalizeApiBaseUrl(value) {
@@ -79,12 +111,11 @@ function resolveApiBaseUrl(runtimeValue) {
     return fallbackApiConfig("malformed-runtime-config", runtimeValue);
   }
 
-  if (isLegacyApiBaseUrl(normalizedRuntimeUrl)) {
-    return fallbackApiConfig("stale-runtime-config", runtimeValue);
-  }
-
-  if (getCurrentOrigin() === PRODUCTION_FRONTEND_ORIGIN && isLocalApiBaseUrl(normalizedRuntimeUrl)) {
-    return fallbackApiConfig("local-api-in-production", runtimeValue);
+  if (getCurrentOrigin() === PRODUCTION_FRONTEND_ORIGIN && hostFromUrl(normalizedRuntimeUrl) !== PRODUCTION_API_HOST) {
+    return fallbackApiConfig(
+      isLocalApiBaseUrl(normalizedRuntimeUrl) ? "local-api-in-production" : "unexpected-production-api-host",
+      runtimeValue,
+    );
   }
 
   return {
@@ -93,9 +124,15 @@ function resolveApiBaseUrl(runtimeValue) {
     reason: "runtime-config-valid",
     runtimeValue,
     usedFallback: false,
-    staleRuntimeValue: false,
+    unexpectedRuntimeValue: false,
     malformedRuntimeValue: false,
   };
+}
+
+function resolveCurrentApiConfig() {
+  const config = resolveApiBaseUrl(readRuntimeApiBaseUrl());
+  publishResolvedApiBaseUrl(config);
+  return config;
 }
 
 function fallbackApiConfig(reason, runtimeValue) {
@@ -105,7 +142,7 @@ function fallbackApiConfig(reason, runtimeValue) {
     reason,
     runtimeValue,
     usedFallback: true,
-    staleRuntimeValue: isLegacyApiBaseUrl(runtimeValue),
+    unexpectedRuntimeValue: isUnexpectedProductionApiBaseUrl(runtimeValue),
     malformedRuntimeValue: Boolean(runtimeValue) && !normalizeApiBaseUrl(runtimeValue),
   };
 }
@@ -114,6 +151,22 @@ function readRuntimeApiBaseUrl() {
   if (typeof window === "undefined") {
     return "";
   }
+
+  if (window.ACCESSFLOW_RUNTIME_ENV && typeof window.ACCESSFLOW_RUNTIME_ENV === "object") {
+    if (Object.prototype.hasOwnProperty.call(window.ACCESSFLOW_RUNTIME_ENV, "apiBaseUrl")) {
+      return typeof window.ACCESSFLOW_RUNTIME_ENV.apiBaseUrl === "string" ? window.ACCESSFLOW_RUNTIME_ENV.apiBaseUrl : "";
+    }
+  }
+
+  if (window.ACCESSFLOW_ENV && typeof window.ACCESSFLOW_ENV === "object") {
+    if (Object.prototype.hasOwnProperty.call(window.ACCESSFLOW_ENV, "apiBaseUrl")) {
+      return typeof window.ACCESSFLOW_ENV.apiBaseUrl === "string" ? window.ACCESSFLOW_ENV.apiBaseUrl : "";
+    }
+    if (typeof window.ACCESSFLOW_ENV.API_BASE_URL === "string" && window.ACCESSFLOW_ENV.API_BASE_URL.trim()) {
+      return window.ACCESSFLOW_ENV.API_BASE_URL;
+    }
+  }
+
   if (typeof window.API_BASE_URL === "string" && window.API_BASE_URL.trim()) {
     return window.API_BASE_URL;
   }
@@ -123,18 +176,25 @@ function readRuntimeApiBaseUrl() {
   return "";
 }
 
-function publishResolvedApiBaseUrl(apiBaseUrl) {
+function publishResolvedApiBaseUrl(config) {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.API_BASE_URL = apiBaseUrl;
-  window.VISITOR_API_BASE_URL = apiBaseUrl;
+  window.API_BASE_URL = config.apiBaseUrl;
+  window.VISITOR_API_BASE_URL = config.apiBaseUrl;
+  window.ACCESSFLOW_RESOLVED_API_BASE_URL = config.apiBaseUrl;
   window.ACCESSFLOW_API_CONFIG = Object.freeze({
-    apiBaseUrl,
+    apiBaseUrl: config.apiBaseUrl,
+    apiHost: hostFromUrl(config.apiBaseUrl),
+    currentOrigin: getCurrentOrigin(),
     productionApiBaseUrl: PRODUCTION_API_BASE_URL,
     productionFrontendOrigin: PRODUCTION_FRONTEND_ORIGIN,
     appVersion: readAppVersion(),
+    source: config.source,
+    reason: config.reason,
+    runtimeValue: config.runtimeValue || "",
+    usedFallback: Boolean(config.usedFallback),
   });
 }
 
@@ -146,6 +206,7 @@ function logApiDiagnostics(config) {
   const payload = {
     apiHost: hostFromUrl(config.apiBaseUrl),
     appVersion: readAppVersion(),
+    origin: getCurrentOrigin(),
     source: config.source,
     reason: config.reason,
   };
@@ -186,13 +247,17 @@ function persistApiConfig(config) {
   }
 }
 
-function isLegacyApiBaseUrl(value) {
+function isUnexpectedProductionApiBaseUrl(value) {
+  if (getCurrentOrigin() !== PRODUCTION_FRONTEND_ORIGIN) {
+    return false;
+  }
+
   const normalized = normalizeApiBaseUrl(value);
   if (!normalized) {
     return false;
   }
 
-  return LEGACY_API_HOSTS.has(hostFromUrl(normalized));
+  return hostFromUrl(normalized) !== PRODUCTION_API_HOST;
 }
 
 function isLocalApiBaseUrl(value) {
@@ -214,11 +279,54 @@ function getCurrentOrigin() {
   return window.location.origin;
 }
 
+function readRuntimeAppVersion() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  if (window.ACCESSFLOW_RUNTIME_ENV && typeof window.ACCESSFLOW_RUNTIME_ENV === "object" && typeof window.ACCESSFLOW_RUNTIME_ENV.appVersion === "string") {
+    return window.ACCESSFLOW_RUNTIME_ENV.appVersion.trim();
+  }
+  if (window.ACCESSFLOW_ENV && typeof window.ACCESSFLOW_ENV === "object" && typeof window.ACCESSFLOW_ENV.appVersion === "string") {
+    return window.ACCESSFLOW_ENV.appVersion.trim();
+  }
+  return "";
+}
+
+function ensureRuntimeEnvironmentSnapshot() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (window.ACCESSFLOW_RUNTIME_ENV && typeof window.ACCESSFLOW_RUNTIME_ENV === "object") {
+    return;
+  }
+
+  const runtimeEnv = readWindowRuntimeEnvironment();
+  if (!runtimeEnv.apiBaseUrl && !runtimeEnv.visitorApiBaseUrl && !runtimeEnv.appVersion) {
+    return;
+  }
+
+  window.ACCESSFLOW_RUNTIME_ENV = Object.freeze(runtimeEnv);
+}
+
+function readWindowRuntimeEnvironment() {
+  const envObject = window.ACCESSFLOW_ENV && typeof window.ACCESSFLOW_ENV === "object" ? window.ACCESSFLOW_ENV : {};
+  return {
+    apiBaseUrl: firstString(envObject.apiBaseUrl, envObject.API_BASE_URL, window.API_BASE_URL),
+    visitorApiBaseUrl: firstString(envObject.visitorApiBaseUrl, envObject.VISITOR_API_BASE_URL, window.VISITOR_API_BASE_URL),
+    appVersion: firstString(envObject.appVersion, window.APP_VERSION),
+  };
+}
+
 function readAppVersion() {
   if (typeof window !== "undefined" && typeof window.APP_VERSION === "string" && window.APP_VERSION.trim()) {
     return window.APP_VERSION.trim();
   }
   return "dev-local";
+}
+
+function firstString(...values) {
+  const value = values.find((item) => typeof item === "string" && item.trim());
+  return value ? value.trim() : "";
 }
 
 export const ROLE_PORTALS = {
