@@ -51,6 +51,18 @@ public class SendGridEmailService implements EmailService {
     }
 
     @Override
+    public void sendVisitorEmailVerification(String toEmail, String recipientName, String verificationUrl, long expiryHours) {
+        sendEmail(
+                toEmail,
+                safeName(recipientName),
+                "Verify your AccessFlow visitor account",
+                visitorVerificationPlainTextBody(recipientName, verificationUrl, expiryHours),
+                visitorVerificationHtmlBody(recipientName, verificationUrl, expiryHours),
+                "Visitor account verification"
+        );
+    }
+
+    @Override
     public void sendNotificationEmail(String toEmail, String recipientName, String subject, String title, String message, String actionUrl) {
         sendEmail(
                 toEmail,
@@ -151,6 +163,21 @@ public class SendGridEmailService implements EmailService {
                 """.formatted(safeName(recipientName), otp);
     }
 
+    private String visitorVerificationPlainTextBody(String recipientName, String verificationUrl, long expiryHours) {
+        return """
+                AccessFlow visitor account verification
+
+                Hi %s,
+
+                Verify your email to activate your AccessFlow visitor account:
+                %s
+
+                This verification link expires in %d hours.
+
+                Security notice: If you did not create this account, you can ignore this message. Your account will stay inactive until the email address is verified.
+                """.formatted(safeName(recipientName), verificationUrl, expiryHours);
+    }
+
     private String passwordResetHtmlBody(String recipientName, String otp) {
         String escapedName = escapeHtml(safeName(recipientName));
         String escapedOtp = escapeHtml(otp);
@@ -184,6 +211,43 @@ public class SendGridEmailService implements EmailService {
                   </body>
                 </html>
                 """.formatted(escapedName, escapedOtp);
+    }
+
+    private String visitorVerificationHtmlBody(String recipientName, String verificationUrl, long expiryHours) {
+        String escapedName = escapeHtml(safeName(recipientName));
+        String escapedUrl = escapeHtml(verificationUrl);
+        return """
+                <!doctype html>
+                <html>
+                  <body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#101828;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;">
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e7ec;border-radius:8px;overflow:hidden;">
+                            <tr>
+                              <td style="background:#101828;color:#ffffff;padding:24px 28px;">
+                                <div style="font-size:13px;font-weight:700;letter-spacing:0;text-transform:uppercase;color:#bfdbfe;">AccessFlow</div>
+                                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">Verify your visitor account</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:28px;">
+                                <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Hi %s,</p>
+                                <p style="margin:0 0 18px;font-size:16px;line-height:1.5;">Finish activating your AccessFlow visitor account by verifying your email address.</p>
+                                <p style="margin:0 0 18px;"><a href="%s" style="background:#1d4ed8;border-radius:10px;color:#ffffff;display:inline-block;font-size:15px;font-weight:800;padding:14px 18px;text-decoration:none;">Verify email address</a></p>
+                                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#475467;">This verification link expires in %d hours.</p>
+                                <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#475467;">If the button does not open, copy and paste this link into your browser:</p>
+                                <p style="margin:0 0 18px;font-size:13px;line-height:1.6;word-break:break-word;"><a href="%s" style="color:#1d4ed8;text-decoration:none;">%s</a></p>
+                                <p style="margin:0;font-size:14px;line-height:1.6;color:#b42318;"><strong>Security notice:</strong> If you did not create this account, no action is needed. AccessFlow will keep the account inactive until the address is verified.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </body>
+                </html>
+                """.formatted(escapedName, escapedUrl, expiryHours, escapedUrl, escapedUrl);
     }
 
     private String superAdminCreationPlainTextBody(String recipientName, String otp) {

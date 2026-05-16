@@ -1,4 +1,4 @@
-import { login, registerAccount } from "./shared/authApi.js";
+import { login, registerAccount, resendVerificationEmail } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
 import { bootstrapApplication } from "./shared/appRuntime.js";
 import { $, $$ } from "./shared/dom.js";
@@ -10,6 +10,12 @@ import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./shared/phoneInput.js";
+
+const VERIFICATION_IDENTIFIER_KEY = "visitorVerificationIdentifier";
+const VERIFICATION_EMAIL_KEY = "visitorVerificationEmail";
+const VERIFICATION_EXPIRES_KEY = "visitorVerificationExpiresAt";
+const VERIFICATION_SENT_KEY = "visitorVerificationSentAt";
+const VERIFICATION_RESEND_READY_KEY = "visitorVerificationResendReadyAt";
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("login", async () => {
@@ -24,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initOrganizations();
     initHomepageContent();
     initLoginForm();
+    initLoginVerificationAssist();
     initRegisterForm();
     initForgotPassword();
     setAuthTab("visitor", { scroll: false });
@@ -143,8 +150,20 @@ function initLoginForm() {
       }
 
       setSession(session);
+      hideLoginVerificationHelp();
       showToast("Signed in", `${formatStatus(role)} portal ready.`);
       redirectToPortal(role, false);
+    }, (error) => {
+      if (isVerificationRequiredError(error) && data.audience === "visitor") {
+        persistVerificationState(data.identifier, {
+          email: isEmail(data.identifier) ? data.identifier : "",
+        });
+        showLoginVerificationHelp(data.identifier);
+        showToast("Verify your email", "Please verify your email before signing in.");
+        return;
+      }
+      hideLoginVerificationHelp();
+      showToast("Authentication failed", error.message);
     });
   });
 }
@@ -169,7 +188,7 @@ function initRegisterForm() {
     }
 
     await withLoading(currentForm, async () => {
-      await registerAccount({
+      const response = await registerAccount({
         fullName: data.fullName,
         username: data.username,
         email: data.email,
@@ -180,10 +199,11 @@ function initRegisterForm() {
         hostEmployee: data.hostEmployee || null,
         purposeOfVisit: data.purposeOfVisit || null,
       });
-      showToast("Visitor account created", "You can sign in to request or track visits.");
+      persistVerificationState(data.email, response?.data || {});
+      showToast("Check your inbox", response?.message || "Verify your email to activate your AccessFlow account.");
       currentForm.reset();
       runUsernameValidation();
-      setAuthTab("visitor");
+      window.location.href = buildVerificationPageUrl(data.email);
     });
   });
 }
@@ -225,7 +245,30 @@ function initForgotPassword() {
   });
 }
 
-async function withLoading(form, action) {
+function initLoginVerificationAssist() {
+  const button = $("#login-resend-verification-button");
+  if (!button) {
+    return;
+  }
+
+  button.addEventListener("click", async () => {
+    const form = $("#login-form");
+    const identifier = ($("#login-form input[name='identifier']")?.value || sessionStorage.getItem(VERIFICATION_IDENTIFIER_KEY) || "").trim();
+    if (!identifier || !isUsernameOrEmail(identifier)) {
+      showToast("Enter your account", "Add your visitor email or username first.");
+      return;
+    }
+
+    await withLoading(form, async () => {
+      const response = await resendVerificationEmail(identifier);
+      persistVerificationState(identifier, response?.data || {});
+      updateLoginVerificationLink(identifier);
+      showToast("Email sent", response?.message || "If the visitor account is pending verification, a new email has been sent.");
+    });
+  });
+}
+
+async function withLoading(form, action, onError = defaultAuthErrorHandler) {
   const button = form.querySelector(".auth-submit");
   button?.classList.add("is-loading");
   button?.setAttribute("disabled", "true");
@@ -234,12 +277,16 @@ async function withLoading(form, action) {
   try {
     await action();
   } catch (error) {
-    showToast("Authentication failed", error.message);
+    onError(error);
   } finally {
     button?.classList.remove("is-loading");
     button?.removeAttribute("disabled");
     button?.removeAttribute("aria-busy");
   }
+}
+
+function defaultAuthErrorHandler(error) {
+  showToast("Authentication failed", error.message);
 }
 
 function getFormData(form) {
@@ -259,6 +306,59 @@ function normalizeAudience(target) {
     return target;
   }
   return "employee";
+}
+
+function isVerificationRequiredError(error) {
+  return error?.status === 401 && String(error?.message || "").includes("Please verify your email before signing in.");
+}
+
+function persistVerificationState(identifier, payload = {}) {
+  const resolvedIdentifier = String(identifier || payload.email || "").trim();
+  const resolvedEmail = String(payload.email || "").trim();
+  if (resolvedIdentifier) {
+    sessionStorage.setItem(VERIFICATION_IDENTIFIER_KEY, resolvedIdentifier);
+  }
+  if (resolvedEmail) {
+    sessionStorage.setItem(VERIFICATION_EMAIL_KEY, resolvedEmail);
+  }
+  sessionStorage.setItem(VERIFICATION_EXPIRES_KEY, payload.expiresAt || hoursFromNow(24));
+  sessionStorage.setItem(VERIFICATION_SENT_KEY, payload.sentAt || new Date().toISOString());
+  sessionStorage.setItem(VERIFICATION_RESEND_READY_KEY, payload.resendAvailableAt || secondsFromNow(60));
+}
+
+function showLoginVerificationHelp(identifier) {
+  const panel = $("#login-verification-help");
+  panel?.classList.remove("is-hidden");
+  updateLoginVerificationLink(identifier);
+}
+
+function hideLoginVerificationHelp() {
+  $("#login-verification-help")?.classList.add("is-hidden");
+}
+
+function updateLoginVerificationLink(identifier) {
+  const link = $("#login-open-verification-link");
+  if (!link) {
+    return;
+  }
+  link.href = buildVerificationPageUrl(identifier || sessionStorage.getItem(VERIFICATION_IDENTIFIER_KEY) || "");
+}
+
+function buildVerificationPageUrl(identifier) {
+  const url = new URL("./pages/verify-email/index.html", window.location.href);
+  const value = String(identifier || "").trim();
+  if (value) {
+    url.searchParams.set("identifier", value);
+  }
+  return url.toString();
+}
+
+function secondsFromNow(seconds) {
+  return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+function hoursFromNow(hours) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 }
 
 function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {

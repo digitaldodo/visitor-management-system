@@ -126,6 +126,14 @@
                   <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
                 </label>
                 <button class="button button--primary auth-submit" type="submit">Sign in securely</button>
+                <div class="auth-assist is-hidden" id="login-verification-help" aria-live="polite">
+                  <strong>Email verification required</strong>
+                  <p>Please verify your email before signing in. We can send a fresh verification link.</p>
+                  <div class="auth-assist__actions">
+                    <button class="link-button" id="login-resend-verification-button" type="button">Resend verification email</button>
+                    <a class="link-button link-button--anchor" id="login-open-verification-link" href="./pages/verify-email/index.html">Open verification help</a>
+                  </div>
+                </div>
                 <div class="auth-form__actions">
                   <button class="link-button" type="button" data-auth-target="register">Need an account? Register</button>
                   <button class="link-button" id="forgot-password-button" type="button">Forgot password?</button>
@@ -136,7 +144,7 @@
                 <div class="auth-form__header">
                   <p class="eyebrow">Visitor onboarding</p>
                   <h3>Create a visitor account</h3>
-                  <p>Register once to request visits and carry verified QR access passes.</p>
+                  <p>Register once, verify your email, then request visits and carry verified QR access passes.</p>
                 </div>
                 <div class="auth-form__split">
                   <label class="form-field">

@@ -1,7 +1,11 @@
 package com.visitor.management.service;
 
+import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.dto.AuthRequest;
 import com.visitor.management.dto.AuthResponse;
+import com.visitor.management.dto.EmailVerificationDispatchRequest;
+import com.visitor.management.dto.EmailVerificationDispatchResponse;
+import com.visitor.management.dto.EmailVerificationStatusResponse;
 import com.visitor.management.dto.ForgotPasswordRequest;
 import com.visitor.management.dto.ForgotPasswordResponse;
 import com.visitor.management.dto.RefreshTokenRequest;
@@ -29,13 +33,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.security.SecureRandom;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -46,6 +51,7 @@ public class AuthService {
     private static final Duration OTP_EXPIRY = Duration.ofMinutes(5);
     private static final Duration RESET_TOKEN_EXPIRY = Duration.ofMinutes(10);
     private static final Duration RESEND_COOLDOWN = Duration.ofSeconds(60);
+    private static final Duration EMAIL_VERIFICATION_EXPIRY = Duration.ofHours(24);
     private static final int MAX_OTP_ATTEMPTS = 5;
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,128}$");
@@ -61,6 +67,7 @@ public class AuthService {
     private final OrganizationService organizationService;
     private final AccessAuditService accessAuditService;
     private final PhoneNumberService phoneNumberService;
+    private final CorsOriginResolver corsOriginResolver;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -74,7 +81,8 @@ public class AuthService {
             RateLimitService rateLimitService,
             OrganizationService organizationService,
             AccessAuditService accessAuditService,
-            PhoneNumberService phoneNumberService
+            PhoneNumberService phoneNumberService,
+            CorsOriginResolver corsOriginResolver
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -87,14 +95,19 @@ public class AuthService {
         this.organizationService = organizationService;
         this.accessAuditService = accessAuditService;
         this.phoneNumberService = phoneNumberService;
+        this.corsOriginResolver = corsOriginResolver;
     }
 
-    public UserProfileResponse register(RegisterRequest request, Authentication authentication) {
+    public EmailVerificationDispatchResponse register(RegisterRequest request, Authentication authentication, String clientFingerprint) {
+        rateLimitService.check("register-visitor-client", clientFingerprint, 5, Duration.ofMinutes(15));
+        rateLimitService.check("register-visitor-email", normalizeIdentifier(request.email()), 3, Duration.ofHours(1));
+
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new ConflictException("An account with this email already exists.");
         }
 
         String username = normalizeUsername(request.username());
+        rateLimitService.check("register-visitor-username", username, 3, Duration.ofHours(1));
         if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new ConflictException("An account with this username already exists.");
         }
@@ -117,25 +130,36 @@ public class AuthService {
         applyOrganization(user, organization);
         user.setRoles(Set.of(Role.VISITOR));
         user.setActive(true);
-        user.setAccountStatus(AccountStatus.ACTIVE);
+        user.setAccountStatus(AccountStatus.UNVERIFIED);
+        user.setEmailVerified(Boolean.FALSE);
 
         User saved = userRepository.save(user);
+        EmailVerificationDispatchResponse response = issueVisitorVerification(saved, false);
         accessAuditService.recordVisitorAccountRegistered(saved);
-        return toProfile(saved);
+        return response;
     }
 
-    public AuthResponse login(AuthRequest request) {
+    public AuthResponse login(AuthRequest request, String clientFingerprint) {
         String identifier = normalizeIdentifier(request.loginIdentifier());
         try {
             User user = findByIdentifier(identifier)
-                    .filter(this::isActiveAccount)
-                    .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
                     .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password."));
+            if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+                throw new UnauthorizedException("Invalid username/email or password.");
+            }
             validateOrganizationLogin(user, request.companyCode());
             validatePortalAudience(user, request.portalAudience());
+            if (isPendingVisitorVerification(user)) {
+                throw new UnauthorizedException("Please verify your email before signing in.");
+            }
+            if (!isActiveAccount(user)) {
+                throw new UnauthorizedException("Invalid username/email or password.");
+            }
             accessAuditService.recordLoginSuccess(user, request.portalAudience());
             return issueTokens(user);
         } catch (UnauthorizedException ex) {
+            rateLimitService.check("login-failure-client", clientFingerprint, 12, Duration.ofMinutes(10));
+            rateLimitService.check("login-failure-identifier", identifier + ":" + clientFingerprint, 10, Duration.ofMinutes(10));
             accessAuditService.recordLoginFailure(identifier, request.companyCode(), request.portalAudience(), ex.getMessage());
             throw ex;
         }
@@ -172,6 +196,58 @@ public class AuthService {
                 .ifPresent(user -> createOrResendOtp(user, fallbackExpiresAt));
 
         return new ForgotPasswordResponse(true, fallbackExpiresAt);
+    }
+
+    public EmailVerificationDispatchResponse resendVisitorVerification(EmailVerificationDispatchRequest request, String clientFingerprint) {
+        String identifier = normalizeIdentifier(request.lookupIdentifier());
+        rateLimitService.check("resend-visitor-verification-client", clientFingerprint, 6, Duration.ofMinutes(30));
+        rateLimitService.check("resend-visitor-verification-identifier", identifier, 6, Duration.ofMinutes(30));
+
+        Instant now = Instant.now();
+        Instant fallbackSentAt = now;
+        Instant fallbackExpiresAt = now.plus(EMAIL_VERIFICATION_EXPIRY);
+        Instant fallbackResendAvailableAt = now.plus(RESEND_COOLDOWN);
+
+        Optional<User> candidate = findByIdentifier(identifier)
+                .filter(this::isPendingVisitorVerification);
+        if (candidate.isEmpty()) {
+            return new EmailVerificationDispatchResponse(null, true, fallbackExpiresAt, fallbackSentAt, fallbackResendAvailableAt, Set.of(Role.VISITOR));
+        }
+
+        return issueVisitorVerification(candidate.get(), true);
+    }
+
+    public EmailVerificationStatusResponse verifyVisitorEmail(String token, String clientFingerprint) {
+        String normalizedToken = trimToNull(token);
+        if (normalizedToken == null) {
+            throw invalidVerificationToken();
+        }
+
+        rateLimitService.check("verify-visitor-email-client", clientFingerprint, 20, Duration.ofMinutes(10));
+        rateLimitService.check("verify-visitor-email-token", tokenService.hash(normalizedToken), 8, Duration.ofMinutes(10));
+
+        User user = userRepository.findByEmailVerificationTokenHash(tokenService.hash(normalizedToken))
+                .filter(this::isPendingVisitorVerification)
+                .orElseThrow(() -> {
+                    accessAuditService.recordVisitorVerificationFailure("token", "DENIED", "Email verification rejected because the token was invalid.");
+                    return invalidVerificationToken();
+                });
+
+        Instant now = Instant.now();
+        if (user.getEmailVerificationExpiresAt() == null || user.getEmailVerificationExpiresAt().isBefore(now)) {
+            accessAuditService.recordVisitorVerificationFailure(user.getEmail(), "DENIED", "Email verification rejected because the token expired.");
+            clearEmailVerificationState(user, false);
+            userRepository.save(user);
+            throw invalidVerificationToken();
+        }
+
+        clearEmailVerificationState(user, true);
+        user.setAccountStatus(AccountStatus.ACTIVE);
+        user.setEmailVerified(Boolean.TRUE);
+        user.setEmailVerifiedAt(now);
+        User saved = userRepository.save(user);
+        accessAuditService.recordVisitorEmailVerified(saved);
+        return new EmailVerificationStatusResponse(saved.getEmail(), true, saved.getEmailVerifiedAt());
     }
 
     public VerifyOtpResponse verifyOtp(VerifyOtpRequest request) {
@@ -381,6 +457,70 @@ public class AuthService {
         return value.trim();
     }
 
+    private EmailVerificationDispatchResponse issueVisitorVerification(User user, boolean resend) {
+        if (!isPendingVisitorVerification(user)) {
+            throw new BadRequestException("This visitor account does not require email verification.");
+        }
+
+        Instant now = Instant.now();
+        Instant resendAvailableAt = user.getEmailVerificationSentAt() == null
+                ? now
+                : user.getEmailVerificationSentAt().plus(RESEND_COOLDOWN);
+        if (resend && resendAvailableAt.isAfter(now)) {
+            throw new BadRequestException("Please wait before requesting another verification email.");
+        }
+
+        String rawToken = tokenService.generateOpaqueToken();
+        Instant expiresAt = now.plus(EMAIL_VERIFICATION_EXPIRY);
+        user.setEmailVerificationTokenHash(tokenService.hash(rawToken));
+        user.setEmailVerificationExpiresAt(expiresAt);
+        user.setEmailVerificationSentAt(now);
+        userRepository.save(user);
+
+        try {
+            emailService.sendVisitorEmailVerification(
+                    user.getEmail(),
+                    user.getFullName(),
+                    visitorVerificationUrl(rawToken),
+                    EMAIL_VERIFICATION_EXPIRY.toHours()
+            );
+        } catch (RuntimeException ex) {
+            log.error("AccessFlow verification delivery failed for visitor {}.", user.getId(), ex);
+        }
+
+        accessAuditService.recordVisitorVerificationEmailSent(user, resend);
+        return new EmailVerificationDispatchResponse(
+                user.getEmail(),
+                true,
+                expiresAt,
+                now,
+                now.plus(RESEND_COOLDOWN),
+                user.getRoles()
+        );
+    }
+
+    private String visitorVerificationUrl(String rawToken) {
+        String publicOrigin = corsOriginResolver.resolvePublicOrigin();
+        if (publicOrigin == null) {
+            throw new IllegalStateException("AccessFlow public frontend origin is not configured.");
+        }
+        return UriComponentsBuilder.fromUriString(publicOrigin)
+                .path("/verify-email")
+                .queryParam("token", rawToken)
+                .build(true)
+                .toUriString();
+    }
+
+    private void clearEmailVerificationState(User user, boolean keepVerifiedFlag) {
+        user.setEmailVerificationTokenHash(null);
+        user.setEmailVerificationExpiresAt(null);
+        user.setEmailVerificationSentAt(null);
+        if (!keepVerifiedFlag) {
+            user.setEmailVerified(Boolean.FALSE);
+            user.setEmailVerifiedAt(null);
+        }
+    }
+
     private void createOrResendOtp(User user, Instant fallbackExpiresAt) {
         Instant now = Instant.now();
         Optional<PasswordResetToken> latest = passwordResetTokenRepository.findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getId());
@@ -432,6 +572,13 @@ public class AuthService {
         return user.isActive() && (user.getAccountStatus() == null || user.getAccountStatus() == AccountStatus.ACTIVE);
     }
 
+    private boolean isPendingVisitorVerification(User user) {
+        return user != null
+                && user.getRoles() != null
+                && user.getRoles().contains(Role.VISITOR)
+                && user.getAccountStatus() == AccountStatus.UNVERIFIED;
+    }
+
     private String normalizeIdentifier(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
@@ -452,5 +599,9 @@ public class AuthService {
 
     private UnauthorizedException invalidOtp() {
         return new UnauthorizedException("Invalid or expired verification code.");
+    }
+
+    private BadRequestException invalidVerificationToken() {
+        return new BadRequestException("This verification link is invalid or has expired.");
     }
 }

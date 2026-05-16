@@ -48,6 +48,21 @@ export function forgotPassword(identifier) {
   });
 }
 
+export function resendVerificationEmail(identifier) {
+  return request("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ identifier }),
+    auth: false,
+  });
+}
+
+export function verifyEmailToken(token) {
+  const query = new URLSearchParams({ token });
+  return request(`/auth/verify-email?${query.toString()}`, {
+    auth: false,
+  });
+}
+
 export function verifyOtp(identifier, otp) {
   return request("/auth/verify-otp", {
     method: "POST",

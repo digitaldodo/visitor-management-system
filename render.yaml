@@ -88,6 +88,9 @@ services:
       - path: /verify-otp
         name: Cache-Control
         value: no-store
+      - path: /verify-email
+        name: Cache-Control
+        value: no-store
       - path: /pass/*
         name: Cache-Control
         value: no-store
@@ -143,6 +146,9 @@ services:
       - type: rewrite
         source: /verify-otp
         destination: /pages/verify-otp/index.html
+      - type: rewrite
+        source: /verify-email
+        destination: /pages/verify-email/index.html
       - type: rewrite
         source: /pass/*
         destination: /pages/pass/index.html

@@ -13,6 +13,7 @@ final class PublicEndpointRequestMatchers {
             "/auth/refresh",
             "/auth/logout",
             "/auth/forgot-password",
+            "/auth/resend-verification",
             "/auth/verify-otp",
             "/auth/reset-password",
             "/api/auth/login",
@@ -20,6 +21,7 @@ final class PublicEndpointRequestMatchers {
             "/api/auth/refresh",
             "/api/auth/logout",
             "/api/auth/forgot-password",
+            "/api/auth/resend-verification",
             "/api/auth/verify-otp",
             "/api/auth/reset-password",
             "/api/v1/auth/login",
@@ -27,6 +29,7 @@ final class PublicEndpointRequestMatchers {
             "/api/v1/auth/refresh",
             "/api/v1/auth/logout",
             "/api/v1/auth/forgot-password",
+            "/api/v1/auth/resend-verification",
             "/api/v1/auth/verify-otp",
             "/api/v1/auth/reset-password"
     );
@@ -39,6 +42,9 @@ final class PublicEndpointRequestMatchers {
             "/api/v1/public/passes/**",
             "/public/passes/**",
             "/api/v1/homepage",
+            "/api/v1/auth/verify-email",
+            "/api/auth/verify-email",
+            "/auth/verify-email",
             "/api/versions",
             "/actuator/health/**",
             "/actuator/info",

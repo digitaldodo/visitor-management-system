@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AccessFlow visitor email verification." />
+    <title>AccessFlow | Verify Email</title>
+    <link rel="icon" href="../../assets/branding/favicon.ico" sizes="any" />
+    <link rel="stylesheet" href="../../css/shared/auth.css" />
+  </head>
+  <body>
+    <main class="auth-layout auth-layout--compact">
+      <section class="auth-copy" aria-label="AccessFlow visitor security">
+        <div class="auth-copy__inner">
+          <a class="auth-copy__brand logo-link" href="../../index.html" aria-label="AccessFlow home">
+            <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
+          </a>
+          <div class="auth-copy__headline">
+            <p class="eyebrow">Visitor access</p>
+            <h1>Verify your email to activate AccessFlow.</h1>
+            <p>We only require this during visitor account creation so fake signups stay blocked while real guests get a smooth activation flow.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-card" aria-label="Email verification">
+        <div class="auth-form">
+          <div class="auth-form__header">
+            <p class="eyebrow">Visitor verification</p>
+            <h2>Activate your account</h2>
+            <p>Use the verification link from your inbox. If the link expired, request a fresh one here.</p>
+          </div>
+
+          <div class="verification-state verification-state--processing" id="verification-state" aria-live="polite">
+            <div class="verification-status">
+              <span class="verification-status__badge">Checking</span>
+              <strong>Preparing your verification flow.</strong>
+            </div>
+            <p>AccessFlow is checking the verification link and loading resend options.</p>
+          </div>
+
+          <form class="auth-form" id="verification-resend-form" novalidate>
+            <label class="form-field">
+              <span>Email or username</span>
+              <input name="identifier" type="text" autocomplete="username email" placeholder="name@example.com or visitor01" required />
+            </label>
+            <div class="verification-meta" id="verification-meta"></div>
+            <div class="verification-actions">
+              <button class="button button--primary auth-submit" type="submit">Resend verification email</button>
+              <a class="link-button link-button--anchor" href="../../index.html">Back to sign in</a>
+            </div>
+            <p class="verification-caption">Accounts stay inactive until the email address is verified.</p>
+          </form>
+        </div>
+        <footer class="auth-footer">AccessFlow · Visitor account verification</footer>
+      </section>
+    </main>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <script src="../../assets/js/env.js"></script>
+    <script src="../../assets/js/boot.js"></script>
+    <script type="module" src="../../js/emailVerification.js"></script>
+  </body>
+</html>

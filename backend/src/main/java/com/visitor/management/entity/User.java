@@ -76,6 +76,17 @@ public class User {
 
     private String phoneCountryCode;
 
+    private Boolean emailVerified;
+
+    @Indexed(sparse = true)
+    private String emailVerificationTokenHash;
+
+    private Instant emailVerificationExpiresAt;
+
+    private Instant emailVerificationSentAt;
+
+    private Instant emailVerifiedAt;
+
     @Indexed
     private String organizationId;
 
@@ -332,6 +343,46 @@ public class User {
 
     public void setPhoneCountryCode(String phoneCountryCode) {
         this.phoneCountryCode = phoneCountryCode;
+    }
+
+    public Boolean getEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(Boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getEmailVerificationTokenHash() {
+        return emailVerificationTokenHash;
+    }
+
+    public void setEmailVerificationTokenHash(String emailVerificationTokenHash) {
+        this.emailVerificationTokenHash = emailVerificationTokenHash;
+    }
+
+    public Instant getEmailVerificationExpiresAt() {
+        return emailVerificationExpiresAt;
+    }
+
+    public void setEmailVerificationExpiresAt(Instant emailVerificationExpiresAt) {
+        this.emailVerificationExpiresAt = emailVerificationExpiresAt;
+    }
+
+    public Instant getEmailVerificationSentAt() {
+        return emailVerificationSentAt;
+    }
+
+    public void setEmailVerificationSentAt(Instant emailVerificationSentAt) {
+        this.emailVerificationSentAt = emailVerificationSentAt;
+    }
+
+    public Instant getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(Instant emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
     }
 
     public String getOrganizationId() {

@@ -49,6 +49,33 @@ public class AccessAuditService {
                 "Public visitor registration completed.");
     }
 
+    public void recordVisitorVerificationEmailSent(User user, boolean resend) {
+        record(user,
+                resend ? "VISITOR_VERIFICATION_EMAIL_RESENT" : "VISITOR_VERIFICATION_EMAIL_SENT",
+                "USER_ACCOUNT",
+                user.getId(),
+                user.getFullName(),
+                "SUCCESS",
+                resend
+                        ? "A new visitor verification link was issued after resend."
+                        : "A visitor verification link was issued after self-registration.");
+    }
+
+    public void recordVisitorEmailVerified(User user) {
+        record(user, "VISITOR_EMAIL_VERIFIED", "USER_ACCOUNT", user.getId(), user.getFullName(), "SUCCESS",
+                "Visitor email verification completed and account activated.");
+    }
+
+    public void recordVisitorVerificationFailure(String identifier, String outcome, String detail) {
+        AccessAuditLog log = new AccessAuditLog();
+        log.setActorName(normalize(identifier, "unknown"));
+        log.setAction("VISITOR_EMAIL_VERIFICATION");
+        log.setTargetType("USER_ACCOUNT");
+        log.setOutcome(outcome);
+        log.setDetails(detail);
+        accessAuditLogRepository.save(log);
+    }
+
     public void recordAccountCreated(User actor, User createdUser) {
         record(actor, createdUser.getOrganizationId(), createdUser.getOrganizationName(), createdUser.getOrganizationCode(),
                 "ACCOUNT_CREATED", "USER_ACCOUNT", createdUser.getId(), createdUser.getFullName(), "SUCCESS",

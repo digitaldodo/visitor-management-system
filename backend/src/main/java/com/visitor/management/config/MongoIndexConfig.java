@@ -4,6 +4,7 @@ import com.visitor.management.entity.Notification;
 import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.EmployeeAttendanceLog;
 import com.visitor.management.entity.SuperAdminCreationOtp;
+import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorAuditLog;
 import org.slf4j.Logger;
@@ -78,6 +79,14 @@ public class MongoIndexConfig {
                         .on("expiresAt", Sort.Direction.ASC)
                         .expire(Duration.ZERO)
                         .named("super_admin_creation_otp_ttl_idx"));
+                mongoTemplate.indexOps(User.class).createIndex(new Index()
+                        .on("emailVerificationTokenHash", Sort.Direction.ASC)
+                        .sparse()
+                        .named("user_email_verification_token_idx"));
+                mongoTemplate.indexOps(User.class).createIndex(new Index()
+                        .on("roles", Sort.Direction.ASC)
+                        .on("accountStatus", Sort.Direction.ASC)
+                        .named("user_roles_account_status_idx"));
                 log.info("AccessFlow MongoDB indexes verified.");
             } catch (RuntimeException ex) {
                 log.warn("AccessFlow MongoDB indexes could not be verified during startup: {}", ex.getMessage());
