@@ -9,6 +9,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { AppTextField } from '../../components/form/AppTextField';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import type { LoginPayload, WorkspaceAudience } from '../../types/auth';
 
@@ -29,6 +30,7 @@ const audienceOptions: Array<{ value: WorkspaceAudience; label: string; descript
 
 export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
+  const layout = useResponsiveLayout();
   const [submitError, setSubmitError] = useState<string | null>(lastError);
 
   const {
@@ -62,87 +64,92 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <View style={styles.container}>
-          <View style={styles.hero}>
+        <View style={[styles.container, { paddingHorizontal: layout.contentPadding }]}>
+          <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null]}>
+            <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
             <Text style={styles.eyebrow}>AccessFlow Mobile</Text>
             <Text style={styles.title}>Operational access on Android-first field devices</Text>
             <Text style={styles.subtitle}>
               This mobile client keeps backend policy, JWT rules, and role authorization server-side. Sign in to the
               workspace you operate from most often.
             </Text>
-          </View>
-
-          <SurfaceCard title="Secure sign-in" subtitle="Choose the operational workspace, then authenticate against the live AccessFlow backend.">
-            <View style={styles.audienceRow}>
-              {audienceOptions.map((option) => {
-                const selected = selectedAudience === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setValue('audience', option.value, { shouldValidate: true })}
-                    style={[styles.audienceChip, selected ? styles.audienceChipSelected : null]}
-                  >
-                    <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{option.label}</Text>
-                    <Text style={[styles.audienceDescription, selected ? styles.audienceDescriptionSelected : null]}>
-                      {option.description}
-                    </Text>
-                  </Pressable>
-                );
-              })}
             </View>
 
-            <Controller
-              control={control}
-              name="identifier"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                  label="Username or email"
-                  onChangeText={onChange}
-                  value={value}
-                  errorText={errors.identifier?.message}
-                />
-              )}
-            />
+            <SurfaceCard
+              title="Secure sign-in"
+              subtitle="Choose the operational workspace, then authenticate against the live AccessFlow backend."
+            >
+              <View style={styles.audienceRow}>
+                {audienceOptions.map((option) => {
+                  const selected = selectedAudience === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setValue('audience', option.value, { shouldValidate: true })}
+                      style={[styles.audienceChip, selected ? styles.audienceChipSelected : null]}
+                    >
+                      <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{option.label}</Text>
+                      <Text style={[styles.audienceDescription, selected ? styles.audienceDescriptionSelected : null]}>
+                        {option.description}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-            <Controller
-              control={control}
-              name="companyCode"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  label="Organization code"
-                  helperText="Required for organization-scoped security, employee, and most admin accounts."
-                  onChangeText={onChange}
-                  value={value}
-                  errorText={errors.companyCode?.message}
-                />
-              )}
-            />
+              <Controller
+                control={control}
+                name="identifier"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    label="Username or email"
+                    onChangeText={onChange}
+                    value={value}
+                    errorText={errors.identifier?.message}
+                  />
+                )}
+              />
 
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, value } }) => (
-                <AppTextField
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  label="Password"
-                  onChangeText={onChange}
-                  secureTextEntry
-                  value={value}
-                  errorText={errors.password?.message}
-                />
-              )}
-            />
+              <Controller
+                control={control}
+                name="companyCode"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    label="Organization code"
+                    helperText="Required for organization-scoped security, employee, and most admin accounts."
+                    onChangeText={onChange}
+                    value={value}
+                    errorText={errors.companyCode?.message}
+                  />
+                )}
+              />
 
-            {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, value } }) => (
+                  <AppTextField
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    label="Password"
+                    onChangeText={onChange}
+                    secureTextEntry
+                    value={value}
+                    errorText={errors.password?.message}
+                  />
+                )}
+              />
 
-            <PrimaryButton label="Continue to workspace" onPress={() => void onSubmit()} loading={isBusy} />
-          </SurfaceCard>
+              {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
+
+              <PrimaryButton label="Continue to workspace" onPress={() => void onSubmit()} loading={isBusy} />
+            </SurfaceCard>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -160,11 +167,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+  },
+  frame: {
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
     gap: theme.spacing.xl,
-    padding: theme.spacing.lg,
+  },
+  frameWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   hero: {
     gap: theme.spacing.sm,
+  },
+  heroWide: {
+    flex: 1,
+    paddingRight: theme.spacing.lg,
   },
   eyebrow: {
     color: theme.colors.primary,
@@ -175,7 +194,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '800',
   },
   subtitle: {

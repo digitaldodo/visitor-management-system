@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { AuthSession } from '../types/auth';
-import type { RuntimeSnapshot } from '../types/runtime';
+import type { RuntimeSnapshot, SessionLockState } from '../types/runtime';
 import { readSecureJson, removeSecureValue, writeSecureJson } from './secureStore';
 
 const SESSION_KEY = 'accessflow.mobile.session';
 const RUNTIME_KEY = 'accessflow.mobile.runtime';
 const DEVICE_ID_KEY = 'accessflow.mobile.device-id';
+const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
 export async function readPersistedSession() {
   return readSecureJson<AuthSession>(SESSION_KEY);
@@ -29,6 +30,7 @@ export async function readRuntimeSnapshot() {
   try {
     return JSON.parse(rawValue) as RuntimeSnapshot;
   } catch {
+    await AsyncStorage.removeItem(RUNTIME_KEY);
     return null;
   }
 }
@@ -39,6 +41,28 @@ export async function writeRuntimeSnapshot(snapshot: RuntimeSnapshot) {
 
 export async function clearRuntimeSnapshot() {
   await AsyncStorage.removeItem(RUNTIME_KEY);
+}
+
+export async function readSessionLockState() {
+  const rawValue = await AsyncStorage.getItem(SESSION_LOCK_KEY);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue) as SessionLockState;
+  } catch {
+    await AsyncStorage.removeItem(SESSION_LOCK_KEY);
+    return null;
+  }
+}
+
+export async function writeSessionLockState(lockState: SessionLockState) {
+  await AsyncStorage.setItem(SESSION_LOCK_KEY, JSON.stringify(lockState));
+}
+
+export async function clearSessionLockState() {
+  await AsyncStorage.removeItem(SESSION_LOCK_KEY);
 }
 
 export async function readOrCreateDeviceId() {

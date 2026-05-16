@@ -6,13 +6,15 @@ import axios, {
 } from 'axios';
 
 import { apiConfig } from './apiConfig';
-import { normalizeApiError } from './error';
+import { createAppError, createPayloadError, normalizeApiError } from './error';
+import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import type { AppError } from '../types/api';
 import type { AuthResponseDto, AuthSession } from '../types/auth';
 import type { ApiEnvelope } from '../types/api';
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _authRetry?: boolean;
-  _networkRetry?: boolean;
+  _networkRetryCount?: number;
 };
 
 type SessionProvider = () => AuthSession | null;
@@ -53,12 +55,22 @@ privateApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const session = getSession();
   if (session?.accessToken) {
     config.headers.Authorization = `${session.tokenType || 'Bearer'} ${session.accessToken}`;
+    config.headers['X-AccessFlow-Role'] = session.user.activeRole;
   }
+  config.headers['X-AccessFlow-App-Version'] = apiConfig.appVersion;
+  config.headers['X-AccessFlow-Build-Id'] = apiConfig.buildId;
+  config.headers['X-AccessFlow-Environment'] = apiConfig.environment;
   return config;
 });
 
 privateApi.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.status >= 200 && response.status < 300 && response.data === undefined) {
+      throw createPayloadError('AccessFlow received an empty response from the backend.');
+    }
+
+    return response;
+  },
   async (error: AxiosError) => {
     const config = error.config as RetryableRequestConfig | undefined;
 
@@ -77,12 +89,14 @@ privateApi.interceptors.response.use(
     }
 
     if (config && shouldRetryRequest(error, config)) {
-      config._networkRetry = true;
-      await delay(350);
+      config._networkRetryCount = (config._networkRetryCount ?? 0) + 1;
+      await delay(350 * config._networkRetryCount);
       return privateApi(config);
     }
 
-    return Promise.reject(normalizeApiError(error));
+    const normalized = normalizeApiError(error);
+    await captureApiDiagnostic(normalized, config);
+    return Promise.reject(normalized);
   },
 );
 
@@ -98,7 +112,12 @@ function shouldRefreshToken(error: AxiosError, config?: RetryableRequestConfig) 
 }
 
 function shouldRetryRequest(error: AxiosError, config?: RetryableRequestConfig) {
-  if (!config || config._networkRetry) {
+  if (!config) {
+    return false;
+  }
+
+  const retryCount = config._networkRetryCount ?? 0;
+  if (retryCount >= 2) {
     return false;
   }
 
@@ -152,13 +171,28 @@ async function executeRefresh() {
 
 export function assertApiConfigured() {
   if (!apiConfig.isConfigured) {
-    throw new Error('EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL is missing or invalid.');
+    throw createAppError({
+      kind: 'config',
+      message: 'EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL is missing or invalid.',
+      recoverable: false,
+    });
   }
 }
 
 export function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
+  if (payload === null || payload === undefined) {
+    throw createPayloadError();
+  }
+
   if (payload && typeof payload === 'object' && 'data' in (payload as ApiEnvelope<T>)) {
-    return (payload as ApiEnvelope<T>).data;
+    const envelope = payload as Partial<ApiEnvelope<T>>;
+    if (envelope.success === false) {
+      throw createPayloadError(envelope.message || 'The backend reported an unsuccessful response.');
+    }
+    if (!('data' in envelope)) {
+      throw createPayloadError();
+    }
+    return envelope.data as T;
   }
   return payload as T;
 }
@@ -178,5 +212,31 @@ export async function publicRequest<T>(config: AxiosRequestConfig) {
 function delay(durationMs: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs);
+  });
+}
+
+async function captureApiDiagnostic(error: AppError, config?: RetryableRequestConfig) {
+  const shouldRecord = error.kind === 'network'
+    || error.kind === 'payload'
+    || error.kind === 'version'
+    || error.kind === 'config'
+    || error.status === 429
+    || Boolean(error.status && error.status >= 500);
+
+  if (!shouldRecord) {
+    return;
+  }
+
+  await recordDiagnosticEvent({
+    level: error.kind === 'network' || error.kind === 'payload' ? 'warn' : 'error',
+    scope: 'api',
+    code: error.kind === 'payload' ? 'INVALID_API_PAYLOAD' : 'API_REQUEST_FAILED',
+    message: error.message,
+    context: {
+      method: String(config?.method || 'GET').toUpperCase(),
+      path: String(config?.url || ''),
+      status: error.status ?? null,
+      retryCount: config?._networkRetryCount ?? 0,
+    },
   });
 }

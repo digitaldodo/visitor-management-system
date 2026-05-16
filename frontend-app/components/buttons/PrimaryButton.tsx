@@ -31,8 +31,10 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
 
   return (
     <Pressable
+      accessibilityLabel={label}
       accessibilityRole="button"
       disabled={disabled || loading}
+      hitSlop={4}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
@@ -57,7 +59,7 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 52,
+    minHeight: 56,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: theme.radii.md,

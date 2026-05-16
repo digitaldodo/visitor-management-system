@@ -4,7 +4,25 @@ import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider'
 import { theme } from '../../theme';
 
 export function RuntimeBanner() {
-  const { degradedMessage, runtimeUpdateAvailable, pushPermissionStatus } = useOperationalRuntime();
+  const { degradedMessage, runtimeUpdateAvailable, pushPermissionStatus, runtimeHealth } = useOperationalRuntime();
+
+  if (runtimeHealth === 'locked') {
+    return (
+      <View style={[styles.banner, styles.warning]}>
+        <Text style={styles.title}>Workspace locked</Text>
+        <Text style={styles.body}>The session is paused after inactivity. Resume the workspace from the lock screen to continue.</Text>
+      </View>
+    );
+  }
+
+  if (runtimeHealth === 'update-required') {
+    return (
+      <View style={[styles.banner, styles.danger]}>
+        <Text style={styles.title}>Update required</Text>
+        <Text style={styles.body}>This mobile build is below the backend support floor. Update AccessFlow before continuing operations.</Text>
+      </View>
+    );
+  }
 
   if (!degradedMessage && !runtimeUpdateAvailable && pushPermissionStatus !== 'DENIED') {
     return null;

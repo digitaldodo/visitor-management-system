@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useAuth } from '../auth/AuthProvider';
+import { getWorkspaceConfig } from '../auth/workspaceConfig';
 import { navigationRef } from './navigationRef';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -29,6 +30,9 @@ const AdminStack = createNativeStackNavigator();
 
 export function RootNavigator() {
   const auth = useAuth();
+  const workspaceConfig = auth.status === 'authenticated'
+    ? getWorkspaceConfig(auth.session.user.activeRole)
+    : null;
 
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme}>
@@ -39,10 +43,15 @@ export function RootNavigator() {
       ) : auth.status === 'signed-out' ? (
         <AuthNavigator />
       ) : (
-        <RootStack.Navigator screenOptions={{ headerShown: false }}>
-          {auth.session.user.activeRole === 'SECURITY_GUARD' ? (
+        <RootStack.Navigator
+          screenOptions={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        >
+          {workspaceConfig?.navigator === 'SecurityTabs' ? (
             <RootStack.Screen name="SecurityTabs" component={SecurityNavigator} />
-          ) : auth.session.user.activeRole === 'EMPLOYEE' ? (
+          ) : workspaceConfig?.navigator === 'EmployeeTabs' ? (
             <RootStack.Screen name="EmployeeTabs" component={EmployeeNavigator} />
           ) : (
             <RootStack.Screen name="AdminStack" component={AdminNavigator} />
@@ -63,7 +72,7 @@ function AuthNavigator() {
 
 function SecurityNavigator() {
   return (
-    <SecurityTabs.Navigator screenOptions={tabScreenOptions}>
+    <SecurityTabs.Navigator backBehavior="history" screenOptions={tabScreenOptions}>
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
       <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />
@@ -75,7 +84,7 @@ function SecurityNavigator() {
 
 function EmployeeNavigator() {
   return (
-    <EmployeeTabs.Navigator screenOptions={tabScreenOptions}>
+    <EmployeeTabs.Navigator backBehavior="history" screenOptions={tabScreenOptions}>
       <EmployeeTabs.Screen name="Badge" component={BadgeScreen} />
       <EmployeeTabs.Screen name="Requests" component={RequestsScreen} />
       <EmployeeTabs.Screen name="Presence" component={PresenceScreen} />
@@ -95,11 +104,12 @@ function AdminNavigator() {
 
 const tabScreenOptions = ({ route }: { route: { name: string } }) => ({
   headerShown: false,
+  lazy: true,
   tabBarActiveTintColor: theme.colors.primary,
   tabBarInactiveTintColor: theme.colors.textMuted,
   tabBarStyle: {
-    height: 72,
-    paddingTop: 6,
+    height: 76,
+    paddingTop: 8,
     paddingBottom: 8,
     backgroundColor: theme.colors.surface,
     borderTopColor: theme.colors.border,

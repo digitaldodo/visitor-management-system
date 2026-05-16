@@ -1,5 +1,7 @@
-import * as Application from 'expo-application';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
+import * as ScreenCapture from 'expo-screen-capture';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
@@ -15,8 +17,10 @@ import {
 } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
+import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
-import { navigateToWorkspace } from '../navigation/navigationRef';
+import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
+import { recordDiagnosticEvent } from './diagnostics';
 import { approveEmployeeVisitor, rejectEmployeeVisitor } from '../services/employeeService';
 import {
   markNotificationRead,
@@ -24,8 +28,14 @@ import {
   unregisterNotificationDevice,
 } from '../services/notificationService';
 import { getApiVersions, getHealthStatus } from '../services/systemService';
-import { readOrCreateDeviceId } from '../storage/sessionStorage';
+import {
+  clearSessionLockState,
+  readOrCreateDeviceId,
+  readSessionLockState,
+  writeSessionLockState,
+} from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
+import type { SessionLockReason, SessionLockState } from '../types/runtime';
 
 type OperationalRuntimeContextValue = {
   degradedMessage: string | null;
@@ -33,9 +43,13 @@ type OperationalRuntimeContextValue = {
   pushPermissionStatus: string;
   pushToken: string | null;
   localNotifications: NotificationRecord[];
+  runtimeHealth: 'healthy' | 'degraded' | 'locked' | 'update-required';
+  sessionLock: SessionLockState;
+  isUnlocking: boolean;
   markLocalNotificationRead: (notificationId: string) => void;
   requestPushRegistration: () => Promise<void>;
   syncNow: () => Promise<void>;
+  unlockSession: () => Promise<void>;
 };
 
 const OperationalRuntimeContext = createContext<OperationalRuntimeContextValue | null>(null);
@@ -50,6 +64,16 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const defaultLockState: SessionLockState = {
+  isLocked: false,
+  reason: null,
+  lockedAt: null,
+  inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
+  biometricAvailable: false,
+  biometricEnabled: apiConfig.security.requireBiometricUnlock,
+  screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
+};
+
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -57,6 +81,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const lastApiVersionRef = useRef<string | null>(null);
   const handledResponsesRef = useRef<Set<string>>(new Set());
   const previousAuthStatusRef = useRef(auth.status);
+  const backgroundedAtRef = useRef<number | null>(null);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null }>({
     deviceId: null,
     expoPushToken: null,
@@ -67,6 +93,52 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [degradedMessage, setDegradedMessage] = useState<string | null>(null);
   const [runtimeUpdateAvailable, setRuntimeUpdateAvailable] = useState(false);
   const [localNotifications, setLocalNotifications] = useState<NotificationRecord[]>([]);
+  const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+
+  const persistLockState = useCallback(async (nextState: SessionLockState) => {
+    setSessionLock(nextState);
+    await writeSessionLockState(nextState).catch(() => undefined);
+  }, []);
+
+  const releaseSessionLock = useCallback(async () => {
+    const nextState = {
+      ...sessionLock,
+      isLocked: false,
+      reason: null,
+      lockedAt: null,
+    } satisfies SessionLockState;
+    await persistLockState(nextState);
+  }, [persistLockState, sessionLock]);
+
+  const applySessionLock = useCallback(
+    async (reason: SessionLockReason) => {
+      if (auth.status !== 'authenticated') {
+        return;
+      }
+
+      await recordDiagnosticEvent({
+        level: reason === 'update-required' ? 'error' : 'warn',
+        scope: 'security',
+        code: 'SESSION_LOCKED',
+        message: reason === 'update-required'
+          ? 'The mobile runtime requires an app update before the workspace can resume.'
+          : 'The mobile workspace was locked after inactivity and requires a safe resume.',
+        context: {
+          role: auth.session.user.activeRole,
+          reason,
+        },
+      });
+
+      await persistLockState({
+        ...sessionLock,
+        isLocked: true,
+        reason,
+        lockedAt: new Date().toISOString(),
+      });
+    },
+    [auth, persistLockState, sessionLock],
+  );
 
   const markLocalNotificationRead = useCallback((notificationId: string) => {
     setLocalNotifications((current) =>
@@ -99,11 +171,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
-    const rolePrefix = auth.session.user.activeRole === 'SECURITY_GUARD'
-      ? 'security'
-      : auth.session.user.activeRole === 'EMPLOYEE'
-        ? 'employee'
-        : 'admin';
+    const rolePrefix = getWorkspaceConfig(auth.session.user.activeRole).audience;
 
     await Promise.all([
       queryClient.invalidateQueries({
@@ -126,50 +194,81 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
-    const deviceId = await readOrCreateDeviceId();
-    deviceRegistrationRef.current.deviceId = deviceId;
+    try {
+      const deviceId = await readOrCreateDeviceId();
+      deviceRegistrationRef.current.deviceId = deviceId;
 
-    let permissions = await Notifications.getPermissionsAsync();
-    if (permissions.status !== 'granted') {
-      permissions = await Notifications.requestPermissionsAsync();
-    }
+      let permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status !== 'granted') {
+        permissions = await Notifications.requestPermissionsAsync();
+      }
 
-    const nextStatus = String(permissions.status || 'unknown').toUpperCase();
-    setPushPermissionStatus(nextStatus);
+      const nextStatus = String(permissions.status || 'unknown').toUpperCase();
+      setPushPermissionStatus(nextStatus);
 
-    if (nextStatus !== 'GRANTED' || !apiConfig.expoProjectId) {
+      if (nextStatus !== 'GRANTED' || !apiConfig.expoProjectId) {
+        await registerNotificationDevice({
+          deviceId,
+          platform: Platform.OS,
+          appVersion: apiConfig.appVersion,
+          runtimeVersion: apiConfig.runtimeVersion,
+          projectId: apiConfig.expoProjectId || null,
+          permissionStatus: nextStatus,
+        });
+        return;
+      }
+
+      const tokenResponse = await Notifications.getExpoPushTokenAsync({
+        projectId: apiConfig.expoProjectId,
+      });
+      const nextPushToken = tokenResponse.data;
+      deviceRegistrationRef.current.expoPushToken = nextPushToken;
+      setPushToken(nextPushToken);
+
       await registerNotificationDevice({
+        expoPushToken: nextPushToken,
         deviceId,
+        deviceName: Constants.deviceName ?? Application.applicationName ?? 'Android device',
         platform: Platform.OS,
         appVersion: apiConfig.appVersion,
         runtimeVersion: apiConfig.runtimeVersion,
-        projectId: apiConfig.expoProjectId || null,
+        projectId: apiConfig.expoProjectId,
         permissionStatus: nextStatus,
-      }).catch(() => undefined);
-      return;
+      });
+    } catch (error) {
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'notification',
+        code: 'DEVICE_REGISTRATION_FAILED',
+        message: error instanceof Error ? error.message : 'Push registration failed.',
+        context: {
+          role: auth.session.user.activeRole,
+        },
+      });
     }
-
-    const tokenResponse = await Notifications.getExpoPushTokenAsync({
-      projectId: apiConfig.expoProjectId,
-    });
-    const nextPushToken = tokenResponse.data;
-    deviceRegistrationRef.current.expoPushToken = nextPushToken;
-    setPushToken(nextPushToken);
-
-    await registerNotificationDevice({
-      expoPushToken: nextPushToken,
-      deviceId,
-      deviceName: Constants.deviceName ?? Application.applicationName ?? 'Android device',
-      platform: Platform.OS,
-      appVersion: apiConfig.appVersion,
-      runtimeVersion: apiConfig.runtimeVersion,
-      projectId: apiConfig.expoProjectId,
-      permissionStatus: nextStatus,
-    }).catch(() => undefined);
-  }, [auth.status]);
+  }, [auth.status, auth.session]);
 
   const handleNotificationRoute = useCallback(
     (type?: string | null) => {
+      if (auth.status !== 'authenticated') {
+        return;
+      }
+
+      const role = auth.session.user.activeRole;
+      if (!isNotificationAllowedForRole(role, type)) {
+        void recordDiagnosticEvent({
+          level: 'warn',
+          scope: 'notification',
+          code: 'ROLE_SCOPED_NOTIFICATION_SKIPPED',
+          message: 'A notification outside the active workspace scope was ignored.',
+          context: {
+            role,
+            type: type ?? null,
+          },
+        });
+        return;
+      }
+
       switch (String(type || '').toUpperCase()) {
         case 'VISITOR_APPROVAL_REQUEST':
           navigateToWorkspace('employee-requests');
@@ -186,16 +285,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           navigateToWorkspace('admin-operations');
           return;
         default:
-          if (auth.status !== 'authenticated') {
-            return;
-          }
-          if (auth.session.user.activeRole === 'EMPLOYEE') {
-            navigateToWorkspace('employee-notifications');
-          } else if (auth.session.user.activeRole === 'SECURITY_GUARD') {
-            navigateToWorkspace('security-alerts');
-          } else {
-            navigateToWorkspace('admin-operations');
-          }
+          navigateToWorkspace(getWorkspaceConfig(role).notificationTarget);
       }
     },
     [auth],
@@ -217,14 +307,22 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await markNotificationRead(notificationId).catch(() => undefined);
     }
 
-    if (actionIdentifier === 'approve' && auth.status === 'authenticated' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    if (!isNotificationAllowedForRole(auth.session.user.activeRole, data.type)) {
+      return;
+    }
+
+    if (actionIdentifier === 'approve' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
       await approveEmployeeVisitor(visitorId).catch(() => undefined);
       await invalidateRoleQueries();
       navigateToWorkspace('employee-requests');
       return;
     }
 
-    if (actionIdentifier === 'reject' && auth.status === 'authenticated' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
+    if (actionIdentifier === 'reject' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
       await rejectEmployeeVisitor(visitorId, { note: 'Rejected from mobile notification context.' }).catch(() => undefined);
       await invalidateRoleQueries();
       navigateToWorkspace('employee-requests');
@@ -233,14 +331,25 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     await invalidateRoleQueries();
     handleNotificationRoute(data.type);
-  }, [auth.status, auth.session, handleNotificationRoute, invalidateRoleQueries]);
+  }, [auth, handleNotificationRoute, invalidateRoleQueries]);
 
   const probeRuntime = useCallback(async () => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
     try {
       const [health, versions] = await Promise.all([getHealthStatus(), getApiVersions()]);
       setDegradedMessage(null);
 
-      if (lastApiVersionRef.current && lastApiVersionRef.current !== versions.current) {
+      const recommendedUpdate =
+        versions.recommendedAppVersion
+        && compareVersionStrings(apiConfig.appVersion, versions.recommendedAppVersion) < 0;
+      const requiredRuntimeUpdate =
+        versions.minimumRuntimeVersion
+        && compareVersionStrings(apiConfig.runtimeVersion, versions.minimumRuntimeVersion) < 0;
+
+      if ((lastApiVersionRef.current && lastApiVersionRef.current !== versions.current) || recommendedUpdate) {
         setRuntimeUpdateAvailable(true);
         upsertSystemNotification({
           id: `runtime-update-${versions.current}`,
@@ -248,18 +357,22 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           category: 'SYSTEM',
           priority: 'HIGH',
           title: 'Runtime update available',
-          message: `A newer backend runtime (${versions.current}) is available. The app will keep resyncing safely.`,
+          message: `A newer backend runtime (${versions.current}) is available. Resync the device or update the app when your operations window allows.`,
           read: false,
           createdAt: new Date().toISOString(),
           source: 'local',
         });
       }
 
+      if (requiredRuntimeUpdate) {
+        await applySessionLock('update-required');
+      }
+
       lastApiVersionRef.current = versions.current;
       if (!health.status || String(health.status).toUpperCase() !== 'UP') {
         throw new Error('The backend health check reported a degraded state.');
       }
-    } catch {
+    } catch (error) {
       setDegradedMessage('Operational sync is running in degraded mode. Data may be briefly stale while the app retries.');
       upsertSystemNotification({
         id: 'system-connectivity',
@@ -272,12 +385,105 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         createdAt: new Date().toISOString(),
         source: 'local',
       });
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'runtime',
+        code: 'RUNTIME_SYNC_DEGRADED',
+        message: error instanceof Error ? error.message : 'Runtime sync degraded.',
+        context: {
+          role: auth.status === 'authenticated' ? auth.session.user.activeRole : 'signed-out',
+        },
+      });
     }
-  }, [upsertSystemNotification]);
+  }, [applySessionLock, auth, upsertSystemNotification]);
 
   const syncNow = useCallback(async () => {
-    await Promise.all([invalidateRoleQueries(), probeRuntime()]);
-  }, [invalidateRoleQueries, probeRuntime]);
+    if (auth.status !== 'authenticated' || sessionLock.isLocked) {
+      return;
+    }
+
+    if (!syncPromiseRef.current) {
+      syncPromiseRef.current = (async () => {
+        try {
+          await Promise.all([invalidateRoleQueries(), probeRuntime()]);
+        } finally {
+          syncPromiseRef.current = null;
+        }
+      })();
+    }
+
+    await syncPromiseRef.current;
+  }, [auth.status, invalidateRoleQueries, probeRuntime, sessionLock.isLocked]);
+
+  const unlockSession = useCallback(async () => {
+    if (auth.status !== 'authenticated' || !sessionLock.isLocked) {
+      return;
+    }
+
+    setIsUnlocking(true);
+    try {
+      if (sessionLock.biometricEnabled && sessionLock.biometricAvailable) {
+        const biometricResult = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Unlock AccessFlow',
+          fallbackLabel: 'Use device unlock',
+          disableDeviceFallback: false,
+        });
+
+        if (!biometricResult.success) {
+          await recordDiagnosticEvent({
+            level: 'warn',
+            scope: 'security',
+            code: 'BIOMETRIC_UNLOCK_CANCELLED',
+            message: 'The operator did not complete biometric unlock.',
+            context: {
+              warning: biometricResult.warning ?? null,
+            },
+          });
+          return;
+        }
+      }
+
+      await auth.refreshSession();
+      await releaseSessionLock();
+      resetNavigationToRoleHome(auth.session.user.activeRole);
+      await syncNow();
+    } finally {
+      setIsUnlocking(false);
+    }
+  }, [auth, releaseSessionLock, sessionLock, syncNow]);
+
+  useEffect(() => {
+    void (async () => {
+      const [hasHardware, isEnrolled, persistedLockState] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync().catch(() => false),
+        LocalAuthentication.isEnrolledAsync().catch(() => false),
+        readSessionLockState().catch(() => null),
+      ]);
+
+      const nextState = {
+        ...(persistedLockState ?? defaultLockState),
+        inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
+        biometricEnabled: apiConfig.security.requireBiometricUnlock,
+        biometricAvailable: hasHardware && isEnrolled,
+        screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
+      } satisfies SessionLockState;
+
+      setSessionLock(nextState);
+    })().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!apiConfig.security.screenshotProtectionEnabled) {
+      return;
+    }
+
+    if (auth.status === 'authenticated') {
+      void ScreenCapture.preventScreenCaptureAsync().catch(() => undefined);
+      return;
+    }
+
+    void ScreenCapture.allowScreenCaptureAsync().catch(() => undefined);
+  }, [auth.status]);
 
   useEffect(() => {
     void (async () => {
@@ -308,7 +514,19 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     if (auth.status === 'authenticated') {
       void registerCurrentDevice();
       void probeRuntime();
+      return;
     }
+
+    setPushToken(null);
+    setRuntimeUpdateAvailable(false);
+    setDegradedMessage(null);
+    void clearSessionLockState().catch(() => undefined);
+    setSessionLock((current) => ({
+      ...current,
+      isLocked: false,
+      reason: null,
+      lockedAt: null,
+    }));
   }, [auth.status, probeRuntime, registerCurrentDevice]);
 
   useEffect(() => {
@@ -360,19 +578,35 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
       appStateRef.current = nextState;
-      if (nextState === 'active' && auth.status === 'authenticated') {
-        void syncNow();
+
+      if (nextState === 'background' || nextState === 'inactive') {
+        backgroundedAtRef.current = Date.now();
+      }
+
+      if (nextState === 'active' && previousState !== 'active' && auth.status === 'authenticated') {
+        const elapsedMs = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
+        backgroundedAtRef.current = null;
+
+        if (elapsedMs >= apiConfig.security.inactivityLockMs) {
+          void applySessionLock('inactive');
+          return;
+        }
+
+        if (!sessionLock.isLocked) {
+          void syncNow();
+        }
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [auth.status, syncNow]);
+  }, [applySessionLock, auth.status, sessionLock.isLocked, syncNow]);
 
   useEffect(() => {
-    if (auth.status !== 'authenticated') {
+    if (auth.status !== 'authenticated' || sessionLock.isLocked) {
       return;
     }
 
@@ -391,7 +625,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       clearInterval(intervalId);
     };
-  }, [auth.status, auth.session, syncNow]);
+  }, [auth.status, auth.session, sessionLock.isLocked, syncNow]);
 
   useEffect(() => {
     if (
@@ -415,17 +649,24 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [auth.lastError, auth.status, upsertSystemNotification]);
 
   useEffect(() => {
-    if (auth.status === 'authenticated') {
+    if (auth.status !== 'authenticated') {
+      if (deviceRegistrationRef.current.deviceId) {
+        void unregisterNotificationDevice({
+          expoPushToken: deviceRegistrationRef.current.expoPushToken,
+          deviceId: deviceRegistrationRef.current.deviceId,
+        }).catch(() => undefined);
+      }
       return;
     }
-
-    if (deviceRegistrationRef.current.deviceId) {
-      void unregisterNotificationDevice({
-        expoPushToken: deviceRegistrationRef.current.expoPushToken,
-        deviceId: deviceRegistrationRef.current.deviceId,
-      }).catch(() => undefined);
-    }
   }, [auth.status]);
+
+  const runtimeHealth: OperationalRuntimeContextValue['runtimeHealth'] = sessionLock.reason === 'update-required'
+    ? 'update-required'
+    : sessionLock.isLocked
+      ? 'locked'
+      : degradedMessage
+        ? 'degraded'
+        : 'healthy';
 
   const value = useMemo<OperationalRuntimeContextValue>(
     () => ({
@@ -434,9 +675,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       pushPermissionStatus,
       pushToken,
       localNotifications,
+      runtimeHealth,
+      sessionLock,
+      isUnlocking,
       markLocalNotificationRead,
       requestPushRegistration: registerCurrentDevice,
       syncNow,
+      unlockSession,
     }),
     [
       degradedMessage,
@@ -444,9 +689,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       pushPermissionStatus,
       pushToken,
       localNotifications,
+      runtimeHealth,
+      sessionLock,
+      isUnlocking,
       markLocalNotificationRead,
       registerCurrentDevice,
       syncNow,
+      unlockSession,
     ],
   );
 
@@ -463,4 +712,23 @@ export function useOperationalRuntime() {
     throw new Error('useOperationalRuntime must be used within OperationalRuntimeProvider.');
   }
   return context;
+}
+
+function compareVersionStrings(left: string, right: string) {
+  const leftParts = left.split(/[^\d]+/).filter(Boolean).map(Number);
+  const rightParts = right.split(/[^\d]+/).filter(Boolean).map(Number);
+  const maxLength = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+    if (leftValue > rightValue) {
+      return 1;
+    }
+    if (leftValue < rightValue) {
+      return -1;
+    }
+  }
+
+  return 0;
 }

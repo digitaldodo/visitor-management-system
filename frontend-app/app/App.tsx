@@ -7,18 +7,20 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
+import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
 import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { theme } from '../theme';
+import type { AppError } from '../types/api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
+      retry: (failureCount, error) => shouldRetryQuery(failureCount, error as unknown as AppError | undefined),
+      staleTime: 45_000,
+      gcTime: 10 * 60_000,
       refetchOnReconnect: true,
-      refetchOnMount: 'always',
+      refetchOnMount: false,
     },
     mutations: {
       retry: 0,
@@ -41,7 +43,21 @@ function AppBootstrap() {
     <>
       <StatusBar style="dark" backgroundColor={theme.colors.canvas} />
       <RootNavigator />
+      <OperationalLockOverlay />
     </>
+  );
+}
+
+function AppBoundaryHost() {
+  const auth = useAuth();
+
+  return (
+    <AppErrorBoundary
+      onRecoverShell={auth.recoverAppShell}
+      onSafeLogout={auth.logout}
+    >
+      <AppBootstrap />
+    </AppErrorBoundary>
   );
 }
 
@@ -52,13 +68,27 @@ export default function AccessFlowApp() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <OperationalRuntimeProvider>
-              <AppErrorBoundary>
-                <AppBootstrap />
-              </AppErrorBoundary>
+              <AppBoundaryHost />
             </OperationalRuntimeProvider>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function shouldRetryQuery(failureCount: number, error?: AppError) {
+  if (!error) {
+    return failureCount < 2;
+  }
+
+  if (error.kind === 'auth' || error.kind === 'config' || error.kind === 'version') {
+    return false;
+  }
+
+  if (error.status && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+    return false;
+  }
+
+  return failureCount < 2;
 }

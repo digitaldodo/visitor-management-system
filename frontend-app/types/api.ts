@@ -16,10 +16,11 @@ export type PageResponse<T> = {
 };
 
 export type AppError = {
-  kind: 'config' | 'network' | 'http' | 'runtime';
+  kind: 'config' | 'network' | 'http' | 'runtime' | 'payload' | 'auth' | 'version';
   message: string;
   status?: number;
   code?: string;
   details?: unknown;
   recoverable: boolean;
+  retryAfterMs?: number;
 };

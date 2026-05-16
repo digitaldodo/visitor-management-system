@@ -1,4 +1,5 @@
 import type { BackendRole } from './auth';
+import type { VersionHandshakePayload } from './runtime';
 
 export type VisitorType = 'ONE_TIME' | 'WALK_IN' | 'EMERGENCY' | 'RECURRING' | 'CONTRACTOR_VENDOR';
 
@@ -331,8 +332,4 @@ export type EmployeeScanResult = {
   attendance?: EmployeeAttendanceRecord | null;
 };
 
-export type ApiVersionPayload = {
-  current: string;
-  supported: string[];
-  profile: string;
-};
+export type ApiVersionPayload = VersionHandshakePayload;
