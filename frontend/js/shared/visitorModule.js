@@ -1,6 +1,7 @@
 import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
 import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
+import { initOrganizationSelectors } from "./organizationSelector.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
 
@@ -51,6 +52,7 @@ export function initVisitorModule(selector, options) {
   const pageSize = root.querySelector("[data-visitor-size]");
   initPhoneInput(form);
   initCamera(root, state);
+  initOrganizationSelectors(root, { prefetch: true });
   if (options.showHostFields !== false) {
     initHostPicker(root, { basePath: options.basePath });
   }
@@ -256,8 +258,8 @@ function template(options) {
   `;
   const organizationCodeField = options.showOrganizationCodeField ? `
       <label class="form-field">
-        <span>Organization Code</span>
-        <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" value="${escapeHtml(options.organizationCode || "")}" />
+        <span>Organization</span>
+        <input name="companyCode" type="hidden" data-organization-selector data-organization-label="Visitor organization" value="${escapeHtml(options.organizationCode || "")}" />
       </label>
   ` : "";
   const recurringFields = options.enableRecurring ? `
@@ -708,7 +710,7 @@ function validate(payload, options, state) {
     return "Enter the purpose of visit.";
   }
   if (options.requireOrganizationCode && !payload.companyCode) {
-    return "Enter the organization code.";
+    return "Select the organization.";
   }
   if (options.showHostFields !== false && !payload.hostEmployee && !payload.hostEmployeeId) {
     return "Select a host employee from the directory.";

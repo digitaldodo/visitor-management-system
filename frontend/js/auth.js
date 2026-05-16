@@ -4,7 +4,7 @@ import { bootstrapApplication } from "./shared/appRuntime.js";
 import { $, $$ } from "./shared/dom.js";
 import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
-import { listOrganizations } from "./shared/organizationApi.js";
+import { initOrganizationSelectors } from "./shared/organizationSelector.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
 import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     initAuthTabs();
     initPasswordToggles();
-    initOrganizations();
+    initOrganizationSelectors(document, { prefetch: true });
     initHomepageContent();
     initLoginForm();
     initLoginVerificationAssist();
@@ -78,12 +78,17 @@ function updateLoginAudience(audience) {
     employee: {
       eyebrow: "Employee access",
       title: "Sign in to your workplace portal",
-      description: "Use your organization-issued credentials and company code for host approvals.",
+      description: "Use your organization-issued credentials and choose your workplace for host approvals.",
     },
     security: {
       eyebrow: "Security access",
       title: "Sign in to front desk operations",
-      description: "Use your assigned credentials and company code to manage organization check-ins.",
+      description: "Use your assigned credentials and choose your workplace to manage organization check-ins.",
+    },
+    "super-admin": {
+      eyebrow: "Platform access",
+      title: "Sign in to platform administration",
+      description: "Use your super administrator credentials for global AccessFlow governance.",
     },
     visitor: {
       eyebrow: "Visitor access",
@@ -94,7 +99,7 @@ function updateLoginAudience(audience) {
   $("#login-eyebrow").textContent = copy.eyebrow;
   $("#login-title").textContent = copy.title;
   $("#login-description").textContent = copy.description;
-  form?.querySelector("[data-company-code-field]")?.classList.toggle("is-hidden", audience === "visitor");
+  form?.querySelector("[data-company-code-field]")?.classList.toggle("is-hidden", audience === "visitor" || audience === "super-admin");
 }
 
 function initPasswordToggles() {
@@ -121,9 +126,15 @@ function initLoginForm() {
     event.preventDefault();
     const currentForm = event.currentTarget;
     const data = getFormData(currentForm);
+    const portalAudience = data.audience === "super-admin" ? "admin" : data.audience;
+    const organizationRequired = ["employee", "security", "admin"].includes(data.audience);
 
     if (runIdentifierValidation() || !data.password) {
       showToast("Check the form", "Enter a valid username/email and password.");
+      return;
+    }
+    if (organizationRequired && !data.companyCode) {
+      showToast("Choose organization", "Select the organization for this portal account.");
       return;
     }
 
@@ -132,7 +143,7 @@ function initLoginForm() {
         identifier: data.identifier,
         password: data.password,
         companyCode: data.companyCode || null,
-        portalAudience: data.audience,
+        portalAudience,
       });
       const session = response;
       if (!session) {
@@ -206,20 +217,6 @@ function initRegisterForm() {
       window.location.href = buildVerificationPageUrl(data.email);
     });
   });
-}
-
-async function initOrganizations() {
-  try {
-    const response = await listOrganizations();
-    const organizations = response.data || [];
-    $$("[data-organization-select]").forEach((select) => {
-      select.innerHTML = `<option value="">Select organization</option>${organizations.map((organization) => `
-        <option value="${escapeHtml(organization.companyCode)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
-      `).join("")}`;
-    });
-  } catch {
-    // The manual company-code field still lets users authenticate if the public directory is unavailable.
-  }
 }
 
 async function initHomepageContent() {
@@ -302,7 +299,7 @@ function validatePassword(value) {
 }
 
 function normalizeAudience(target) {
-  if (target === "admin" || target === "security" || target === "visitor") {
+  if (target === "admin" || target === "security" || target === "visitor" || target === "super-admin") {
     return target;
   }
   return "employee";
@@ -381,7 +378,7 @@ function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
 
 function roleAllowedForAudience(role, audience) {
   if (role === "SUPER_ADMIN") {
-    return ["admin", "employee", "security"].includes(audience);
+    return audience === "super-admin";
   }
   const allowedAudienceByRole = {
     ADMIN: "admin",

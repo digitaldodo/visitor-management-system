@@ -13,6 +13,7 @@ import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 import { formatDate as formatOrgDate } from "../shared/formatters.js";
+import { initOrganizationSelector } from "../shared/organizationSelector.js";
 import { ROUTE_DEFINITIONS, ROUTE_ICON_PATHS, buildPortalProfile } from "./portalProfiles.js";
 
 const ROUTE_ALIASES = {
@@ -468,8 +469,8 @@ function usersTemplate() {
             </select>
           </label>
           <label class="form-field" data-company-code-field>
-            <span>Organization code</span>
-            <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
+            <span>Organization</span>
+            <input name="companyCode" type="hidden" data-organization-selector data-organization-label="Account organization" />
           </label>
           <label class="form-field form-field--wide" data-department-field>
             <span id="department-field-label">Department</span>
@@ -1490,6 +1491,12 @@ function initAdminUserForm() {
   }
   if (companyField && !hasRole("SUPER_ADMIN")) {
     companyField.classList.add("is-hidden");
+  }
+  if (companyInput && hasRole("SUPER_ADMIN")) {
+    initOrganizationSelector(companyInput, {
+      loadOrganizations: ({ force = false } = {}) => ensureManagedOrganizations({ force }),
+      prefetch: true,
+    });
   }
   const usernameInput = form.querySelector("input[name='username']");
   const runUsernameValidation = attachFieldValidator(usernameInput, validateUsername);
@@ -3851,7 +3858,7 @@ async function loadUserDepartmentOptions(options = {}) {
     datalist.innerHTML = "";
     if (meta) {
       meta.textContent = hasRole("SUPER_ADMIN")
-        ? "Enter an organization code first to load organization departments."
+        ? "Select an organization first to load organization departments."
         : "No organization departments are available yet. You can still add one here.";
     }
     departmentInput.disabled = hasRole("SUPER_ADMIN");
@@ -4143,7 +4150,7 @@ function validateInternalUser(payload) {
   }
   const rule = provisioningRuleForRole(payload.role);
   if (hasRole("SUPER_ADMIN") && !payload.companyCode) {
-    return "Enter the organization code for this account.";
+    return "Select the organization for this account.";
   }
   if (rule.mode === "locked") {
     if (payload.department && departmentKey(payload.department) !== departmentKey(rule.department)) {

@@ -103,6 +103,7 @@
                 <button class="auth-tab" type="button" data-auth-tab="employee">Employee</button>
                 <button class="auth-tab" type="button" data-auth-tab="security">Security</button>
                 <button class="auth-tab" type="button" data-auth-tab="admin">Admin</button>
+                <button class="auth-tab" type="button" data-auth-tab="super-admin">Super admin</button>
               </div>
 
               <form class="auth-form" id="login-form" novalidate>
@@ -122,8 +123,8 @@
                   <button class="password-toggle" type="button" aria-label="Show password">Show</button>
                 </label>
                 <label class="form-field is-hidden" data-company-code-field>
-                  <span>Organization code</span>
-                  <input name="companyCode" type="text" autocomplete="organization" placeholder="ACME" />
+                  <span>Organization</span>
+                  <input name="companyCode" type="hidden" data-organization-selector data-organization-prefetch="true" data-organization-label="Login organization" />
                 </label>
                 <button class="button button--primary auth-submit" type="submit">Sign in securely</button>
                 <div class="auth-assist is-hidden" id="login-verification-help" aria-live="polite">
@@ -169,9 +170,7 @@
                 <div class="auth-form__split">
                   <label class="form-field">
                     <span>Organization</span>
-                    <select name="companyCode" data-organization-select>
-                      <option value="">Select organization</option>
-                    </select>
+                    <input name="companyCode" type="hidden" data-organization-selector data-organization-prefetch="true" data-organization-label="Visitor registration organization" />
                   </label>
                   <label class="form-field">
                     <span>Host employee</span>

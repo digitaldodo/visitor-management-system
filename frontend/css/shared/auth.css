@@ -1092,6 +1092,11 @@ h3 {
   text-align: center;
 }
 
+.auth-card:has(.organization-combobox),
+.hero-section:has(.organization-combobox) {
+  overflow: visible;
+}
+
 @media (max-width: 1240px) {
   .hero-section {
     grid-template-columns: 1fr;

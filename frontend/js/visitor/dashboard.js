@@ -4,7 +4,7 @@ import { bootstrapApplication } from "../shared/appRuntime.js";
 import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
-import { listOrganizations } from "../shared/organizationApi.js";
+import { initOrganizationSelectors } from "../shared/organizationSelector.js";
 import { getVisitorPass, getVisitorHistory, requestVisitReschedule, uploadVisitPhoto } from "../shared/accessService.js";
 import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
@@ -392,24 +392,15 @@ function validateVisitRequest(payload, photoFile) {
 }
 
 async function initOrganizations(session) {
-  const select = document.querySelector("[data-organization-select]");
-  if (!select) {
+  const control = document.querySelector("[data-organization-selector], [data-organization-select]");
+  if (!control) {
     return;
   }
 
-  try {
-    const response = await listOrganizations();
-    const organizations = response?.data || [];
-    select.innerHTML = `<option value="">Select organization</option>${organizations.map((organization) => `
-      <option value="${escapeHtml(organization.companyCode)}">${escapeHtml(organization.companyName)} (${escapeHtml(organization.companyCode)})</option>
-    `).join("")}`;
-    if (session.organizationCode) {
-      select.value = session.organizationCode;
-    }
-  } catch (error) {
-    select.innerHTML = `<option value="">Organizations unavailable</option>`;
-    showToast("Organizations unavailable", error.message);
+  if (session.organizationCode) {
+    control.value = session.organizationCode;
   }
+  initOrganizationSelectors(document, { prefetch: true });
 }
 
 function setOrganizationContext(data = {}) {
