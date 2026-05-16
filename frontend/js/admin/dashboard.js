@@ -8,101 +8,29 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, updateWorkforceOnboarding } from "../shared/accessService.js";
+import { getNotifications } from "../shared/notificationApi.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 import { formatDate as formatOrgDate } from "../shared/formatters.js";
-
-const ROUTE_DEFINITIONS = {
-  analytics: {
-    slug: "analytics",
-    navLabel: "Analytics",
-    eyebrow: "Operations Insight",
-    title: "Analytics Workspace",
-    description: "Track visitor demand, approval patterns, and host activity in one focused operational view.",
-    badges: ["Admin access", "Organization-aware", "Performance overview"],
-  },
-  users: {
-    slug: "users",
-    navLabel: "User Management",
-    eyebrow: "Identity Operations",
-    title: "User Management Workspace",
-    description: "Create workforce accounts, adjust portal access, and keep internal identity controls contained to one place.",
-    badges: ["Admin access", "Scoped account issuance", "RBAC protected"],
-  },
-  departments: {
-    slug: "departments",
-    navLabel: "Departments",
-    eyebrow: "Workforce Structure",
-    title: "Department Workspace",
-    description: "Keep department options clean, tenant-scoped, and fast to manage without drifting into HR complexity.",
-    badges: ["Admin access", "Tenant isolated", "Operational setup"],
-  },
-  organizations: {
-    slug: "organizations",
-    navLabel: "Organizations",
-    eyebrow: "Tenant Operations",
-    title: "Organization Management Workspace",
-    description: "Create and maintain tenant records for onboarding, assignment, and platform-level oversight.",
-    badges: ["Super admin only", "Multi-tenant control", "Platform scope"],
-  },
-  "homepage-controls": {
-    slug: "homepage-controls",
-    navLabel: "Homepage Controls",
-    eyebrow: "Public Experience",
-    title: "Homepage Controls Workspace",
-    description: "Manage public-facing homepage content and preview the output without mixing it into internal operations.",
-    badges: ["Super admin only", "Public site controls", "Preview included"],
-  },
-  reports: {
-    slug: "reports",
-    navLabel: "Reports",
-    eyebrow: "Audit Exports",
-    title: "Reports Workspace",
-    description: "Review reporting and export activity in a dedicated oversight area designed for audit workflows.",
-    badges: ["Organization-scoped", "Audit oversight", "Export visibility"],
-  },
-  monitoring: {
-    slug: "monitoring",
-    navLabel: "System Monitoring",
-    eyebrow: "Platform Health",
-    title: "Monitoring Workspace",
-    description: "Keep system status, service signals, and operational health visible without crowding the rest of the admin experience.",
-    badges: ["Super admin only", "Service health", "Operational signals"],
-  },
-  "visitor-access": {
-    slug: "visitor-access",
-    navLabel: "Visitor Access",
-    eyebrow: "Live Operations",
-    title: "Visitor Access Workspace",
-    description: "Run live visitor operations, registration, and record management inside one dedicated operational workspace.",
-    badges: ["Admin access", "Frontline workflows", "Live records"],
-  },
-  "workforce-approvals": {
-    slug: "workforce-approvals",
-    navLabel: "Workforce Approvals",
-    eyebrow: "Access Activation",
-    title: "Workforce Approval Workspace",
-    description: "Approve security-assisted worker onboarding, assign final access details, and keep workforce QR activation admin-controlled.",
-    badges: ["Admin approval", "QR activation", "Audit logged"],
-  },
-};
+import { ROUTE_DEFINITIONS, ROUTE_ICON_PATHS, buildPortalProfile } from "./portalProfiles.js";
 
 const ROUTE_ALIASES = {
-  analytics: "analytics",
-  users: "users",
+  analytics: "dashboard",
+  users: "employees",
   departments: "departments",
   organizations: "organizations",
   reports: "reports",
-  monitoring: "monitoring",
+  monitoring: "system-monitoring",
   visitors: "visitor-access",
   "visitor-access": "visitor-access",
   "workforce-approvals": "workforce-approvals",
-  "homepage-settings": "homepage-controls",
-  "homepage-controls": "homepage-controls",
+  "homepage-settings": "platform-settings",
+  "homepage-controls": "platform-settings",
 };
 
 let currentSession;
+let portalProfile;
 let currentRoute = "";
 let homepageMetricOptions = [];
 let homepagePreviewSource = {};
@@ -177,6 +105,7 @@ async function bootAdminPortal() {
     return;
   }
 
+  portalProfile = buildPortalProfile(currentSession);
   const allowedRoutes = resolveAllowedRoutes();
   const routeContext = resolveRouteContext(allowedRoutes);
   if (routeContext.redirectTo) {
@@ -185,6 +114,7 @@ async function bootAdminPortal() {
   }
 
   currentRoute = routeContext.routeKey;
+  renderPortalChrome(routeContext.routeMap);
   adminRouteState = {
     allowedRoutes,
     routeMap: routeContext.routeMap,
@@ -196,6 +126,7 @@ async function bootAdminPortal() {
     activeRoute: currentRoute,
     routeMap: routeContext.routeMap,
     defaultHref: routeContext.routeMap[allowedRoutes[0]]?.href,
+    portalProfile,
     onRefresh: () => loadWorkspace(currentRoute, { preserveToasts: true }),
   });
 
@@ -206,7 +137,7 @@ async function bootAdminPortal() {
 }
 
 function resolveRouteContext(allowedRoutes) {
-  const defaultRoute = allowedRoutes[0];
+  const defaultRoute = portalProfile?.defaultRoute || allowedRoutes[0];
   const normalizedPath = normalizePath(window.location.pathname);
   const legacyMode = /\/pages\/admin\/[^/]+\.html$/i.test(normalizedPath);
   const routeMap = buildRouteMap(legacyMode);
@@ -219,7 +150,7 @@ function resolveRouteContext(allowedRoutes) {
 
   if (normalizedPath === "/admin") {
     const targetRoute = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
-    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
+    return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/dashboard", routeMap, legacyMode };
   }
 
   if (normalizedPath.startsWith("/admin/")) {
@@ -228,7 +159,7 @@ function resolveRouteContext(allowedRoutes) {
     if (allowedRoutes.includes(routeKey)) {
       return { routeKey, routeMap, legacyMode };
     }
-    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/analytics", routeMap, legacyMode };
+    return { redirectTo: routeMap[defaultRoute]?.href || "/admin/dashboard", routeMap, legacyMode };
   }
 
   const routeKey = allowedRoutes.includes(hashRoute) ? hashRoute : defaultRoute;
@@ -253,7 +184,57 @@ function normalizePath(pathname) {
 }
 
 function resolveAlias(value) {
-  return ROUTE_ALIASES[String(value || "").trim().toLowerCase()] || "";
+  const normalized = String(value || "").trim().toLowerCase();
+  return portalProfile?.aliases?.[normalized] || ROUTE_ALIASES[normalized] || (ROUTE_DEFINITIONS[normalized] ? normalized : "");
+}
+
+function renderPortalChrome(routeMap) {
+  if (!portalProfile) {
+    return;
+  }
+
+  const shell = document.querySelector(".portal-shell");
+  shell?.classList.remove("org-admin-shell", "super-admin-shell");
+  shell?.classList.add(portalProfile.shellClass);
+  if (shell) {
+    shell.dataset.portalProfile = portalProfile.key;
+  }
+
+  const defaultHref = routeMap?.[portalProfile.defaultRoute]?.href || `/admin/${ROUTE_DEFINITIONS[portalProfile.defaultRoute].slug}`;
+  document.querySelector(".sidebar")?.setAttribute("aria-label", portalProfile.sidebarLabel);
+  document.querySelectorAll("[data-default-admin-link]").forEach((link) => {
+    link.setAttribute("href", defaultHref);
+    link.setAttribute("aria-label", portalProfile.brandLabel);
+  });
+  setText(".sidebar__tagline", portalProfile.sidebarTagline);
+  setText(".sidebar__product", portalProfile.sidebarProduct);
+  setText(".topbar__title .eyebrow", portalProfile.topbarEyebrow);
+  setText(".topbar__title h1", portalProfile.topbarTitle);
+  setText(".topbar__tagline", portalProfile.topbarTagline);
+
+  const nav = document.querySelector("#sidebar-nav");
+  if (!nav) {
+    return;
+  }
+
+  nav.innerHTML = portalProfile.navSections.map((section) => `
+    <section class="nav-section" aria-label="${escapeHtml(section.label)}">
+      <p class="nav-section__label">${escapeHtml(section.label)}</p>
+      ${section.routes.map((routeKey) => navLink(routeKey, routeMap)).join("")}
+    </section>
+  `).join("");
+}
+
+function navLink(routeKey, routeMap) {
+  const route = ROUTE_DEFINITIONS[routeKey];
+  const href = routeMap?.[routeKey]?.href || `/admin/${route.slug}`;
+  const iconPath = ROUTE_ICON_PATHS[routeKey] || ROUTE_ICON_PATHS.dashboard;
+  return `
+    <a class="nav-link" href="${escapeHtml(href)}" data-route="${escapeHtml(routeKey)}">
+      <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${escapeHtml(iconPath)}"/></svg></span>
+      <span>${escapeHtml(route.navLabel)}</span>
+    </a>
+  `;
 }
 
 function renderWorkspaceFrame(route) {
@@ -275,20 +256,40 @@ function renderWorkspaceFrame(route) {
 
 function workspaceTemplate(routeKey) {
   switch (routeKey) {
-    case "analytics":
+    case "dashboard":
       return analyticsTemplate();
-    case "users":
+    case "platform-analytics":
+      return platformAnalyticsTemplate();
+    case "employees":
       return usersTemplate();
     case "departments":
       return departmentsTemplate();
     case "organizations":
       return organizationsTemplate();
-    case "homepage-controls":
+    case "platform-settings":
       return homepageControlsTemplate();
+    case "tenant-health":
+      return tenantHealthTemplate();
+    case "global-audit":
+      return reportsTemplate();
+    case "workforce-oversight":
+      return workforceOversightTemplate();
+    case "security-monitoring":
+      return securityMonitoringTemplate();
+    case "system-monitoring":
+    case "runtime-status":
+    case "api-health":
+      return monitoringTemplate();
+    case "feature-flags":
+      return featureFlagsTemplate();
     case "reports":
       return reportsTemplate();
-    case "monitoring":
-      return monitoringTemplate();
+    case "attendance-presence":
+      return attendancePresenceTemplate();
+    case "notifications":
+      return notificationsTemplate();
+    case "organization-settings":
+      return organizationSettingsTemplate();
     case "visitor-access":
       return visitorsTemplate();
     case "workforce-approvals":
@@ -368,6 +369,58 @@ function analyticsTemplate() {
           </div>
         </div>
         <div class="employee-analytics-table" id="workforce-attendance-table"></div>
+      </section>
+    </section>
+  `;
+}
+
+function platformAnalyticsTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Platform analytics"></section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Tenant Health</p>
+              <h3>Organization Readiness</h3>
+            </div>
+          </div>
+          <div class="work-list" id="tenant-health-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Runtime</p>
+              <h3>Platform Signals</h3>
+            </div>
+          </div>
+          <div class="work-list" id="security-overview-list"></div>
+        </article>
+      </section>
+
+      <section class="analytics-chart-grid" aria-label="System-wide visitor analytics">
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Usage</p>
+              <h3>Daily Platform Visitors</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="daily-visitors-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Growth</p>
+              <h3>Monthly Platform Trend</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="monthly-trends-chart"></div>
+        </article>
       </section>
     </section>
   `;
@@ -743,6 +796,133 @@ function monitoringTemplate() {
   `;
 }
 
+function tenantHealthTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="tenant-health-summary"></section>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Tenant Readiness</p>
+            <h3>Organizations</h3>
+          </div>
+        </div>
+        <div class="work-list" id="tenant-health-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function workforceOversightTemplate() {
+  return `
+    <article class="panel">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Cross-Tenant Workforce</p>
+          <h3>Identity Oversight</h3>
+        </div>
+      </div>
+      <p class="panel__subtle">This platform view is intentionally read-heavy. Organization operators keep day-to-day employee changes inside their own workspace.</p>
+      <div class="work-list" id="user-management-list"></div>
+    </article>
+  `;
+}
+
+function securityMonitoringTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-monitoring-grid" id="security-summary"></section>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Privileged Events</p>
+            <h3>Security Signals</h3>
+          </div>
+        </div>
+        <div class="work-list" id="security-monitoring-list"></div>
+      </article>
+    </section>
+  `;
+}
+
+function featureFlagsTemplate() {
+  return `
+    <article class="panel">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Controlled Rollout</p>
+          <h3>Feature Flags</h3>
+        </div>
+      </div>
+      <div class="feature-flag-grid">
+        ${featureFlagCard("Organization impersonation", "Planned", "Foundation is separated so a future impersonation workflow can enter tenant context safely.")}
+        ${featureFlagCard("Tenant health alerts", "Planned", "Health surfaces are isolated from organization operations and ready for alert thresholds.")}
+        ${featureFlagCard("Public analytics controls", "Active", "Homepage metric controls remain platform-owned and unavailable to organization admins.")}
+      </div>
+    </article>
+  `;
+}
+
+function featureFlagCard(title, status, detail) {
+  return `
+    <article class="admin-user-card">
+      <div class="admin-user-card__header">
+        <h3>${escapeHtml(title)}</h3>
+        ${statusBadge(status)}
+      </div>
+      <p>${escapeHtml(detail)}</p>
+    </article>
+  `;
+}
+
+function attendancePresenceTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="attendance-summary"></section>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Presence Logs</p>
+            <h3>Workforce Attendance</h3>
+          </div>
+        </div>
+        <div class="employee-analytics-table" id="attendance-presence-table"></div>
+      </article>
+    </section>
+  `;
+}
+
+function notificationsTemplate() {
+  return `
+    <article class="panel">
+      <div class="panel__header">
+        <div>
+          <p class="eyebrow">Recent Alerts</p>
+          <h3>Notifications</h3>
+        </div>
+      </div>
+      <div class="work-list" id="notifications-workspace-list"></div>
+    </article>
+  `;
+}
+
+function organizationSettingsTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="organization-settings-summary"></section>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Organization Context</p>
+            <h3>Settings Overview</h3>
+          </div>
+        </div>
+        <div class="work-list" id="organization-settings-list"></div>
+      </article>
+    </section>
+  `;
+}
+
 function visitorsTemplate() {
   return `<article class="panel workspace-visitor-panel" data-admin-visitors></article>`;
 }
@@ -859,7 +1039,7 @@ function syncAdminRouteNavigation(routeKey) {
     }
   });
 
-  const fallbackHref = adminRouteState.routeMap?.[adminRouteState.allowedRoutes[0]]?.href || "/admin/analytics";
+  const fallbackHref = adminRouteState.routeMap?.[adminRouteState.allowedRoutes[0]]?.href || "/admin/dashboard";
   document.querySelectorAll("[data-default-admin-link]").forEach((link) => {
     link.setAttribute("href", fallbackHref);
   });
@@ -906,7 +1086,7 @@ function collapseAdminSidebarForNavigation() {
 
 function initWorkspace(routeKey) {
   switch (routeKey) {
-    case "users":
+    case "employees":
       initAdminUserForm();
       break;
     case "departments":
@@ -915,7 +1095,7 @@ function initWorkspace(routeKey) {
     case "organizations":
       initOrganizationsWorkspace();
       break;
-    case "homepage-controls":
+    case "platform-settings":
       initHomepageSettingsForm();
       break;
     case "visitor-access":
@@ -955,10 +1135,13 @@ async function loadWorkspace(routeKey, options = {}) {
 
   try {
     switch (routeKey) {
-      case "analytics":
+      case "dashboard":
         await loadAnalyticsWorkspace();
         break;
-      case "users":
+      case "platform-analytics":
+        await loadPlatformAnalyticsWorkspace();
+        break;
+      case "employees":
         await loadUsersWorkspace();
         break;
       case "departments":
@@ -967,14 +1150,39 @@ async function loadWorkspace(routeKey, options = {}) {
       case "organizations":
         await loadOrganizationsWorkspace();
         break;
-      case "homepage-controls":
+      case "platform-settings":
         await loadHomepageWorkspace();
+        break;
+      case "tenant-health":
+        await loadTenantHealthWorkspace();
+        break;
+      case "global-audit":
+        await loadReportsWorkspace();
+        break;
+      case "workforce-oversight":
+        await loadWorkforceOversightWorkspace();
+        break;
+      case "security-monitoring":
+        await loadSecurityMonitoringWorkspace();
+        break;
+      case "system-monitoring":
+      case "runtime-status":
+      case "api-health":
+        await loadMonitoringWorkspace();
+        break;
+      case "feature-flags":
         break;
       case "reports":
         await loadReportsWorkspace();
         break;
-      case "monitoring":
-        await loadMonitoringWorkspace();
+      case "attendance-presence":
+        await loadAttendancePresenceWorkspace();
+        break;
+      case "notifications":
+        await loadNotificationsWorkspace();
+        break;
+      case "organization-settings":
+        await loadOrganizationSettingsWorkspace();
         break;
       case "visitor-access":
         break;
@@ -1003,6 +1211,30 @@ async function loadAnalyticsWorkspace() {
   }
 }
 
+async function loadPlatformAnalyticsWorkspace() {
+  renderDashboardCards([]);
+  renderAnalyticsLoading();
+  renderLoadingList("#tenant-health-list", 3);
+  renderLoadingList("#security-overview-list", 3);
+  try {
+    const [analyticsResponse, organizationsResponse, monitoringResponse] = await Promise.all([
+      request("/admin/analytics"),
+      listManagedOrganizations(),
+      request("/admin/monitoring"),
+    ]);
+    renderPlatformAnalytics(
+      analyticsResponse?.data || {},
+      organizationsResponse?.data || [],
+      monitoringResponse?.data || {},
+    );
+  } catch (error) {
+    renderAnalytics({});
+    renderWorkList("#tenant-health-list", [], (item) => item, "Tenant health unavailable", error.message);
+    renderWorkList("#security-overview-list", [], (item) => item, "Platform signals unavailable", error.message);
+    showToast("Platform analytics unavailable", error.message);
+  }
+}
+
 async function loadUsersWorkspace() {
   renderLoadingList("#user-management-list", 4);
   try {
@@ -1026,6 +1258,17 @@ async function loadWorkforceApprovalsWorkspace() {
   } catch (error) {
     renderWorkList("#workforce-approval-list", [], (item) => item, "Workforce approvals unavailable", error.message);
     showToast("Workforce approvals unavailable", error.message);
+  }
+}
+
+async function loadWorkforceOversightWorkspace() {
+  renderLoadingList("#user-management-list", 4);
+  try {
+    const users = await request("/admin/users");
+    renderUsers(users?.data || []);
+  } catch (error) {
+    renderWorkList("#user-management-list", [], (item) => item, "Workforce oversight unavailable", error.message);
+    showToast("Workforce oversight unavailable", error.message);
   }
 }
 
@@ -1067,7 +1310,7 @@ function initWorkforceApprovalsWorkspace() {
       }
       await Promise.all([
         loadWorkforceApprovalsWorkspace(),
-        currentRoute === "users" ? loadUsersWorkspace() : Promise.resolve(),
+        currentRoute === "employees" ? loadUsersWorkspace() : Promise.resolve(),
       ]);
     } catch (error) {
       showToast("Workforce action failed", error.message);
@@ -1115,6 +1358,19 @@ async function loadDepartmentsWorkspace() {
   }
 }
 
+async function loadTenantHealthWorkspace() {
+  renderTenantHealthSummary([]);
+  renderLoadingList("#tenant-health-list", 5);
+  try {
+    const organizations = (await listManagedOrganizations())?.data || [];
+    renderTenantHealth(organizations);
+  } catch (error) {
+    renderTenantHealthSummary([]);
+    renderWorkList("#tenant-health-list", [], (item) => item, "Tenant health unavailable", error.message);
+    showToast("Tenant health unavailable", error.message);
+  }
+}
+
 async function loadHomepageWorkspace() {
   renderHomepageSettingsState("Loading homepage controls...");
   try {
@@ -1134,6 +1390,60 @@ async function loadReportsWorkspace() {
   } catch (error) {
     renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
     showToast("Reports unavailable", error.message);
+  }
+}
+
+async function loadSecurityMonitoringWorkspace() {
+  renderSecuritySummary([]);
+  renderLoadingList("#security-monitoring-list", 4);
+  try {
+    const [reportsResponse, monitoringResponse] = await Promise.all([
+      request("/admin/reports"),
+      request("/admin/monitoring"),
+    ]);
+    renderSecurityMonitoring(reportsResponse?.data || [], monitoringResponse?.data || {});
+  } catch (error) {
+    renderSecuritySummary([]);
+    renderWorkList("#security-monitoring-list", [], (item) => item, "Security monitoring unavailable", error.message);
+    showToast("Security monitoring unavailable", error.message);
+  }
+}
+
+async function loadAttendancePresenceWorkspace() {
+  renderAttendancePresence([]);
+  try {
+    const response = await request("/admin/workforce-attendance");
+    renderAttendancePresence(response?.data || []);
+  } catch (error) {
+    renderAttendancePresence([]);
+    renderWorkList("#attendance-presence-table", [], (item) => item, "Attendance unavailable", error.message);
+    showToast("Attendance unavailable", error.message);
+  }
+}
+
+async function loadNotificationsWorkspace() {
+  renderLoadingList("#notifications-workspace-list", 4);
+  try {
+    const response = await getNotifications(25);
+    renderNotificationsWorkspace(response?.data || {});
+  } catch (error) {
+    renderWorkList("#notifications-workspace-list", [], (item) => item, "Notifications unavailable", error.message);
+    showToast("Notifications unavailable", error.message);
+  }
+}
+
+async function loadOrganizationSettingsWorkspace() {
+  renderOrganizationSettings([], []);
+  try {
+    const [organizationsResponse, departmentsResponse] = await Promise.all([
+      listManagedOrganizations(),
+      listDepartments({ organizationId: currentSession?.organizationId || "", includeInactive: true }),
+    ]);
+    renderOrganizationSettings(organizationsResponse?.data || [], departmentsResponse?.data || []);
+  } catch (error) {
+    renderOrganizationSettings([], []);
+    renderWorkList("#organization-settings-list", [], (item) => item, "Organization settings unavailable", error.message);
+    showToast("Organization settings unavailable", error.message);
   }
 }
 
@@ -2013,14 +2323,19 @@ function renderUsers(users) {
 function userCard(user) {
   const role = (user.roles || []).join(", ");
   const primaryRole = (user.roles || [])[0] || "";
+  const oversightOnly = currentRoute === "workforce-oversight";
   const pendingApproval = user.accountStatus === "PENDING_APPROVAL";
   const rejectedApproval = user.accountStatus === "REJECTED";
   const disabled = !user.active || user.accountStatus === "DISABLED" || pendingApproval || rejectedApproval;
   const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
   const canManageAdmin = !(user.roles || []).includes("ADMIN") || hasRole("SUPER_ADMIN");
-  const canManage = !platformOwner && canManageAdmin && !pendingApproval && !rejectedApproval;
+  const canManage = !oversightOnly && !platformOwner && canManageAdmin && !pendingApproval && !rejectedApproval;
   const roleOptions = internalRoleOptions(primaryRole);
-  const roleControls = platformOwner ? `
+  const roleControls = oversightOnly ? `
+      <div class="admin-user-card__role">
+        <p class="form-field__message form-field__message--inline">Platform oversight is intentionally separated from organization employee operations.</p>
+      </div>
+  ` : platformOwner ? `
       <div class="admin-user-card__role">
         <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure backend workflows.</p>
       </div>
@@ -2142,12 +2457,186 @@ function renderAnalytics(data) {
 }
 
 function renderAnalyticsLoading() {
-  renderChart("#daily-visitors-chart", chartEmpty("Loading daily visitor activity..."));
-  renderChart("#monthly-trends-chart", chartEmpty("Loading monthly trend activity..."));
-  renderChart("#peak-hours-chart", chartEmpty("Loading peak-hour activity..."));
-  renderChart("#approval-rates-chart", chartEmpty("Loading approval decisions..."));
+  renderChart("#daily-visitors-chart", chartEmpty("Waiting for visitor activity..."));
+  renderChart("#monthly-trends-chart", chartEmpty("Trends will appear as activity accumulates."));
+  renderChart("#peak-hours-chart", chartEmpty("Peak-hour signals will appear after check-ins."));
+  renderChart("#approval-rates-chart", chartEmpty("Decision patterns will appear after approvals."));
   renderEmployeeAnalytics([]);
   renderWorkforceAttendanceAnalytics({});
+}
+
+function renderPlatformAnalytics(data, organizations, monitoring) {
+  const activeOrganizations = organizations.filter((organization) => organization.activeStatus !== false).length;
+  const pausedOrganizations = organizations.length - activeOrganizations;
+  const pendingApprovals = findWidgetValue(data.widgets, "Pending");
+  const visitorsToday = findWidgetValue(data.widgets, "Visitors today");
+  const apiStatus = monitoring?.runtime || "Unknown";
+
+  renderDashboardCards([
+    { label: "Active organizations", value: activeOrganizations, note: `${organizations.length} total tenants` },
+    { label: "Paused tenants", value: pausedOrganizations, note: "Lifecycle controls requiring review" },
+    { label: "Pending approvals", value: pendingApprovals, note: "System-wide visitor workload" },
+    { label: "Visitors today", value: visitorsToday, note: "Cross-organization usage" },
+    { label: "Runtime", value: apiStatus, note: "Latest platform health signal" },
+  ]);
+  renderChart("#daily-visitors-chart", barChart(data.dailyVisitors || [], "Visitors"));
+  renderChart("#monthly-trends-chart", lineChart(data.monthlyTrends || []));
+  renderTenantHealthList("#tenant-health-list", organizations.slice(0, 5));
+  renderPlatformSignalList("#security-overview-list", monitoring);
+}
+
+function renderTenantHealth(organizations) {
+  renderTenantHealthSummary(organizations);
+  renderTenantHealthList("#tenant-health-list", organizations);
+}
+
+function renderTenantHealthSummary(organizations) {
+  const grid = document.querySelector("#tenant-health-summary");
+  if (!grid) {
+    return;
+  }
+  const active = organizations.filter((organization) => organization.activeStatus !== false).length;
+  const paused = organizations.length - active;
+  const withAdmins = organizations.filter((organization) => Number(organization.adminCount || organization.adminsCount || 0) > 0).length;
+  grid.innerHTML = [
+    { label: "Organizations", value: organizations.length, note: "Total tenants under governance" },
+    { label: "Active", value: active, note: "Ready for organization operations" },
+    { label: "Paused", value: paused, note: "Lifecycle attention needed" },
+    { label: "Admin coverage", value: withAdmins, note: "Tenants with assigned admins" },
+  ].map(metricCard).join("");
+}
+
+function renderTenantHealthList(selector, organizations) {
+  renderWorkList(selector, organizations, (organization) => {
+    const status = organization.activeStatus === false ? "Paused" : "Active";
+    const admins = organization.adminCount ?? organization.adminsCount ?? organization.totalAdmins ?? "Admin coverage pending";
+    const detail = `${organization.companyCode || "No code"} · ${status} · ${organization.timezone || "Timezone pending"}`;
+    return workCard(organization.companyName || "Organization", detail, `Admins: ${admins}`);
+  }, "No organizations yet", "Create organizations to start tenant lifecycle governance.");
+}
+
+function renderPlatformSignalList(selector, monitoring) {
+  const entries = Object.entries(monitoring || {});
+  renderWorkList(selector, entries, ([name, status]) => workCard(
+    formatMonitoringTitle(name),
+    formatMonitoringStatus(status),
+    formatMonitoringDetail(status),
+  ), "No platform signals yet", "Runtime and API readiness will appear after the backend responds.");
+}
+
+function renderSecurityMonitoring(reports, monitoring) {
+  const entries = [
+    ...reports.map((report) => ({
+      title: report.title || "Audit event",
+      detail: report.status || "Security event recorded",
+      meta: report.createdAt ? formatDateTime(report.createdAt) : "Latest audit signal",
+    })),
+    ...Object.entries(monitoring || {}).map(([name, status]) => ({
+      title: formatMonitoringTitle(name),
+      detail: formatMonitoringStatus(status),
+      meta: formatMonitoringDetail(status),
+    })),
+  ];
+  renderSecuritySummary(entries);
+  renderWorkList("#security-monitoring-list", entries, (item) => workCard(item.title, item.detail, item.meta), "No security signals yet", "Privileged events and runtime security posture will appear here.");
+}
+
+function renderSecuritySummary(entries) {
+  const grid = document.querySelector("#security-summary");
+  if (!grid) {
+    return;
+  }
+  grid.innerHTML = [
+    { label: "Signals", value: entries.length, note: "Audit and runtime indicators" },
+    { label: "Runtime", value: entries.some((item) => item.title === "Runtime") ? "Tracked" : "Pending", note: "Backend health visibility" },
+    { label: "Audit stream", value: entries.length ? "Active" : "Quiet", note: "Privileged event feed" },
+  ].map(metricCard).join("");
+}
+
+function renderAttendancePresence(items) {
+  const logs = Array.isArray(items) ? items : [];
+  const grid = document.querySelector("#attendance-summary");
+  if (grid) {
+    const checkedIn = logs.filter((item) => String(item.status || item.state || "").toUpperCase().includes("IN")).length;
+    grid.innerHTML = [
+      { label: "Presence logs", value: logs.length, note: "Recent workforce attendance records" },
+      { label: "Currently inside", value: checkedIn, note: "Open or active attendance states" },
+      { label: "Organization", value: currentSession?.organizationCode || "Scoped", note: "Admin isolation enforced server-side" },
+    ].map(metricCard).join("");
+  }
+
+  const table = document.querySelector("#attendance-presence-table");
+  if (!table) {
+    return;
+  }
+  table.innerHTML = logs.length ? `
+    <table>
+      <thead>
+        <tr><th>Employee</th><th>Status</th><th>Check in</th><th>Check out</th></tr>
+      </thead>
+      <tbody>
+        ${logs.map((item) => `
+          <tr>
+            <td data-label="Employee">${escapeHtml(item.fullName || item.employeeName || item.userName || "Employee")}</td>
+            <td data-label="Status">${escapeHtml(formatStatusLabel(item.status || item.state || "Unknown"))}</td>
+            <td data-label="Check in">${escapeHtml(formatDateTime(item.checkInTime || item.checkedInAt || item.createdAt))}</td>
+            <td data-label="Check out">${escapeHtml(formatDateTime(item.checkOutTime || item.checkedOutAt))}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  ` : `
+    <article class="empty-state empty-state--inline">
+      <h3>No presence logs yet</h3>
+      <p>Employee check-in and check-out activity will appear here as workforce QR scans occur.</p>
+    </article>
+  `;
+}
+
+function renderNotificationsWorkspace(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  renderWorkList("#notifications-workspace-list", items, (item) => workCard(
+    item.title || "Notification",
+    item.message || "No message available",
+    `${item.read ? "Read" : "Unread"} · ${formatDateTime(item.createdAt)}`,
+  ), "No notifications", "New visitor, approval, and workforce notifications will appear here.");
+}
+
+function renderOrganizationSettings(organizations, departments) {
+  const organization = organizations[0] || {};
+  const grid = document.querySelector("#organization-settings-summary");
+  if (grid) {
+    grid.innerHTML = [
+      { label: "Organization", value: organization.companyCode || currentSession?.organizationCode || "Scoped", note: organization.companyName || currentSession?.organizationName || "Current tenant" },
+      { label: "Departments", value: departments.length, note: "Configured assignment groups" },
+      { label: "Timezone", value: organization.timezone || currentSession?.organizationTimezone || "UTC", note: "Used for operational reporting" },
+    ].map(metricCard).join("");
+  }
+
+  const items = [
+    { title: organization.companyName || currentSession?.organizationName || "Organization", detail: organization.contactEmail || "Contact email not configured", meta: organization.regionCountry || organization.companyCode || currentSession?.organizationCode || "Tenant identity" },
+    ...departments.slice(0, 8).map((department) => ({
+      title: department.departmentName,
+      detail: department.activeStatus === false ? "Inactive department" : "Active department",
+      meta: "Available for employee assignment",
+    })),
+  ];
+  renderWorkList("#organization-settings-list", items, (item) => workCard(item.title, item.detail, item.meta), "Organization settings unavailable", "Organization context will appear after the API responds.");
+}
+
+function metricCard(metric) {
+  return `
+    <article class="admin-metric-card">
+      <span class="metric-card__label">${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(metric.value)}</strong>
+      <small>${escapeHtml(metric.note)}</small>
+    </article>
+  `;
+}
+
+function findWidgetValue(widgets = [], label) {
+  const widget = widgets.find((item) => String(item.label || "").toLowerCase() === label.toLowerCase());
+  return widget?.value ?? 0;
 }
 
 function renderHomepageSettings(data) {
@@ -2190,9 +2679,7 @@ function renderHomepageSettings(data) {
 }
 
 function resolveAllowedRoutes() {
-  return hasRole("SUPER_ADMIN")
-    ? ["analytics", "users", "departments", "organizations", "homepage-controls", "reports", "monitoring", "visitor-access", "workforce-approvals"]
-    : ["analytics", "users", "departments", "reports", "visitor-access", "workforce-approvals"];
+  return portalProfile?.routes || ["dashboard"];
 }
 
 function hasRole(role) {

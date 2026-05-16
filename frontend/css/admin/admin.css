@@ -1,16 +1,32 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #b45309;
-  --role-accent-soft: #fcd34d;
+  --role-accent: #0f766e;
+  --role-accent-soft: #5eead4;
+}
+
+.super-admin-shell {
+  --role-accent: #2563eb;
+  --role-accent-soft: #7dd3fc;
+  --sidebar-bg:
+    linear-gradient(180deg, rgba(7, 16, 33, 0.98), rgba(12, 24, 43, 0.98)),
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 18rem);
+}
+
+.org-admin-shell {
+  --role-accent: #0f766e;
+  --role-accent-soft: #5eead4;
+  --sidebar-bg:
+    linear-gradient(180deg, rgba(8, 27, 30, 0.98), rgba(13, 26, 38, 0.98)),
+    radial-gradient(circle at top, rgba(20, 184, 166, 0.14), transparent 18rem);
 }
 
 .admin-shell .button--primary {
-  background: linear-gradient(180deg, var(--role-accent), #92400e);
+  background: linear-gradient(180deg, var(--role-accent), #0f4f5f);
 }
 
 .admin-shell .button--primary:hover {
-  background: #92400e;
+  background: #0f4f5f;
 }
 
 .admin-shell .nav-link__icon {
@@ -65,10 +81,10 @@
 
 .workspace-badge {
   align-items: center;
-  background: rgba(180, 83, 9, 0.12);
-  border: 1px solid rgba(252, 211, 77, 0.22);
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(94, 234, 212, 0.22);
   border-radius: 999px;
-  color: #f8e1a2;
+  color: #ccfbf1;
   display: inline-flex;
   font-size: 0.76rem;
   font-weight: 800;
@@ -111,10 +127,10 @@
 
 .admin-metric-card__icon {
   align-items: center;
-  background: rgba(180, 83, 9, 0.22);
-  border: 1px solid rgba(252, 211, 77, 0.24);
+  background: rgba(20, 184, 166, 0.18);
+  border: 1px solid rgba(94, 234, 212, 0.24);
   border-radius: 999px;
-  color: #ffe6a3;
+  color: #ccfbf1;
   display: inline-flex;
   height: 2.25rem;
   justify-content: center;
@@ -293,8 +309,8 @@
 }
 
 .admin-user-form {
-  background: linear-gradient(180deg, rgba(180, 83, 9, 0.16), rgba(52, 34, 16, 0.58));
-  border: 1px solid rgba(252, 211, 77, 0.18);
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.12), rgba(10, 30, 42, 0.54));
+  border: 1px solid rgba(94, 234, 212, 0.18);
   border-radius: var(--radius-card);
   display: grid;
   gap: 0.85rem;
@@ -453,6 +469,12 @@
   display: grid;
   gap: 0.75rem;
   padding: 1rem;
+}
+
+.feature-flag-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
 }
 
 .admin-user-card__header,

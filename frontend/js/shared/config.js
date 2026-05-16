@@ -330,8 +330,8 @@ function firstString(...values) {
 }
 
 export const ROLE_PORTALS = {
-  SUPER_ADMIN: "/admin/analytics",
-  ADMIN: "/admin/analytics",
+  SUPER_ADMIN: "/admin/platform-analytics",
+  ADMIN: "/admin/dashboard",
   EMPLOYEE: "/employee",
   SECURITY_GUARD: "/security",
   VISITOR: "/pages/visitor/index.html",

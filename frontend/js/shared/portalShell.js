@@ -18,10 +18,7 @@ export function initPortalShell(session, options = {}) {
   safeShellInit("notifications", initNotifications);
   safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
 
-  const organization = session.organizationName || session.organizationCode;
-  const timezone = organization ? `${timezoneLabel(session.organizationTimezone || session.user?.organizationTimezone || "UTC")} · ` : "";
-  const context = organization ? `${organization} · ${timezone}` : "Platform · ";
-  setText("#user-chip", `${session.fullName || session.email || "Signed in"} · ${context}${formatRole(session.roles?.[0])}`);
+  renderIdentityChip(session, options.portalProfile);
   refreshHealth(false);
 }
 
@@ -508,6 +505,28 @@ function setHealthOffline(message) {
 
 function formatRole(role) {
   return formatStatus(role || "USER");
+}
+
+function renderIdentityChip(session, portalProfile) {
+  const chip = $("#user-chip");
+  if (!chip) {
+    return;
+  }
+
+  chip.classList.remove("user-chip--platform", "user-chip--organization");
+  if (portalProfile?.identityClass) {
+    chip.classList.add(portalProfile.identityClass);
+  }
+
+  const displayName = session.fullName || session.email || "Signed in";
+  const scope = typeof portalProfile?.contextLabel === "function"
+    ? portalProfile.contextLabel(session)
+    : (session.organizationName || session.organizationCode || "Platform");
+  const role = portalProfile?.identityScope || formatRole(session.roles?.[0]);
+  const timezone = session.organizationName || session.organizationCode
+    ? timezoneLabel(session.organizationTimezone || session.user?.organizationTimezone || "UTC")
+    : "Global";
+  chip.textContent = `${displayName} · ${scope} · ${timezone} · ${role}`;
 }
 
 function emptyMarkup(title, message) {

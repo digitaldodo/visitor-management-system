@@ -102,7 +102,21 @@ body.has-mobile-sidebar {
 
 .nav-list {
   display: grid;
+  gap: 0.85rem;
+}
+
+.nav-section {
+  display: grid;
   gap: 0.35rem;
+}
+
+.nav-section__label {
+  color: rgba(211, 222, 237, 0.62);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin: 0 0.15rem;
+  text-transform: uppercase;
 }
 
 .nav-link {
@@ -364,6 +378,18 @@ body.has-mobile-sidebar {
   padding: 0.55rem 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-chip--platform {
+  background: rgba(14, 165, 233, 0.14);
+  border-color: rgba(125, 211, 252, 0.34);
+  color: #e0f2fe;
+}
+
+.user-chip--organization {
+  background: rgba(20, 184, 166, 0.14);
+  border-color: rgba(94, 234, 212, 0.3);
+  color: #d9fffb;
 }
 
 .portal-main {
@@ -1642,6 +1668,7 @@ body.has-mobile-sidebar {
 
   .portal-shell[data-sidebar-state="collapsed"] .brand > span:last-child,
   .portal-shell[data-sidebar-state="collapsed"] .sidebar__tagline,
+  .portal-shell[data-sidebar-state="collapsed"] .nav-section__label,
   .portal-shell[data-sidebar-state="collapsed"] .sidebar__footer span:not(.status-dot),
   .portal-shell[data-sidebar-state="collapsed"] .sidebar__product {
     display: none;
