@@ -4,6 +4,7 @@ import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
+import com.visitor.management.entity.Visitor;
 import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.exception.ResourceNotFoundException;
@@ -124,6 +125,14 @@ public class AccessAuditService {
     public void recordWorkforceOnboarding(User actor, User worker, String action, String outcome, String detail) {
         record(actor, worker.getOrganizationId(), worker.getOrganizationName(), worker.getOrganizationCode(),
                 action, "WORKFORCE_ONBOARDING", worker.getId(), worker.getFullName(), outcome, detail);
+    }
+
+    public void recordVisitorAccess(User actor, Visitor visitor, String action, String outcome, String detail) {
+        if (visitor == null) {
+            return;
+        }
+        record(actor, visitor.getOrganizationId(), visitor.getOrganizationName(), visitor.getOrganizationCode(),
+                action, "VISITOR_ACCESS", visitor.getId(), visitor.getFullName(), outcome, detail);
     }
 
     public void recordOrganizationChanged(User actor, Organization organization, String action, String detail) {

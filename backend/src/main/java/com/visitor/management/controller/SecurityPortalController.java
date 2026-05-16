@@ -269,6 +269,15 @@ public class SecurityPortalController {
         return ApiResponse.ok("Visitor checked in with audited override.", visitorService.overrideCheckIn(id, request, authentication.getName()));
     }
 
+    @PatchMapping("/visitors/{id}/deny-entry")
+    public ApiResponse<VisitorResponse> denyEntry(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor denied at security checkpoint.", visitorService.denyEntry(id, request.reason(), authentication.getName()));
+    }
+
     @PatchMapping("/visitors/{id}/check-out")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
@@ -295,6 +304,24 @@ public class SecurityPortalController {
     @PatchMapping("/visitors/{id}/reactivate")
     public ApiResponse<VisitorResponse> reactivateVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Recurring visitor reactivated.", visitorService.reactivateRecurring(id, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/escalate")
+    public ApiResponse<VisitorResponse> escalateVisitorIssue(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor issue escalated.", visitorService.escalateIssue(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/report-mismatch")
+    public ApiResponse<VisitorResponse> reportVisitorMismatch(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor mismatch recorded.", visitorService.reportMismatch(id, request.reason(), authentication.getName()));
     }
 
     private boolean isCloudinaryConfigured() {

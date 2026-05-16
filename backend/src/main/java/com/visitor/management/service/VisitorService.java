@@ -108,6 +108,7 @@ public class VisitorService {
     private final VisitorNotificationService visitorNotificationService;
     private final OrganizationService organizationService;
     private final PhoneNumberService phoneNumberService;
+    private final AccessAuditService accessAuditService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -121,7 +122,8 @@ public class VisitorService {
             CorsOriginResolver corsOriginResolver,
             VisitorNotificationService visitorNotificationService,
             OrganizationService organizationService,
-            PhoneNumberService phoneNumberService
+            PhoneNumberService phoneNumberService,
+            AccessAuditService accessAuditService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -135,6 +137,7 @@ public class VisitorService {
         this.visitorNotificationService = visitorNotificationService;
         this.organizationService = organizationService;
         this.phoneNumberService = phoneNumberService;
+        this.accessAuditService = accessAuditService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -408,6 +411,32 @@ public class VisitorService {
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse denyEntry(String id, String reason, String actorId) {
+        Visitor visitor = find(id);
+        User actor = currentUser(actorId);
+        requireOrganizationAccess(visitor, actor);
+        if (visitor.getStatus() != VisitorStatus.PENDING && visitor.getStatus() != VisitorStatus.APPROVED) {
+            throw new BadRequestException("Only pending or approved visitors can be denied at the gate.");
+        }
+
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        String note = requiredTrim(reason, "A denial reason is required.");
+        visitor.setStatus(VisitorStatus.REJECTED);
+        visitor.setRejectedAt(now);
+        visitor.setRejectedBy(actorId);
+        visitor.setRejectionReason(note);
+        clearPassCredentials(visitor);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.REJECTED, "DENIED_AT_GATE", actorId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.REJECTED, "DENIED_AT_GATE", actorId, note, now);
+        accessAuditService.recordVisitorAccess(actor, saved, "DENIED_AT_GATE", "DENIED", note);
+        visitorNotificationService.visitorRejected(saved);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse update(String id, VisitorUpdateRequest request) {
         Visitor visitor = find(id);
         applyUpdate(visitor, request);
@@ -663,6 +692,16 @@ public class VisitorService {
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.APPROVED, "REACTIVATED", actorId, "Recurring visitor profile reactivated.", now);
         return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse escalateIssue(String id, String reason, String actorId) {
+        return recordSecurityIssue(id, actorId, reason, "SECURITY_ESCALATED", "SUCCESS");
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse reportMismatch(String id, String reason, String actorId) {
+        return recordSecurityIssue(id, actorId, reason, "IDENTITY_MISMATCH_REPORTED", "FLAGGED");
     }
 
     public QrVerificationResponse verifyQrPayload(String scannedPayload) {
@@ -2461,6 +2500,21 @@ public class VisitorService {
             return "Visitor suspended";
         }
         return displayStatus(visitor.getStatus());
+    }
+
+    private VisitorResponse recordSecurityIssue(String id, String actorId, String reason, String action, String outcome) {
+        Visitor visitor = find(id);
+        User actor = currentUser(actorId);
+        requireOrganizationAccess(visitor, actor);
+        Instant now = Instant.now();
+        VisitorStatus currentStatus = visitor.getStatus();
+        String note = requiredTrim(reason, "A security note is required.");
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, currentStatus, action, actorId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), currentStatus, currentStatus, action, actorId, note, now);
+        accessAuditService.recordVisitorAccess(actor, saved, action, outcome, note);
+        return toResponse(saved);
     }
 
     private record ScheduleCandidate(Instant start, Instant end, String timezone) {

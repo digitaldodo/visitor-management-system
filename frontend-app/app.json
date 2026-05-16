@@ -29,7 +29,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow AccessFlow Mobile to scan badges and capture verification photos.",
+          "recordAudioAndroid": false
+        }
+      ]
     ]
   }
 }

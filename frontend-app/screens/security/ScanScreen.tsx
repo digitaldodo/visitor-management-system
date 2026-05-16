@@ -1,87 +1,608 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQueryClient } from '@tanstack/react-query';
+import { useIsFocused } from '@react-navigation/native';
+import { useMemo, useRef, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
+import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { AppScreen } from '../../components/layout/AppScreen';
-import { StatusPill } from '../../components/feedback/StatusPill';
-import { useQrCheckInMutation, useVerifyQrMutation } from '../../hooks/useSecurityWorkspace';
+import { OperationalFieldList } from '../../components/security/OperationalFieldList';
+import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import {
+  useCheckOutVisitorMutation,
+  useDenyVisitorMutation,
+  useEmployeeQrScanMutation,
+  useEscalateVisitorMutation,
+  useManualEmployeeCheckInMutation,
+  useManualEmployeeCheckOutMutation,
+  useOverrideCheckInMutation,
+  useQrCheckInMutation,
+  useReportVisitorMismatchMutation,
+  useVerifyQrMutation,
+} from '../../hooks/useSecurityWorkspace';
+import { theme } from '../../theme';
+import type { EmployeeScanResult, QrVerificationResult } from '../../types/domain';
+import {
+  employeePresenceLabel,
+  formatDateTime,
+  formatTime,
+  formatVisitorWindow,
+  relativePresenceSummary,
+  scanResultLabel,
+  statusTone,
+  verificationTone,
+  visitorStatusLabel,
+  visitorTypeLabel,
+} from '../../utils/securityFormatting';
+
+type ReasonAction =
+  | { type: 'override'; visitorId: string }
+  | { type: 'deny'; visitorId: string }
+  | { type: 'escalate'; visitorId: string }
+  | { type: 'mismatch'; visitorId: string }
+  | { type: 'employee-check-in'; employeeId: string }
+  | { type: 'employee-check-out'; employeeId: string };
 
 export function ScanScreen() {
   const queryClient = useQueryClient();
-  const [qrPayload, setQrPayload] = useState('');
+  const isFocused = useIsFocused();
+  const cameraRef = useRef<CameraView | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [manualPayload, setManualPayload] = useState('');
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'idle' | 'processing' | 'paused'>('idle');
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [lastPayload, setLastPayload] = useState('');
+  const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
+  const [visitorVerification, setVisitorVerification] = useState<QrVerificationResult | null>(null);
+  const [employeeScan, setEmployeeScan] = useState<EmployeeScanResult | null>(null);
+  const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
+
   const verifyMutation = useVerifyQrMutation();
-  const checkInMutation = useQrCheckInMutation();
+  const visitorCheckInMutation = useQrCheckInMutation();
+  const employeeScanMutation = useEmployeeQrScanMutation();
+  const overrideMutation = useOverrideCheckInMutation();
+  const denyMutation = useDenyVisitorMutation();
+  const escalateMutation = useEscalateVisitorMutation();
+  const mismatchMutation = useReportVisitorMismatchMutation();
+  const visitorCheckOutMutation = useCheckOutVisitorMutation();
+  const manualEmployeeCheckInMutation = useManualEmployeeCheckInMutation();
+  const manualEmployeeCheckOutMutation = useManualEmployeeCheckOutMutation();
 
-  const verification = verifyMutation.data;
-  const checkInResult = checkInMutation.data;
+  const isProcessing =
+    verifyMutation.isPending
+    || visitorCheckInMutation.isPending
+    || employeeScanMutation.isPending
+    || overrideMutation.isPending
+    || denyMutation.isPending
+    || escalateMutation.isPending
+    || mismatchMutation.isPending
+    || visitorCheckOutMutation.isPending
+    || manualEmployeeCheckInMutation.isPending
+    || manualEmployeeCheckOutMutation.isPending;
 
-  const handleCheckIn = async () => {
-    await checkInMutation.mutateAsync(qrPayload.trim());
+  const cameraActive = Boolean(isFocused && permission?.granted && scannerMode === 'idle' && !reasonAction);
+
+  const reasonConfig = useMemo(() => {
+    if (!reasonAction) {
+      return null;
+    }
+
+    switch (reasonAction.type) {
+      case 'override':
+        return {
+          title: 'Manual visitor override',
+          helperText: 'Record the identity checks you completed before overriding the failed or blocked scan.',
+          confirmLabel: 'Record override',
+        };
+      case 'deny':
+        return {
+          title: 'Deny visitor entry',
+          helperText: 'This will deny the visit at the checkpoint and preserve the guard audit trail in the backend.',
+          confirmLabel: 'Deny entry',
+        };
+      case 'escalate':
+        return {
+          title: 'Escalate visitor issue',
+          helperText: 'Capture what needs follow-up from the host, admin, or security lead.',
+          confirmLabel: 'Escalate',
+        };
+      case 'mismatch':
+        return {
+          title: 'Report mismatch',
+          helperText: 'Record what did not match between the badge, person, and approved visitor profile.',
+          confirmLabel: 'Report mismatch',
+        };
+      case 'employee-check-in':
+        return {
+          title: 'Manual workforce check-in',
+          helperText: 'Document why the static QR could not be used before you log the assisted workforce check-in.',
+          confirmLabel: 'Check in',
+        };
+      case 'employee-check-out':
+        return {
+          title: 'Manual workforce check-out',
+          helperText: 'Document why the static QR could not be used before you log the assisted workforce check-out.',
+          confirmLabel: 'Check out',
+        };
+    }
+  }, [reasonAction]);
+
+  const refreshWorkspace = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['security', 'overview'] }),
       queryClient.invalidateQueries({ queryKey: ['security', 'visitors'] }),
       queryClient.invalidateQueries({ queryKey: ['security', 'monitoring'] }),
+      queryClient.invalidateQueries({ queryKey: ['security', 'attendance'] }),
+      queryClient.invalidateQueries({ queryKey: ['security', 'employees'] }),
     ]);
   };
 
+  const resetScanner = () => {
+    setVisitorVerification(null);
+    setEmployeeScan(null);
+    setScanError(null);
+    setLastActionMessage(null);
+    setScannerMode('idle');
+  };
+
+  const processPayload = async (payload: string) => {
+    const nextPayload = payload.trim();
+    if (!nextPayload) {
+      return;
+    }
+
+    setLastPayload(nextPayload);
+    setScanError(null);
+    setLastActionMessage(null);
+    setVisitorVerification(null);
+    setEmployeeScan(null);
+
+    try {
+      if (looksLikeEmployeeQr(nextPayload)) {
+        const result = await employeeScanMutation.mutateAsync(nextPayload);
+        setEmployeeScan(result);
+        setLastActionMessage(result.message || result.headline || 'Workforce presence updated.');
+      } else {
+        const result = await verifyMutation.mutateAsync(nextPayload);
+        setVisitorVerification(result);
+        setLastActionMessage(result.message || result.headline || 'Visitor badge verified.');
+      }
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : 'The QR scan could not be completed.');
+    } finally {
+      setScannerMode('paused');
+    }
+  };
+
+  const onScannedPayload = (payload: string) => {
+    if (scannerMode !== 'idle' || isProcessing) {
+      return;
+    }
+
+    setScannerMode('processing');
+    void processPayload(payload);
+  };
+
+  const handleVisitorCheckIn = async () => {
+    if (!lastPayload) {
+      return;
+    }
+
+    const visitor = await visitorCheckInMutation.mutateAsync(lastPayload);
+    setLastActionMessage(`${visitor.fullName} checked in successfully.`);
+    await refreshWorkspace();
+  };
+
+  const handleVisitorCheckOut = async (visitorId: string) => {
+    const visitor = await visitorCheckOutMutation.mutateAsync(visitorId);
+    setVisitorVerification((current) => current && current.visitorId === visitorId ? {
+      ...current,
+      status: visitor.status,
+      checkOutTime: visitor.checkOutTime,
+      canCheckIn: false,
+      canCheckOut: false,
+      statusLabel: visitorStatusLabel(visitor.status),
+    } : current);
+    setLastActionMessage(`${visitor.fullName} checked out successfully.`);
+    await refreshWorkspace();
+  };
+
+  const handleReasonConfirm = async (reason: string) => {
+    if (!reasonAction) {
+      return;
+    }
+
+    switch (reasonAction.type) {
+      case 'override': {
+        const visitor = await overrideMutation.mutateAsync({ visitorId: reasonAction.visitorId, reason });
+        setLastActionMessage(`Manual override recorded for ${visitor.fullName}.`);
+        break;
+      }
+      case 'deny': {
+        const visitor = await denyMutation.mutateAsync({ visitorId: reasonAction.visitorId, reason });
+        setVisitorVerification((current) => current && current.visitorId === reasonAction.visitorId ? {
+          ...current,
+          valid: false,
+          status: visitor.status,
+          statusLabel: visitorStatusLabel(visitor.status),
+          message: visitor.rejectionReason || current.message,
+          canCheckIn: false,
+          canCheckOut: false,
+        } : current);
+        setLastActionMessage(`Entry denied for ${visitor.fullName}.`);
+        break;
+      }
+      case 'escalate': {
+        const visitor = await escalateMutation.mutateAsync({ visitorId: reasonAction.visitorId, reason });
+        setLastActionMessage(`Issue escalated for ${visitor.fullName}.`);
+        break;
+      }
+      case 'mismatch': {
+        const visitor = await mismatchMutation.mutateAsync({ visitorId: reasonAction.visitorId, reason });
+        setLastActionMessage(`Mismatch recorded for ${visitor.fullName}.`);
+        break;
+      }
+      case 'employee-check-in': {
+        const record = await manualEmployeeCheckInMutation.mutateAsync({ employeeId: reasonAction.employeeId, reason });
+        setEmployeeScan((current) => current ? {
+          ...current,
+          valid: true,
+          action: 'CHECKED_IN',
+          currentlyIn: true,
+          message: `${record.employeeName} checked in with security assistance.`,
+          attendance: record,
+        } : current);
+        setLastActionMessage(`${record.employeeName} checked in manually.`);
+        break;
+      }
+      case 'employee-check-out': {
+        const record = await manualEmployeeCheckOutMutation.mutateAsync({ employeeId: reasonAction.employeeId, reason });
+        setEmployeeScan((current) => current ? {
+          ...current,
+          valid: true,
+          action: 'CHECKED_OUT',
+          currentlyIn: false,
+          message: `${record.employeeName} checked out with security assistance.`,
+          attendance: record,
+        } : current);
+        setLastActionMessage(`${record.employeeName} checked out manually.`);
+        break;
+      }
+    }
+
+    setReasonAction(null);
+    await refreshWorkspace();
+  };
+
   return (
-    <AppScreen
-      title="Scan"
-      subtitle="Optimized for fast checkpoint handling today, with camera and device scanner workflows ready to slot in next."
-    >
-      <SurfaceCard title="QR verification">
-        <AppTextField
-          label="QR payload"
-          multiline
-          helperText="Paste a badge payload while camera workflows are being wired in. The backend remains the source of truth for validation."
-          onChangeText={setQrPayload}
-          value={qrPayload}
+    <>
+      <AppScreen
+        title="Security Scan"
+        subtitle="Fast QR verification for visitors, employees, recurring badges, and manual checkpoint recovery."
+      >
+        <SurfaceCard title="Checkpoint scanner" subtitle="Designed for reception desks, guard tablets, and one-hand Android workflows.">
+          {!permission ? (
+            <Text style={styles.helperText}>Loading camera permission…</Text>
+          ) : !permission.granted ? (
+            <View style={styles.permissionState}>
+              <Text style={styles.permissionTitle}>Camera access is required</Text>
+              <Text style={styles.helperText}>AccessFlow needs the camera to scan visitor and workforce QR badges in real time.</Text>
+              <PrimaryButton label="Enable camera" onPress={() => void requestPermission()} />
+            </View>
+          ) : (
+            <>
+              <View style={styles.cameraFrame}>
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.camera}
+                  active={cameraActive}
+                  facing="back"
+                  enableTorch={torchEnabled}
+                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                  onBarcodeScanned={cameraActive ? ({ data }) => onScannedPayload(data) : undefined}
+                />
+                <View style={styles.cameraOverlay}>
+                  <Text style={styles.overlayEyebrow}>Live scan</Text>
+                  <Text style={styles.overlayTitle}>{scannerMode === 'idle' ? 'Ready for badge scan' : scannerMode === 'processing' ? 'Processing scan…' : 'Scan paused'}</Text>
+                  <Text style={styles.overlayBody}>Align the QR inside the frame. The backend remains the single source of truth for validation.</Text>
+                </View>
+              </View>
+
+              <View style={styles.controlRow}>
+                <Pressable onPress={() => setTorchEnabled((current) => !current)} style={styles.iconControl}>
+                  <Ionicons name={torchEnabled ? 'flash' : 'flash-off'} size={22} color={theme.colors.textPrimary} />
+                  <Text style={styles.iconControlText}>{torchEnabled ? 'Torch on' : 'Torch off'}</Text>
+                </Pressable>
+                <Pressable onPress={resetScanner} style={styles.iconControl}>
+                  <Ionicons name="refresh" size={22} color={theme.colors.textPrimary} />
+                  <Text style={styles.iconControlText}>Resume scan</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          <AppTextField
+            label="Manual QR fallback"
+            multiline
+            helperText="Use this if the camera is blocked, the code is damaged, or the checkpoint needs an offline-safe retry path."
+            onChangeText={setManualPayload}
+            value={manualPayload}
+            placeholder="Paste a QR payload, verification link, or employee badge token."
+          />
+          <View style={styles.buttonGrid}>
+            <PrimaryButton
+              label="Verify payload"
+              onPress={() => {
+                setScannerMode('processing');
+                void processPayload(manualPayload);
+              }}
+              loading={isProcessing}
+              disabled={!manualPayload.trim()}
+            />
+            <PrimaryButton label="Clear result" onPress={resetScanner} tone="secondary" />
+          </View>
+        </SurfaceCard>
+
+        {scanError ? (
+          <SurfaceCard title="Scan issue">
+            <StatusPill label="Action needed" tone="danger" />
+            <Text style={styles.bodyText}>{scanError}</Text>
+            <Text style={styles.helperText}>The app stayed responsive. Security can retry the scan, paste the payload manually, or use a logged override from the screens below.</Text>
+          </SurfaceCard>
+        ) : null}
+
+        {visitorVerification ? (
+          <SurfaceCard title={visitorVerification.headline || 'Visitor verification'} subtitle={visitorVerification.recommendedAction || 'Security can now decide the next checkpoint action.'}>
+            <View style={styles.verificationHeader}>
+              {visitorVerification.photoUrl ? <Image source={{ uri: visitorVerification.photoUrl }} style={styles.identityImage} /> : null}
+              <View style={styles.verificationMeta}>
+                <Text style={styles.identityName}>{visitorVerification.fullName || 'Visitor not identified'}</Text>
+                <Text style={styles.identitySubline}>
+                  {[visitorVerification.companyName, visitorVerification.organizationName, visitorTypeLabel(visitorVerification.visitorType)].filter(Boolean).join(' · ')}
+                </Text>
+                <StatusPill
+                  label={visitorVerification.statusLabel || (visitorVerification.valid ? 'Validated' : 'Blocked')}
+                  tone={verificationTone(visitorVerification)}
+                />
+              </View>
+            </View>
+
+            <OperationalFieldList
+              items={[
+                { label: 'Approval status', value: visitorVerification.statusLabel || visitorStatusLabel(visitorVerification.status) },
+                { label: 'Visit type', value: visitorTypeLabel(visitorVerification.visitorType) },
+                { label: 'Access window', value: formatVisitorWindow(visitorVerification) },
+                { label: 'Host employee', value: visitorVerification.hostEmployee || 'Unassigned' },
+                { label: 'Host department', value: visitorVerification.hostEmployeeDepartment || 'Not recorded' },
+                { label: 'Badge status', value: visitorVerification.validityStatus || 'Pending' },
+                { label: 'Badge ID', value: visitorVerification.badgeId || 'Not issued' },
+                { label: 'Expires', value: formatDateTime(visitorVerification.expiresAt) },
+              ]}
+            />
+
+            <Text style={styles.bodyText}>{visitorVerification.message || 'Visitor verification completed.'}</Text>
+
+            <View style={styles.buttonGrid}>
+              {visitorVerification.valid && visitorVerification.canCheckIn ? (
+                <PrimaryButton label="Approve check-in" onPress={() => void handleVisitorCheckIn()} loading={visitorCheckInMutation.isPending} />
+              ) : null}
+              {visitorVerification.canCheckOut && visitorVerification.visitorId ? (
+                <PrimaryButton
+                  label="Check out visitor"
+                  onPress={() => void handleVisitorCheckOut(visitorVerification.visitorId as string)}
+                  loading={visitorCheckOutMutation.isPending}
+                  tone="secondary"
+                />
+              ) : null}
+              {visitorVerification.visitorId ? (
+                <PrimaryButton label="Deny entry" onPress={() => setReasonAction({ type: 'deny', visitorId: visitorVerification.visitorId as string })} tone="danger" />
+              ) : null}
+              {visitorVerification.visitorId ? (
+                <PrimaryButton label="Escalate issue" onPress={() => setReasonAction({ type: 'escalate', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
+              ) : null}
+              {visitorVerification.visitorId ? (
+                <PrimaryButton label="Report mismatch" onPress={() => setReasonAction({ type: 'mismatch', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
+              ) : null}
+              {visitorVerification.visitorId && !visitorVerification.valid && !visitorVerification.canCheckOut ? (
+                <PrimaryButton label="Manual override" onPress={() => setReasonAction({ type: 'override', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
+              ) : null}
+            </View>
+          </SurfaceCard>
+        ) : null}
+
+        {employeeScan ? (
+          <SurfaceCard title={employeeScan.headline || 'Workforce verification'} subtitle={employeeScan.recommendedAction || 'Security visibility updated for access operations.'}>
+            <View style={styles.verificationHeader}>
+              <View style={styles.employeeBadge}>
+                <Ionicons name="shield-checkmark" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.verificationMeta}>
+                <Text style={styles.identityName}>{employeeScan.employee?.fullName || 'Employee not identified'}</Text>
+                <Text style={styles.identitySubline}>
+                  {[employeeScan.employee?.organizationName, employeeScan.employee?.department, employeeScan.employee?.designation].filter(Boolean).join(' · ')}
+                </Text>
+                <StatusPill
+                  label={scanResultLabel(employeeScan.action || employeePresenceLabel(employeeScan.attendance || employeeScan.employee))}
+                  tone={employeeScan.valid ? 'success' : 'danger'}
+                />
+              </View>
+            </View>
+
+            <OperationalFieldList
+              items={[
+                { label: 'Employee ID', value: employeeScan.employee?.employeeId || 'Pending' },
+                { label: 'Access state', value: employeeScan.employee?.accountStatus || 'Active' },
+                { label: 'Presence', value: employeePresenceLabel(employeeScan.attendance || employeeScan.employee) },
+                { label: 'Shift', value: employeeScan.employee?.shiftName || 'Not assigned' },
+                { label: 'Shift window', value: [formatTime(employeeScan.employee?.shiftStartTime), formatTime(employeeScan.employee?.shiftEndTime)].join(' - ') },
+                { label: 'Last event', value: relativePresenceSummary(employeeScan.attendance) },
+              ]}
+            />
+
+            <Text style={styles.bodyText}>{employeeScan.message || 'Workforce badge processed successfully.'}</Text>
+
+            <View style={styles.buttonGrid}>
+              {employeeScan.employee?.id ? (
+                <PrimaryButton
+                  label={employeeScan.currentlyIn ? 'Manual check-out' : 'Manual check-in'}
+                  onPress={() => setReasonAction({
+                    type: employeeScan.currentlyIn ? 'employee-check-out' : 'employee-check-in',
+                    employeeId: employeeScan.employee?.id as string,
+                  })}
+                  tone="secondary"
+                />
+              ) : null}
+              <PrimaryButton label="Resume scanning" onPress={resetScanner} tone="secondary" />
+            </View>
+          </SurfaceCard>
+        ) : null}
+
+        {lastActionMessage ? (
+          <SurfaceCard title="Checkpoint update">
+            <StatusPill label="Recorded" tone="success" />
+            <Text style={styles.bodyText}>{lastActionMessage}</Text>
+            {lastPayload ? <Text style={styles.helperText}>Last payload: {truncatePayload(lastPayload)}</Text> : null}
+          </SurfaceCard>
+        ) : null}
+      </AppScreen>
+
+      {reasonConfig ? (
+        <ReasonCaptureModal
+          visible={Boolean(reasonAction)}
+          title={reasonConfig.title}
+          helperText={reasonConfig.helperText}
+          confirmLabel={reasonConfig.confirmLabel}
+          loading={isProcessing}
+          onCancel={() => setReasonAction(null)}
+          onConfirm={handleReasonConfirm}
         />
-        <View style={styles.buttonGrid}>
-          <PrimaryButton
-            label="Verify pass"
-            onPress={() => verifyMutation.mutate(qrPayload.trim())}
-            loading={verifyMutation.isPending}
-            disabled={!qrPayload.trim()}
-          />
-          <PrimaryButton
-            label="Check in visitor"
-            onPress={() => void handleCheckIn()}
-            loading={checkInMutation.isPending}
-            disabled={!qrPayload.trim()}
-            tone="secondary"
-          />
-        </View>
-      </SurfaceCard>
-
-      {verification ? (
-        <SurfaceCard title={verification.headline || 'Verification result'}>
-          <StatusPill
-            label={verification.statusLabel || (verification.valid ? 'Valid' : 'Blocked')}
-            tone={verification.valid ? 'success' : 'danger'}
-          />
-          <Text>{verification.message || 'The backend returned the current pass status.'}</Text>
-          {verification.fullName ? <Text>Visitor: {verification.fullName}</Text> : null}
-          {verification.companyName ? <Text>Company: {verification.companyName}</Text> : null}
-          {verification.recommendedAction ? <Text>Next step: {verification.recommendedAction}</Text> : null}
-        </SurfaceCard>
       ) : null}
-
-      {checkInResult ? (
-        <SurfaceCard title="Check-in recorded" subtitle="The visitor list and monitoring surfaces will refresh automatically.">
-          <Text>{checkInResult.fullName}</Text>
-          <Text>{checkInResult.status}</Text>
-        </SurfaceCard>
-      ) : null}
-    </AppScreen>
+    </>
   );
 }
 
+function looksLikeEmployeeQr(value: string) {
+  const normalized = value.trim();
+  return normalized.startsWith('ACCESSFLOW_EMPLOYEE:') || normalized.includes('employeeToken=');
+}
+
+function truncatePayload(value: string) {
+  return value.length > 48 ? `${value.slice(0, 45)}...` : value;
+}
+
 const styles = StyleSheet.create({
+  permissionState: {
+    gap: theme.spacing.md,
+  },
+  permissionTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  helperText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
+  },
+  cameraFrame: {
+    height: 300,
+    borderRadius: theme.radii.xl,
+    overflow: 'hidden',
+    backgroundColor: '#10212E',
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.lg,
+    backgroundColor: 'rgba(20, 34, 48, 0.65)',
+    padding: theme.spacing.md,
+  },
+  overlayEyebrow: {
+    color: theme.colors.primarySoft,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  overlayTitle: {
+    color: theme.colors.textInverse,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+  },
+  overlayBody: {
+    color: theme.colors.textInverse,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
+  },
+  controlRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  iconControl: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    minHeight: 52,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  iconControlText: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
   buttonGrid: {
-    gap: 12,
+    gap: theme.spacing.sm,
+  },
+  verificationHeader: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    alignItems: 'center',
+  },
+  identityImage: {
+    width: 82,
+    height: 82,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  employeeBadge: {
+    width: 82,
+    height: 82,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verificationMeta: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  identityName: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+  },
+  identitySubline: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
+  },
+  bodyText: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
   },
 });
