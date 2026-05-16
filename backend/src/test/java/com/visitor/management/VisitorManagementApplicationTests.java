@@ -1034,6 +1034,20 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void adminAnalyticsReturnsSafeFallbackWhenCollectionsUnavailable() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/analytics")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("super-admin-id", Role.SUPER_ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.widgets").isArray())
+                .andExpect(jsonPath("$.data.metrics.activeVisitors").value(0))
+                .andExpect(jsonPath("$.data.dailyVisitors").isArray())
+                .andExpect(jsonPath("$.data.employeeAnalytics").isArray())
+                .andExpect(jsonPath("$.data.workforceAttendance.widgets").isArray())
+                .andExpect(jsonPath("$.data.workforceAttendance.recentLogs").isArray());
+    }
+
+    @Test
     void employeeCanLoadStaticWorkforceBadge() throws Exception {
         mockMvc.perform(get("/api/v1/employee/badge")
                         .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))

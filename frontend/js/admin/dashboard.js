@@ -308,6 +308,7 @@ function analyticsTemplate() {
   return `
     <section class="workspace-stack">
       <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Admin analytics"></section>
+      <section class="analytics-recovery" id="analytics-recovery" hidden></section>
 
       <section class="analytics-chart-grid" aria-label="Visitor analytics charts">
         <article class="panel chart-panel">
@@ -378,6 +379,7 @@ function platformAnalyticsTemplate() {
   return `
     <section class="workspace-stack">
       <section class="metric-grid admin-metric-grid" id="metric-grid" aria-label="Platform analytics"></section>
+      <section class="analytics-recovery" id="analytics-recovery" hidden></section>
 
       <section class="workspace-grid workspace-grid--split">
         <article class="panel">
@@ -1205,8 +1207,10 @@ async function loadAnalyticsWorkspace() {
   try {
     const analytics = await request("/admin/analytics");
     renderAnalytics(analytics?.data || {});
+    renderAnalyticsRecovery();
   } catch (error) {
-    renderAnalytics({});
+    renderAnalytics(defaultAnalyticsPayload());
+    renderAnalyticsRecovery(error.message || "Analytics are temporarily unavailable.");
     showToast("Analytics unavailable", error.message);
   }
 }
@@ -1216,22 +1220,28 @@ async function loadPlatformAnalyticsWorkspace() {
   renderAnalyticsLoading();
   renderLoadingList("#tenant-health-list", 3);
   renderLoadingList("#security-overview-list", 3);
-  try {
-    const [analyticsResponse, organizationsResponse, monitoringResponse] = await Promise.all([
-      request("/admin/analytics"),
-      listManagedOrganizations(),
-      request("/admin/monitoring"),
-    ]);
-    renderPlatformAnalytics(
-      analyticsResponse?.data || {},
-      organizationsResponse?.data || [],
-      monitoringResponse?.data || {},
-    );
-  } catch (error) {
-    renderAnalytics({});
-    renderWorkList("#tenant-health-list", [], (item) => item, "Tenant health unavailable", error.message);
-    renderWorkList("#security-overview-list", [], (item) => item, "Platform signals unavailable", error.message);
-    showToast("Platform analytics unavailable", error.message);
+  const [analyticsResult, organizationsResult, monitoringResult] = await Promise.allSettled([
+    request("/admin/analytics"),
+    listManagedOrganizations(),
+    request("/admin/monitoring"),
+  ]);
+
+  const analyticsData = analyticsResult.status === "fulfilled" ? analyticsResult.value?.data : defaultAnalyticsPayload();
+  const organizations = organizationsResult.status === "fulfilled" ? normalizeArray(organizationsResult.value?.data) : [];
+  const monitoring = monitoringResult.status === "fulfilled" && isObject(monitoringResult.value?.data) ? monitoringResult.value.data : {};
+  renderPlatformAnalytics(analyticsData, organizations, monitoring);
+
+  const failures = [
+    analyticsResult.status === "rejected" ? `Analytics: ${analyticsResult.reason?.message || "unavailable"}` : "",
+    organizationsResult.status === "rejected" ? `Tenant health: ${organizationsResult.reason?.message || "unavailable"}` : "",
+    monitoringResult.status === "rejected" ? `Platform signals: ${monitoringResult.reason?.message || "unavailable"}` : "",
+  ].filter(Boolean);
+
+  if (failures.length) {
+    renderAnalyticsRecovery(failures.join(" "));
+    showToast("Platform analytics partially loaded", failures[0]);
+  } else {
+    renderAnalyticsRecovery();
   }
 }
 
@@ -2447,13 +2457,14 @@ function formatMonitoringDetail(status) {
 }
 
 function renderAnalytics(data) {
-  renderDashboardCards(data.widgets || []);
-  renderChart("#daily-visitors-chart", barChart(data.dailyVisitors || [], "Visitors"));
-  renderChart("#monthly-trends-chart", lineChart(data.monthlyTrends || []));
-  renderChart("#peak-hours-chart", compactBars(data.peakHours || []));
-  renderChart("#approval-rates-chart", approvalRateChart(data.approvalRates || []));
-  renderEmployeeAnalytics(data.employeeAnalytics || []);
-  renderWorkforceAttendanceAnalytics(data.workforceAttendance || {});
+  const analytics = normalizeAnalyticsPayload(data);
+  renderDashboardCards(analytics.widgets);
+  renderChart("#daily-visitors-chart", barChart(analytics.dailyVisitors, "Visitors"));
+  renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
+  renderChart("#peak-hours-chart", compactBars(analytics.peakHours));
+  renderChart("#approval-rates-chart", approvalRateChart(analytics.approvalRates));
+  renderEmployeeAnalytics(analytics.employeeAnalytics);
+  renderWorkforceAttendanceAnalytics(analytics.workforceAttendance);
 }
 
 function renderAnalyticsLoading() {
@@ -2465,24 +2476,140 @@ function renderAnalyticsLoading() {
   renderWorkforceAttendanceAnalytics({});
 }
 
+function renderAnalyticsRecovery(message = "") {
+  const panel = document.querySelector("#analytics-recovery");
+  if (!panel) {
+    return;
+  }
+  if (!message) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div>
+      <strong>Analytics partially unavailable</strong>
+      <p>${escapeHtml(message)} The workspace is using safe defaults while live analytics recover.</p>
+    </div>
+    <button class="button button--ghost button--small" type="button" data-analytics-retry>Retry</button>
+  `;
+  panel.querySelector("[data-analytics-retry]")?.addEventListener("click", () => {
+    void loadWorkspace(currentRoute, { preserveToasts: true });
+  });
+}
+
+function defaultAnalyticsPayload() {
+  return {
+    timezone: "UTC",
+    metrics: {
+      activeOrganizations: 0,
+      activeVisitors: 0,
+      totalVisitors: 0,
+      pendingApprovals: 0,
+      todayCheckIns: 0,
+      rejectedVisitors: 0,
+    },
+    organizations: [],
+    visitors: [],
+    workforce: [],
+    alerts: [],
+    widgets: [
+      { label: "Total visitors", value: 0, note: "No analytics available yet" },
+      { label: "Active visitors", value: 0, note: "Waiting for organization activity" },
+      { label: "Pending approvals", value: 0, note: "No visitor activity recorded" },
+      { label: "Today's check-ins", value: 0, note: "No check-ins recorded today" },
+      { label: "Rejected visitors", value: 0, note: "No rejected visits recorded" },
+    ],
+    dailyVisitors: [],
+    monthlyTrends: [],
+    peakHours: [],
+    visitorFlow: [],
+    staffingInsights: [],
+    approvalWorkload: [],
+    checkInTrends: [],
+    approvalRates: [],
+    employeeAnalytics: [],
+    workforceAttendance: {
+      timezone: "UTC",
+      widgets: [],
+      recentLogs: [],
+    },
+  };
+}
+
+function normalizeAnalyticsPayload(data = {}) {
+  const fallback = defaultAnalyticsPayload();
+  const source = isObject(data) ? data : {};
+  const workforceAttendance = isObject(source.workforceAttendance) ? source.workforceAttendance : fallback.workforceAttendance;
+  return {
+    ...fallback,
+    ...source,
+    metrics: isObject(source.metrics) ? { ...fallback.metrics, ...source.metrics } : fallback.metrics,
+    organizations: normalizeArray(source.organizations),
+    visitors: normalizeArray(source.visitors),
+    workforce: normalizeArray(source.workforce),
+    alerts: normalizeArray(source.alerts),
+    widgets: normalizeMetricItems(source.widgets, fallback.widgets),
+    dailyVisitors: normalizeChartSeries(source.dailyVisitors),
+    monthlyTrends: normalizeChartSeries(source.monthlyTrends),
+    peakHours: normalizeChartSeries(source.peakHours),
+    visitorFlow: normalizeChartSeries(source.visitorFlow),
+    staffingInsights: normalizeArray(source.staffingInsights),
+    approvalWorkload: normalizeChartSeries(source.approvalWorkload),
+    checkInTrends: normalizeChartSeries(source.checkInTrends),
+    approvalRates: normalizeArray(source.approvalRates),
+    employeeAnalytics: normalizeArray(source.employeeAnalytics),
+    workforceAttendance: {
+      ...fallback.workforceAttendance,
+      ...workforceAttendance,
+      widgets: normalizeMetricItems(workforceAttendance.widgets, []),
+      recentLogs: normalizeArray(workforceAttendance.recentLogs),
+    },
+  };
+}
+
+function normalizeMetricItems(items, fallback = []) {
+  const values = normalizeArray(items)
+    .filter((item) => isObject(item))
+    .map((item) => ({
+      label: item.label || "Metric",
+      value: item.value ?? 0,
+      note: item.note || "No analytics available yet",
+    }));
+  return values.length ? values : fallback;
+}
+
+function normalizeChartSeries(items) {
+  return normalizeArray(items)
+    .filter((item) => isObject(item))
+    .map((item) => ({
+      label: item.label || "N/A",
+      value: Number(item.value) || 0,
+    }));
+}
+
 function renderPlatformAnalytics(data, organizations, monitoring) {
-  const activeOrganizations = organizations.filter((organization) => organization.activeStatus !== false).length;
-  const pausedOrganizations = organizations.length - activeOrganizations;
-  const pendingApprovals = findWidgetValue(data.widgets, "Pending");
-  const visitorsToday = findWidgetValue(data.widgets, "Visitors today");
-  const apiStatus = monitoring?.runtime || "Unknown";
+  const analytics = normalizeAnalyticsPayload(data);
+  const organizationItems = normalizeArray(organizations);
+  const monitoringData = isObject(monitoring) ? monitoring : {};
+  const activeOrganizations = organizationItems.filter((organization) => organization?.activeStatus !== false).length;
+  const pausedOrganizations = organizationItems.length - activeOrganizations;
+  const pendingApprovals = analytics.metrics?.pendingApprovals ?? findWidgetValue(analytics.widgets, "Pending approvals");
+  const visitorsToday = analytics.metrics?.todayCheckIns ?? findWidgetValue(analytics.widgets, "Today's check-ins");
+  const apiStatus = monitoringData.runtime || "Unknown";
 
   renderDashboardCards([
-    { label: "Active organizations", value: activeOrganizations, note: `${organizations.length} total tenants` },
+    { label: "Active organizations", value: activeOrganizations, note: `${organizationItems.length} total tenants` },
     { label: "Paused tenants", value: pausedOrganizations, note: "Lifecycle controls requiring review" },
     { label: "Pending approvals", value: pendingApprovals, note: "System-wide visitor workload" },
     { label: "Visitors today", value: visitorsToday, note: "Cross-organization usage" },
     { label: "Runtime", value: apiStatus, note: "Latest platform health signal" },
   ]);
-  renderChart("#daily-visitors-chart", barChart(data.dailyVisitors || [], "Visitors"));
-  renderChart("#monthly-trends-chart", lineChart(data.monthlyTrends || []));
-  renderTenantHealthList("#tenant-health-list", organizations.slice(0, 5));
-  renderPlatformSignalList("#security-overview-list", monitoring);
+  renderChart("#daily-visitors-chart", barChart(analytics.dailyVisitors, "Visitors"));
+  renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
+  renderTenantHealthList("#tenant-health-list", organizationItems.slice(0, 5));
+  renderPlatformSignalList("#security-overview-list", monitoringData);
 }
 
 function renderTenantHealth(organizations) {
@@ -3413,8 +3540,8 @@ function renderDashboardCards(widgets) {
   if (!widgets.length) {
     grid.innerHTML = `
       <article class="empty-state empty-state--inline">
-        <h3>No analytics yet</h3>
-        <p>Visitor metrics will appear after activity starts.</p>
+        <h3>No analytics available yet</h3>
+        <p>Waiting for organization activity and visitor records.</p>
       </article>
     `;
     return;
@@ -3439,8 +3566,8 @@ function renderChart(selector, markup) {
 }
 
 function barChart(data, suffix) {
-  if (!data.length) {
-    return chartEmpty("No daily visitor data yet.");
+  if (!data.length || !hasSeriesActivity(data)) {
+    return chartEmpty("No visitor activity recorded yet.");
   }
   const max = maxValue(data);
   const bars = data.map((item, index) => {
@@ -3457,8 +3584,8 @@ function barChart(data, suffix) {
 }
 
 function lineChart(data) {
-  if (!data.length) {
-    return chartEmpty("No monthly trend data yet.");
+  if (!data.length || !hasSeriesActivity(data)) {
+    return chartEmpty("Waiting for organization activity.");
   }
   const max = maxValue(data);
   const points = data.map((item, index) => {
@@ -3476,7 +3603,7 @@ function lineChart(data) {
 
 function compactBars(data) {
   const filtered = data.filter((_, index) => index % 2 === 0);
-  if (!filtered.length) {
+  if (!filtered.length || !hasSeriesActivity(filtered)) {
     return chartEmpty("No peak-hour activity yet.");
   }
   const max = maxValue(filtered);
@@ -3494,7 +3621,7 @@ function compactBars(data) {
 }
 
 function approvalRateChart(data) {
-  if (!data.length) {
+  if (!data.length || !hasSeriesActivity(data)) {
     return chartEmpty("No approval decisions yet.");
   }
   return `
@@ -3516,6 +3643,7 @@ function renderEmployeeAnalytics(items) {
   if (!table) {
     return;
   }
+  const rows = normalizeArray(items).filter((item) => isObject(item));
 
   table.innerHTML = `
     <table>
@@ -3529,13 +3657,13 @@ function renderEmployeeAnalytics(items) {
         </tr>
       </thead>
       <tbody>
-        ${items.length ? items.map((item) => `
+        ${rows.length ? rows.map((item) => `
           <tr>
-            <td data-label="Employee"><strong>${escapeHtml(item.employee)}</strong></td>
-            <td data-label="Total">${escapeHtml(item.total)}</td>
-            <td data-label="Active">${escapeHtml(item.active)}</td>
-            <td data-label="Pending">${escapeHtml(item.pending)}</td>
-            <td data-label="Rejected">${escapeHtml(item.rejected)}</td>
+            <td data-label="Employee"><strong>${escapeHtml(item.employee || "Unassigned")}</strong></td>
+            <td data-label="Total">${escapeHtml(item.total ?? 0)}</td>
+            <td data-label="Active">${escapeHtml(item.active ?? 0)}</td>
+            <td data-label="Pending">${escapeHtml(item.pending ?? 0)}</td>
+            <td data-label="Rejected">${escapeHtml(item.rejected ?? 0)}</td>
           </tr>
         `).join("") : `<tr><td colspan="5"><div class="empty-state empty-state--inline"><h3>No employee activity</h3><p>Host-level analytics will appear after visitor records are created.</p></div></td></tr>`}
       </tbody>
@@ -3548,8 +3676,8 @@ function renderWorkforceAttendanceAnalytics(data) {
   if (!table) {
     return;
   }
-  const widgets = data.widgets || [];
-  const recentLogs = data.recentLogs || [];
+  const widgets = normalizeMetricItems(data?.widgets, []);
+  const recentLogs = normalizeArray(data?.recentLogs).filter((log) => isObject(log));
   table.innerHTML = `
     <div class="workforce-summary-grid">
       ${widgets.length ? widgets.map((item) => `
@@ -3572,12 +3700,12 @@ function renderWorkforceAttendanceAnalytics(data) {
       <tbody>
         ${recentLogs.length ? recentLogs.slice(0, 8).map((log) => `
           <tr>
-            <td data-label="Employee"><strong>${escapeHtml(log.employeeName)}</strong></td>
+            <td data-label="Employee"><strong>${escapeHtml(log.employeeName || "Unknown employee")}</strong></td>
             <td data-label="Status">${escapeHtml(formatStatusLabel(log.status))}</td>
             <td data-label="Shift">${escapeHtml(log.shiftName || "Shift")}</td>
             <td data-label="Guard">${escapeHtml(log.securityGuardName || "System")}</td>
           </tr>
-        `).join("") : `<tr><td colspan="4">No recent workforce logs.</td></tr>`}
+        `).join("") : `<tr><td colspan="4"><div class="empty-state empty-state--inline"><h3>No workforce presence yet</h3><p>Waiting for employee scan activity.</p></div></td></tr>`}
       </tbody>
     </table>
   `;
@@ -3954,8 +4082,20 @@ function maxValue(data) {
   return Math.max(1, ...data.map((item) => Number(item.value) || 0));
 }
 
+function hasSeriesActivity(data) {
+  return normalizeArray(data).some((item) => Number(item?.value) > 0);
+}
+
+function normalizeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function chartEmpty(message) {
-  return `<div class="empty-state empty-state--inline"><h3>No chart data</h3><p>${escapeHtml(message)}</p></div>`;
+  return `<div class="empty-state empty-state--inline"><h3>No analytics available yet</h3><p>${escapeHtml(message)}</p></div>`;
 }
 
 function validateOrganization(payload) {

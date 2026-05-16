@@ -34,6 +34,8 @@ import com.visitor.management.service.HomepageService;
 import com.visitor.management.service.VisitorService;
 import com.visitor.management.service.WorkforceOnboardingService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -52,13 +54,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.RequestPart;
 
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
 public class AdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminController.class);
 
     private final VisitorService visitorService;
     private final CloudinaryUploadService cloudinaryUploadService;
@@ -111,8 +117,8 @@ public class AdminController {
 
     @GetMapping("/analytics")
     public ApiResponse<Map<String, Object>> analytics(Authentication authentication) {
-        Map<String, Object> analytics = new java.util.LinkedHashMap<>(analyticsService.adminDashboard(authentication.getName()));
-        analytics.put("workforceAttendance", employeeAttendanceService.analytics(authentication.getName()));
+        Map<String, Object> analytics = new LinkedHashMap<>(safeAdminAnalytics(authentication.getName()));
+        analytics.put("workforceAttendance", safeWorkforceAnalytics(authentication.getName()));
         return ApiResponse.ok("Admin analytics loaded.", analytics);
     }
 
@@ -340,6 +346,81 @@ public class AdminController {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private Map<String, Object> safeAdminAnalytics(String actorId) {
+        try {
+            Map<String, Object> analytics = analyticsService.adminDashboard(actorId);
+            return analytics == null ? adminAnalyticsFallback() : analytics;
+        } catch (RuntimeException ex) {
+            log.warn("Admin analytics root section failed; returning API fallback. actorPresent={} cause={}: {}",
+                    actorId != null, ex.getClass().getSimpleName(), safeMessage(ex));
+            return adminAnalyticsFallback();
+        }
+    }
+
+    private Map<String, Object> safeWorkforceAnalytics(String actorId) {
+        try {
+            Map<String, Object> analytics = employeeAttendanceService.analytics(actorId);
+            return analytics == null ? workforceAnalyticsFallback() : analytics;
+        } catch (RuntimeException ex) {
+            log.warn("Workforce analytics root section failed; returning API fallback. actorPresent={} cause={}: {}",
+                    actorId != null, ex.getClass().getSimpleName(), safeMessage(ex));
+            return workforceAnalyticsFallback();
+        }
+    }
+
+    private Map<String, Object> adminAnalyticsFallback() {
+        List<Map<String, Object>> widgets = List.of(
+                Map.of("label", "Total visitors", "value", 0, "note", "No analytics available yet"),
+                Map.of("label", "Active visitors", "value", 0, "note", "Waiting for organization activity"),
+                Map.of("label", "Pending approvals", "value", 0, "note", "No visitor activity recorded"),
+                Map.of("label", "Today's check-ins", "value", 0, "note", "No check-ins recorded today"),
+                Map.of("label", "Rejected visitors", "value", 0, "note", "No rejected visits recorded")
+        );
+        return Map.ofEntries(
+                Map.entry("timezone", ZoneOffset.UTC.getId()),
+                Map.entry("metrics", Map.of(
+                        "activeOrganizations", 0,
+                        "activeVisitors", 0,
+                        "totalVisitors", 0,
+                        "pendingApprovals", 0,
+                        "todayCheckIns", 0,
+                        "rejectedVisitors", 0
+                )),
+                Map.entry("organizations", List.of()),
+                Map.entry("visitors", List.of()),
+                Map.entry("workforce", List.of()),
+                Map.entry("alerts", List.of()),
+                Map.entry("widgets", widgets),
+                Map.entry("employeeAnalytics", List.of()),
+                Map.entry("dailyVisitors", List.of()),
+                Map.entry("monthlyTrends", List.of()),
+                Map.entry("peakHours", List.of()),
+                Map.entry("visitorFlow", List.of()),
+                Map.entry("staffingInsights", List.of()),
+                Map.entry("approvalWorkload", List.of()),
+                Map.entry("checkInTrends", List.of()),
+                Map.entry("approvalRates", List.of())
+        );
+    }
+
+    private Map<String, Object> workforceAnalyticsFallback() {
+        return Map.of(
+                "timezone", ZoneOffset.UTC.getId(),
+                "widgets", List.of(
+                        Map.of("label", "Currently inside", "value", 0, "note", "No workforce presence yet"),
+                        Map.of("label", "Today check-ins", "value", 0, "note", "Waiting for employee scans"),
+                        Map.of("label", "Late arrivals", "value", 0, "note", "No late-arrival signal"),
+                        Map.of("label", "Activity logs", "value", 0, "note", "No presence events recorded today")
+                ),
+                "recentLogs", List.of()
+        );
+    }
+
+    private String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? "no detail" : message;
     }
 
 }

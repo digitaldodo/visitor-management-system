@@ -1,5 +1,6 @@
 package com.visitor.management.service;
 
+import com.mongodb.client.MongoCollection;
 import com.visitor.management.dto.EmployeeAttendanceResponse;
 import com.visitor.management.dto.EmployeeAttendanceScanResponse;
 import com.visitor.management.dto.EmployeeBadgeResponse;
@@ -15,6 +16,10 @@ import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.EmployeeAttendanceLogRepository;
 import com.visitor.management.repository.UserRepository;
+import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -27,6 +32,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,11 +42,14 @@ import java.util.Set;
 @Service
 public class EmployeeAttendanceService {
 
+    private static final Logger log = LoggerFactory.getLogger(EmployeeAttendanceService.class);
     private static final String QR_PREFIX = "ACCESSFLOW_EMPLOYEE";
+    private static final String ATTENDANCE_COLLECTION = "employee_attendance_logs";
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final EmployeeAttendanceLogRepository attendanceRepository;
+    private final MongoTemplate mongoTemplate;
     private final QrCodeService qrCodeService;
     private final TokenService tokenService;
     private final AccessAuditService accessAuditService;
@@ -48,6 +58,7 @@ public class EmployeeAttendanceService {
     public EmployeeAttendanceService(
             UserRepository userRepository,
             EmployeeAttendanceLogRepository attendanceRepository,
+            MongoTemplate mongoTemplate,
             QrCodeService qrCodeService,
             TokenService tokenService,
             AccessAuditService accessAuditService,
@@ -55,6 +66,7 @@ public class EmployeeAttendanceService {
     ) {
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
+        this.mongoTemplate = mongoTemplate;
         this.qrCodeService = qrCodeService;
         this.tokenService = tokenService;
         this.accessAuditService = accessAuditService;
@@ -240,32 +252,115 @@ public class EmployeeAttendanceService {
     }
 
     public Map<String, Object> analytics(String actorId) {
-        User actor = currentUser(actorId);
-        String organizationId = actor.getRoles().contains(Role.SUPER_ADMIN) ? null : requiredOrganizationId(actor);
-        ZoneId zoneId = resolveZoneId(actor);
-        LocalDate today = LocalDate.now(zoneId);
-        List<EmployeeAttendanceLog> todayLogs = organizationId == null
-                ? attendanceRepository.findAll().stream().filter(log -> today.equals(log.getAttendanceDate())).toList()
-                : attendanceRepository.findAllByOrganizationIdAndAttendanceDate(organizationId, today);
+        try {
+            User actor = currentUser(actorId);
+            String organizationId = hasRole(actor, Role.SUPER_ADMIN) ? null : requiredOrganizationId(actor);
+            ZoneId zoneId = resolveZoneId(actor);
+            return attendanceAnalyticsFromRawDocuments(organizationId, zoneId);
+        } catch (RuntimeException ex) {
+            log.warn("Workforce attendance analytics failed; returning safe fallback. actorPresent={} cause={}: {}",
+                    actorId != null, ex.getClass().getSimpleName(), safeMessage(ex));
+            return workforceAnalyticsFallback(ZoneOffset.UTC);
+        }
+    }
 
-        long checkedIn = todayLogs.stream().filter(log -> log.getState() == EmployeeAttendanceState.IN).count();
-        long todayCheckIns = todayLogs.stream().filter(log -> log.getCheckInTime() != null).count();
+    private Map<String, Object> attendanceAnalyticsFromRawDocuments(String organizationId, ZoneId zoneId) {
+        LocalDate today = LocalDate.now(zoneId);
+        Instant todayStart = today.atStartOfDay(zoneId).toInstant();
+        Instant todayEnd = today.plusDays(1).atStartOfDay(zoneId).toInstant();
+        List<Document> todayLogs = new ArrayList<>();
+        for (Document document : attendanceCollection()
+                .find(attendanceTodayFilter(organizationId, today, todayStart, todayEnd))
+                .sort(new Document("createdAt", -1))
+                .limit(100)) {
+            if (document != null) {
+                todayLogs.add(document);
+            }
+        }
+
+        long checkedIn = todayLogs.stream().filter(log -> "IN".equals(normalizedAttendanceState(log))).count();
+        long todayCheckIns = todayLogs.stream().filter(log -> valuePresent(log.get("checkInTime"))).count();
         long late = todayLogs.stream().filter(this::isLate).count();
 
         return Map.of(
                 "timezone", zoneId.getId(),
-                "widgets", List.of(
-                        Map.of("label", "Currently inside", "value", checkedIn, "note", "Employees physically present"),
-                        Map.of("label", "Today check-ins", "value", todayCheckIns, "note", "Badge scans and assisted entries"),
-                        Map.of("label", "Late arrivals", "value", late, "note", "Optional shift-start signal"),
-                        Map.of("label", "Activity logs", "value", todayLogs.size(), "note", "Presence events recorded today")
-                ),
+                "widgets", workforceWidgets(checkedIn, todayCheckIns, late, todayLogs.size()),
                 "recentLogs", todayLogs.stream()
-                        .sorted(Comparator.comparing(EmployeeAttendanceLog::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                         .limit(20)
-                        .map(this::toAttendanceResponse)
+                        .map(this::toAttendanceAnalyticsRow)
                         .toList()
         );
+    }
+
+    private List<Map<String, Object>> workforceWidgets(long checkedIn, long todayCheckIns, long late, long activityLogs) {
+        return List.of(
+                Map.of("label", "Currently inside", "value", checkedIn, "note", "Employees physically present"),
+                Map.of("label", "Today check-ins", "value", todayCheckIns, "note", "Badge scans and assisted entries"),
+                Map.of("label", "Late arrivals", "value", late, "note", "Optional shift-start signal"),
+                Map.of("label", "Activity logs", "value", activityLogs, "note", "Presence events recorded today")
+        );
+    }
+
+    private Map<String, Object> workforceAnalyticsFallback(ZoneId zoneId) {
+        return Map.of(
+                "timezone", zoneId.getId(),
+                "widgets", workforceWidgets(0, 0, 0, 0),
+                "recentLogs", List.of()
+        );
+    }
+
+    private MongoCollection<Document> attendanceCollection() {
+        return mongoTemplate.getCollection(ATTENDANCE_COLLECTION);
+    }
+
+    private Document attendanceTodayFilter(String organizationId, LocalDate today, Instant todayStart, Instant todayEnd) {
+        List<Document> dateMatches = List.of(
+                new Document("attendanceDate", today.toString()),
+                new Document("attendanceDate", Date.from(today.atStartOfDay(ZoneOffset.UTC).toInstant())),
+                dateRangeFilter("checkInTime", todayStart, todayEnd),
+                dateRangeFilter("createdAt", todayStart, todayEnd)
+        );
+        Document filter = new Document("$or", dateMatches);
+        if (trimToNull(organizationId) != null) {
+            filter.append("organizationId", organizationId);
+        }
+        return filter;
+    }
+
+    private Document dateRangeFilter(String field, Instant start, Instant end) {
+        return new Document(field, new Document("$type", "date")
+                .append("$gte", Date.from(start))
+                .append("$lt", Date.from(end)));
+    }
+
+    private Map<String, Object> toAttendanceAnalyticsRow(Document document) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", stringValue(document.get("_id"), "attendance-log"));
+        row.put("employeeUserId", stringValue(document.get("employeeUserId"), ""));
+        row.put("employeeId", stringValue(document.get("employeeId"), ""));
+        row.put("employeeName", stringValue(document.get("employeeName"), "Unknown employee"));
+        row.put("department", stringValue(document.get("department"), ""));
+        row.put("designation", stringValue(document.get("designation"), ""));
+        row.put("employeeType", stringValue(document.get("employeeType"), ""));
+        row.put("organizationId", stringValue(document.get("organizationId"), ""));
+        row.put("organizationName", stringValue(document.get("organizationName"), ""));
+        row.put("organizationCode", stringValue(document.get("organizationCode"), ""));
+        row.put("timezone", stringValue(document.get("timezone"), ""));
+        row.put("attendanceDate", stringValue(document.get("attendanceDate"), ""));
+        row.put("shiftName", stringValue(document.get("shiftName"), "Shift pending"));
+        row.put("shiftStartTime", stringValue(document.get("shiftStartTime"), ""));
+        row.put("shiftEndTime", stringValue(document.get("shiftEndTime"), ""));
+        row.put("state", normalizedAttendanceState(document));
+        row.put("status", normalizedAttendanceStatus(document));
+        row.put("late", isLate(document));
+        row.put("checkInTime", document.get("checkInTime"));
+        row.put("checkOutTime", document.get("checkOutTime"));
+        row.put("securityGuardId", stringValue(document.get("securityGuardId"), ""));
+        row.put("securityGuardName", stringValue(document.get("securityGuardName"), "System"));
+        row.put("lastAction", stringValue(document.get("lastAction"), ""));
+        row.put("createdAt", document.get("createdAt"));
+        row.put("updatedAt", document.get("updatedAt"));
+        return row;
     }
 
     private void markCheckInPresence(EmployeeAttendanceLog log, User employee, Instant at, ZoneId zoneId) {
@@ -475,6 +570,75 @@ public class EmployeeAttendanceService {
         return log.getStatus() == EmployeeAttendanceStatus.LATE
                 || log.getStatus() == EmployeeAttendanceStatus.LATE_ENTRY
                 || (log.getFlags() != null && (log.getFlags().contains(EmployeeAttendanceStatus.LATE) || log.getFlags().contains(EmployeeAttendanceStatus.LATE_ENTRY)));
+    }
+
+    private boolean isLate(Document log) {
+        String status = normalizeEnumValue(log.get("status"));
+        if ("LATE".equals(status) || "LATE_ENTRY".equals(status)) {
+            return true;
+        }
+        Object flags = log.get("flags");
+        if (flags instanceof Iterable<?> iterable) {
+            for (Object flag : iterable) {
+                String value = normalizeEnumValue(flag);
+                if ("LATE".equals(value) || "LATE_ENTRY".equals(value)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String normalizedAttendanceState(Document log) {
+        String state = normalizeEnumValue(log.get("state"));
+        return switch (state) {
+            case "IN", "INSIDE", "CHECKED_IN" -> "IN";
+            case "OUT", "OUTSIDE", "CHECKED_OUT" -> "OUT";
+            default -> valuePresent(log.get("checkInTime")) && !valuePresent(log.get("checkOutTime")) ? "IN" : "OUT";
+        };
+    }
+
+    private String normalizedAttendanceStatus(Document log) {
+        String status = normalizeEnumValue(log.get("status"));
+        if ("LATE".equals(status) || "LATE_ENTRY".equals(status)) {
+            return "LATE";
+        }
+        if ("INSIDE".equals(status) || "IN".equals(status) || "CHECKED_IN".equals(status)) {
+            return "INSIDE";
+        }
+        if ("OUTSIDE".equals(status) || "OUT".equals(status) || "CHECKED_OUT".equals(status)) {
+            return "OUTSIDE";
+        }
+        return "IN".equals(normalizedAttendanceState(log)) ? "INSIDE" : "OUTSIDE";
+    }
+
+    private String normalizeEnumValue(Object value) {
+        return String.valueOf(value == null ? "" : value)
+                .trim()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .toUpperCase(Locale.ROOT);
+    }
+
+    private boolean valuePresent(Object value) {
+        return value != null && (!(value instanceof String text) || !text.isBlank());
+    }
+
+    private boolean hasRole(User user, Role role) {
+        return user != null && user.getRoles() != null && user.getRoles().contains(role);
+    }
+
+    private String stringValue(Object value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isBlank() ? fallback : text;
+    }
+
+    private String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? "no detail" : message;
     }
 
     private boolean employeeMatches(User employee, String query) {

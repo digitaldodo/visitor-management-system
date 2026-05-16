@@ -7,6 +7,8 @@ import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.UserRepository;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
@@ -21,10 +23,12 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Service
 public class AnalyticsService {
 
+    private static final Logger log = LoggerFactory.getLogger(AnalyticsService.class);
     private static final String VISITORS_COLLECTION = "visitors";
 
     private final MongoTemplate mongoTemplate;
@@ -50,11 +54,14 @@ public class AnalyticsService {
         Instant todayEnd = LocalDate.now(timezone).plusDays(1).atStartOfDay(timezone).toInstant();
         Document scope = scopeFilter(organizationId);
 
-        long totalVisitors = count(scope);
-        long activeVisitors = count(withScope(statusFilter(VisitorStatus.CHECKED_IN), organizationId));
-        long pendingApprovals = count(withScope(statusFilter(VisitorStatus.PENDING), organizationId));
-        long todayCheckIns = count(withScope(new Document("checkInTime", range(todayStart, todayEnd)), organizationId));
-        long rejectedVisitors = count(withScope(statusFilter(VisitorStatus.REJECTED), organizationId));
+        long totalVisitors = safeLong("visitor.widgets.totalVisitors", () -> count(scope));
+        long activeVisitors = safeLong("visitor.widgets.activeVisitors", () -> count(withScope(statusFilter(VisitorStatus.CHECKED_IN), organizationId)));
+        long pendingApprovals = safeLong("visitor.widgets.pendingApprovals", () -> count(withScope(statusFilter(VisitorStatus.PENDING), organizationId)));
+        long todayCheckIns = safeLong("visitor.widgets.todayCheckIns", () -> count(withScope(dateRangeFilter("checkInTime", todayStart, todayEnd), organizationId)));
+        long rejectedVisitors = safeLong("visitor.widgets.rejectedVisitors", () -> count(withScope(statusFilter(VisitorStatus.REJECTED), organizationId)));
+        long activeOrganizations = organizationId == null
+                ? safeLong("organization.metrics.activeOrganizations", organizationRepository::countByActiveStatusTrue)
+                : 1L;
 
         List<Map<String, Object>> widgets = List.of(
                 widget("Total visitors", totalVisitors, "All registered visitor records"),
@@ -66,16 +73,28 @@ public class AnalyticsService {
 
         return Map.ofEntries(
                 Map.entry("timezone", timezone.getId()),
+                Map.entry("metrics", Map.of(
+                        "activeOrganizations", activeOrganizations,
+                        "activeVisitors", activeVisitors,
+                        "totalVisitors", totalVisitors,
+                        "pendingApprovals", pendingApprovals,
+                        "todayCheckIns", todayCheckIns,
+                        "rejectedVisitors", rejectedVisitors
+                )),
+                Map.entry("organizations", List.of()),
+                Map.entry("visitors", List.of()),
+                Map.entry("workforce", List.of()),
+                Map.entry("alerts", List.of()),
                 Map.entry("widgets", widgets),
-                Map.entry("employeeAnalytics", employeeAnalytics(organizationId)),
-                Map.entry("dailyVisitors", dailyVisitors(organizationId, timezone)),
-                Map.entry("monthlyTrends", monthlyTrends(organizationId, timezone)),
-                Map.entry("peakHours", peakHours(organizationId, timezone)),
-                Map.entry("visitorFlow", visitorFlow(organizationId, timezone)),
-                Map.entry("staffingInsights", staffingInsights(organizationId, timezone)),
-                Map.entry("approvalWorkload", approvalWorkload(organizationId, timezone)),
-                Map.entry("checkInTrends", checkInTrends(organizationId, timezone)),
-                Map.entry("approvalRates", approvalRates(organizationId))
+                Map.entry("employeeAnalytics", safeList("employeeAnalytics", () -> employeeAnalytics(organizationId))),
+                Map.entry("dailyVisitors", safeList("dailyVisitors", () -> dailyVisitors(organizationId, timezone))),
+                Map.entry("monthlyTrends", safeList("monthlyTrends", () -> monthlyTrends(organizationId, timezone))),
+                Map.entry("peakHours", safeList("peakHours", () -> peakHours(organizationId, timezone))),
+                Map.entry("visitorFlow", safeList("visitorFlow", () -> visitorFlow(organizationId, timezone))),
+                Map.entry("staffingInsights", safeList("staffingInsights", () -> staffingInsights(organizationId, timezone))),
+                Map.entry("approvalWorkload", safeList("approvalWorkload", () -> approvalWorkload(organizationId, timezone))),
+                Map.entry("checkInTrends", safeList("checkInTrends", () -> checkInTrends(organizationId, timezone))),
+                Map.entry("approvalRates", safeList("approvalRates", () -> approvalRates(organizationId)))
         );
     }
 
@@ -83,7 +102,7 @@ public class AnalyticsService {
         LocalDate startDate = LocalDate.now(timezone).minusDays(13);
         Instant start = startDate.atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$match", withScope(dateRangeFilter("checkInTime", start, null), organizationId)),
                 new Document("$group", new Document("_id", dateString("$checkInTime", "%Y-%m-%d", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -101,7 +120,7 @@ public class AnalyticsService {
         YearMonth startMonth = YearMonth.now(timezone).minusMonths(11);
         Instant start = startMonth.atDay(1).atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", withScope(new Document("createdAt", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$match", withScope(dateRangeFilter("createdAt", start, null), organizationId)),
                 new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -118,7 +137,7 @@ public class AnalyticsService {
     private List<Map<String, Object>> peakHours(String organizationId, ZoneId timezone) {
         Instant start = LocalDate.now(timezone).minusDays(29).atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", withScope(new Document("checkInTime", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$match", withScope(dateRangeFilter("checkInTime", start, null), organizationId)),
                 new Document("$group", new Document("_id", dateString("$checkInTime", "%H", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -134,7 +153,7 @@ public class AnalyticsService {
     private List<Map<String, Object>> visitorFlow(String organizationId, ZoneId timezone) {
         Instant start = LocalDate.now(timezone).minusDays(29).atStartOfDay(timezone).toInstant();
         Map<String, Long> scheduled = aggregateCounts(List.of(
-                new Document("$match", withScope(new Document("scheduledStartTime", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$match", withScope(dateRangeFilter("scheduledStartTime", start, null), organizationId)),
                 new Document("$group", new Document("_id", dateString("$scheduledStartTime", "%H", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -162,7 +181,7 @@ public class AnalyticsService {
     private List<Map<String, Object>> approvalWorkload(String organizationId, ZoneId timezone) {
         Instant start = LocalDate.now(timezone).minusDays(6).atStartOfDay(timezone).toInstant();
         Map<String, Long> counts = aggregateCounts(List.of(
-                new Document("$match", withScope(new Document("createdAt", new Document("$gte", Date.from(start))), organizationId)),
+                new Document("$match", withScope(dateRangeFilter("createdAt", start, null), organizationId)),
                 new Document("$group", new Document("_id", dateString("$createdAt", "%Y-%m-%d", timezone)).append("count", new Document("$sum", 1))),
                 new Document("$sort", new Document("_id", 1))
         ));
@@ -266,6 +285,17 @@ public class AnalyticsService {
         return new Document("$gte", Date.from(start)).append("$lt", Date.from(end));
     }
 
+    private Document dateRangeFilter(String field, Instant start, Instant end) {
+        Document range = new Document("$type", "date");
+        if (start != null) {
+            range.append("$gte", Date.from(start));
+        }
+        if (end != null) {
+            range.append("$lt", Date.from(end));
+        }
+        return new Document(field, range);
+    }
+
     private Document dateString(String field, String format, ZoneId timezone) {
         return new Document("$dateToString", new Document("format", format).append("date", field).append("timezone", timezone.getId()));
     }
@@ -280,6 +310,27 @@ public class AnalyticsService {
             counts.put(String.valueOf(document.get("_id")), number(document, "count"));
         }
         return counts;
+    }
+
+    private long safeLong(String section, Supplier<Long> supplier) {
+        try {
+            return supplier.get();
+        } catch (RuntimeException ex) {
+            log.warn("Admin analytics section '{}' failed; returning numeric fallback. cause={}: {}",
+                    section, ex.getClass().getSimpleName(), safeMessage(ex));
+            return 0L;
+        }
+    }
+
+    private List<Map<String, Object>> safeList(String section, Supplier<List<Map<String, Object>>> supplier) {
+        try {
+            List<Map<String, Object>> value = supplier.get();
+            return value == null ? List.of() : value;
+        } catch (RuntimeException ex) {
+            log.warn("Admin analytics section '{}' failed; returning empty fallback. cause={}: {}",
+                    section, ex.getClass().getSimpleName(), safeMessage(ex));
+            return List.of();
+        }
     }
 
     private Map<String, Object> widget(String label, long value, String note) {
@@ -313,11 +364,17 @@ public class AnalyticsService {
         if (actorId == null) {
             return new AnalyticsScope(null, ZoneOffset.UTC);
         }
-        User user = userRepository.findById(actorId).orElse(null);
-        if (user == null || user.getRoles().contains(Role.SUPER_ADMIN)) {
+        try {
+            User user = userRepository.findById(actorId).orElse(null);
+            if (user == null || user.getRoles() == null || user.getRoles().contains(Role.SUPER_ADMIN)) {
+                return new AnalyticsScope(null, ZoneOffset.UTC);
+            }
+            return new AnalyticsScope(trimToNull(user.getOrganizationId()), resolveZoneId(user));
+        } catch (RuntimeException ex) {
+            log.warn("Admin analytics scope resolution failed; using platform fallback. actorPresent={} cause={}: {}",
+                    actorId != null, ex.getClass().getSimpleName(), safeMessage(ex));
             return new AnalyticsScope(null, ZoneOffset.UTC);
         }
-        return new AnalyticsScope(user.getOrganizationId(), resolveZoneId(user));
     }
 
     private long asLong(Object value) {
@@ -343,6 +400,11 @@ public class AnalyticsService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String safeMessage(RuntimeException ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? "no detail" : message;
     }
 
     private record AnalyticsScope(String organizationId, ZoneId zoneId) {

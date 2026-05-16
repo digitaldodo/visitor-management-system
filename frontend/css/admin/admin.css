@@ -163,10 +163,31 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
 }
 
+.analytics-recovery {
+  align-items: center;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: var(--radius-card);
+  color: #fef3c7;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+}
+
+.analytics-recovery[hidden] {
+  display: none;
+}
+
+.analytics-recovery p {
+  color: var(--color-muted);
+  margin: 0.2rem 0 0;
+}
+
 .chart-panel {
   display: grid;
   grid-template-rows: auto 1fr;
-  min-height: 22rem;
+  min-height: 18rem;
 }
 
 .chart-stage {
@@ -174,7 +195,7 @@
   background: rgba(11, 18, 31, 0.5);
   border: 1px solid rgba(191, 219, 254, 0.08);
   border-radius: 14px;
-  min-height: 16.5rem;
+  min-height: 13rem;
   overflow: hidden;
   padding: clamp(0.8rem, 1.5vw, 0.95rem);
 }
@@ -1316,7 +1337,12 @@
   }
 
   .chart-panel {
-    min-height: 19rem;
+    min-height: 16rem;
+  }
+
+  .analytics-recovery {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .hour-chart__row {
