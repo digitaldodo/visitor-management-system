@@ -31,7 +31,7 @@ Detailed architecture, flows, RBAC, database, API, deployment, and runtime docum
 ```text
 Browser static frontend
   -> Render static site: accessflow-web
-  -> Spring Boot API: accessflow-api
+  -> Spring Boot API: accessflow-api-goww
   -> MongoDB collections for users, organizations, visitors, attendance, notifications, and audit logs
   -> Cloudinary for visitor/workforce photos
   -> SendGrid for OTP and notification email
@@ -113,13 +113,13 @@ API_BASE_URL=http://localhost:8080/api/v1 node ./scripts/build-static.mjs
 python -m http.server 4173 --directory dist
 ```
 
-For local static testing without a build, update `frontend/assets/js/env.js` or set `window.API_BASE_URL` before loading the app.
+For local API testing, use the `API_BASE_URL` build variable; unbuilt static files default to the production API and should not carry ad hoc localhost fallbacks.
 
 ## Deployment
 
 `render.yaml` defines two Render services:
 
-- `accessflow-api`: Docker web service built from `backend/Dockerfile`.
+- `accessflow-api-goww`: Docker web service built from `backend/Dockerfile`.
 - `accessflow-web`: static site built from `frontend/` and published from `frontend/dist/`.
 
 Render frontend build:
@@ -134,7 +134,7 @@ Backend deploy uses the Spring `prod` profile, binds to `0.0.0.0:${PORT:-10000}`
 ```text
 FRONTEND_PUBLIC_URL=https://accessflow-web.onrender.com
 CORS_ALLOWED_ORIGINS=https://accessflow-web.onrender.com
-API_BASE_URL=https://accessflow-api.onrender.com/api/v1
+API_BASE_URL=https://accessflow-api-goww.onrender.com/api/v1
 ```
 
 ## Render Versioning Notes
@@ -159,7 +159,7 @@ Frontend role guards hide unavailable navigation, but backend route rules, `@Pre
 cd backend
 mvn test
 mvn -DskipTests package
-docker build -t accessflow-api .
+docker build -t accessflow-api-goww .
 ```
 
 Useful health endpoints:

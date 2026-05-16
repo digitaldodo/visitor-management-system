@@ -1,3 +1,5 @@
+import { validateApiConfiguration } from "./config.js";
+
 const noopRuntime = {
   clearAppStorage() {},
   ensureVersion() {
@@ -31,6 +33,11 @@ export function bootstrapApplication(label, action, options = {}) {
   const state = runtime.ensureVersion({ label, ...options }) || {};
   if (state.reloading) {
     return Promise.resolve(null);
+  }
+
+  const apiState = validateApiConfiguration();
+  if (apiState.needsRecovery) {
+    reportApiConfigurationRecovery(runtime, label, apiState);
   }
 
   return Promise.resolve()
@@ -74,6 +81,32 @@ export function recoverRuntime(reason, options) {
 
 export function reportRuntimeError(source, error, metadata) {
   return getRuntime().reportError(source, error, metadata);
+}
+
+function reportApiConfigurationRecovery(runtime, label, apiState) {
+  runtime.reportError("api-config", new Error("AccessFlow API configuration required runtime recovery."), {
+    apiHost: hostFromApiBaseUrl(apiState.apiBaseUrl),
+    label,
+    reason: apiState.reason,
+    source: apiState.source,
+  });
+
+  if (apiState.usedFallback || apiState.productionUsingLocalApi || apiState.previousWasStale) {
+    runtime.showNotice("AccessFlow recovered the API endpoint for this deployment.", {
+      primaryLabel: "Refresh now",
+      primaryAction: () => {
+        window.location.reload();
+      },
+    });
+  }
+}
+
+function hostFromApiBaseUrl(apiBaseUrl) {
+  try {
+    return new URL(apiBaseUrl).host;
+  } catch {
+    return "";
+  }
 }
 
 function getRuntime() {

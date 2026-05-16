@@ -34,7 +34,7 @@ flowchart LR
         Runtime["boot.js, appRuntime.js,<br/>appErrorBoundary.js"]
     end
 
-    subgraph API["Render Docker Service: accessflow-api"]
+    subgraph API["Render Docker Service: accessflow-api-goww"]
         Filters["request logging, rate limit,<br/>input sanitization, JWT"]
         Auth["AuthController/AuthService"]
         Portal["Admin, Employee, Security,<br/>Visitor controllers"]
@@ -118,7 +118,7 @@ flowchart TD
     WebBuild --> Dist["frontend/dist"]
     Dist --> Web["accessflow-web"]
     ApiBuild --> Jar["Spring Boot executable jar"]
-    Jar --> Api["accessflow-api"]
+    Jar --> Api["accessflow-api-goww"]
     Web --> Browser["User browser"]
     Browser --> Api
     Api --> Mongo["MongoDB Atlas"]
@@ -902,7 +902,7 @@ Responsive architecture:
 
 Render services:
 
-- `accessflow-api`: Docker web service, root `backend`, health check `/api/v1/health/live`.
+- `accessflow-api-goww`: Docker web service, root `backend`, health check `/api/v1/health/live`.
 - `accessflow-web`: static service, root `frontend`, publish path `dist`, build command `node ./scripts/build-static.mjs`.
 
 Frontend deployment lifecycle:

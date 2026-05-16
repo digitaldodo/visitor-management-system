@@ -6,7 +6,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, "..");
 const distDir = path.join(rootDir, "dist");
 const buildTime = new Date();
-const apiBaseUrl = process.env.API_BASE_URL;
+const apiBaseUrl = resolveBuildApiBaseUrl(process.env.API_BASE_URL);
 
 if (!apiBaseUrl) {
   throw new Error("API_BASE_URL is required to build the static frontend.");
@@ -37,6 +37,64 @@ function createBuildMeta(timestamp) {
     builtAt: timestamp.toISOString(),
     revision: revision || null,
   };
+}
+
+function resolveBuildApiBaseUrl(value) {
+  const normalized = normalizeApiBaseUrl(value);
+  if (!normalized) {
+    return "";
+  }
+  if (new URL(normalized).host.toLowerCase() === legacyApiHost()) {
+    throw new Error("API_BASE_URL points to the retired AccessFlow backend.");
+  }
+  if (isRenderBuild() && isLocalApiBaseUrl(normalized)) {
+    throw new Error("Render builds must not use a local API_BASE_URL.");
+  }
+  return normalized;
+}
+
+function normalizeApiBaseUrl(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  let url;
+  try {
+    url = new URL(rawValue);
+  } catch {
+    return "";
+  }
+
+  if (!["http:", "https:"].includes(url.protocol)) {
+    return "";
+  }
+
+  const pathName = url.pathname.replace(/\/+$/, "");
+  if (!pathName || pathName === "/") {
+    url.pathname = "/api/v1";
+  } else if (pathName !== "/api/v1") {
+    return "";
+  } else {
+    url.pathname = "/api/v1";
+  }
+
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+function isRenderBuild() {
+  return Boolean(process.env.RENDER || process.env.RENDER_SERVICE_NAME);
+}
+
+function legacyApiHost() {
+  return ["accessflow-api", "onrender", "com"].join(".");
+}
+
+function isLocalApiBaseUrl(value) {
+  const host = new URL(value).hostname.toLowerCase();
+  return /(?:^|\.)localhost$|^127\.0\.0\.1$|^\[::1\]$/.test(host);
 }
 
 async function copyWorkspace(sourceDir, targetDir) {

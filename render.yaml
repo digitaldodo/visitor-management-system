@@ -5,7 +5,7 @@ previews:
 
 services:
   - type: web
-    name: accessflow-api
+    name: accessflow-api-goww
     runtime: docker
     rootDir: backend
     plan: free
@@ -157,4 +157,4 @@ services:
         destination: /index.html
     envVars:
       - key: API_BASE_URL
-        value: https://accessflow-api.onrender.com/api/v1
+        value: https://accessflow-api-goww.onrender.com/api/v1
