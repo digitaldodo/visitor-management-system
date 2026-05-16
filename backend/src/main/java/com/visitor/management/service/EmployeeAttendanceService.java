@@ -8,6 +8,7 @@ import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.EmployeeAttendanceLog;
 import com.visitor.management.entity.EmployeeAttendanceState;
 import com.visitor.management.entity.EmployeeAttendanceStatus;
+import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
@@ -42,19 +43,22 @@ public class EmployeeAttendanceService {
     private final QrCodeService qrCodeService;
     private final TokenService tokenService;
     private final AccessAuditService accessAuditService;
+    private final NotificationService notificationService;
 
     public EmployeeAttendanceService(
             UserRepository userRepository,
             EmployeeAttendanceLogRepository attendanceRepository,
             QrCodeService qrCodeService,
             TokenService tokenService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
         this.qrCodeService = qrCodeService;
         this.tokenService = tokenService;
         this.accessAuditService = accessAuditService;
+        this.notificationService = notificationService;
     }
 
     public void provisionEmployeeCredential(User user) {
@@ -148,24 +152,29 @@ public class EmployeeAttendanceService {
 
     public EmployeeAttendanceScanResponse scan(String qrPayload, String securityGuardId) {
         User guard = currentUser(securityGuardId);
-        User employee = resolveEmployeeQr(qrPayload);
-        requireSameOrganizationOrSuperAdmin(guard, employee);
-        validateEmployeeAccess(employee);
-        EmployeeAttendanceLog log = currentlyIn(employee)
-                ? checkOut(employee.getId(), securityGuardId, false, null)
-                : checkIn(employee.getId(), securityGuardId, false, null);
-        String action = log.getState() == EmployeeAttendanceState.IN ? "CHECKED_IN" : "CHECKED_OUT";
-        return new EmployeeAttendanceScanResponse(
-                true,
-                action,
-                action.equals("CHECKED_IN") ? "Employee checked in" : "Employee checked out",
-                "%s was %s using the static employee QR.".formatted(employee.getFullName(), action.equals("CHECKED_IN") ? "checked in" : "checked out"),
-                "Presence updated for access operations.",
-                true,
-                log.getState() == EmployeeAttendanceState.IN,
-                toDirectoryResponse(employee),
-                toAttendanceResponse(log)
-        );
+        try {
+            User employee = resolveEmployeeQr(qrPayload);
+            requireSameOrganizationOrSuperAdmin(guard, employee);
+            validateEmployeeAccess(employee);
+            EmployeeAttendanceLog log = currentlyIn(employee)
+                    ? checkOut(employee.getId(), securityGuardId, false, null)
+                    : checkIn(employee.getId(), securityGuardId, false, null);
+            String action = log.getState() == EmployeeAttendanceState.IN ? "CHECKED_IN" : "CHECKED_OUT";
+            return new EmployeeAttendanceScanResponse(
+                    true,
+                    action,
+                    action.equals("CHECKED_IN") ? "Employee checked in" : "Employee checked out",
+                    "%s was %s using the static employee QR.".formatted(employee.getFullName(), action.equals("CHECKED_IN") ? "checked in" : "checked out"),
+                    "Presence updated for access operations.",
+                    true,
+                    log.getState() == EmployeeAttendanceState.IN,
+                    toDirectoryResponse(employee),
+                    toAttendanceResponse(log)
+            );
+        } catch (BadRequestException ex) {
+            notifyCredentialIssue(guard, ex.getMessage());
+            throw ex;
+        }
     }
 
     public EmployeeAttendanceLog checkIn(String employeeUserId, String securityGuardId, boolean manual, String reason) {
@@ -435,6 +444,24 @@ public class EmployeeAttendanceService {
         return employee.isActive()
                 && employee.getAccountStatus() == AccountStatus.ACTIVE
                 && employee.getEmployeeQrRevokedAt() == null;
+    }
+
+    private void notifyCredentialIssue(User guard, String detail) {
+        String organizationId = trimToNull(guard.getOrganizationId());
+        if (organizationId == null) {
+            return;
+        }
+        notificationService.notifyOrganizationRoles(
+                organizationId,
+                Set.of(Role.SECURITY_GUARD, Role.ADMIN),
+                null,
+                NotificationType.WORKFORCE_CREDENTIAL_DISABLED,
+                "Invalid workforce credential",
+                detail == null || detail.isBlank() ? "A workforce QR credential could not be validated." : detail,
+                null,
+                "/pages/security/#alerts",
+                guard.getFullName()
+        );
     }
 
     private EmployeeAttendanceStatus presenceStatus(EmployeeAttendanceLog log) {

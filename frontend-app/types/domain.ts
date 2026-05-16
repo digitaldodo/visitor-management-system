@@ -249,19 +249,29 @@ export type SecurityPhotoUpload = {
 export type NotificationRecord = {
   id: string;
   type?: string | null;
+  category?: 'VISITOR' | 'SECURITY' | 'WORKFORCE' | 'SYSTEM' | null;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
   title: string;
   message: string;
   visitorId?: string | null;
   visitorName?: string | null;
   actionUrl?: string | null;
+  actorName?: string | null;
+  organizationTimezone?: string | null;
   read: boolean;
   emailStatus?: string | null;
   createdAt?: string | null;
+  source?: 'backend' | 'local';
 };
 
 export type NotificationInbox = {
   unreadCount: number;
   items: NotificationRecord[];
+};
+
+export type AdminOperationalReport = {
+  title: string;
+  status: string;
 };
 
 export type QrVerificationResult = {

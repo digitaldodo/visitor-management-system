@@ -24,6 +24,10 @@ public class Notification {
     @Indexed
     private NotificationType type;
 
+    private NotificationCategory category;
+
+    private NotificationPriority priority = NotificationPriority.MEDIUM;
+
     private String title;
 
     private String message;
@@ -33,6 +37,10 @@ public class Notification {
     private String visitorName;
 
     private String actionUrl;
+
+    private String actorName;
+
+    private String organizationTimezone;
 
     @Indexed
     private boolean read;
@@ -96,6 +104,22 @@ public class Notification {
         this.type = type;
     }
 
+    public NotificationCategory getCategory() {
+        return category;
+    }
+
+    public void setCategory(NotificationCategory category) {
+        this.category = category;
+    }
+
+    public NotificationPriority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(NotificationPriority priority) {
+        this.priority = priority;
+    }
+
     public String getTitle() {
         return title;
     }
@@ -134,6 +158,22 @@ public class Notification {
 
     public void setActionUrl(String actionUrl) {
         this.actionUrl = actionUrl;
+    }
+
+    public String getActorName() {
+        return actorName;
+    }
+
+    public void setActorName(String actorName) {
+        this.actorName = actorName;
+    }
+
+    public String getOrganizationTimezone() {
+        return organizationTimezone;
+    }
+
+    public void setOrganizationTimezone(String organizationTimezone) {
+        this.organizationTimezone = organizationTimezone;
     }
 
     public boolean isRead() {

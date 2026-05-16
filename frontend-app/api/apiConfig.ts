@@ -8,6 +8,7 @@ type RuntimeConfig = {
   isConfigured: boolean;
   appVersion: string;
   runtimeVersion: string;
+  expoProjectId: string;
 };
 
 function normalizeUrl(value: string) {
@@ -75,6 +76,7 @@ function readRuntimeVersion() {
 
 const apiBaseUrl = normalizeUrl(process.env.EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL ?? '');
 const apiRootUrl = deriveApiRoot(apiBaseUrl);
+const expoProjectId = (process.env.EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID ?? Constants.expoConfig?.extra?.eas?.projectId ?? '').trim();
 
 export const apiConfig: RuntimeConfig = {
   apiBaseUrl,
@@ -83,4 +85,5 @@ export const apiConfig: RuntimeConfig = {
   isConfigured: Boolean(apiBaseUrl && apiRootUrl),
   appVersion: Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '0.0.0',
   runtimeVersion: readRuntimeVersion(),
+  expoProjectId,
 };

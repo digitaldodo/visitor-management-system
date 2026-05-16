@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
+import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { theme } from '../theme';
 
@@ -50,9 +51,11 @@ export default function AccessFlowApp() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <AppErrorBoundary>
-              <AppBootstrap />
-            </AppErrorBoundary>
+            <OperationalRuntimeProvider>
+              <AppErrorBoundary>
+                <AppBootstrap />
+              </AppErrorBoundary>
+            </OperationalRuntimeProvider>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

@@ -4,6 +4,9 @@ import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Visitor;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
+
 @Service
 public class VisitorLifecycleNotificationService implements VisitorNotificationService {
 
@@ -49,7 +52,39 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
 
     @Override
     public void visitorCheckedIn(Visitor visitor) {
-        notifyHost(visitor, NotificationType.VISITOR_CHECKED_IN, "Visitor checked in", "%s has checked in at reception.".formatted(visitor.getFullName()));
+        notifyHost(visitor, NotificationType.VISITOR_ARRIVED, "Visitor arrived onsite", "%s has arrived at reception and is ready for their visit.".formatted(visitor.getFullName()));
+    }
+
+    @Override
+    public void visitorRescheduled(Visitor visitor) {
+        notifyHost(
+                visitor,
+                NotificationType.VISITOR_RESCHEDULED,
+                "Visitor schedule updated",
+                "%s has a refreshed visit window. Review the new timing before arrival.".formatted(visitor.getFullName())
+        );
+    }
+
+    @Override
+    public void visitorAccessWindowExpiring(Visitor visitor) {
+        Instant dedupeCutoff = visitor.getAccessWindowStartTime() != null
+                ? visitor.getAccessWindowStartTime()
+                : Instant.now().minus(Duration.ofHours(12));
+        if (notificationService.hasRecentVisitorNotification(
+                visitor.getHostEmployeeId(),
+                NotificationType.VISITOR_ACCESS_WINDOW_EXPIRING,
+                visitor.getId(),
+                dedupeCutoff
+        )) {
+            return;
+        }
+
+        notifyHost(
+                visitor,
+                NotificationType.VISITOR_ACCESS_WINDOW_EXPIRING,
+                "Visitor access window expiring",
+                "%s has an access window that will expire soon.".formatted(visitor.getFullName())
+        );
     }
 
     @Override

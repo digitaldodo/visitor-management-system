@@ -35,6 +35,9 @@ public class AppProperties {
     @Valid
     private SecurityHeaders securityHeaders = new SecurityHeaders();
 
+    @Valid
+    private Notifications notifications = new Notifications();
+
     public Cors getCors() {
         return cors;
     }
@@ -89,6 +92,14 @@ public class AppProperties {
 
     public void setSecurityHeaders(SecurityHeaders securityHeaders) {
         this.securityHeaders = securityHeaders;
+    }
+
+    public Notifications getNotifications() {
+        return notifications;
+    }
+
+    public void setNotifications(Notifications notifications) {
+        this.notifications = notifications;
     }
 
     public static class Cors {
@@ -296,6 +307,36 @@ public class AppProperties {
 
         public void setContentSecurityPolicy(String contentSecurityPolicy) {
             this.contentSecurityPolicy = contentSecurityPolicy;
+        }
+    }
+
+    public static class Notifications {
+        private boolean pushEnabled = true;
+        private String expoPushUrl = "https://exp.host/--/api/v2/push/send";
+        private String expoAccessToken;
+
+        public boolean isPushEnabled() {
+            return pushEnabled;
+        }
+
+        public void setPushEnabled(boolean pushEnabled) {
+            this.pushEnabled = pushEnabled;
+        }
+
+        public String getExpoPushUrl() {
+            return expoPushUrl;
+        }
+
+        public void setExpoPushUrl(String expoPushUrl) {
+            this.expoPushUrl = expoPushUrl;
+        }
+
+        public String getExpoAccessToken() {
+            return expoAccessToken;
+        }
+
+        public void setExpoAccessToken(String expoAccessToken) {
+            this.expoAccessToken = expoAccessToken;
         }
     }
 

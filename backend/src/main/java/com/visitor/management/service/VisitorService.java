@@ -19,6 +19,7 @@ import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.dto.VisitorVisitRequest;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.config.CorsOriginResolver;
+import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.VisitorAuditLog;
@@ -77,6 +78,7 @@ public class VisitorService {
     private static final long DEFAULT_EXPECTED_DURATION_MINUTES = 60;
     private static final long EARLY_ENTRY_BUFFER_MINUTES = 60;
     private static final long POST_MEETING_GRACE_MINUTES = 60;
+    private static final long ACCESS_WINDOW_EXPIRY_NOTICE_MINUTES = 15;
     private static final String RESCHEDULE_PENDING = "PENDING";
     private static final String RESCHEDULE_APPROVED = "APPROVED";
     private static final String RESCHEDULE_REJECTED = "REJECTED";
@@ -106,6 +108,7 @@ public class VisitorService {
     private final AppProperties appProperties;
     private final CorsOriginResolver corsOriginResolver;
     private final VisitorNotificationService visitorNotificationService;
+    private final NotificationService notificationService;
     private final OrganizationService organizationService;
     private final PhoneNumberService phoneNumberService;
     private final AccessAuditService accessAuditService;
@@ -121,6 +124,7 @@ public class VisitorService {
             AppProperties appProperties,
             CorsOriginResolver corsOriginResolver,
             VisitorNotificationService visitorNotificationService,
+            NotificationService notificationService,
             OrganizationService organizationService,
             PhoneNumberService phoneNumberService,
             AccessAuditService accessAuditService
@@ -135,6 +139,7 @@ public class VisitorService {
         this.appProperties = appProperties;
         this.corsOriginResolver = corsOriginResolver;
         this.visitorNotificationService = visitorNotificationService;
+        this.notificationService = notificationService;
         this.organizationService = organizationService;
         this.phoneNumberService = phoneNumberService;
         this.accessAuditService = accessAuditService;
@@ -433,6 +438,8 @@ public class VisitorService {
         audit(saved.getId(), from, VisitorStatus.REJECTED, "DENIED_AT_GATE", actorId, note, now);
         accessAuditService.recordVisitorAccess(actor, saved, "DENIED_AT_GATE", "DENIED", note);
         visitorNotificationService.visitorRejected(saved);
+        notifySecurityTeams(actor, NotificationType.SECURITY_DENIED_ENTRY, "Denied entry recorded",
+                "%s was denied at the checkpoint. Review the denial context if follow-up is needed.".formatted(saved.getFullName()), saved);
         return toResponse(saved);
     }
 
@@ -525,6 +532,7 @@ public class VisitorService {
         addHistory(visitor, visitor.getStatus(), "RESCHEDULE_APPROVED", hostEmployeeId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "RESCHEDULE_APPROVED", hostEmployeeId, note, now);
+        visitorNotificationService.visitorRescheduled(saved);
         return toResponse(saved);
     }
 
@@ -571,6 +579,7 @@ public class VisitorService {
         addHistory(visitor, visitor.getStatus(), "HOST_RESCHEDULED", hostEmployeeId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "HOST_RESCHEDULED", hostEmployeeId, note, now);
+        visitorNotificationService.visitorRescheduled(saved);
         return toResponse(saved);
     }
 
@@ -722,6 +731,8 @@ public class VisitorService {
             claims = jwtService.parseClaims(token);
         } catch (JwtException | IllegalArgumentException ex) {
             return invalidVerification(
+                    actor,
+                    NotificationType.SECURITY_INVALID_QR_SCAN,
                     "INVALID_QR",
                     "Invalid QR pass",
                     "This badge could not be verified.",
@@ -731,6 +742,8 @@ public class VisitorService {
 
         if (!"visitor-pass".equals(claims.get("type", String.class))) {
             return invalidVerification(
+                    actor,
+                    NotificationType.SECURITY_INVALID_QR_SCAN,
                     "INVALID_QR",
                     "Invalid QR pass",
                     "This code is not a supported AccessFlow visitor pass.",
@@ -748,6 +761,8 @@ public class VisitorService {
                 .orElse(null);
         if (visitor == null) {
             return invalidVerification(
+                    actor,
+                    NotificationType.SECURITY_SUSPICIOUS_ACTIVITY,
                     "REVOKED_PASS",
                     "Pass no longer active",
                     "This visitor pass has been replaced, revoked, or is no longer recognized.",
@@ -756,6 +771,13 @@ public class VisitorService {
         }
 
         if (!matchesTokenClaims(visitor, securePassId, organizationReference, visitorReference, approvalState, passCode)) {
+            notifySecurityTeams(
+                    actor,
+                    NotificationType.SECURITY_SUSPICIOUS_ACTIVITY,
+                    "Visitor pass mismatch detected",
+                    "%s presented a pass that no longer matches the approved badge on file.".formatted(visitor.getFullName()),
+                    visitor
+            );
             return verificationResponse(
                     false,
                     true,
@@ -841,6 +863,15 @@ public class VisitorService {
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.CHECKED_IN, action, actorId, note, now);
         visitorNotificationService.visitorCheckedIn(saved);
+        if ("MANUAL_OVERRIDE_CHECK_IN".equals(action) && actorId != null) {
+            notifySecurityTeams(
+                    currentUser(actorId),
+                    NotificationType.SECURITY_MANUAL_OVERRIDE,
+                    "Manual checkpoint override",
+                    "%s was checked in using a documented manual override.".formatted(saved.getFullName()),
+                    saved
+            );
+        }
         return toResponse(saved);
     }
 
@@ -1002,6 +1033,20 @@ public class VisitorService {
         List<Visitor> dueVisitors = mongoTemplate.find(query, Visitor.class);
         dueVisitors.forEach(visitor -> expireVisitor(visitor, now));
         return dueVisitors.size();
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public int notifyExpiringVisitorWindows() {
+        Instant now = Instant.now();
+        Instant threshold = now.plus(Duration.ofMinutes(ACCESS_WINDOW_EXPIRY_NOTICE_MINUTES));
+        Query query = new Query(new Criteria().orOperator(
+                Criteria.where("status").is(VisitorStatus.APPROVED).and("accessWindowEndTime").gt(now).lte(threshold),
+                Criteria.where("status").is(VisitorStatus.CHECKED_IN).and("accessWindowEndTime").gt(now).lte(threshold)
+        ));
+
+        List<Visitor> expiringVisitors = mongoTemplate.find(query, Visitor.class);
+        expiringVisitors.forEach(visitorNotificationService::visitorAccessWindowExpiring);
+        return expiringVisitors.size();
     }
 
     private Query queryFor(SearchRequest request, User actor) {
@@ -2190,6 +2235,8 @@ public class VisitorService {
         Visitor visitor = visitorRepository.findByPassTokenId(normalizedPassToken).orElse(null);
         if (visitor == null) {
             return invalidVerification(
+                    actor,
+                    NotificationType.SECURITY_INVALID_QR_SCAN,
                     "INVALID_QR",
                     "Badge not recognized",
                     "This AccessFlow badge link is invalid, malformed, or no longer active.",
@@ -2202,6 +2249,8 @@ public class VisitorService {
     private QrVerificationResponse evaluateVerification(Visitor visitor, User actor, Instant now) {
         if (actor != null && !hasOrganizationAccess(visitor, actor)) {
             return invalidVerification(
+                    actor,
+                    NotificationType.SECURITY_SUSPICIOUS_ACTIVITY,
                     "ORGANIZATION_MISMATCH",
                     "Organization mismatch",
                     "This pass belongs to a different organization and cannot be processed here.",
@@ -2514,7 +2563,68 @@ public class VisitorService {
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), currentStatus, currentStatus, action, actorId, note, now);
         accessAuditService.recordVisitorAccess(actor, saved, action, outcome, note);
+        notifySecurityTeams(actor, notificationTypeForSecurityAction(action), securityTitleForAction(action), securityMessageForAction(action, saved, note), saved);
         return toResponse(saved);
+    }
+
+    private NotificationType notificationTypeForSecurityAction(String action) {
+        return switch (action) {
+            case "SECURITY_ESCALATED" -> NotificationType.SECURITY_ESCALATION;
+            case "IDENTITY_MISMATCH_REPORTED" -> NotificationType.SECURITY_SUSPICIOUS_ACTIVITY;
+            default -> NotificationType.SECURITY_SUSPICIOUS_ACTIVITY;
+        };
+    }
+
+    private String securityTitleForAction(String action) {
+        return switch (action) {
+            case "SECURITY_ESCALATED" -> "Checkpoint escalation recorded";
+            case "IDENTITY_MISMATCH_REPORTED" -> "Suspicious activity reported";
+            default -> "Security alert recorded";
+        };
+    }
+
+    private String securityMessageForAction(String action, Visitor visitor, String note) {
+        return switch (action) {
+            case "SECURITY_ESCALATED" -> "%s was escalated by security for follow-up. %s".formatted(visitor.getFullName(), note);
+            case "IDENTITY_MISMATCH_REPORTED" -> "%s triggered an identity mismatch report. %s".formatted(visitor.getFullName(), note);
+            default -> "%s triggered a security alert. %s".formatted(visitor.getFullName(), note);
+        };
+    }
+
+    private void notifySecurityTeams(User actor, NotificationType type, String title, String message, Visitor visitor) {
+        if (actor == null) {
+            return;
+        }
+        String organizationId = trimToNull(actor.getOrganizationId());
+        if (organizationId == null && visitor != null) {
+            organizationId = trimToNull(visitor.getOrganizationId());
+        }
+        if (organizationId == null) {
+            return;
+        }
+        notificationService.notifyOrganizationRoles(
+                organizationId,
+                Set.of(Role.SECURITY_GUARD, Role.ADMIN),
+                null,
+                type,
+                title,
+                message,
+                visitor,
+                "/pages/security/#alerts",
+                actor.getFullName()
+        );
+    }
+
+    private QrVerificationResponse invalidVerification(
+            User actor,
+            NotificationType notificationType,
+            String resultCode,
+            String headline,
+            String message,
+            String recommendedAction
+    ) {
+        notifySecurityTeams(actor, notificationType, headline, message, null);
+        return invalidVerification(resultCode, headline, message, recommendedAction);
     }
 
     private record ScheduleCandidate(Instant start, Instant end, String timezone) {

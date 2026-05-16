@@ -13,5 +13,9 @@ public interface VisitorNotificationService {
 
     void visitorCheckedIn(Visitor visitor);
 
+    void visitorRescheduled(Visitor visitor);
+
+    void visitorAccessWindowExpiring(Visitor visitor);
+
     void visitorExpired(Visitor visitor, String reason);
 }

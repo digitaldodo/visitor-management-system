@@ -5,6 +5,7 @@ import com.visitor.management.dto.WorkforceApprovalRequest;
 import com.visitor.management.dto.WorkforceOnboardingRequest;
 import com.visitor.management.dto.WorkforceRejectionRequest;
 import com.visitor.management.entity.AccountStatus;
+import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
@@ -37,6 +38,7 @@ public class WorkforceOnboardingService {
     private final PhoneNumberService phoneNumberService;
     private final EmployeeAttendanceService employeeAttendanceService;
     private final AccessAuditService accessAuditService;
+    private final NotificationService notificationService;
 
     public WorkforceOnboardingService(
             UserRepository userRepository,
@@ -45,7 +47,8 @@ public class WorkforceOnboardingService {
             DepartmentService departmentService,
             PhoneNumberService phoneNumberService,
             EmployeeAttendanceService employeeAttendanceService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -54,6 +57,7 @@ public class WorkforceOnboardingService {
         this.phoneNumberService = phoneNumberService;
         this.employeeAttendanceService = employeeAttendanceService;
         this.accessAuditService = accessAuditService;
+        this.notificationService = notificationService;
     }
 
     public AdminUserResponse createAssistedRequest(WorkforceOnboardingRequest request, String securityGuardId) {
@@ -98,6 +102,17 @@ public class WorkforceOnboardingService {
         User saved = userRepository.save(worker);
         accessAuditService.recordWorkforceOnboarding(guard, saved, "WORKFORCE_ONBOARDING_CREATED", "PENDING",
                 "Security-assisted worker onboarding request created. QR and badge access remain inactive pending admin approval.");
+        notificationService.notifyOrganizationRoles(
+                organizationId,
+                Set.of(Role.ADMIN),
+                null,
+                NotificationType.WORKFORCE_ONBOARDING_REQUESTED,
+                "Workforce approval required",
+                "%s submitted a workforce onboarding request for %s.".formatted(guard.getFullName(), saved.getFullName()),
+                null,
+                "/pages/admin/#workforce-onboarding",
+                guard.getFullName()
+        );
         return toResponse(saved);
     }
 
@@ -146,6 +161,15 @@ public class WorkforceOnboardingService {
                 "Admin approved workforce onboarding and activated check-in/check-out access.");
         accessAuditService.recordWorkforceOnboarding(admin, saved, "WORKFORCE_QR_ACTIVATED", "SUCCESS",
                 "Static workforce QR activated after admin approval.");
+        notificationService.notifyUser(
+                saved.getId(),
+                NotificationType.WORKFORCE_ONBOARDING_APPROVED,
+                "Workforce onboarding approved",
+                "Your workforce access has been approved and your credential is now active.",
+                null,
+                "/pages/employee/#badge",
+                admin.getFullName()
+        );
         return toResponse(saved);
     }
 
@@ -167,6 +191,15 @@ public class WorkforceOnboardingService {
         User saved = userRepository.save(worker);
         accessAuditService.recordWorkforceOnboarding(admin, saved, "WORKFORCE_ONBOARDING_REJECTED", "DENIED",
                 "Admin rejected workforce onboarding: " + saved.getWorkforceRejectionReason());
+        notificationService.notifyUser(
+                saved.getId(),
+                NotificationType.WORKFORCE_ONBOARDING_REJECTED,
+                "Workforce onboarding rejected",
+                "Your workforce onboarding request was rejected. Contact your administrator for next steps.",
+                null,
+                "/pages/employee/#notifications",
+                admin.getFullName()
+        );
         return toResponse(saved);
     }
 

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { theme } from '../../theme';
 
 type Props = {
@@ -27,6 +28,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh }: 
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
+        <RuntimeBanner />
         <View style={styles.children}>{children}</View>
       </ScrollView>
     </SafeAreaView>

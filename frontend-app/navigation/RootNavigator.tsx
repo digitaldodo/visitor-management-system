@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useAuth } from '../auth/AuthProvider';
+import { navigationRef } from './navigationRef';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { AdminOperationalScreen } from '../screens/admin/AdminOperationalScreen';
@@ -30,7 +31,7 @@ export function RootNavigator() {
   const auth = useAuth();
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
       {auth.status === 'bootstrapping' ? (
         <BootScreen />
       ) : auth.status === 'recovery' ? (

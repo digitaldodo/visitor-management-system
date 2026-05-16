@@ -28,6 +28,8 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     List<User> findAllByOrganizationId(String organizationId);
 
+    List<User> findAllByOrganizationIdAndRolesIn(String organizationId, Collection<Role> roles);
+
     List<User> findAllByOrganizationIdAndRolesContaining(String organizationId, Role role);
 
     List<User> findAllByOrganizationIdAndRolesContainingAndAccountStatus(String organizationId, Role role, AccountStatus accountStatus);

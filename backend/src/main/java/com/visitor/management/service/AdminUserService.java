@@ -8,6 +8,7 @@ import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.entity.AccountStatus;
+import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.SuperAdminCreationOtp;
@@ -58,6 +59,7 @@ public class AdminUserService {
     private final RateLimitService rateLimitService;
     private final PhoneNumberService phoneNumberService;
     private final EmployeeAttendanceService employeeAttendanceService;
+    private final NotificationService notificationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AdminUserService(
@@ -72,7 +74,8 @@ public class AdminUserService {
             EmailService emailService,
             RateLimitService rateLimitService,
             PhoneNumberService phoneNumberService,
-            EmployeeAttendanceService employeeAttendanceService
+            EmployeeAttendanceService employeeAttendanceService,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -86,6 +89,7 @@ public class AdminUserService {
         this.rateLimitService = rateLimitService;
         this.phoneNumberService = phoneNumberService;
         this.employeeAttendanceService = employeeAttendanceService;
+        this.notificationService = notificationService;
     }
 
     public List<AdminUserResponse> listUsers(Authentication authentication) {
@@ -240,9 +244,19 @@ public class AdminUserService {
         }
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        notificationService.deactivateUserDevices(saved.getId(), "Account access was disabled.");
         accessAuditService.recordAccountStateChanged(actor, saved, "ACCOUNT_DISABLED", "Internal account access was disabled.");
         if (saved.getRoles().contains(Role.EMPLOYEE)) {
             accessAuditService.recordWorkforceOnboarding(actor, saved, "WORKFORCE_QR_DEACTIVATED", "SUCCESS", "Static workforce QR was deactivated with account access.");
+            notificationService.notifyUser(
+                    saved.getId(),
+                    NotificationType.WORKFORCE_ACCESS_REVOKED,
+                    "Workforce access revoked",
+                    "Your workforce access was revoked by an administrator. Contact your administrator if this is unexpected.",
+                    null,
+                    "/pages/employee/#notifications",
+                    actor.getFullName()
+            );
         }
         return toResponse(saved);
     }
@@ -276,6 +290,7 @@ public class AdminUserService {
         user.setPasswordChangedAt(Instant.now());
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        notificationService.deactivateUserDevices(saved.getId(), "Password reset invalidated the current mobile session.");
         accessAuditService.recordAccountStateChanged(actor, saved, "PASSWORD_RESET", "Internal password reset completed.");
         return toResponse(saved);
     }
@@ -300,6 +315,7 @@ public class AdminUserService {
         user.setDepartment(departmentAssignment != null ? departmentAssignment.departmentName() : null);
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
+        notificationService.deactivateUserDevices(saved.getId(), "Role changes invalidated the current mobile session.");
         accessAuditService.recordRoleChanged(actor, saved, previousRoles, saved.getRoles());
         return toResponse(saved);
     }

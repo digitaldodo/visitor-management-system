@@ -15,5 +15,6 @@ public class VisitorExpiryScheduler {
     @Scheduled(fixedDelayString = "${app.visitors.expiry-sweep-delay-ms:60000}")
     public void expireDueVisitors() {
         visitorService.expireDueVisitors();
+        visitorService.notifyExpiringVisitorWindows();
     }
 }
