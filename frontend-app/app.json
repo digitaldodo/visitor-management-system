@@ -36,7 +36,15 @@
           "cameraPermission": "Allow AccessFlow Mobile to scan badges and capture verification photos.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow AccessFlow Mobile to select a profile photo for your employee credential.",
+          "cameraPermission": "Allow AccessFlow Mobile to capture a profile photo for your employee credential."
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }

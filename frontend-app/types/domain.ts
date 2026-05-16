@@ -259,6 +259,11 @@ export type NotificationRecord = {
   createdAt?: string | null;
 };
 
+export type NotificationInbox = {
+  unreadCount: number;
+  items: NotificationRecord[];
+};
+
 export type QrVerificationResult = {
   valid: boolean;
   recognized: boolean;
