@@ -1,10 +1,11 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js?v=20260515-scheduling";
+import { bootstrapApplication } from "../shared/appRuntime.js";
+import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
-import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js?v=20260515-scheduling";
+import { initVisitorModule } from "../shared/visitorModule.js";
+import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -14,7 +15,10 @@ let approvalPollTimer;
 let activeEmployeeBadge = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  void bootEmployeePortal();
+  void bootstrapApplication("employee-portal", () => bootEmployeePortal(), {
+    redirectToLogin: true,
+    failureMessage: "AccessFlow had trouble restoring the employee workspace. Refreshing workspace...",
+  });
 });
 
 async function bootEmployeePortal() {

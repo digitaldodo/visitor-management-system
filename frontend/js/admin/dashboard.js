@@ -1,12 +1,13 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
+import { bootstrapApplication } from "../shared/appRuntime.js";
 import { createDepartment, listDepartments, updateDepartment } from "../shared/departmentApi.js";
 import { getHomepageSettings, updateHomepageSettings } from "../shared/homepageApi.js";
 import { createOrganization, getOrganizationWorkspace, listManagedOrganizations, listOrganizationWorkspaceItems, updateOrganization } from "../shared/organizationApi.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-recurring";
-import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, updateWorkforceOnboarding } from "../shared/accessService.js?v=20260515-scheduling";
+import { initVisitorModule } from "../shared/visitorModule.js";
+import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, updateWorkforceOnboarding } from "../shared/accessService.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -162,7 +163,10 @@ const INTERNAL_ROLE_DEPARTMENT_RULES = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  void bootAdminPortal();
+  void bootstrapApplication("admin-portal", () => bootAdminPortal(), {
+    redirectToLogin: true,
+    failureMessage: "AccessFlow had trouble restoring the admin workspace. Refreshing workspace...",
+  });
 });
 
 async function bootAdminPortal() {

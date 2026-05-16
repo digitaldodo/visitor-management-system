@@ -1,5 +1,5 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js?v=20260515-scheduling";
-import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "./formatters.js?v=20260515-scheduling";
+import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
+import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";

@@ -1,5 +1,6 @@
-import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js?v=20260515-scheduling";
-import { getPublicPassVerification } from "../shared/accessService.js?v=20260515-scheduling";
+import { bootstrapApplication } from "../shared/appRuntime.js";
+import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js";
+import { getPublicPassVerification } from "../shared/accessService.js";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
@@ -16,8 +17,12 @@ const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
 `);
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelector("[data-pass-year]")?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
-  initVerificationPage();
+  void bootstrapApplication("pass-verification", async () => {
+    document.querySelector("[data-pass-year]")?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
+    initVerificationPage();
+  }, {
+    failureMessage: "AccessFlow had trouble restoring badge verification. Refreshing...",
+  });
 });
 
 async function initVerificationPage() {

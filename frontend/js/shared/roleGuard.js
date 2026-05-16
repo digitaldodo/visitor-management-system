@@ -1,5 +1,6 @@
+import { handleUnauthorizedSession } from "./appRuntime.js";
 import { LOGIN_FROM_PORTAL, ROLE_PORTALS, ROLE_PORTALS_FROM_PORTAL } from "./config.js";
-import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticated } from "./session.js?v=20260515-auth-normalize";
+import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticated } from "./session.js";
 
 export function redirectToPortal(role, fromPortal = false) {
   const target = fromPortal ? ROLE_PORTALS_FROM_PORTAL[role] : ROLE_PORTALS[role];
@@ -28,7 +29,9 @@ export function redirectAuthenticatedFromLogin() {
 export function requireRole(requiredRole) {
   const session = getSession();
   if (!session || !isAuthenticated()) {
-    redirectToLogin();
+    handleUnauthorizedSession("missing-session", {
+      message: "Your AccessFlow session is no longer valid. Returning to sign in...",
+    });
     return null;
   }
 
@@ -49,7 +52,9 @@ export function requireRole(requiredRole) {
       tokenRoles,
     });
     clearSession();
-    redirectToLogin();
+    handleUnauthorizedSession("stale-session", {
+      message: "Your AccessFlow session is out of date. Returning to sign in...",
+    });
     return null;
   }
 
@@ -71,7 +76,9 @@ export function requireRole(requiredRole) {
     tokenRoles,
   });
   clearSession();
-  redirectToLogin();
+  handleUnauthorizedSession("invalid-session", {
+    message: "Your AccessFlow session is no longer valid. Returning to sign in...",
+  });
   return null;
 }
 

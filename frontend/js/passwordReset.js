@@ -1,5 +1,6 @@
 import { forgotPassword, resetPassword, verifyOtp } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
+import { bootstrapApplication } from "./shared/appRuntime.js";
 import { $, $$ } from "./shared/dom.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isUsernameOrEmail, validateLoginIdentifier } from "./shared/validation.js";
@@ -11,11 +12,15 @@ const RESET_TOKEN_EXPIRES_KEY = "passwordResetTokenExpiresAt";
 const RESEND_READY_KEY = "passwordResetResendReadyAt";
 
 document.addEventListener("DOMContentLoaded", () => {
-  initAppErrorBoundary();
-  initPasswordToggles();
-  initForgotPasswordPage();
-  initVerifyOtpPage();
-  initResetPasswordPage();
+  void bootstrapApplication("password-recovery", async () => {
+    initAppErrorBoundary();
+    initPasswordToggles();
+    initForgotPasswordPage();
+    initVerifyOtpPage();
+    initResetPasswordPage();
+  }, {
+    failureMessage: "AccessFlow had trouble restoring password recovery. Refreshing...",
+  });
 });
 
 function initForgotPasswordPage() {

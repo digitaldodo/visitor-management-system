@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config.js";
-import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js?v=20260515-auth-normalize";
+import { handleUnauthorizedSession, reportRuntimeError } from "./appRuntime.js";
+import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js";
 
 const REQUEST_TIMEOUT_MS = 20000;
 
@@ -47,6 +48,12 @@ export async function request(path, options = {}) {
 
   const payload = await parseResponsePayload(response);
 
+  if (response.status === 401 && auth) {
+    handleUnauthorizedSession("unauthorized-response", {
+      message: "Your AccessFlow session expired. Returning to sign in...",
+    });
+  }
+
   if (!response.ok) {
     const message = payload?.message || payload?.error || `Request failed with ${response.status}`;
     const error = new Error(message);
@@ -79,6 +86,9 @@ async function refreshAccessToken() {
       signal: controller.signal,
     });
   } catch {
+    reportRuntimeError("refresh-access-token", new Error("Access token refresh request failed"), {
+      stage: "auth-refresh",
+    });
     return false;
   } finally {
     window.clearTimeout(timeout);

@@ -1,4 +1,5 @@
 const SESSION_KEY = "visitor_management_session";
+const SESSION_SCHEMA_VERSION = 1;
 const ROLE_PRIORITY = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
 const ROLE_ALIASES = {
   SECURITY: "SECURITY_GUARD",
@@ -12,9 +13,20 @@ export function getSession() {
       return null;
     }
     const stored = JSON.parse(rawSession);
-    const session = normalizeAuthResponse(stored, { context: "stored session", log: false });
+    const envelope = unwrapStoredSession(stored);
+    if (!envelope) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    const session = normalizeAuthResponse(envelope.session, { context: "stored session", log: false });
     if (!session) {
       localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    if (!envelope.persisted) {
+      persistSessionEnvelope(session);
     }
     return session;
   } catch {
@@ -29,7 +41,7 @@ export function setSession(session) {
     clearSession();
     throw new Error("Authentication response is missing token or user data.");
   }
-  localStorage.setItem(SESSION_KEY, JSON.stringify(normalizedSession));
+  persistSessionEnvelope(normalizedSession);
   window.dispatchEvent(new CustomEvent("session:changed", { detail: normalizedSession }));
 }
 
@@ -162,6 +174,26 @@ function normalizeRoles(value) {
   return [];
 }
 
+function unwrapStoredSession(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  if (value.schemaVersion === SESSION_SCHEMA_VERSION && value.session && typeof value.session === "object") {
+    return {
+      session: value.session,
+      appVersion: typeof value.appVersion === "string" ? value.appVersion : "",
+      persisted: true,
+    };
+  }
+
+  return {
+    session: value,
+    appVersion: "",
+    persisted: false,
+  };
+}
+
 function mergeRoles(...roleSets) {
   const seen = new Set();
   const roles = [];
@@ -210,4 +242,20 @@ function logAuthWarning(shouldLog, context, message, payload) {
     hasAccessToken: Boolean(payload?.accessToken),
     hasRefreshToken: Boolean(payload?.refreshToken),
   });
+}
+
+function persistSessionEnvelope(session) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    schemaVersion: SESSION_SCHEMA_VERSION,
+    appVersion: currentAppVersion(),
+    persistedAt: new Date().toISOString(),
+    session,
+  }));
+}
+
+function currentAppVersion() {
+  if (typeof window !== "undefined" && typeof window.APP_VERSION === "string" && window.APP_VERSION.trim()) {
+    return window.APP_VERSION.trim();
+  }
+  return "dev-local";
 }

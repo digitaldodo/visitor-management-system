@@ -1,11 +1,12 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js?v=20260515-scheduling";
+import { bootstrapApplication } from "../shared/appRuntime.js";
+import { formatDate, formatDurationMinutes, formatStatus, minutesBetween } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js?v=20260515-scheduling";
-import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js?v=20260515-scheduling";
+import { initVisitorModule } from "../shared/visitorModule.js";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
@@ -21,7 +22,10 @@ const state = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  void bootSecurityPortal();
+  void bootstrapApplication("security-portal", () => bootSecurityPortal(), {
+    redirectToLogin: true,
+    failureMessage: "AccessFlow had trouble restoring front desk operations. Refreshing workspace...",
+  });
 });
 
 async function bootSecurityPortal() {

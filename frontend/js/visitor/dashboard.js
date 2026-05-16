@@ -1,12 +1,13 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
-import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js?v=20260515-scheduling";
+import { bootstrapApplication } from "../shared/appRuntime.js";
+import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
 import { listOrganizations } from "../shared/organizationApi.js";
-import { getVisitorPass, getVisitorHistory, requestVisitReschedule, uploadVisitPhoto } from "../shared/accessService.js?v=20260515-scheduling";
+import { getVisitorPass, getVisitorHistory, requestVisitReschedule, uploadVisitPhoto } from "../shared/accessService.js";
 import { initHostPicker } from "../shared/hostPicker.js";
-import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js?v=20260515-scheduling";
+import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
@@ -14,7 +15,10 @@ const ROUTES = ["visits", "history", "request"];
 let activeBadge = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  void bootVisitorPortal();
+  void bootstrapApplication("visitor-portal", () => bootVisitorPortal(), {
+    redirectToLogin: true,
+    failureMessage: "AccessFlow had trouble restoring the visitor portal. Refreshing workspace...",
+  });
 });
 
 async function bootVisitorPortal() {

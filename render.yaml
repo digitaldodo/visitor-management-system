@@ -41,14 +41,71 @@ services:
     name: accessflow-web
     runtime: static
     rootDir: frontend
-    staticPublishPath: .
+    staticPublishPath: dist
     buildCommand: |
       test -n "$API_BASE_URL"
-      printf 'window.API_BASE_URL = "%s";\n' "$API_BASE_URL" > assets/js/env.js
+      node ./scripts/build-static.mjs
     headers:
+      - path: /
+        name: Cache-Control
+        value: no-store
+      - path: /index.html
+        name: Cache-Control
+        value: no-store
+      - path: /pages/*
+        name: Cache-Control
+        value: no-store
+      - path: /pages/**/*
+        name: Cache-Control
+        value: no-store
+      - path: /auth
+        name: Cache-Control
+        value: no-store
+      - path: /login
+        name: Cache-Control
+        value: no-store
+      - path: /admin
+        name: Cache-Control
+        value: no-store
+      - path: /admin/*
+        name: Cache-Control
+        value: no-store
+      - path: /employee
+        name: Cache-Control
+        value: no-store
+      - path: /employee/*
+        name: Cache-Control
+        value: no-store
+      - path: /security
+        name: Cache-Control
+        value: no-store
+      - path: /security/*
+        name: Cache-Control
+        value: no-store
+      - path: /forgot-password
+        name: Cache-Control
+        value: no-store
+      - path: /verify-otp
+        name: Cache-Control
+        value: no-store
+      - path: /pass/*
+        name: Cache-Control
+        value: no-store
+      - path: /verify/*
+        name: Cache-Control
+        value: no-store
+      - path: /reset-password
+        name: Cache-Control
+        value: no-store
+      - path: /assets/app-manifest.json
+        name: Cache-Control
+        value: no-store
       - path: /assets/js/env.js
         name: Cache-Control
         value: no-store
+      - path: /assets/js/boot.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
       - path: /css/*
         name: Cache-Control
         value: public, max-age=31536000, immutable

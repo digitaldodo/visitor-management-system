@@ -1,30 +1,35 @@
 import { login, registerAccount } from "./shared/authApi.js";
 import { initAppErrorBoundary } from "./shared/appErrorBoundary.js";
+import { bootstrapApplication } from "./shared/appRuntime.js";
 import { $, $$ } from "./shared/dom.js";
-import { formatStatus } from "./shared/formatters.js?v=20260515-scheduling";
+import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { listOrganizations } from "./shared/organizationApi.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
-import { getTokenRoles, setSession } from "./shared/session.js?v=20260515-auth-normalize";
+import { getTokenRoles, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./shared/phoneInput.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-  initAppErrorBoundary();
+  void bootstrapApplication("login", async () => {
+    initAppErrorBoundary();
 
-  if (redirectAuthenticatedFromLogin()) {
-    return;
-  }
+    if (redirectAuthenticatedFromLogin()) {
+      return;
+    }
 
-  initAuthTabs();
-  initPasswordToggles();
-  initOrganizations();
-  initHomepageContent();
-  initLoginForm();
-  initRegisterForm();
-  initForgotPassword();
-  setAuthTab("visitor", { scroll: false });
+    initAuthTabs();
+    initPasswordToggles();
+    initOrganizations();
+    initHomepageContent();
+    initLoginForm();
+    initRegisterForm();
+    initForgotPassword();
+    setAuthTab("visitor", { scroll: false });
+  }, {
+    failureMessage: "AccessFlow had trouble restoring the sign-in screen. Refreshing...",
+  });
 });
 
 function initAuthTabs() {

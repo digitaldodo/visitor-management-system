@@ -1,4 +1,4 @@
-import { formatDate } from "./formatters.js?v=20260515-scheduling";
+import { formatDate } from "./formatters.js";
 
 const BRAND_LOGO = new URL("../../assets/branding/logo-dark.png", import.meta.url).href;
 const BRAND_ICON = new URL("../../assets/branding/logo-icon.png", import.meta.url).href;
