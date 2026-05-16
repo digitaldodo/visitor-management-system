@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "development",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "development",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "false"
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "staging",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "staging",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal"
+      }
+    },
+    "internal": {
+      "distribution": "internal",
+      "channel": "internal",
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "production",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "play-store",
+        "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "true"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
+      }
+    }
+  }
+}

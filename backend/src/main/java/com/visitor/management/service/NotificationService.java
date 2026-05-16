@@ -193,8 +193,9 @@ public class NotificationService {
             if (!existingDevices.isEmpty()) {
                 device = existingDevices.getFirst();
             }
+            String selectedDeviceRegistrationId = device.getId();
             existingDevices.stream()
-                    .filter(existing -> !Objects.equals(existing.getId(), device.getId()))
+                    .filter(existing -> !Objects.equals(existing.getId(), selectedDeviceRegistrationId))
                     .forEach(existing -> deactivateDevice(existing, "Superseded by a newer device registration.", now));
             if (!existingDevices.isEmpty()) {
                 mobileDeviceRegistrationRepository.saveAll(existingDevices);

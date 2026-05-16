@@ -33,6 +33,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-updates",
       "expo-notifications",
       "expo-font",
       [

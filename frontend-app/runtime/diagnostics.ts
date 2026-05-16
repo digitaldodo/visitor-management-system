@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { recordOperationalMetric } from './telemetry';
 import type { DiagnosticContext, DiagnosticEvent, DiagnosticLevel, DiagnosticScope } from '../types/runtime';
 
 const DIAGNOSTIC_STORAGE_KEY = 'accessflow.mobile.diagnostics';
@@ -46,6 +47,7 @@ export async function recordDiagnosticEvent(input: {
   }
 
   writeConsoleEvent(event);
+  void recordMetricForDiagnostic(event);
   return event;
 }
 
@@ -91,5 +93,30 @@ function writeConsoleEvent(event: DiagnosticEvent) {
 
   if (__DEV__) {
     console.log(line, event.context);
+  }
+}
+
+async function recordMetricForDiagnostic(event: DiagnosticEvent) {
+  switch (event.code) {
+    case 'LOGIN_FAILED':
+    case 'SESSION_EXPIRED':
+    case 'SESSION_BOOTSTRAP_FAILED':
+    case 'SESSION_REFRESH_FAILED':
+      await recordOperationalMetric({ name: 'auth_failure', tags: { code: event.code, level: event.level } });
+      return;
+    case 'UNHANDLED_RUNTIME_ERROR':
+    case 'OTA_EMERGENCY_LAUNCH':
+      await recordOperationalMetric({ name: 'runtime_recovery', tags: { code: event.code } });
+      return;
+    case 'DEVICE_REGISTRATION_FAILED':
+      await recordOperationalMetric({ name: 'notification_failure', tags: { code: event.code } });
+      return;
+    case 'RUNTIME_SYNC_DEGRADED':
+      await recordOperationalMetric({ name: 'network_degraded', tags: { code: event.code } });
+      return;
+    default:
+      if (event.scope === 'scanner' && event.level !== 'info') {
+        await recordOperationalMetric({ name: 'scanner_failure', tags: { code: event.code } });
+      }
   }
 }

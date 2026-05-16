@@ -15,10 +15,35 @@ type RuntimeConfig = {
   releaseChannel: string;
   distributionChannel: string;
   expoProjectId: string;
+  observabilityEnabled: boolean;
+  telemetryFlushIntervalMs: number;
+  sync: {
+    securityPollMs: number;
+    employeePollMs: number;
+    adminPollMs: number;
+    staleCacheMs: number;
+  };
+  release: {
+    otaEnabled: boolean;
+    stagedRolloutCohort: string;
+    internalTesting: boolean;
+    updateCheckIntervalMs: number;
+  };
+  deviceManagement: {
+    managedMode: 'personal' | 'shared-guard' | 'kiosk-ready' | 'organization-owned';
+    kioskModeReady: boolean;
+  };
+  branding: {
+    organizationBrandingReady: boolean;
+    defaultLogoUrl: string;
+  };
   security: {
     inactivityLockMs: number;
     requireBiometricUnlock: boolean;
     screenshotProtectionEnabled: boolean;
+    rootDetectionPrepared: boolean;
+    certificatePinningPrepared: boolean;
+    deviceAttestationPrepared: boolean;
   };
 };
 
@@ -58,12 +83,7 @@ function buildVersionsUrl(apiBaseUrl: string, apiRootUrl: string) {
     return '';
   }
 
-  try {
-    const versionsUrl = new URL('/versions', `${apiRootUrl}/`);
-    return versionsUrl.toString().replace(/\/+$/, '');
-  } catch {
-    return '';
-  }
+  return `${apiRootUrl.replace(/\/+$/, '')}/versions`;
 }
 
 function readRuntimeVersion() {
@@ -87,7 +107,7 @@ function readRuntimeVersion() {
 
 function readEnvironment(apiBaseUrl: string): RuntimeEnvironment {
   const explicit = String(process.env.EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT ?? '').trim().toLowerCase();
-  if (explicit === 'production' || explicit === 'staging' || explicit === 'development') {
+  if (explicit === 'production' || explicit === 'staging' || explicit === 'development' || explicit === 'internal') {
     return explicit;
   }
 
@@ -100,6 +120,17 @@ function readEnvironment(apiBaseUrl: string): RuntimeEnvironment {
   }
 
   return __DEV__ ? 'development' : 'staging';
+}
+
+function readBoolean(value: string | undefined, fallbackValue: boolean) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  return fallbackValue;
 }
 
 function readPositiveNumber(value: string | undefined, fallbackValue: number) {
@@ -141,6 +172,31 @@ export const apiConfig: RuntimeConfig = {
   releaseChannel,
   distributionChannel,
   expoProjectId,
+  observabilityEnabled: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_OBSERVABILITY_ENABLED, true),
+  telemetryFlushIntervalMs: readPositiveNumber(
+    process.env.EXPO_PUBLIC_ACCESSFLOW_TELEMETRY_FLUSH_MS,
+    environment === 'production' ? 60_000 : 90_000,
+  ),
+  sync: {
+    securityPollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_SECURITY_POLL_MS, 20_000),
+    employeePollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_EMPLOYEE_POLL_MS, 35_000),
+    adminPollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_ADMIN_POLL_MS, 45_000),
+    staleCacheMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_STALE_CACHE_MS, 2 * 60_000),
+  },
+  release: {
+    otaEnabled: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED, environment !== 'development'),
+    stagedRolloutCohort: String(process.env.EXPO_PUBLIC_ACCESSFLOW_ROLLOUT_COHORT ?? 'stable').trim(),
+    internalTesting: distributionChannel === 'internal' || environment === 'internal',
+    updateCheckIntervalMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_UPDATE_CHECK_MS, 15 * 60_000),
+  },
+  deviceManagement: {
+    managedMode: normalizeManagedMode(process.env.EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE),
+    kioskModeReady: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_KIOSK_READY, false),
+  },
+  branding: {
+    organizationBrandingReady: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_BRANDING_READY, false),
+    defaultLogoUrl: String(process.env.EXPO_PUBLIC_ACCESSFLOW_DEFAULT_LOGO_URL ?? '').trim(),
+  },
   security: {
     inactivityLockMs: readPositiveNumber(
       process.env.EXPO_PUBLIC_ACCESSFLOW_INACTIVITY_LOCK_MS,
@@ -149,5 +205,16 @@ export const apiConfig: RuntimeConfig = {
     requireBiometricUnlock: String(process.env.EXPO_PUBLIC_ACCESSFLOW_REQUIRE_BIOMETRIC_UNLOCK ?? '').trim().toLowerCase() === 'true',
     screenshotProtectionEnabled:
       String(process.env.EXPO_PUBLIC_ACCESSFLOW_SCREENSHOT_PROTECTION ?? 'true').trim().toLowerCase() !== 'false',
+    rootDetectionPrepared: true,
+    certificatePinningPrepared: false,
+    deviceAttestationPrepared: false,
   },
 };
+
+function normalizeManagedMode(value: string | undefined): RuntimeConfig['deviceManagement']['managedMode'] {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'shared-guard' || normalized === 'kiosk-ready' || normalized === 'organization-owned') {
+    return normalized;
+  }
+  return 'personal';
+}

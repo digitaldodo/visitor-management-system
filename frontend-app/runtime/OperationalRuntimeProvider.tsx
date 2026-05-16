@@ -20,14 +20,18 @@ import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
-import { recordDiagnosticEvent } from './diagnostics';
+import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
+import { applyDownloadedOtaUpdate, checkForOtaUpdate, readOtaUpdateState } from './otaUpdates';
+import { clearOperationalMetrics, readOperationalMetrics, recordOperationalMetric } from './telemetry';
 import { approveEmployeeVisitor, rejectEmployeeVisitor } from '../services/employeeService';
 import {
   markNotificationRead,
   registerNotificationDevice,
   unregisterNotificationDevice,
 } from '../services/notificationService';
+import { getMobileSessionPolicy, submitMobileTelemetry } from '../services/operationalService';
 import { getApiVersions, getHealthStatus } from '../services/systemService';
+import { readOfflineScanQueue } from '../storage/offlineScanQueue';
 import {
   clearSessionLockState,
   readOrCreateDeviceId,
@@ -35,11 +39,14 @@ import {
   writeSessionLockState,
 } from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
-import type { SessionLockReason, SessionLockState } from '../types/runtime';
+import type { DevicePostureState, OtaUpdateState, SessionLockReason, SessionLockState } from '../types/runtime';
 
 type OperationalRuntimeContextValue = {
   degradedMessage: string | null;
   runtimeUpdateAvailable: boolean;
+  otaUpdate: OtaUpdateState;
+  devicePosture: DevicePostureState;
+  offlineScanQueueSize: number;
   pushPermissionStatus: string;
   pushToken: string | null;
   localNotifications: NotificationRecord[];
@@ -50,6 +57,7 @@ type OperationalRuntimeContextValue = {
   requestPushRegistration: () => Promise<void>;
   syncNow: () => Promise<void>;
   unlockSession: () => Promise<void>;
+  applyPendingUpdate: () => Promise<void>;
 };
 
 const OperationalRuntimeContext = createContext<OperationalRuntimeContextValue | null>(null);
@@ -74,6 +82,16 @@ const defaultLockState: SessionLockState = {
   screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
 };
 
+const defaultDevicePosture: DevicePostureState = {
+  deviceId: null,
+  managedMode: apiConfig.deviceManagement.managedMode,
+  kioskModeReady: apiConfig.deviceManagement.kioskModeReady,
+  remoteLogoutSupported: true,
+  suspicious: false,
+  concurrentSessionCount: 0,
+  lastPolicySyncAt: null,
+};
+
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -82,6 +100,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const handledResponsesRef = useRef<Set<string>>(new Set());
   const previousAuthStatusRef = useRef(auth.status);
   const backgroundedAtRef = useRef<number | null>(null);
+  const lastOtaCheckAtRef = useRef(0);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null }>({
     deviceId: null,
@@ -92,6 +111,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [degradedMessage, setDegradedMessage] = useState<string | null>(null);
   const [runtimeUpdateAvailable, setRuntimeUpdateAvailable] = useState(false);
+  const [otaUpdate, setOtaUpdate] = useState<OtaUpdateState>(() => readOtaUpdateState());
+  const [devicePosture, setDevicePosture] = useState<DevicePostureState>(defaultDevicePosture);
+  const [offlineScanQueueSize, setOfflineScanQueueSize] = useState(0);
   const [localNotifications, setLocalNotifications] = useState<NotificationRecord[]>([]);
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -110,6 +132,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     } satisfies SessionLockState;
     await persistLockState(nextState);
   }, [persistLockState, sessionLock]);
+
+  const refreshOfflineQueueSize = useCallback(async () => {
+    const queuedScans = await readOfflineScanQueue().catch(() => []);
+    setOfflineScanQueueSize(queuedScans.length);
+  }, []);
 
   const applySessionLock = useCallback(
     async (reason: SessionLockReason) => {
@@ -184,6 +211,39 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     ]);
   }, [auth, queryClient]);
 
+  const reconcileOperationalQueries = useCallback(async () => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    const role = auth.session.user.activeRole;
+    const staleMs = apiConfig.sync.staleCacheMs;
+    const now = Date.now();
+
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const firstKey = Array.isArray(query.queryKey) ? query.queryKey[0] : '';
+        if (!['security', 'employee', 'admin', 'notifications'].includes(String(firstKey))) {
+          return false;
+        }
+        const updatedAt = query.state.dataUpdatedAt || 0;
+        if (now - updatedAt < staleMs) {
+          return false;
+        }
+        if (firstKey === 'security') {
+          return role === 'SECURITY_GUARD';
+        }
+        if (firstKey === 'employee') {
+          return role === 'EMPLOYEE';
+        }
+        if (firstKey === 'admin') {
+          return role === 'ADMIN' || role === 'SUPER_ADMIN';
+        }
+        return true;
+      },
+    });
+  }, [auth, queryClient]);
+
   const registerCurrentDevice = useCallback(async () => {
     if (auth.status !== 'authenticated') {
       return;
@@ -197,6 +257,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     try {
       const deviceId = await readOrCreateDeviceId();
       deviceRegistrationRef.current.deviceId = deviceId;
+      setDevicePosture((current) => ({ ...current, deviceId }));
 
       let permissions = await Notifications.getPermissionsAsync();
       if (permissions.status !== 'granted') {
@@ -247,6 +308,126 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       });
     }
   }, [auth.status, auth.session]);
+
+  const syncDevicePolicy = useCallback(async () => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    const deviceId = deviceRegistrationRef.current.deviceId ?? await readOrCreateDeviceId();
+    deviceRegistrationRef.current.deviceId = deviceId;
+    setDevicePosture((current) => ({ ...current, deviceId }));
+
+    try {
+      const policy = await getMobileSessionPolicy(deviceId);
+      setDevicePosture((current) => ({
+        ...current,
+        managedMode: policy.managedMode ?? current.managedMode,
+        kioskModeReady: Boolean(policy.kioskModeReady ?? current.kioskModeReady),
+        remoteLogoutSupported: Boolean(policy.remoteLogoutSupported ?? current.remoteLogoutSupported),
+        suspicious: policy.suspiciousDevice,
+        concurrentSessionCount: policy.concurrentSessionCount,
+        lastPolicySyncAt: new Date().toISOString(),
+      }));
+
+      if (!policy.sessionValid || policy.forceLogout) {
+        await recordOperationalMetric({
+          name: 'session_invalidated',
+          tags: {
+            reason: policy.reason ?? 'remote-policy',
+            suspiciousDevice: policy.suspiciousDevice,
+          },
+        });
+        await auth.logout();
+        return;
+      }
+
+      if (policy.suspiciousDevice) {
+        await applySessionLock('suspicious-device');
+      }
+    } catch (error) {
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'security',
+        code: 'DEVICE_POLICY_SYNC_FAILED',
+        message: error instanceof Error ? error.message : 'Device policy sync failed.',
+        context: {
+          role: auth.session.user.activeRole,
+        },
+      });
+    }
+  }, [applySessionLock, auth]);
+
+  const flushTelemetry = useCallback(async () => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    const [diagnostics, metrics] = await Promise.all([
+      readDiagnosticEvents().catch(() => []),
+      readOperationalMetrics().catch(() => []),
+    ]);
+
+    if (!diagnostics.length && !metrics.length) {
+      return;
+    }
+
+    try {
+      const diagnosticBatch = diagnostics.slice(0, 40);
+      const metricBatch = metrics.slice(0, 80);
+      await submitMobileTelemetry({
+        diagnostics: diagnosticBatch,
+        metrics: metricBatch,
+      });
+      await Promise.all([
+        clearDiagnosticEvents(),
+        clearOperationalMetrics(metricBatch.map((metric) => metric.id)),
+      ]);
+    } catch {
+      // Keep the local buffer for the next safe sync window.
+    }
+  }, [auth.status]);
+
+  const runOtaCheck = useCallback(async (forceDownload = false) => {
+    if (!apiConfig.release.otaEnabled) {
+      return;
+    }
+
+    const now = Date.now();
+    if (!forceDownload && now - lastOtaCheckAtRef.current < apiConfig.release.updateCheckIntervalMs) {
+      return;
+    }
+    lastOtaCheckAtRef.current = now;
+
+    const nextState = await checkForOtaUpdate({ forceDownload });
+    setOtaUpdate(nextState);
+    if (nextState.isEmergencyLaunch) {
+      await recordDiagnosticEvent({
+        level: 'error',
+        scope: 'runtime',
+        code: 'OTA_EMERGENCY_LAUNCH',
+        message: nextState.emergencyLaunchReason ?? 'Expo Updates launched the embedded runtime for safety.',
+        context: {
+          channel: nextState.channel,
+          updateId: nextState.updateId,
+        },
+      });
+    }
+    if (nextState.updateAvailable || nextState.updateDownloaded || nextState.rollbackAvailable) {
+      setRuntimeUpdateAvailable(true);
+      upsertSystemNotification({
+        id: `ota-update-${nextState.lastCheckedAt ?? 'ready'}`,
+        type: 'SYSTEM_RUNTIME_UPDATE_AVAILABLE',
+        category: 'SYSTEM',
+        priority: nextState.updateDownloaded ? 'CRITICAL' : 'HIGH',
+        title: nextState.rollbackAvailable ? 'Safe rollback available' : 'Mobile update available',
+        message: nextState.message ?? 'A compatible AccessFlow mobile update is available.',
+        read: false,
+        createdAt: new Date().toISOString(),
+        source: 'local',
+      });
+    }
+  }, [upsertSystemNotification]);
 
   const handleNotificationRoute = useCallback(
     (type?: string | null) => {
@@ -348,23 +529,28 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       const requiredRuntimeUpdate =
         versions.minimumRuntimeVersion
         && compareVersionStrings(apiConfig.runtimeVersion, versions.minimumRuntimeVersion) < 0;
+      const forcedRolloutUpdate = Boolean(versions.rollout?.forced);
+      const rollbackRequired = Boolean(versions.rollout?.rollback);
 
-      if ((lastApiVersionRef.current && lastApiVersionRef.current !== versions.current) || recommendedUpdate) {
+      if ((lastApiVersionRef.current && lastApiVersionRef.current !== versions.current) || recommendedUpdate || forcedRolloutUpdate || rollbackRequired) {
         setRuntimeUpdateAvailable(true);
+        await runOtaCheck(Boolean(forcedRolloutUpdate || rollbackRequired));
         upsertSystemNotification({
           id: `runtime-update-${versions.current}`,
           type: 'SYSTEM_RUNTIME_UPDATE_AVAILABLE',
           category: 'SYSTEM',
-          priority: 'HIGH',
-          title: 'Runtime update available',
-          message: `A newer backend runtime (${versions.current}) is available. Resync the device or update the app when your operations window allows.`,
+          priority: forcedRolloutUpdate || rollbackRequired ? 'CRITICAL' : 'HIGH',
+          title: rollbackRequired ? 'Rollback required' : 'Runtime update available',
+          message: rollbackRequired
+            ? 'The backend marked the current mobile release for rollback. AccessFlow will use the safest compatible update path.'
+            : `A newer backend runtime (${versions.current}) is available. Resync the device or update the app when your operations window allows.`,
           read: false,
           createdAt: new Date().toISOString(),
           source: 'local',
         });
       }
 
-      if (requiredRuntimeUpdate) {
+      if (requiredRuntimeUpdate || forcedRolloutUpdate) {
         await applySessionLock('update-required');
       }
 
@@ -405,7 +591,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     if (!syncPromiseRef.current) {
       syncPromiseRef.current = (async () => {
         try {
-          await Promise.all([invalidateRoleQueries(), probeRuntime()]);
+          await Promise.all([
+            reconcileOperationalQueries(),
+            invalidateRoleQueries(),
+            probeRuntime(),
+            syncDevicePolicy(),
+            flushTelemetry(),
+            refreshOfflineQueueSize(),
+          ]);
         } finally {
           syncPromiseRef.current = null;
         }
@@ -413,7 +606,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     await syncPromiseRef.current;
-  }, [auth.status, invalidateRoleQueries, probeRuntime, sessionLock.isLocked]);
+  }, [auth.status, reconcileOperationalQueries, invalidateRoleQueries, probeRuntime, syncDevicePolicy, flushTelemetry, refreshOfflineQueueSize, sessionLock.isLocked]);
 
   const unlockSession = useCallback(async () => {
     if (auth.status !== 'authenticated' || !sessionLock.isLocked) {
@@ -444,13 +637,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       }
 
       await auth.refreshSession();
+      await syncDevicePolicy();
       await releaseSessionLock();
       resetNavigationToRoleHome(auth.session.user.activeRole);
       await syncNow();
     } finally {
       setIsUnlocking(false);
     }
-  }, [auth, releaseSessionLock, sessionLock, syncNow]);
+  }, [auth, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
 
   useEffect(() => {
     void (async () => {
@@ -469,8 +663,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       } satisfies SessionLockState;
 
       setSessionLock(nextState);
+      await refreshOfflineQueueSize();
     })().catch(() => undefined);
-  }, []);
+  }, [refreshOfflineQueueSize]);
+
+  useEffect(() => {
+    void runOtaCheck(false);
+  }, [runOtaCheck]);
 
   useEffect(() => {
     if (!apiConfig.security.screenshotProtectionEnabled) {
@@ -514,6 +713,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     if (auth.status === 'authenticated') {
       void registerCurrentDevice();
       void probeRuntime();
+      void syncDevicePolicy();
+      void flushTelemetry();
       return;
     }
 
@@ -527,7 +728,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       reason: null,
       lockedAt: null,
     }));
-  }, [auth.status, probeRuntime, registerCurrentDevice]);
+  }, [auth.status, probeRuntime, registerCurrentDevice, syncDevicePolicy, flushTelemetry]);
 
   useEffect(() => {
     const pushTokenApi = Notifications as typeof Notifications & {
@@ -595,6 +796,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         }
 
         if (!sessionLock.isLocked) {
+          void runOtaCheck(false);
           void syncNow();
         }
       }
@@ -603,7 +805,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       subscription.remove();
     };
-  }, [applySessionLock, auth.status, sessionLock.isLocked, syncNow]);
+  }, [applySessionLock, auth.status, runOtaCheck, sessionLock.isLocked, syncNow]);
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {
@@ -611,10 +813,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     const intervalMs = auth.session.user.activeRole === 'SECURITY_GUARD'
-      ? 20_000
+      ? apiConfig.sync.securityPollMs
       : auth.session.user.activeRole === 'EMPLOYEE'
-        ? 35_000
-        : 45_000;
+        ? apiConfig.sync.employeePollMs
+        : apiConfig.sync.adminPollMs;
 
     const intervalId = setInterval(() => {
       if (appStateRef.current === 'active') {
@@ -626,6 +828,26 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       clearInterval(intervalId);
     };
   }, [auth.status, auth.session, sessionLock.isLocked, syncNow]);
+
+  useEffect(() => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (appStateRef.current === 'active') {
+        void flushTelemetry();
+      }
+    }, apiConfig.telemetryFlushIntervalMs);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [auth.status, flushTelemetry]);
+
+  const applyPendingUpdate = useCallback(async () => {
+    await applyDownloadedOtaUpdate();
+  }, []);
 
   useEffect(() => {
     if (
@@ -672,6 +894,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     () => ({
       degradedMessage,
       runtimeUpdateAvailable,
+      otaUpdate,
+      devicePosture,
+      offlineScanQueueSize,
       pushPermissionStatus,
       pushToken,
       localNotifications,
@@ -682,10 +907,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       requestPushRegistration: registerCurrentDevice,
       syncNow,
       unlockSession,
+      applyPendingUpdate,
     }),
     [
       degradedMessage,
       runtimeUpdateAvailable,
+      otaUpdate,
+      devicePosture,
+      offlineScanQueueSize,
       pushPermissionStatus,
       pushToken,
       localNotifications,
@@ -696,6 +925,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       registerCurrentDevice,
       syncNow,
       unlockSession,
+      applyPendingUpdate,
     ],
   );
 

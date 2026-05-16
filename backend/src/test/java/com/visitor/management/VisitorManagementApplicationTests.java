@@ -12,6 +12,7 @@ import com.visitor.management.repository.EmployeeAttendanceLogRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
+import com.visitor.management.repository.MobileDeviceRegistrationRepository;
 import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Department;
@@ -106,6 +107,9 @@ class VisitorManagementApplicationTests {
 
     @MockitoBean
     private HomepageSettingsRepository homepageSettingsRepository;
+
+    @MockitoBean
+    private MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository;
 
     @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;

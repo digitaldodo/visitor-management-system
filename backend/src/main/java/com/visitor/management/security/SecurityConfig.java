@@ -68,6 +68,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PublicEndpointRequestMatchers.publicAnyMethodPaths()).permitAll()
                         .requestMatchers(HttpMethod.POST, PublicEndpointRequestMatchers.publicPostAuthPaths()).permitAll()
+                        .requestMatchers("/api/v1/mobile/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR")
                         .requestMatchers("/api/v1/notifications/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR")
                         .requestMatchers("/api/v1/admin/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/employee/**").hasRole("EMPLOYEE")
@@ -84,7 +85,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsOriginResolver.resolveAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "Cache-Control", "Pragma"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "Cache-Control", "Pragma", "X-AccessFlow-Client", "X-AccessFlow-Role", "X-AccessFlow-App-Version", "X-AccessFlow-Build-Id", "X-AccessFlow-Environment"));
         configuration.setExposedHeaders(List.of("Authorization", "X-Request-Id"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

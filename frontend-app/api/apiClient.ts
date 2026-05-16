@@ -8,6 +8,7 @@ import axios, {
 import { apiConfig } from './apiConfig';
 import { createAppError, createPayloadError, normalizeApiError } from './error';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import { recordOperationalMetric } from '../runtime/telemetry';
 import type { AppError } from '../types/api';
 import type { AuthResponseDto, AuthSession } from '../types/auth';
 import type { ApiEnvelope } from '../types/api';
@@ -15,6 +16,7 @@ import type { ApiEnvelope } from '../types/api';
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _authRetry?: boolean;
   _networkRetryCount?: number;
+  _startedAt?: number;
 };
 
 type SessionProvider = () => AuthSession | null;
@@ -52,6 +54,7 @@ export function configureApiClient(configuration: {
 }
 
 privateApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  (config as RetryableRequestConfig)._startedAt = Date.now();
   const session = getSession();
   if (session?.accessToken) {
     config.headers.Authorization = `${session.tokenType || 'Bearer'} ${session.accessToken}`;
@@ -63,6 +66,30 @@ privateApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+publicApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  (config as RetryableRequestConfig)._startedAt = Date.now();
+  config.headers['X-AccessFlow-App-Version'] = apiConfig.appVersion;
+  config.headers['X-AccessFlow-Build-Id'] = apiConfig.buildId;
+  config.headers['X-AccessFlow-Environment'] = apiConfig.environment;
+  return config;
+});
+
+privateApi.interceptors.response.use((response) => {
+  void captureApiLatency(response.config as RetryableRequestConfig, response.status);
+  return response;
+});
+
+publicApi.interceptors.response.use(
+  (response) => {
+    void captureApiLatency(response.config as RetryableRequestConfig, response.status);
+    return response;
+  },
+  async (error: AxiosError) => {
+    await captureApiLatency(error.config as RetryableRequestConfig | undefined, error.response?.status);
+    return Promise.reject(error);
+  },
+);
+
 privateApi.interceptors.response.use(
   (response) => {
     if (response.status >= 200 && response.status < 300 && response.data === undefined) {
@@ -73,6 +100,7 @@ privateApi.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const config = error.config as RetryableRequestConfig | undefined;
+    await captureApiLatency(config, error.response?.status);
 
     if (shouldRefreshToken(error, config)) {
       try {
@@ -109,6 +137,38 @@ function shouldRefreshToken(error: AxiosError, config?: RetryableRequestConfig) 
       && !String(config.url || '').includes('/auth/login')
       && getSession()?.refreshToken,
   );
+}
+
+async function captureApiLatency(config?: RetryableRequestConfig, status?: number) {
+  if (!config?._startedAt) {
+    return;
+  }
+
+  const durationMs = Date.now() - config._startedAt;
+  const path = String(config.url || '');
+  const isOperationalPath = /\/(security|employee|admin|notifications|auth|mobile|versions|health)/.test(path);
+  if (!isOperationalPath && durationMs < 2_000) {
+    return;
+  }
+
+  await recordOperationalMetric({
+    name: 'api_latency',
+    value: durationMs,
+    tags: {
+      method: String(config.method || 'GET').toUpperCase(),
+      path: normalizePathForTelemetry(path),
+      status: status ?? null,
+      slow: durationMs >= 2_000,
+    },
+  });
+}
+
+function normalizePathForTelemetry(path: string) {
+  return path
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .replace(/[a-f0-9]{24}/gi, ':id')
+    .replace(/[0-9a-f-]{32,}/gi, ':id')
+    .slice(0, 100);
 }
 
 function shouldRetryRequest(error: AxiosError, config?: RetryableRequestConfig) {

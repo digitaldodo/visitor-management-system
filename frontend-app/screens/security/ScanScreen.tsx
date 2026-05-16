@@ -13,6 +13,10 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
+import { recordDiagnosticEvent } from '../../runtime/diagnostics';
+import { recordOperationalMetric } from '../../runtime/telemetry';
+import { enqueueOfflineScan } from '../../storage/offlineScanQueue';
 import {
   useCheckOutVisitorMutation,
   useDenyVisitorMutation,
@@ -52,6 +56,7 @@ export function ScanScreen() {
   const queryClient = useQueryClient();
   const isFocused = useIsFocused();
   const layout = useResponsiveLayout();
+  const runtime = useOperationalRuntime();
   const cameraRef = useRef<CameraView | null>(null);
   const isMountedRef = useRef(true);
   const lastScanAtRef = useRef(0);
@@ -208,16 +213,63 @@ export function ScanScreen() {
           setEmployeeScan(result);
           setLastActionMessage(result.message || result.headline || 'Workforce presence updated.');
         }
+        await recordOperationalMetric({
+          name: 'workforce_presence',
+          tags: {
+            action: result.action ?? 'UNKNOWN',
+            valid: result.valid,
+          },
+        });
       } else {
         const result = await verifyMutation.mutateAsync(nextPayload);
         if (isMountedRef.current) {
           setVisitorVerification(result);
           setLastActionMessage(result.message || result.headline || 'Visitor badge verified.');
         }
+        await recordOperationalMetric({
+          name: result.valid ? 'visitor_verification' : 'qr_validation_issue',
+          tags: {
+            valid: result.valid,
+            recognized: result.recognized,
+            resultCode: result.resultCode ?? null,
+          },
+        });
       }
+      await recordOperationalMetric({ name: 'scanner_success', tags: { mode: looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor' } });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'The QR scan could not be completed.';
+      const kind = typeof error === 'object' && error && 'kind' in error ? String((error as { kind?: string }).kind) : 'unknown';
+      if (kind === 'network') {
+        const queued = await enqueueOfflineScan(nextPayload, looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor');
+        await recordDiagnosticEvent({
+          level: 'warn',
+          scope: 'scanner',
+          code: 'SCAN_QUEUED_OFFLINE',
+          message: 'A scan was queued locally because the backend was unreachable.',
+          context: {
+            queueId: queued.id,
+            kind: queued.kind,
+          },
+        });
+        await runtime.syncNow().catch(() => undefined);
+        if (isMountedRef.current) {
+          setScanError('Network is degraded. The scan was queued locally for a supervised retry when connectivity returns.');
+        }
+        return;
+      }
+
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'scanner',
+        code: looksLikeEmployeeQr(nextPayload) ? 'EMPLOYEE_SCAN_FAILED' : 'VISITOR_SCAN_FAILED',
+        message,
+        context: {
+          kind,
+          mode: looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor',
+        },
+      });
       if (isMountedRef.current) {
-        setScanError(error instanceof Error ? error.message : 'The QR scan could not be completed.');
+        setScanError(message);
       }
     } finally {
       if (isMountedRef.current) {
@@ -254,6 +306,7 @@ export function ScanScreen() {
 
     const visitor = await visitorCheckInMutation.mutateAsync(lastPayload);
     setLastActionMessage(`${visitor.fullName} checked in successfully.`);
+    await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-in' } });
     await refreshWorkspace();
   };
 
@@ -268,6 +321,7 @@ export function ScanScreen() {
       statusLabel: visitorStatusLabel(visitor.status),
     } : current);
     setLastActionMessage(`${visitor.fullName} checked out successfully.`);
+    await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-out' } });
     await refreshWorkspace();
   };
 
@@ -294,6 +348,7 @@ export function ScanScreen() {
           canCheckOut: false,
         } : current);
         setLastActionMessage(`Entry denied for ${visitor.fullName}.`);
+        await recordOperationalMetric({ name: 'denied_access', tags: { source: 'security-scan' } });
         break;
       }
       case 'escalate': {
@@ -347,7 +402,21 @@ export function ScanScreen() {
       >
         <View style={[styles.workspaceGrid, layout.isTwoColumn ? styles.workspaceGridWide : null]}>
           <View style={[styles.primaryColumn, layout.isTwoColumn ? styles.primaryColumnWide : null]}>
-            <SurfaceCard title="Checkpoint scanner" subtitle="Designed for reception desks, guard tablets, and one-hand Android workflows.">
+          <SurfaceCard title="Checkpoint scanner" subtitle="Designed for reception desks, guard tablets, and one-hand Android workflows.">
+              {runtime.offlineScanQueueSize > 0 || runtime.runtimeHealth === 'degraded' ? (
+                <View style={styles.degradedState}>
+                  <StatusPill
+                    label={runtime.offlineScanQueueSize > 0 ? `${runtime.offlineScanQueueSize} queued` : 'Degraded sync'}
+                    tone="warning"
+                  />
+                  <Text style={styles.helperText}>
+                    {runtime.offlineScanQueueSize > 0
+                      ? 'Offline scans are preserved for supervised retry. Backend validation is still required before access is granted.'
+                      : 'Network conditions are degraded. Scans remain online-validated whenever connectivity is available.'}
+                  </Text>
+                </View>
+              ) : null}
+
               {!permission ? (
                 <Text style={styles.helperText}>Loading camera permission…</Text>
               ) : !permission.granted ? (
@@ -566,6 +635,14 @@ function truncatePayload(value: string) {
 const styles = StyleSheet.create({
   permissionState: {
     gap: theme.spacing.md,
+  },
+  degradedState: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: '#E4C18E',
+    backgroundColor: theme.colors.warningSoft,
+    padding: theme.spacing.md,
   },
   workspaceGrid: {
     gap: theme.spacing.lg,

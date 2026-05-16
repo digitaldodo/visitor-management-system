@@ -6,15 +6,21 @@ import { useOperationalRuntime } from './OperationalRuntimeProvider';
 import { theme } from '../theme';
 
 export function OperationalLockOverlay() {
-  const { sessionLock, runtimeHealth, unlockSession, isUnlocking } = useOperationalRuntime();
+  const { sessionLock, runtimeHealth, unlockSession, isUnlocking, otaUpdate, applyPendingUpdate, devicePosture } = useOperationalRuntime();
 
   if (!sessionLock.isLocked) {
     return null;
   }
 
-  const title = runtimeHealth === 'update-required' ? 'Update required' : 'Workspace locked';
+  const title = runtimeHealth === 'update-required'
+    ? 'Update required'
+    : sessionLock.reason === 'suspicious-device'
+      ? 'Device review required'
+      : 'Workspace locked';
   const body = runtimeHealth === 'update-required'
     ? 'This AccessFlow build is older than the backend allows. Update the app before resuming guard, employee, or admin operations.'
+    : sessionLock.reason === 'suspicious-device'
+      ? 'AccessFlow detected a device/session policy concern. Resume only after the device posture is verified by operations.'
     : 'The workspace paused after inactivity so stale sessions do not remain open on shared devices or guard tablets.';
 
   return (
@@ -25,8 +31,17 @@ export function OperationalLockOverlay() {
             <Text style={styles.body}>{body}</Text>
             <Text style={styles.context}>Biometric readiness: {sessionLock.biometricAvailable ? 'available' : 'not configured on this device'}</Text>
             <Text style={styles.context}>Screenshot protection: {sessionLock.screenshotProtectionEnabled ? 'enabled' : 'disabled'}</Text>
+            <Text style={styles.context}>Managed mode: {devicePosture.managedMode}</Text>
+            {otaUpdate.updateDownloaded ? <Text style={styles.context}>OTA update: downloaded and ready</Text> : null}
           </View>
           <View style={styles.actions}>
+            {runtimeHealth === 'update-required' && otaUpdate.updateDownloaded ? (
+              <PrimaryButton
+                label="Apply downloaded update"
+                onPress={() => void applyPendingUpdate()}
+                loading={isUnlocking}
+              />
+            ) : null}
             <PrimaryButton
               label={runtimeHealth === 'update-required' ? 'Retry after update' : 'Resume session'}
               onPress={() => void unlockSession()}

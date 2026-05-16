@@ -37,6 +37,27 @@ EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL=https://accessflow-api-goww.onrender.com/api
 
 No endpoint is hardcoded in the app logic. The backend URL must come from the Expo public environment.
 
+## Enterprise Release Channels
+
+AccessFlow Mobile uses isolated Expo/EAS channels for `development`, `staging`, `internal`, and `production`.
+
+```bash
+npm run update:staging
+npm run update:production
+```
+
+Production OTA updates are runtime-version gated with `runtimeVersion.policy = appVersion`. The backend `/api/versions` handshake remains the compatibility source of truth for minimum app/runtime versions, forced update windows, rollback flags, and staged rollout metadata.
+
+## Operational Readiness
+
+Phase 6 infrastructure now includes privacy-safe local diagnostics, operational metrics buffering, authenticated telemetry flushes, OTA update checks, forced-update locks, emergency-launch recovery capture, stale-cache reconciliation, remote session-policy polling, and bounded offline scan queueing. Offline queued scans are retry preparation only; backend validation is still required before granting access.
+
+The app is prepared for future managed-device controls through device posture state: shared guard tablets, kiosk-ready devices, organization-owned devices, remote logout, suspicious-device locks, certificate pinning, and attestation hooks.
+
+## Store Review Notes
+
+Android permissions are intentionally limited to camera/scanning, notifications, biometric unlock, secure storage, and image selection for credential/photo workflows. Audio recording is explicitly blocked in Expo config and camera recording is disabled.
+
 ## Run
 
 ```bash

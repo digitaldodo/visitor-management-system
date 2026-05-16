@@ -41,6 +41,16 @@ app:
     expiry-sweep-delay-ms: 60000
   notifications:
     email-retry-delay-ms: 120000
+  mobile:
+    minimum-app-version: ${MOBILE_MINIMUM_APP_VERSION:}
+    minimum-runtime-version: ${MOBILE_MINIMUM_RUNTIME_VERSION:}
+    recommended-app-version: ${MOBILE_RECOMMENDED_APP_VERSION:}
+    release-channel: ${MOBILE_RELEASE_CHANNEL:production}
+    rollout-cohort: ${MOBILE_ROLLOUT_COHORT:stable}
+    rollout-percent: ${MOBILE_ROLLOUT_PERCENT:100}
+    forced-update: ${MOBILE_FORCED_UPDATE:false}
+    rollback: ${MOBILE_ROLLBACK:false}
+    suspicious-concurrent-session-threshold: ${MOBILE_SUSPICIOUS_CONCURRENT_SESSION_THRESHOLD:4}
   rate-limit:
     enabled: true
     requests-per-minute: 180

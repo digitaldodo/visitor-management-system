@@ -38,6 +38,9 @@ public class AppProperties {
     @Valid
     private Notifications notifications = new Notifications();
 
+    @Valid
+    private Mobile mobile = new Mobile();
+
     public Cors getCors() {
         return cors;
     }
@@ -100,6 +103,14 @@ public class AppProperties {
 
     public void setNotifications(Notifications notifications) {
         this.notifications = notifications;
+    }
+
+    public Mobile getMobile() {
+        return mobile;
+    }
+
+    public void setMobile(Mobile mobile) {
+        this.mobile = mobile;
     }
 
     public static class Cors {
@@ -337,6 +348,90 @@ public class AppProperties {
 
         public void setExpoAccessToken(String expoAccessToken) {
             this.expoAccessToken = expoAccessToken;
+        }
+    }
+
+    public static class Mobile {
+        private String minimumAppVersion;
+        private String minimumRuntimeVersion;
+        private String recommendedAppVersion;
+        private String releaseChannel = "production";
+        private String rolloutCohort = "stable";
+        private int rolloutPercent = 100;
+        private boolean forcedUpdate;
+        private boolean rollback;
+        private int suspiciousConcurrentSessionThreshold = 4;
+
+        public String getMinimumAppVersion() {
+            return minimumAppVersion;
+        }
+
+        public void setMinimumAppVersion(String minimumAppVersion) {
+            this.minimumAppVersion = minimumAppVersion;
+        }
+
+        public String getMinimumRuntimeVersion() {
+            return minimumRuntimeVersion;
+        }
+
+        public void setMinimumRuntimeVersion(String minimumRuntimeVersion) {
+            this.minimumRuntimeVersion = minimumRuntimeVersion;
+        }
+
+        public String getRecommendedAppVersion() {
+            return recommendedAppVersion;
+        }
+
+        public void setRecommendedAppVersion(String recommendedAppVersion) {
+            this.recommendedAppVersion = recommendedAppVersion;
+        }
+
+        public String getReleaseChannel() {
+            return releaseChannel;
+        }
+
+        public void setReleaseChannel(String releaseChannel) {
+            this.releaseChannel = releaseChannel;
+        }
+
+        public String getRolloutCohort() {
+            return rolloutCohort;
+        }
+
+        public void setRolloutCohort(String rolloutCohort) {
+            this.rolloutCohort = rolloutCohort;
+        }
+
+        public int getRolloutPercent() {
+            return rolloutPercent;
+        }
+
+        public void setRolloutPercent(int rolloutPercent) {
+            this.rolloutPercent = rolloutPercent;
+        }
+
+        public boolean isForcedUpdate() {
+            return forcedUpdate;
+        }
+
+        public void setForcedUpdate(boolean forcedUpdate) {
+            this.forcedUpdate = forcedUpdate;
+        }
+
+        public boolean isRollback() {
+            return rollback;
+        }
+
+        public void setRollback(boolean rollback) {
+            this.rollback = rollback;
+        }
+
+        public int getSuspiciousConcurrentSessionThreshold() {
+            return suspiciousConcurrentSessionThreshold;
+        }
+
+        public void setSuspiciousConcurrentSessionThreshold(int suspiciousConcurrentSessionThreshold) {
+            this.suspiciousConcurrentSessionThreshold = suspiciousConcurrentSessionThreshold;
         }
     }
 
