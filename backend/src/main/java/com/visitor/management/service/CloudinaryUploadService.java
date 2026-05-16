@@ -27,11 +27,19 @@ public class CloudinaryUploadService {
     }
 
     public VisitorPhotoUploadResponse uploadVisitorPhoto(MultipartFile file) {
+        return uploadImage(file, "visitor-photos", "visitor-");
+    }
+
+    public VisitorPhotoUploadResponse uploadEmployeePhoto(MultipartFile file) {
+        return uploadImage(file, "employee-photos", "employee-");
+    }
+
+    private VisitorPhotoUploadResponse uploadImage(MultipartFile file, String folderSuffix, String publicIdPrefix) {
         validate(file);
 
         try {
-            String folder = folder("visitor-photos");
-            String publicId = "visitor-" + UUID.randomUUID();
+            String folder = folder(folderSuffix);
+            String publicId = publicIdPrefix + UUID.randomUUID();
             Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), Map.of(
                     "folder", folder,
                     "public_id", publicId,
@@ -66,25 +74,25 @@ public class CloudinaryUploadService {
 
     private void validate(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("Visitor photo is required.");
+            throw new BadRequestException("Photo is required.");
         }
 
         if (file.getSize() > MAX_IMAGE_BYTES) {
-            throw new BadRequestException("Visitor photo must be 3 MB or smaller.");
+            throw new BadRequestException("Photo must be 3 MB or smaller.");
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
-            throw new BadRequestException("Visitor photo must be a JPEG, PNG, or WebP image.");
+            throw new BadRequestException("Photo must be a JPEG, PNG, or WebP image.");
         }
 
         try {
             byte[] bytes = file.getBytes();
             if (!hasValidImageSignature(bytes, contentType)) {
-                throw new BadRequestException("Visitor photo content does not match an allowed image format.");
+                throw new BadRequestException("Photo content does not match an allowed image format.");
             }
         } catch (IOException ex) {
-            throw new BadRequestException("Visitor photo could not be read.");
+            throw new BadRequestException("Photo could not be read.");
         }
     }
 

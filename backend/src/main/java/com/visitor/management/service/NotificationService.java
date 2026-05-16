@@ -67,6 +67,10 @@ public class NotificationService {
     }
 
     public NotificationListResponse listForUser(String userId, int limit) {
+        Optional<User> user = userRepository.findById(userId);
+        if (user.isPresent() && Boolean.FALSE.equals(user.get().getNotificationInAppEnabled())) {
+            return new NotificationListResponse(0, java.util.List.of());
+        }
         int safeLimit = Math.max(1, Math.min(limit, 50));
         return new NotificationListResponse(
                 notificationRepository.countByRecipientUserIdAndReadFalse(userId),
@@ -107,7 +111,9 @@ public class NotificationService {
     }
 
     private boolean hasEmail(User user) {
-        return user.getEmail() != null && !user.getEmail().isBlank();
+        return !Boolean.FALSE.equals(user.getNotificationEmailEnabled())
+                && user.getEmail() != null
+                && !user.getEmail().isBlank();
     }
 
     private NotificationResponse toResponse(Notification notification) {

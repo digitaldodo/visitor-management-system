@@ -56,7 +56,7 @@ export function employeeBadgeMarkup(badge) {
           <p>Employee</p>
           <h4>${escapeHtml(badge.fullName || "Employee")}</h4>
           <strong>${escapeHtml(badge.employeeId || "Employee ID pending")}</strong>
-          <span>${escapeHtml(badge.department || "Unassigned department")} · ${escapeHtml(badge.designation || "Designation not set")}</span>
+          <span>${escapeHtml(joinSoft([badge.department || "Department pending", badge.designation || "Designation pending"]))}</span>
         </div>
         <div class="employee-badge__qr">
           <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static employee QR" />
@@ -64,8 +64,8 @@ export function employeeBadgeMarkup(badge) {
         </div>
       </section>
       <dl class="employee-badge__meta">
-        <div><dt>Employee type</dt><dd>${escapeHtml(badge.employeeType || "Not set")}</dd></div>
-        <div><dt>Shift</dt><dd>${escapeHtml(badge.shiftName || "General Shift")}</dd></div>
+        <div><dt>Employee type</dt><dd>${escapeHtml(badge.employeeType || "Type pending")}</dd></div>
+        <div><dt>Shift</dt><dd>${escapeHtml(badge.shiftName || "Shift pending")}</dd></div>
         <div><dt>Timing</dt><dd>${escapeHtml(formatShift(badge))}</dd></div>
         <div><dt>Issued</dt><dd>${escapeHtml(formatDate(badge.issuedAt))}</dd></div>
       </dl>
@@ -134,10 +134,10 @@ async function createEmployeeBadgeCanvas(badge) {
   ctx.font = `600 24px ${FONT_STACK}`;
   ctx.fillText(badge.organizationCode || "Managed workforce", 550, 186);
   const details = [
-    ["Department", badge.department || "Unassigned"],
-    ["Designation", badge.designation || "Not set"],
-    ["Employee type", badge.employeeType || "Not set"],
-    ["Shift", badge.shiftName || "General Shift"],
+    ["Department", badge.department || "Department pending"],
+    ["Designation", badge.designation || "Designation pending"],
+    ["Employee type", badge.employeeType || "Type pending"],
+    ["Shift", badge.shiftName || "Shift pending"],
     ["Timing", formatShift(badge)],
   ];
   details.forEach(([label, value], index) => {
@@ -161,7 +161,14 @@ async function createEmployeeBadgeCanvas(badge) {
 }
 
 function formatShift(badge) {
-  return badge.shiftStartTime && badge.shiftEndTime ? `${badge.shiftStartTime} to ${badge.shiftEndTime}` : "Shift timing not set";
+  return badge.shiftStartTime && badge.shiftEndTime ? `${badge.shiftStartTime} to ${badge.shiftEndTime}` : "Timing pending";
+}
+
+function joinSoft(values) {
+  return values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" · ") || "Profile pending";
 }
 
 function fileName(badge, extension) {

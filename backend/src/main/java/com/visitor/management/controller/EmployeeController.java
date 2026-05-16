@@ -2,20 +2,25 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
+import com.visitor.management.dto.ActionResponse;
 import com.visitor.management.dto.EmployeeAttendanceResponse;
 import com.visitor.management.dto.EmployeeBadgeResponse;
+import com.visitor.management.dto.EmployeePasswordUpdateRequest;
+import com.visitor.management.dto.EmployeeProfileUpdateRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.PreApprovalRequest;
 import com.visitor.management.dto.RescheduleDecisionRequest;
 import com.visitor.management.dto.RescheduleRequest;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.NotificationResponse;
+import com.visitor.management.dto.UserProfileResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.EmployeeAttendanceService;
+import com.visitor.management.service.EmployeeProfileService;
 import com.visitor.management.service.NotificationService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
@@ -46,17 +51,20 @@ public class EmployeeController {
     private final CloudinaryUploadService cloudinaryUploadService;
     private final NotificationService notificationService;
     private final EmployeeAttendanceService employeeAttendanceService;
+    private final EmployeeProfileService employeeProfileService;
 
     public EmployeeController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             NotificationService notificationService,
-            EmployeeAttendanceService employeeAttendanceService
+            EmployeeAttendanceService employeeAttendanceService,
+            EmployeeProfileService employeeProfileService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.notificationService = notificationService;
         this.employeeAttendanceService = employeeAttendanceService;
+        this.employeeProfileService = employeeProfileService;
     }
 
     @GetMapping("/overview")
@@ -98,6 +106,32 @@ public class EmployeeController {
     @GetMapping("/badge")
     public ApiResponse<EmployeeBadgeResponse> badge(Authentication authentication) {
         return ApiResponse.ok("Employee badge loaded.", employeeAttendanceService.ownBadge(authentication.getName()));
+    }
+
+    @GetMapping("/profile")
+    public ApiResponse<UserProfileResponse> profile(Authentication authentication) {
+        return ApiResponse.ok("Employee profile loaded.", employeeProfileService.profile(authentication.getName()));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<UserProfileResponse> updateProfile(
+            @Valid @RequestBody EmployeeProfileUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Employee profile updated.", employeeProfileService.updateProfile(authentication.getName(), request));
+    }
+
+    @PatchMapping("/profile/password")
+    public ApiResponse<ActionResponse> updatePassword(
+            @Valid @RequestBody EmployeePasswordUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Employee password updated.", employeeProfileService.updatePassword(authentication.getName(), request));
+    }
+
+    @PostMapping(value = "/profile/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VisitorPhotoUploadResponse> uploadEmployeePhoto(@RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok("Employee photo uploaded.", cloudinaryUploadService.uploadEmployeePhoto(file));
     }
 
     @GetMapping("/scheduled-visitors")

@@ -76,6 +76,14 @@ public class User {
 
     private String phoneCountryCode;
 
+    private String emergencyContact;
+
+    private String preferredLanguage;
+
+    private Boolean notificationEmailEnabled = Boolean.TRUE;
+
+    private Boolean notificationInAppEnabled = Boolean.TRUE;
+
     private Boolean emailVerified;
 
     @Indexed(sparse = true)
@@ -343,6 +351,38 @@ public class User {
 
     public void setPhoneCountryCode(String phoneCountryCode) {
         this.phoneCountryCode = phoneCountryCode;
+    }
+
+    public String getEmergencyContact() {
+        return emergencyContact;
+    }
+
+    public void setEmergencyContact(String emergencyContact) {
+        this.emergencyContact = emergencyContact;
+    }
+
+    public String getPreferredLanguage() {
+        return preferredLanguage;
+    }
+
+    public void setPreferredLanguage(String preferredLanguage) {
+        this.preferredLanguage = preferredLanguage;
+    }
+
+    public Boolean getNotificationEmailEnabled() {
+        return notificationEmailEnabled;
+    }
+
+    public void setNotificationEmailEnabled(Boolean notificationEmailEnabled) {
+        this.notificationEmailEnabled = notificationEmailEnabled;
+    }
+
+    public Boolean getNotificationInAppEnabled() {
+        return notificationInAppEnabled;
+    }
+
+    public void setNotificationInAppEnabled(Boolean notificationInAppEnabled) {
+        this.notificationInAppEnabled = notificationInAppEnabled;
     }
 
     public Boolean getEmailVerified() {

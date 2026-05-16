@@ -5,14 +5,20 @@ import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor } from "../shared/accessService.js";
+import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
+import { LOGIN_FROM_PORTAL } from "../shared/config.js";
+import { setText } from "../shared/dom.js";
+import { clearSession } from "../shared/session.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 
-const ROUTES = ["approvals", "pre-approvals", "notifications", "scheduled", "history", "attendance", "badge"];
+const ROUTES = ["dashboard", "credential", "attendance", "visitor-requests", "notifications", "settings"];
 let approvalPollTimer;
 let activeEmployeeBadge = null;
+let activeEmployeeProfile = null;
+let credentialLoaded = false;
+let settingsLoaded = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("employee-portal", () => bootEmployeePortal(), {
@@ -44,7 +50,12 @@ async function bootEmployeePortal() {
   initScheduledActions();
   initPreApprovalForm();
   initEmployeeBadgeActions();
+  initCredentialPhotoForm();
+  initEmployeeSettingsForm();
+  initEmployeePasswordForm();
+  initEmployeeRouteLoading();
   await loadEmployeePortal();
+  await loadRouteData();
   approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
   window.addEventListener("beforeunload", () => window.clearInterval(approvalPollTimer));
 }
@@ -53,15 +64,19 @@ async function loadEmployeePortal() {
   renderMetrics([]);
   renderLoadingList("#approvals-list");
   renderLoadingList("#notifications-list");
+  renderLoadingList("#dashboard-notifications-list", 2);
   renderLoadingList("#scheduled-list");
+  renderLoadingList("#dashboard-upcoming-list", 2);
   renderLoadingList("#employee-attendance-list");
+  renderLoadingList("#recent-activity-list", 2);
+  renderPresenceSummary([]);
+  renderAttendanceSummary([]);
 
-  const [overview, notifications, scheduled, attendance, badge] = await Promise.allSettled([
+  const [overview, notifications, scheduled, attendance] = await Promise.allSettled([
     request("/employee/overview"),
     request("/employee/notifications"),
     request("/employee/scheduled-visitors"),
     getOwnEmployeeAttendance(),
-    getEmployeeBadge("/employee"),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -73,29 +88,117 @@ async function loadEmployeePortal() {
   await loadApprovals(false);
 
   if (notifications.status === "fulfilled") {
-    renderWorkList("#notifications-list", notifications.value?.data || [], (notification) => workCard(notification.title, notification.message), "No employee notices", "Visitor updates and reminders will appear here.");
+    renderNotificationLists(notifications.value?.data || []);
   } else {
     renderWorkList("#notifications-list", [], (item) => item, "Notifications unavailable", notifications.reason?.message || "Notifications could not be loaded.");
+    renderWorkList("#dashboard-notifications-list", [], (item) => item, "Notifications unavailable", notifications.reason?.message || "Notifications could not be loaded.");
   }
 
   if (scheduled.status === "fulfilled") {
-    renderScheduledVisitors(scheduled.value?.data || []);
+    const scheduledItems = scheduled.value?.data || [];
+    renderScheduledVisitors(scheduledItems);
+    renderUpcomingVisitors(scheduledItems);
   } else {
     renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
+    renderWorkList("#dashboard-upcoming-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
   }
 
   if (attendance.status === "fulfilled") {
-    renderOwnAttendance(attendance.value?.data || []);
+    const attendanceItems = attendance.value?.data || [];
+    renderOwnAttendance(attendanceItems);
+    renderPresenceSummary(attendanceItems);
+    renderAttendanceSummary(attendanceItems);
+    renderRecentActivity(attendanceItems, notifications.status === "fulfilled" ? notifications.value?.data || [] : []);
   } else {
     renderWorkList("#employee-attendance-list", [], (item) => item, "Presence unavailable", attendance.reason?.message || "Presence history could not be loaded.");
+    renderWorkList("#recent-activity-list", [], (item) => item, "Activity unavailable", attendance.reason?.message || "Activity could not be loaded.");
   }
+}
 
-  if (badge.status === "fulfilled") {
-    activeEmployeeBadge = badge.value?.data || null;
-    renderOwnBadge(activeEmployeeBadge);
-  } else {
-    renderOwnBadge(null, badge.reason?.message || "Employee badge could not be loaded.");
+function renderNotificationLists(items) {
+  const mapper = (notification) => workCard(notification.title, notification.message, formatDate(notification.createdAt));
+  renderWorkList("#notifications-list", items, mapper, "No employee notices", "Visitor updates and reminders will appear here.");
+  renderWorkList("#dashboard-notifications-list", items.slice(0, 3), mapper, "No recent notices", "New visitor updates will appear here.");
+}
+
+function renderUpcomingVisitors(items) {
+  renderWorkList("#dashboard-upcoming-list", items.slice(0, 3), (visitor) => {
+    const windowText = `${formatDate(visitor.accessWindowStartTime || visitor.scheduledStartTime)} - ${formatTime(visitor.accessWindowEndTime || visitor.scheduledEndTime)}`;
+    return workCard(visitor.fullName, visitor.purposeOfVisit || visitor.companyName || "Visitor request", windowText);
+  }, "No upcoming visitors", "Scheduled or pre-approved visitors will appear here.");
+}
+
+function renderPresenceSummary(items) {
+  const panel = document.querySelector("#presence-summary");
+  if (!panel) {
+    return;
   }
+  const latest = items[0];
+  const currentlyIn = latest?.state === "IN" || latest?.status === "INSIDE" || (latest?.checkInTime && !latest?.checkOutTime);
+  panel.innerHTML = `
+    <span class="presence-indicator ${currentlyIn ? "is-present" : ""}" aria-hidden="true"></span>
+    <div>
+      <strong>${currentlyIn ? "Checked in" : "Not checked in"}</strong>
+      <p>${escapeHtml(latest ? presenceDetail(latest) : "Your next badge scan will update presence.")}</p>
+    </div>
+  `;
+}
+
+function renderAttendanceSummary(items) {
+  const panel = document.querySelector("#attendance-summary");
+  if (!panel) {
+    return;
+  }
+  const today = new Date().toDateString();
+  const todayItems = items.filter((item) => {
+    const date = item.attendanceDate || item.checkInTime || item.createdAt;
+    return date && new Date(date).toDateString() === today;
+  });
+  const latest = items[0];
+  panel.innerHTML = `
+    ${summaryTile("Today events", todayItems.length)}
+    ${summaryTile("Latest state", formatStatusLabel(latest?.state || latest?.status))}
+    ${summaryTile("Last scan", latest ? formatDate(latest.checkOutTime || latest.checkInTime || latest.createdAt) : "Pending")}
+  `;
+}
+
+function renderRecentActivity(attendanceItems, notificationItems) {
+  const activity = [
+    ...attendanceItems.slice(0, 3).map((item) => ({
+      title: formatStatusLabel(item.state || item.status),
+      detail: presenceDetail(item),
+      at: item.checkOutTime || item.checkInTime || item.createdAt,
+    })),
+    ...notificationItems.slice(0, 3).map((item) => ({
+      title: item.title,
+      detail: item.message,
+      at: item.createdAt,
+    })),
+  ].sort((left, right) => new Date(right.at || 0) - new Date(left.at || 0)).slice(0, 4);
+
+  renderWorkList("#recent-activity-list", activity, (item) => workCard(item.title, item.detail, formatDate(item.at)), "No recent activity", "Approvals, scans, and notices will appear here.");
+}
+
+function summaryTile(label, value) {
+  return `
+    <div class="employee-summary-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function presenceDetail(log) {
+  if (!log) {
+    return "Presence pending";
+  }
+  if (log.checkOutTime) {
+    return `Checked out ${formatDate(log.checkOutTime)}`;
+  }
+  if (log.checkInTime) {
+    return `${log.late ? "Late arrival" : "Checked in"} ${formatDate(log.checkInTime)}`;
+  }
+  return log.shiftName || "Presence recorded";
 }
 
 function renderOwnAttendance(items) {
@@ -115,20 +218,62 @@ function renderOwnBadge(badge, error = "") {
   }
   if (!badge) {
     panel.innerHTML = `<article class="approval-empty"><h3>Badge unavailable</h3><p>${escapeHtml(error || "Your employee badge is not ready yet.")}</p></article>`;
+    renderCredentialCompanions(null);
     return;
   }
-  panel.innerHTML = `
-    ${employeeBadgeMarkup(badge)}
-    <div class="approval-card__actions">
-      <button class="button button--ghost" type="button" data-own-badge-action="print">Print</button>
-      <button class="button button--ghost" type="button" data-own-badge-action="png">Download PNG</button>
-      <button class="button button--primary" type="button" data-own-badge-action="pdf">Download PDF</button>
-    </div>
-  `;
+  panel.innerHTML = employeeBadgeMarkup(badge);
+  renderCredentialCompanions(badge);
+}
+
+function renderCredentialCompanions(badge) {
+  const qrPanel = document.querySelector("#credential-qr-panel");
+  const mobilePanel = document.querySelector("#credential-mobile-preview");
+  if (qrPanel) {
+    qrPanel.innerHTML = badge ? `
+      <div>
+        <p class="eyebrow">Static QR Code</p>
+        <h3>Reusable Identity QR</h3>
+      </div>
+      <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static employee QR" />
+      <code>${escapeHtml(badge.qrPayload || "QR identity pending")}</code>
+    ` : `
+      <div>
+        <p class="eyebrow">Static QR Code</p>
+        <h3>QR pending</h3>
+      </div>
+      <p>Your reusable QR identity will appear here once available.</p>
+    `;
+  }
+  if (mobilePanel) {
+    mobilePanel.innerHTML = badge ? `
+      <div>
+        <p class="eyebrow">Mobile Preview</p>
+        <h3>${escapeHtml(badge.fullName || "Employee")}</h3>
+      </div>
+      <div class="mobile-badge-preview">
+        <img src="${escapeHtml(badge.employeePhotoUrl || "")}" alt="" data-mobile-photo />
+        <div>
+          <strong>${escapeHtml(badge.employeeId || "Employee ID pending")}</strong>
+          <span>${escapeHtml(joinSoft([badge.department, badge.designation]))}</span>
+        </div>
+        <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static QR" />
+      </div>
+    ` : `
+      <div>
+        <p class="eyebrow">Mobile Preview</p>
+        <h3>Preview pending</h3>
+      </div>
+      <p>Your compact credential preview will appear here.</p>
+    `;
+    const photo = mobilePanel.querySelector("[data-mobile-photo]");
+    if (photo && !badge?.employeePhotoUrl) {
+      photo.remove();
+    }
+  }
 }
 
 function initEmployeeBadgeActions() {
-  document.querySelector("#employee-badge-panel")?.addEventListener("click", async (event) => {
+  document.querySelector("#credential")?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-own-badge-action]");
     if (!button || !activeEmployeeBadge) {
       return;
@@ -146,6 +291,247 @@ function initEmployeeBadgeActions() {
       showToast("Badge action failed", error.message);
     }
   });
+}
+
+function initEmployeeRouteLoading() {
+  syncEmployeeRouteVisibility();
+  window.addEventListener("hashchange", () => {
+    syncEmployeeRouteVisibility();
+    void loadRouteData();
+  });
+}
+
+async function loadRouteData() {
+  const route = window.location.hash.replace("#", "") || "dashboard";
+  if (route === "credential") {
+    await loadCredentialPage();
+  }
+  if (route === "settings") {
+    await loadEmployeeSettings();
+  }
+}
+
+function syncEmployeeRouteVisibility() {
+  const route = ROUTES.includes(window.location.hash.replace("#", ""))
+    ? window.location.hash.replace("#", "")
+    : "dashboard";
+  document.querySelectorAll(".employee-route").forEach((section) => {
+    section.hidden = section.id !== route;
+  });
+}
+
+async function loadCredentialPage(force = false) {
+  if (credentialLoaded && !force) {
+    return;
+  }
+  const panel = document.querySelector("#employee-badge-panel");
+  if (panel) {
+    panel.innerHTML = `<article class="approval-empty"><h3>Loading credential</h3><p>Preparing your badge preview and static QR.</p></article>`;
+  }
+  try {
+    const response = await getEmployeeBadge("/employee");
+    activeEmployeeBadge = response?.data || null;
+    renderOwnBadge(activeEmployeeBadge);
+    credentialLoaded = Boolean(activeEmployeeBadge);
+  } catch (error) {
+    activeEmployeeBadge = null;
+    credentialLoaded = false;
+    renderOwnBadge(null, error.message);
+  }
+}
+
+function initCredentialPhotoForm() {
+  const form = document.querySelector("#credential-photo-form");
+  const input = form?.querySelector("input[name='profilePhoto']");
+  if (!form || !input) {
+    return;
+  }
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      showToast("Photo rejected", "Choose a JPEG, PNG, or WebP image.");
+      input.value = "";
+      return;
+    }
+    setText("#credential-photo-status", "Uploading photo...");
+    const localPreviewUrl = URL.createObjectURL(file);
+    if (activeEmployeeBadge) {
+      activeEmployeeBadge = { ...activeEmployeeBadge, employeePhotoUrl: localPreviewUrl };
+      renderOwnBadge(activeEmployeeBadge);
+    }
+    try {
+      const upload = await uploadEmployeeProfilePhoto(file);
+      const photoUrl = upload?.data?.url;
+      if (!photoUrl) {
+        throw new Error("Photo upload completed without a usable URL.");
+      }
+      await updateEmployeeProfile({ employeePhotoUrl: photoUrl });
+      credentialLoaded = false;
+      settingsLoaded = false;
+      await loadCredentialPage(true);
+      showToast("Photo updated", "Badge preview refreshed. Your static QR identity did not change.");
+      setText("#credential-photo-status", "Photo updated on your employee credential.");
+    } catch (error) {
+      showToast("Photo update failed", error.message);
+      setText("#credential-photo-status", "Photo update failed. Your credential QR was not changed.");
+      await loadCredentialPage(true);
+    } finally {
+      URL.revokeObjectURL(localPreviewUrl);
+      input.value = "";
+    }
+  });
+}
+
+function initEmployeeSettingsForm() {
+  const form = document.querySelector("#employee-settings-form");
+  if (!form) {
+    return;
+  }
+  initPhoneInput(form);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const phone = phonePayload(data);
+    const phoneError = validatePhonePayload(phone, { required: false });
+    if (phoneError) {
+      showToast("Check phone", phoneError);
+      return;
+    }
+    setFormLoading(form, true);
+    try {
+      const response = await updateEmployeeProfile({
+        phoneCountryCode: phone.phoneCountryCode,
+        phone: phone.phone,
+        emergencyContact: trim(data.emergencyContact),
+        preferredLanguage: trim(data.preferredLanguage),
+        notificationInAppEnabled: Boolean(data.notificationInAppEnabled),
+        notificationEmailEnabled: Boolean(data.notificationEmailEnabled),
+      });
+      activeEmployeeProfile = response?.data || null;
+      renderSettingsProfile(activeEmployeeProfile);
+      showToast("Settings saved", "Your self-managed profile preferences were updated.");
+    } catch (error) {
+      showToast("Settings update failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+}
+
+function initEmployeePasswordForm() {
+  const form = document.querySelector("#employee-password-form");
+  if (!form) {
+    return;
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    if (!isStrongPassword(data.newPassword)) {
+      showToast("Weak password", "Use uppercase, lowercase, number, symbol, and at least 12 characters.");
+      return;
+    }
+    if (data.newPassword !== data.confirmPassword) {
+      showToast("Passwords differ", "Confirm password must match.");
+      return;
+    }
+    setFormLoading(form, true);
+    try {
+      await updateEmployeePassword({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+      showToast("Password updated", "Sign in again with your new password.");
+      clearSession();
+      window.setTimeout(() => {
+        window.location.href = LOGIN_FROM_PORTAL;
+      }, 900);
+    } catch (error) {
+      showToast("Password update failed", error.message);
+      setFormLoading(form, false);
+    }
+  });
+}
+
+async function loadEmployeeSettings(force = false) {
+  if (settingsLoaded && !force) {
+    return;
+  }
+  try {
+    const response = await getEmployeeProfile();
+    activeEmployeeProfile = response?.data || null;
+    renderSettingsProfile(activeEmployeeProfile);
+    settingsLoaded = Boolean(activeEmployeeProfile);
+  } catch (error) {
+    showToast("Settings unavailable", error.message);
+  }
+}
+
+function renderSettingsProfile(profile) {
+  const form = document.querySelector("#employee-settings-form");
+  if (!profile || !form) {
+    return;
+  }
+  const phoneInput = form.querySelector("input[name='phone']");
+  const phoneCode = form.querySelector("select[name='phoneCountryCode']");
+  if (phoneInput) {
+    phoneInput.value = stripDialCode(profile.phone, profile.phoneCountryCode);
+  }
+  if (phoneCode && profile.phoneCountryCode) {
+    phoneCode.value = profile.phoneCountryCode;
+  }
+  setFieldValue(form, "emergencyContact", profile.emergencyContact || "");
+  setFieldValue(form, "preferredLanguage", profile.preferredLanguage || "");
+  const inApp = form.querySelector("input[name='notificationInAppEnabled']");
+  const email = form.querySelector("input[name='notificationEmailEnabled']");
+  if (inApp) {
+    inApp.checked = profile.notificationInAppEnabled !== false;
+  }
+  if (email) {
+    email.checked = profile.notificationEmailEnabled !== false;
+  }
+  renderRestrictedProfile(profile);
+}
+
+function renderRestrictedProfile(profile) {
+  const card = document.querySelector("#restricted-profile-card");
+  if (!card) {
+    return;
+  }
+  card.innerHTML = `
+    <div>
+      <p class="eyebrow">Admin-Controlled</p>
+      <h3>Identity Fields</h3>
+    </div>
+    <dl>
+      ${profileDetail("Full name", profile.fullName)}
+      ${profileDetail("Employee ID", profile.employeeId)}
+      ${profileDetail("Department", profile.department, "Department pending")}
+      ${profileDetail("Designation", profile.designation, "Designation pending")}
+      ${profileDetail("Role", formatStatus(profile.roles?.[0] || "EMPLOYEE"))}
+      ${profileDetail("Shift", formatShiftLabel(profile), "Shift pending")}
+      ${profileDetail("Organization", profile.organizationName || profile.organizationCode)}
+      ${profileDetail("Workforce status", formatStatus(profile.accountStatus || "ACTIVE"))}
+    </dl>
+  `;
+}
+
+function profileDetail(label, value, fallback = "Pending") {
+  const text = value || fallback;
+  if (!text) {
+    return "";
+  }
+  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(text)}</dd></div>`;
+}
+
+function formatShiftLabel(profile) {
+  if (!profile?.shiftName && !profile?.shiftStartTime && !profile?.shiftEndTime) {
+    return "";
+  }
+  const timing = profile.shiftStartTime && profile.shiftEndTime ? `${profile.shiftStartTime} to ${profile.shiftEndTime}` : "Timing pending";
+  return `${profile.shiftName || "Shift pending"} · ${timing}`;
 }
 
 function initPreApprovalForm() {
@@ -452,7 +838,7 @@ function formatStatusLabel(status) {
     .split("_")
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ") || "Not recorded";
+    .join(" ") || "Presence pending";
 }
 
 function setScheduleMinimums(form) {
@@ -468,6 +854,35 @@ function setFormLoading(form, loading) {
   button?.toggleAttribute("disabled", loading);
   button?.classList.toggle("is-loading", loading);
   button?.toggleAttribute("aria-busy", loading);
+}
+
+function setFieldValue(form, name, value) {
+  const field = form.querySelector(`[name='${name}']`);
+  if (field) {
+    field.value = value || "";
+  }
+}
+
+function isStrongPassword(value) {
+  const password = String(value || "");
+  return password.length >= 12
+    && /[a-z]/.test(password)
+    && /[A-Z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
+function joinSoft(values, fallback = "Profile pending") {
+  const parts = values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : fallback;
+}
+
+function stripDialCode(value, code) {
+  const text = String(value || "").trim();
+  const dialCode = String(code || "").trim();
+  return dialCode && text.startsWith(dialCode) ? text.slice(dialCode.length).trim() : text;
 }
 
 function trim(value) {

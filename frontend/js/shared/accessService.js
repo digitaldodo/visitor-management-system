@@ -193,6 +193,33 @@ export function getEmployeeBadge(basePath, id) {
   return request(`${basePath}/employees/${encodeURIComponent(id)}/badge`);
 }
 
+export function getEmployeeProfile() {
+  return request("/employee/profile");
+}
+
+export function updateEmployeeProfile(payload) {
+  return request("/employee/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateEmployeePassword(payload) {
+  return request("/employee/profile/password", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadEmployeeProfilePhoto(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request("/employee/profile/photo", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export function manualEmployeeCheckIn(id, reason) {
   return request(`/security/employees/${encodeURIComponent(id)}/check-in`, {
     method: "PATCH",
