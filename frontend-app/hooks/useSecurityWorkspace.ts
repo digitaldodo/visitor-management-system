@@ -12,6 +12,7 @@ import {
   getSecurityHosts,
   getSecurityMonitoring,
   getSecurityOverview,
+  getSecurityVisitorPass,
   getSecurityVisitorById,
   getSecurityVisitors,
   manualEmployeeCheckIn,
@@ -35,10 +36,10 @@ export function useSecurityOverview() {
   });
 }
 
-export function useSecurityVisitors(query?: string, status?: string) {
+export function useSecurityVisitors(query?: string, status?: string, page = 0, size = 20, from?: string, to?: string) {
   return useQuery({
-    queryKey: ['security', 'visitors', query ?? '', status ?? 'ALL'],
-    queryFn: () => getSecurityVisitors({ query, status }),
+    queryKey: ['security', 'visitors', query ?? '', status ?? 'ALL', page, size, from ?? '', to ?? ''],
+    queryFn: () => getSecurityVisitors({ query, status, page, size, from, to }),
     placeholderData: (previous) => previous,
   });
 }
@@ -48,6 +49,15 @@ export function useSecurityVisitor(visitorId?: string | null) {
     queryKey: ['security', 'visitor', visitorId ?? ''],
     queryFn: () => getSecurityVisitorById(String(visitorId)),
     enabled: Boolean(visitorId),
+  });
+}
+
+export function useSecurityVisitorPass(visitorId?: string | null) {
+  return useQuery({
+    queryKey: ['security', 'visitor-pass', visitorId ?? ''],
+    queryFn: () => getSecurityVisitorPass(String(visitorId)),
+    enabled: Boolean(visitorId),
+    placeholderData: (previous) => previous,
   });
 }
 

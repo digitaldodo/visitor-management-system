@@ -17,7 +17,7 @@ public record VisitorVisitRequest(
         Instant scheduledEndTime,
         Long expectedDurationMinutes,
         @Size(max = 80) String timezone,
-        @Size(max = 500) String photoUrl,
-        @Size(max = 255) String photoPublicId
+        @NotBlank @Size(max = 500) String photoUrl,
+        @NotBlank @Size(max = 255) String photoPublicId
 ) {
 }

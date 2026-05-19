@@ -173,8 +173,8 @@ public class VisitorService {
                 now,
                 false
         );
-        visitor.setPhotoUrl(trimToNull(request.photoUrl()));
-        visitor.setPhotoPublicId(trimToNull(request.photoPublicId()));
+        visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
+        visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
         visitor.setStatus(VisitorStatus.PENDING);
         visitor.setApprovalExpiresAt(now.plusSeconds(appProperties.getVisitors().getPendingApprovalTtlMinutes() * 60));
         visitor.setCreatedAt(now);
@@ -1064,7 +1064,8 @@ public class VisitorService {
                     Criteria.where("hostEmployee").regex(pattern),
                     Criteria.where("department").regex(pattern),
                     Criteria.where("visitorType").regex(pattern),
-                    Criteria.where("qrCode").regex(pattern)
+                    Criteria.where("qrCode").regex(pattern),
+                    Criteria.where("badgeId").regex(pattern)
             ));
         }
 
@@ -1127,8 +1128,8 @@ public class VisitorService {
             visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), hostEmployeeId));
             visitor.setHostEmployeeDepartment(resolveHostDepartment(hostEmployeeId));
         }
-        setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(trimToNull(value)));
-        setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(trimToNull(value)));
+        setIfPresent(request.photoUrl(), value -> visitor.setPhotoUrl(requiredTrim(value, "Visitor photo cannot be removed.")));
+        setIfPresent(request.photoPublicId(), value -> visitor.setPhotoPublicId(requiredTrim(value, "Visitor photo cannot be removed.")));
         applyVisitorTypeProfile(visitor, request);
         applyOneTimeSchedule(
                 visitor,
@@ -1683,6 +1684,9 @@ public class VisitorService {
     }
 
     private void requirePassReady(Visitor visitor) {
+        if (trimToNull(visitor.getPhotoUrl()) == null || trimToNull(visitor.getPhotoPublicId()) == null) {
+            throw new BadRequestException("Visitor photo is required before badge verification.");
+        }
         if (visitor.getStatus() != VisitorStatus.APPROVED
                 && visitor.getStatus() != VisitorStatus.CHECKED_IN
                 && !(isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT)) {
@@ -2018,6 +2022,7 @@ public class VisitorService {
                 Criteria.where("department").regex(pattern),
                 Criteria.where("visitorType").regex(pattern),
                 Criteria.where("qrCode").regex(pattern),
+                Criteria.where("badgeId").regex(pattern),
                 Criteria.where("username").regex(pattern),
                 Criteria.where("department").regex(pattern)
         );

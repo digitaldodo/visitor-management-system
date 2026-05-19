@@ -354,6 +354,7 @@ export function VisitorsScreen() {
             label="Register visitor"
             onPress={() => void submitRegistration()}
             loading={createVisitorMutation.isPending || uploadVisitorPhotoMutation.isPending}
+            disabled={!photoAsset}
           />
         </SurfaceCard>
 
@@ -382,6 +383,19 @@ export function VisitorsScreen() {
             {section.records.length ? (
               section.records.slice(0, 5).map((visitor) => (
                 <View key={`${section.title}-${visitor.id}`} style={styles.queueCard}>
+                  <View style={styles.identityStrip}>
+                    {visitor.photoUrl ? (
+                      <Image source={{ uri: visitor.photoUrl }} style={styles.identityPhoto} />
+                    ) : (
+                      <View style={styles.identityPhotoMissing}>
+                        <Text style={styles.identityPhotoMissingText}>Photo missing</Text>
+                      </View>
+                    )}
+                    <View style={styles.identityCopy}>
+                      <Text style={styles.identityTitle}>{visitor.fullName}</Text>
+                      <Text style={styles.helperText}>Verify this photo before any checkpoint action.</Text>
+                    </View>
+                  </View>
                   <RecordCard
                     title={visitor.fullName}
                     subtitle={[visitor.companyName, visitor.hostEmployee].filter(Boolean).join(' · ')}
@@ -440,17 +454,22 @@ export function VisitorsScreen() {
         <SurfaceCard title="Recent records" subtitle="Backend-backed visitor records for quick desk visibility.">
           {visitors.data?.items.length ? (
             visitors.data.items.slice(0, 8).map((visitor) => (
-              <RecordCard
-                key={visitor.id}
-                title={visitor.fullName}
-                subtitle={[visitor.companyName, visitor.organizationName].filter(Boolean).join(' · ')}
-                meta={[
-                  visitor.hostEmployee ? `Host: ${visitor.hostEmployee}` : null,
-                  visitor.createdAt ? `Created: ${formatDateTime(visitor.createdAt)}` : null,
-                ].filter(Boolean).join(' · ')}
-                status={visitorStatusLabel(visitor.status)}
-                tone={statusTone(visitor.status)}
-              />
+              <View key={visitor.id} style={styles.recentRecordRow}>
+                {visitor.photoUrl ? <Image source={{ uri: visitor.photoUrl }} style={styles.recentPhoto} /> : <View style={styles.recentPhotoMissing} />}
+                <View style={styles.recentRecord}>
+                  <RecordCard
+                    title={visitor.fullName}
+                    subtitle={[visitor.companyName, visitor.organizationName].filter(Boolean).join(' · ')}
+                    meta={[
+                      visitor.hostEmployee ? `Host: ${visitor.hostEmployee}` : null,
+                      visitor.badgeId ? `Badge: ${visitor.badgeId}` : null,
+                      visitor.createdAt ? `Created: ${formatDateTime(visitor.createdAt)}` : null,
+                    ].filter(Boolean).join(' · ')}
+                    status={visitorStatusLabel(visitor.status)}
+                    tone={statusTone(visitor.status)}
+                  />
+                </View>
+              </View>
             ))
           ) : (
             <EmptyState title="No visitor activity yet" body="Registered visitors, approvals, and check-ins will appear here." />
@@ -644,6 +663,71 @@ const styles = StyleSheet.create({
   },
   queueCard: {
     gap: theme.spacing.md,
+  },
+  identityStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  identityPhoto: {
+    width: 76,
+    height: 76,
+    borderRadius: 18,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  identityPhotoMissing: {
+    width: 76,
+    height: 76,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    backgroundColor: theme.colors.dangerSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.sm,
+  },
+  identityPhotoMissingText: {
+    color: theme.colors.danger,
+    textAlign: 'center',
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+  },
+  identityCopy: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  identityTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  recentRecordRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    alignItems: 'stretch',
+  },
+  recentPhoto: {
+    width: 58,
+    height: 58,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  recentPhotoMissing: {
+    width: 58,
+    height: 58,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.dangerSoft,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  recentRecord: {
+    flex: 1,
   },
   actionGrid: {
     gap: theme.spacing.sm,

@@ -73,8 +73,8 @@ export type VisitorVisitPayload = {
   scheduledEndTime?: string | null;
   expectedDurationMinutes?: number | null;
   timezone?: string | null;
-  photoUrl?: string | null;
-  photoPublicId?: string | null;
+  photoUrl: string;
+  photoPublicId: string;
 };
 
 type UploadAsset = {

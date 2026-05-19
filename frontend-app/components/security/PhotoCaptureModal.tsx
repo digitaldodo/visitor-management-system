@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +28,8 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
   const [permission, requestPermission] = useCameraPermissions();
   const [preview, setPreview] = useState<CameraCapturedPicture | null>(null);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
+  const [isPickingPhoto, setIsPickingPhoto] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible && permission && !permission.granted && permission.canAskAgain) {
@@ -38,6 +41,8 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
     if (!visible) {
       setPreview(null);
       setIsTakingPhoto(false);
+      setIsPickingPhoto(false);
+      setCaptureError(null);
     }
   }, [visible]);
 
@@ -48,13 +53,53 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
 
     try {
       setIsTakingPhoto(true);
+      setCaptureError(null);
       const nextPreview = await cameraRef.current.takePictureAsync({
-        quality: 0.72,
+        quality: 0.68,
         base64: false,
+        exif: false,
+        skipProcessing: true,
       });
       setPreview(nextPreview);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : 'Photo capture failed. Try again or upload an image.');
     } finally {
       setIsTakingPhoto(false);
+    }
+  };
+
+  const choosePhoto = async () => {
+    try {
+      setIsPickingPhoto(true);
+      setCaptureError(null);
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        setCaptureError('Photo library access is required to upload an identity image.');
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.68,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets.length) {
+        return;
+      }
+
+      const asset = pickerResult.assets[0];
+      onCapture({
+        uri: asset.uri,
+        name: asset.fileName || `security-upload-${Date.now()}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      });
+      onCancel();
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : 'Photo upload failed. Try again.');
+    } finally {
+      setIsPickingPhoto(false);
     }
   };
 
@@ -85,27 +130,57 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
         {!permission ? (
           <View style={styles.centerState}>
             <ActivityIndicator color={theme.colors.primary} />
+            <Text style={styles.helperText}>Loading camera permission...</Text>
           </View>
         ) : !permission.granted ? (
           <View style={styles.centerState}>
             <Text style={styles.centerTitle}>Camera access is needed</Text>
             <Text style={styles.centerBody}>AccessFlow uses a live photo for visitor and worker identity verification.</Text>
             <PrimaryButton label="Enable camera" onPress={() => void requestPermission()} />
+            <PrimaryButton label="Upload photo instead" onPress={() => void choosePhoto()} tone="secondary" loading={isPickingPhoto} />
           </View>
         ) : preview ? (
           <>
-            <Image source={{ uri: preview.uri }} style={styles.preview} />
+            <View style={styles.previewShell}>
+              <Image source={{ uri: preview.uri }} style={styles.preview} />
+              <View style={styles.previewBadge}>
+                <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+                <Text style={styles.previewBadgeText}>Ready for verification</Text>
+              </View>
+            </View>
             <View style={[styles.footer, layout.fieldStacked ? styles.footerStacked : null]}>
               <PrimaryButton label="Retake" onPress={() => setPreview(null)} tone="secondary" />
-              <PrimaryButton label="Use photo" onPress={confirmPhoto} />
+              <PrimaryButton label="Use photo" onPress={confirmPhoto} loading={isTakingPhoto || isPickingPhoto} />
             </View>
           </>
         ) : (
           <>
-            <CameraView ref={cameraRef} style={styles.camera} facing="front" />
+            <View style={styles.cameraShell}>
+              <CameraView ref={cameraRef} style={styles.camera} facing="front">
+                <View pointerEvents="none" style={styles.cameraOverlay}>
+                  <View style={styles.faceGuide}>
+                    <View style={[styles.corner, styles.cornerTopLeft]} />
+                    <View style={[styles.corner, styles.cornerTopRight]} />
+                    <View style={[styles.corner, styles.cornerBottomLeft]} />
+                    <View style={[styles.corner, styles.cornerBottomRight]} />
+                  </View>
+                  <View style={styles.guidancePanel}>
+                    <Text style={styles.guidanceTitle}>Center face and shoulders</Text>
+                    <Text style={styles.guidanceText}>Use clear light, remove masks or glare, and keep the badge identity photo current.</Text>
+                  </View>
+                </View>
+              </CameraView>
+            </View>
+            {captureError ? (
+              <View style={styles.errorPanel}>
+                <Ionicons name="alert-circle-outline" size={18} color={theme.colors.danger} />
+                <Text style={styles.errorText}>{captureError}</Text>
+              </View>
+            ) : null}
             <View style={[styles.footer, layout.fieldStacked ? styles.footerStacked : null]}>
               <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
               <PrimaryButton label="Capture photo" onPress={() => void capturePhoto()} loading={isTakingPhoto} />
+              <PrimaryButton label="Upload fallback" onPress={() => void choosePhoto()} tone="secondary" loading={isPickingPhoto} />
             </View>
           </>
         )}
@@ -143,18 +218,110 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
   },
-  camera: {
+  cameraShell: {
     flex: 1,
     borderRadius: theme.radii.xl,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraOverlay: {
+    flex: 1,
+    justifyContent: 'space-between',
+    padding: theme.spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.10)',
+  },
+  faceGuide: {
+    alignSelf: 'center',
+    marginTop: theme.spacing.xxl,
+    width: '72%',
+    maxWidth: 320,
+    aspectRatio: 0.78,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+  },
+  corner: {
+    position: 'absolute',
+    width: 34,
+    height: 34,
+    borderColor: theme.colors.textInverse,
+  },
+  cornerTopLeft: {
+    top: -1,
+    left: -1,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 22,
+  },
+  cornerTopRight: {
+    top: -1,
+    right: -1,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 22,
+  },
+  cornerBottomLeft: {
+    bottom: -1,
+    left: -1,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 22,
+  },
+  cornerBottomRight: {
+    right: -1,
+    bottom: -1,
+    borderRightWidth: 4,
+    borderBottomWidth: 4,
+    borderBottomRightRadius: 22,
+  },
+  guidancePanel: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(6, 10, 18, 0.70)',
+    padding: theme.spacing.md,
+  },
+  guidanceTitle: {
+    color: theme.colors.textInverse,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  guidanceText: {
+    color: '#DCE6F5',
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
+  },
+  previewShell: {
+    flex: 1,
+    gap: theme.spacing.sm,
   },
   preview: {
     flex: 1,
     borderRadius: theme.radii.xl,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
+  },
+  previewBadge: {
+    minHeight: 42,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    paddingHorizontal: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  previewBadgeText: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   footer: {
     flexDirection: 'row',
@@ -180,5 +347,26 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
     maxWidth: 320,
+  },
+  helperText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
+  },
+  errorPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.dangerSoft,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.md,
+  },
+  errorText: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
   },
 });

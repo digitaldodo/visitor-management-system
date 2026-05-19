@@ -136,19 +136,17 @@ export function VisitorRequestScreen() {
       setFormError('Select the host organization.');
       return;
     }
+    if (!photoAsset) {
+      setFormError('Capture or upload a visitor photo before submitting the access request.');
+      return;
+    }
 
     setFormError(null);
     setSuccessMessage(null);
     setCalendarEventUrl(null);
 
     try {
-      let photoUrl: string | null = null;
-      let photoPublicId: string | null = null;
-      if (photoAsset) {
-        const uploadedPhoto = await uploadPhotoMutation.mutateAsync(photoAsset);
-        photoUrl = uploadedPhoto.url;
-        photoPublicId = uploadedPhoto.publicId;
-      }
+      const uploadedPhoto = await uploadPhotoMutation.mutateAsync(photoAsset);
 
       const duration = Number(durationMinutes) || 60;
       const startAt = scheduledStart;
@@ -168,8 +166,8 @@ export function VisitorRequestScreen() {
         scheduledEndTime,
         expectedDurationMinutes: duration,
         timezone: companyTimezone || localTimezone,
-        photoUrl,
-        photoPublicId,
+        photoUrl: uploadedPhoto.url,
+        photoPublicId: uploadedPhoto.publicId,
       });
 
       setSuccessMessage(`${visit.purposeOfVisit || 'Visit request'} submitted. Track approval status from Home or Pass.`);
@@ -258,10 +256,10 @@ export function VisitorRequestScreen() {
             onDurationChange={setDurationMinutes}
           />
           <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
-            {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo optional</Text></View>}
+            {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo required</Text></View>}
             <View style={styles.photoMeta}>
               <Text style={styles.panelTitle}>Identity photo</Text>
-              <Text style={styles.helperText}>Attach a current photo when the facility requires faster visual verification.</Text>
+              <Text style={styles.helperText}>Capture a current face photo so security can visually validate the visitor at check-in.</Text>
               <PrimaryButton label={photoAsset ? 'Retake photo' : 'Capture photo'} onPress={() => setPhotoModalVisible(true)} tone="secondary" />
             </View>
           </View>
@@ -280,7 +278,12 @@ export function VisitorRequestScreen() {
               ) : null}
             </View>
           ) : null}
-          <PrimaryButton label="Submit access request" onPress={() => void submitRequest()} loading={requestVisitMutation.isPending || uploadPhotoMutation.isPending} />
+          <PrimaryButton
+            label="Submit access request"
+            onPress={() => void submitRequest()}
+            loading={requestVisitMutation.isPending || uploadPhotoMutation.isPending}
+            disabled={!photoAsset}
+          />
         </SurfaceCard>
       </AppScreen>
 
@@ -325,6 +328,15 @@ export function VisitorPassScreen() {
         )}
         {pass.data ? (
           <>
+            {pass.data.photoUrl ? (
+              <View style={styles.passIdentityRow}>
+                <Image source={{ uri: pass.data.photoUrl }} style={styles.passPhoto} />
+                <View style={styles.passIdentityCopy}>
+                  <Text style={styles.panelTitle}>{pass.data.fullName || 'Visitor'}</Text>
+                  <Text style={styles.helperText}>Security must match this photo before check-in.</Text>
+                </View>
+              </View>
+            ) : null}
             <DetailRow label="Visitor" value={pass.data.fullName || 'Visitor'} />
             <DetailRow label="Badge" value={pass.data.badgeId || 'Pending'} muted={!pass.data.badgeId} />
             <DetailRow label="Organization" value={pass.data.organizationName || pass.data.organizationCode || 'Pending'} muted={!pass.data.organizationName && !pass.data.organizationCode} />
@@ -627,5 +639,25 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: theme.radii.md,
     backgroundColor: theme.colors.textInverse,
+  },
+  passIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  passPhoto: {
+    width: 82,
+    height: 82,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  passIdentityCopy: {
+    flex: 1,
+    gap: theme.spacing.xs,
   },
 });

@@ -59,8 +59,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow AccessFlow Mobile to select a profile photo for your employee credential.",
-          "cameraPermission": "Allow AccessFlow Mobile to capture a profile photo for your employee credential."
+          "photosPermission": "Allow AccessFlow Mobile to select verification photos for visitor identity and employee credentials.",
+          "cameraPermission": "Allow AccessFlow Mobile to capture verification photos for visitor identity and employee credentials."
         }
       ],
       "expo-local-authentication",

@@ -12,6 +12,7 @@ import type {
   WorkforceOnboardingRecord,
 } from '../types/domain';
 import type { PageResponse } from '../types/api';
+import type { VisitorPass } from './visitorService';
 
 type UploadAsset = {
   uri: string;
@@ -80,7 +81,7 @@ export async function getSecurityOverview() {
   });
 }
 
-export async function getSecurityVisitors(params?: { query?: string; page?: number; size?: number; status?: string }) {
+export async function getSecurityVisitors(params?: { query?: string; page?: number; size?: number; status?: string; from?: string; to?: string }) {
   return request<PageResponse<VisitorRecord>>({
     url: '/security/visitors',
     method: 'GET',
@@ -89,6 +90,8 @@ export async function getSecurityVisitors(params?: { query?: string; page?: numb
       size: params?.size ?? 20,
       query: params?.query,
       status: params?.status,
+      from: params?.from,
+      to: params?.to,
       sortBy: 'createdAt',
       direction: 'desc',
     },
@@ -98,6 +101,13 @@ export async function getSecurityVisitors(params?: { query?: string; page?: numb
 export async function getSecurityVisitorById(id: string) {
   return request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(id)}`,
+    method: 'GET',
+  });
+}
+
+export async function getSecurityVisitorPass(id: string) {
+  return request<VisitorPass>({
+    url: `/security/visitors/${encodeURIComponent(id)}/pass`,
     method: 'GET',
   });
 }

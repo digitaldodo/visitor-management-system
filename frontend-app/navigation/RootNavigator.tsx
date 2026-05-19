@@ -21,6 +21,7 @@ import { SettingsScreen } from '../screens/employee/SettingsScreen';
 import { AlertsScreen } from '../screens/security/AlertsScreen';
 import { ProfileScreen } from '../screens/security/ProfileScreen';
 import { ScanScreen } from '../screens/security/ScanScreen';
+import { SecurityRegisterScreen } from '../screens/security/SecurityRegisterScreen';
 import { VisitorsScreen } from '../screens/security/VisitorsScreen';
 import { WorkforceScreen } from '../screens/security/WorkforceScreen';
 import {
@@ -89,6 +90,7 @@ function SecurityNavigator() {
     <SecurityTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
+      <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />
       <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />
       <SecurityTabs.Screen name="Alerts" component={AlertsScreen} />
       <SecurityTabs.Screen name="Profile" component={ProfileScreen} />
@@ -173,6 +175,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Scan: 'qr-code-outline',
     Visitors: 'people-outline',
     Workforce: 'shield-checkmark-outline',
+    Register: 'reader-outline',
     Alerts: 'alert-circle-outline',
     Profile: 'person-circle-outline',
     Badge: 'card-outline',
