@@ -83,19 +83,21 @@ export function LoginScreen() {
         >
           <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null, { maxWidth: layout.isLargeTablet ? 1120 : 920 }]}>
             <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
-              <View style={styles.brandRow}>
-                <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
-                <View>
-                  <Text style={styles.eyebrow}>AccessFlow</Text>
-                  <Text style={styles.brandSubline}>Mobile operations</Text>
-                </View>
+              <View style={styles.brandPanel}>
+                <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+                <Text style={styles.brandSubline}>AccessFlow Mobile</Text>
               </View>
               <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
-                Native access control for field teams
+                Native access control for operational teams
               </Text>
               <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
                 Sign in to scan badges, approve access, and operate your assigned workspace from a phone, tablet, or guard device.
               </Text>
+              <View style={styles.proofRow}>
+                <Text style={styles.proofChip}>Guard ready</Text>
+                <Text style={styles.proofChip}>Employee badge</Text>
+                <Text style={styles.proofChip}>Dark ops</Text>
+              </View>
             </View>
 
             <SurfaceCard
@@ -192,6 +194,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
+    backgroundColor: theme.colors.canvas,
   },
   frame: {
     width: '100%',
@@ -205,20 +208,24 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: theme.spacing.md,
+    borderRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceSubtle,
+    padding: theme.spacing.lg,
   },
   heroWide: {
     flex: 1,
     paddingRight: theme.spacing.lg,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
+  brandPanel: {
+    gap: theme.spacing.sm,
   },
-  logo: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+  wordmark: {
+    width: '100%',
+    height: 74,
+    maxWidth: 360,
+    alignSelf: 'flex-start',
   },
   eyebrow: {
     color: theme.colors.primary,
@@ -228,9 +235,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   brandSubline: {
-    color: theme.colors.textSecondary,
+    alignSelf: 'flex-start',
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
     textTransform: 'uppercase',
   },
   title: {
@@ -246,6 +260,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
   },
+  proofRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  proofChip: {
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 7,
+  },
   audienceRow: {
     gap: theme.spacing.sm,
   },
@@ -259,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   audienceChipSelected: {
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
   },
   audienceLabel: {
@@ -268,7 +298,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   audienceLabelSelected: {
-    color: theme.colors.primary,
+    color: theme.colors.textPrimary,
   },
   audienceDescription: {
     color: theme.colors.textSecondary,
@@ -276,7 +306,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   audienceDescriptionSelected: {
-    color: theme.colors.primary,
+    color: theme.colors.textSecondary,
   },
   errorText: {
     color: theme.colors.danger,

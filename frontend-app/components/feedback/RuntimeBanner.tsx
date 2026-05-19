@@ -74,15 +74,15 @@ const styles = StyleSheet.create({
   },
   danger: {
     backgroundColor: theme.colors.dangerSoft,
-    borderColor: '#E6B8B2',
+    borderColor: 'rgba(248, 113, 113, 0.28)',
   },
   warning: {
     backgroundColor: theme.colors.warningSoft,
-    borderColor: '#E4C18E',
+    borderColor: 'rgba(251, 191, 36, 0.28)',
   },
   info: {
     backgroundColor: theme.colors.infoSoft,
-    borderColor: '#C6D7EA',
+    borderColor: 'rgba(125, 211, 252, 0.28)',
   },
   title: {
     color: theme.colors.textPrimary,

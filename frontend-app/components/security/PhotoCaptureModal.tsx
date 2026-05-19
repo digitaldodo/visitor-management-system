@@ -139,16 +139,22 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
   },
   camera: {
     flex: 1,
     borderRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
   },
   preview: {
     flex: 1,
     borderRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
   },
   footer: {
     flexDirection: 'row',

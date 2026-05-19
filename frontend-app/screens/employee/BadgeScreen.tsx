@@ -201,14 +201,14 @@ async function shareFile(uri: string, dialogTitle: string, mimeType: string) {
 function buildBadgeHtml(badge: NonNullable<ReturnType<typeof useEmployeeBadge>['data']>) {
   return `
     <html>
-      <body style="margin:0;padding:32px;background:#eef3f8;font-family:Arial,sans-serif;">
-        <div style="max-width:520px;margin:0 auto;background:#0f2031;border-radius:28px;padding:28px;color:#ffffff;">
+      <body style="margin:0;padding:32px;background:#09111e;font-family:Arial,sans-serif;">
+        <div style="max-width:520px;margin:0 auto;background:#0f1728;border:1px solid rgba(191,219,254,0.26);border-radius:24px;padding:28px;color:#ffffff;">
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
             ${badge.employeePhotoUrl ? `<img src="${badge.employeePhotoUrl}" alt="Employee photo" style="width:72px;height:72px;border-radius:20px;object-fit:cover;" />` : ''}
             <div>
               <div style="font-size:28px;font-weight:800;">${escapeHtml(badge.fullName)}</div>
-              <div style="font-size:16px;color:#d6e7f6;">${escapeHtml(badge.department || badge.designation || 'Operational employee')}</div>
-              <div style="font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#98b6d3;">${escapeHtml(
+              <div style="font-size:16px;color:#afbdd1;">${escapeHtml(badge.department || badge.designation || 'Operational employee')}</div>
+              <div style="font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#4f7cff;">${escapeHtml(
                 badge.organizationName || badge.organizationCode || 'AccessFlow',
               )}</div>
             </div>
@@ -247,14 +247,16 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(8, 15, 24, 0.78)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     padding: theme.spacing.lg,
   },
   modalSheet: {
     maxHeight: '92%',
     borderRadius: theme.radii.xl,
-    backgroundColor: '#081523',
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.surfaceSubtle,
     padding: theme.spacing.lg,
     gap: theme.spacing.md,
   },
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.heading.fontWeight,
   },
   modalSubtitle: {
-    color: '#A4C2DE',
+    color: theme.colors.textSecondary,
     fontSize: theme.typography.body.fontSize,
     marginTop: 4,
   },
@@ -280,7 +282,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#163149',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
   },
   closeButtonLabel: {
     color: theme.colors.textInverse,

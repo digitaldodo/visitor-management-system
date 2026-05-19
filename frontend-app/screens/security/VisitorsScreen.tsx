@@ -519,13 +519,16 @@ const styles = StyleSheet.create({
   segment: {
     minHeight: 44,
     borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   segmentActive: {
-    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
   },
   segmentLabel: {
     color: theme.colors.textPrimary,
@@ -534,7 +537,7 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   segmentLabelActive: {
-    color: theme.colors.textInverse,
+    color: theme.colors.textPrimary,
   },
   inlineFields: {
     flexDirection: 'row',
@@ -555,12 +558,16 @@ const styles = StyleSheet.create({
   selectedHost: {
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
     padding: theme.spacing.md,
   },
   hostPanel: {
     gap: theme.spacing.md,
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.md,
   },
@@ -580,7 +587,9 @@ const styles = StyleSheet.create({
   hostResult: {
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
     padding: theme.spacing.md,
   },
   hostResultTitle: {
@@ -606,6 +615,8 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',

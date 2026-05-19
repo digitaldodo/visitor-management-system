@@ -15,14 +15,14 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#07111D"
+      "backgroundColor": "#09111E"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.accessflow.mobile",
-      "versionCode": 17,
+      "versionCode": 18,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.POST_NOTIFICATIONS",
@@ -37,7 +37,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#07111D"
+        "backgroundColor": "#09111E"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

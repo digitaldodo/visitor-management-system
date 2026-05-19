@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.input,
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body.fontSize,
     paddingHorizontal: theme.spacing.md,

@@ -376,13 +376,16 @@ const styles = StyleSheet.create({
   segment: {
     minHeight: 44,
     borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   segmentActive: {
-    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
   },
   segmentLabel: {
     color: theme.colors.textPrimary,
@@ -390,7 +393,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   segmentLabelActive: {
-    color: theme.colors.textInverse,
+    color: theme.colors.textPrimary,
   },
   photoRow: {
     flexDirection: 'row',
@@ -410,6 +413,8 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',

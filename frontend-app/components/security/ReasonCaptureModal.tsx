@@ -81,12 +81,14 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(20, 34, 48, 0.35)',
+    backgroundColor: theme.colors.overlay,
   },
   sheet: {
     gap: theme.spacing.md,
     borderTopLeftRadius: theme.radii.xl,
     borderTopRightRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surface,
     paddingTop: theme.spacing.lg,
   },

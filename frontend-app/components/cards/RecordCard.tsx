@@ -34,6 +34,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     borderRadius: theme.radii.md,
     backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     padding: theme.spacing.md,
   },
   header: {

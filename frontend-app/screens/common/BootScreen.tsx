@@ -6,8 +6,9 @@ export function BootScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.badge}>
-        <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.badgeLabel}>AccessFlow</Text>
+        <Image source={require('../../assets/brand-icon.png')} style={styles.logo} resizeMode="contain" />
+        <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+        <Text style={styles.badgeLabel}>Mobile operations</Text>
       </View>
       <Text style={styles.title}>Restoring your operational workspace</Text>
       <Text style={styles.subtitle}>
@@ -34,7 +35,11 @@ const styles = StyleSheet.create({
   logo: {
     width: 72,
     height: 72,
-    borderRadius: 20,
+    borderRadius: theme.radii.lg,
+  },
+  wordmark: {
+    width: 240,
+    height: 64,
   },
   badgeLabel: {
     color: theme.colors.primary,

@@ -199,8 +199,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   unreadCard: {
-    backgroundColor: '#F8FBFE',
-    borderColor: theme.colors.primarySoft,
+    backgroundColor: theme.colors.primarySoft,
+    borderColor: theme.colors.primaryLine,
   },
   readCard: {
     backgroundColor: theme.colors.surfaceMuted,

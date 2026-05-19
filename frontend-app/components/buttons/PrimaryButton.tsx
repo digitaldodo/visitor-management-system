@@ -16,11 +16,11 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
   const toneStyles = {
     primary: {
       backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
+      borderColor: theme.colors.primaryLine,
       labelColor: theme.colors.textInverse,
     },
     secondary: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.surfaceRaised,
       borderColor: theme.colors.border,
       labelColor: theme.colors.textPrimary,
     },
@@ -38,7 +38,7 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       disabled={disabled || loading}
       hitSlop={6}
       onPress={onPress}
-      android_ripple={{ color: tone === 'primary' || tone === 'danger' ? 'rgba(255,255,255,0.18)' : 'rgba(14,90,138,0.12)' }}
+      android_ripple={{ color: tone === 'primary' || tone === 'danger' ? 'rgba(255,255,255,0.18)' : theme.colors.primarySoft }}
       style={({ pressed }) => [
         styles.button,
         {
@@ -69,6 +69,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
+    ...theme.shadows.card,
   },
   label: {
     fontSize: theme.typography.bodyStrong.fontSize,

@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: theme.spacing.lg,
-    backgroundColor: 'rgba(7, 16, 25, 0.72)',
+    backgroundColor: theme.colors.overlay,
   },
   copy: {
     gap: theme.spacing.sm,

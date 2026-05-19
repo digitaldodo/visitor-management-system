@@ -245,12 +245,14 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(20, 34, 48, 0.36)',
+    backgroundColor: theme.colors.overlay,
   },
   sheet: {
     gap: theme.spacing.md,
     borderTopLeftRadius: theme.radii.xl,
     borderTopRightRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surface,
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xxl,
@@ -270,6 +272,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: theme.spacing.md,
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.md,
   },
@@ -307,6 +311,8 @@ const styles = StyleSheet.create({
   pickerBlock: {
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.sm,
   },

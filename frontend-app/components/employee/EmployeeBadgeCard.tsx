@@ -64,8 +64,11 @@ function AvatarFallback({ fullName }: { fullName: string }) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: theme.radii.xl,
-    backgroundColor: '#0F2031',
+    backgroundColor: theme.colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
     gap: theme.spacing.lg,
+    ...theme.shadows.card,
   },
   cardCompact: {
     paddingTop: theme.spacing.xl,
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 18,
-    backgroundColor: '#D7E2EE',
+    backgroundColor: theme.colors.surfaceRaised,
   },
   avatarFallback: {
     width: 60,
@@ -98,7 +101,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1F415E',
+    backgroundColor: theme.colors.primarySoft,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
   },
   avatarFallbackLabel: {
     color: theme.colors.textInverse,
@@ -118,12 +123,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   meta: {
-    color: '#D6E7F6',
+    color: theme.colors.textSecondary,
     fontSize: theme.typography.body.fontSize,
     fontWeight: theme.typography.body.fontWeight,
   },
   organization: {
-    color: '#98B6D3',
+    color: theme.colors.primary,
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
   },
   qrShell: {
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.textInverse,
     borderRadius: theme.radii.lg,
     padding: theme.spacing.md,
     gap: theme.spacing.sm,
@@ -142,7 +147,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   qrCaption: {
-    color: theme.colors.textSecondary,
+    color: '#475467',
     fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -152,7 +157,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   footerNote: {
-    color: '#C7D8E7',
+    color: theme.colors.textSecondary,
     fontSize: 13,
     lineHeight: 20,
   },

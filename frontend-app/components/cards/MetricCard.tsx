@@ -12,7 +12,7 @@ type Props = {
 export function MetricCard({ label, value, tone = 'default' }: Props) {
   const layout = useResponsiveLayout();
   const accent = {
-    default: theme.colors.primarySoft,
+    default: theme.colors.surfaceRaised,
     success: theme.colors.successSoft,
     warning: theme.colors.warningSoft,
     danger: theme.colors.dangerSoft,
@@ -31,7 +31,10 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: theme.spacing.xs,
     borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     padding: theme.spacing.md,
+    ...theme.shadows.card,
   },
   label: {
     color: theme.colors.textSecondary,

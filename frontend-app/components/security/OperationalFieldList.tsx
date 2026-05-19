@@ -33,6 +33,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.md,
   },

@@ -118,17 +118,21 @@ function useMobileTabOptions() {
     freezeOnBlur: true,
     tabBarActiveTintColor: theme.colors.primary,
     tabBarInactiveTintColor: theme.colors.textMuted,
+    tabBarActiveBackgroundColor: theme.colors.primarySoft,
     tabBarHideOnKeyboard: true,
     tabBarStyle: {
       height: layout.tabBarHeight + insets.bottom,
       paddingTop: layout.isSmallPhone ? 5 : 7,
       paddingBottom: Math.max(insets.bottom, 8),
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.surfaceSubtle,
       borderTopColor: theme.colors.border,
-      elevation: 8,
+      borderTopWidth: 1,
+      elevation: 12,
     },
     tabBarItemStyle: {
       minHeight: layout.isSmallPhone ? 52 : 58,
+      borderRadius: theme.radii.lg,
+      marginHorizontal: 3,
     },
     tabBarLabelStyle: {
       fontSize: layout.isSmallPhone ? 10 : 11,
