@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { Image, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { theme } from '../../theme';
+import { KeyboardAwareScreen } from './KeyboardAwareScreen';
 
 type Props = {
   title: string;
@@ -21,56 +22,46 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 12}
-        style={styles.flex}
+      <KeyboardAwareScreen
+        alwaysBounceVertical={false}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[
+          styles.content,
+          {
+            gap: layout.cardSpacing,
+            paddingHorizontal: layout.contentPadding,
+            paddingTop: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md,
+            paddingBottom: insets.bottom + layout.tabBarHeight + theme.spacing.xxl,
+          },
+        ]}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+          ) : undefined
+        }
       >
-        <ScrollView
-          alwaysBounceVertical={false}
-          contentInsetAdjustmentBehavior="automatic"
-          keyboardDismissMode="on-drag"
-          overScrollMode="auto"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.content,
-            {
-              gap: layout.cardSpacing,
-              paddingHorizontal: layout.contentPadding,
-              paddingTop: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md,
-              paddingBottom: insets.bottom + layout.tabBarHeight + theme.spacing.lg,
-            },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            onRefresh ? (
-              <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-            ) : undefined
-          }
-        >
-          <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth, gap: layout.cardSpacing }]}>
-            <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
-              <View style={styles.brandChrome}>
-                <View style={styles.brandLockup}>
-                  <Image source={require('../../assets/brand-icon.png')} style={styles.brandIcon} resizeMode="contain" />
-                  <View style={styles.brandCopy}>
-                    <Text allowFontScaling={false} style={styles.brandName}>AccessFlow Mobile</Text>
-                    <Text allowFontScaling={false} style={styles.brandMeta}>Operational workspace</Text>
-                  </View>
-                </View>
-                <View style={styles.liveBadge}>
-                  <View style={styles.liveDot} />
-                  <Text allowFontScaling={false} style={styles.liveText}>Live</Text>
+        <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth, gap: layout.cardSpacing }]}>
+          <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
+            <View style={styles.brandChrome}>
+              <View style={styles.brandLockup}>
+                <Image source={require('../../assets/brand-icon.png')} style={styles.brandIcon} resizeMode="contain" />
+                <View style={styles.brandCopy}>
+                  <Text allowFontScaling={false} style={styles.brandName}>AccessFlow Mobile</Text>
+                  <Text allowFontScaling={false} style={styles.brandMeta}>Operational workspace</Text>
                 </View>
               </View>
-              <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>
-              {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
+              <View style={styles.liveBadge}>
+                <View style={styles.liveDot} />
+                <Text allowFontScaling={false} style={styles.liveText}>Live</Text>
+              </View>
             </View>
-            <RuntimeBanner />
-            <View style={[styles.children, { gap: layout.cardSpacing }]}>{children}</View>
+            <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>
+            {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <RuntimeBanner />
+          <View style={[styles.children, { gap: layout.cardSpacing }]}>{children}</View>
+        </View>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
@@ -79,9 +70,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.canvas,
-  },
-  flex: {
-    flex: 1,
   },
   content: {
     alignItems: 'center',

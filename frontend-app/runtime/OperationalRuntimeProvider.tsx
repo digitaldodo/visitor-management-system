@@ -223,7 +223,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     await queryClient.invalidateQueries({
       predicate: (query) => {
         const firstKey = Array.isArray(query.queryKey) ? query.queryKey[0] : '';
-        if (!['security', 'employee', 'admin', 'notifications'].includes(String(firstKey))) {
+        if (!['security', 'employee', 'visitor', 'admin', 'notifications'].includes(String(firstKey))) {
           return false;
         }
         const updatedAt = query.state.dataUpdatedAt || 0;
@@ -235,6 +235,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         }
         if (firstKey === 'employee') {
           return role === 'EMPLOYEE';
+        }
+        if (firstKey === 'visitor') {
+          return role === 'VISITOR';
         }
         if (firstKey === 'admin') {
           return role === 'ADMIN' || role === 'SUPER_ADMIN';
@@ -816,7 +819,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       ? apiConfig.sync.securityPollMs
       : auth.session.user.activeRole === 'EMPLOYEE'
         ? apiConfig.sync.employeePollMs
-        : apiConfig.sync.adminPollMs;
+        : auth.session.user.activeRole === 'VISITOR'
+          ? apiConfig.sync.employeePollMs
+          : apiConfig.sync.adminPollMs;
 
     const intervalId = setInterval(() => {
       if (appStateRef.current === 'active') {

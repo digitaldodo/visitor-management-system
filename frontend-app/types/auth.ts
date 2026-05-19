@@ -1,14 +1,27 @@
 export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'VISITOR';
 
-export type WorkspaceAudience = 'admin' | 'employee' | 'security';
+export type WorkspaceAudience = 'admin' | 'employee' | 'security' | 'visitor';
 
-export type ActiveWorkspaceRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD';
+export type ActiveWorkspaceRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'VISITOR';
 
 export type LoginPayload = {
   identifier: string;
   password: string;
   companyCode?: string;
   audience: WorkspaceAudience;
+};
+
+export type VisitorRegisterPayload = {
+  fullName: string;
+  username: string;
+  email: string;
+  password: string;
+  phone?: string | null;
+  phoneCountryCode?: string | null;
+  companyCode?: string | null;
+  companyName?: string | null;
+  hostEmployee?: string | null;
+  purposeOfVisit?: string | null;
 };
 
 export type AuthUser = {

@@ -1,10 +1,12 @@
 import type { ActiveWorkspaceRole, WorkspaceAudience } from '../types/auth';
 
-export type WorkspaceNavigatorName = 'SecurityTabs' | 'EmployeeTabs' | 'AdminStack';
+export type WorkspaceNavigatorName = 'SecurityTabs' | 'EmployeeTabs' | 'VisitorTabs' | 'AdminStack';
 export type WorkspaceNavigationTarget =
   | 'employee-badge'
   | 'employee-requests'
   | 'employee-notifications'
+  | 'visitor-home'
+  | 'visitor-notifications'
   | 'security-scan'
   | 'security-alerts'
   | 'admin-operations';
@@ -28,6 +30,12 @@ const workspaceConfigMap: Record<ActiveWorkspaceRole, WorkspaceConfig> = {
     navigator: 'EmployeeTabs',
     homeTarget: 'employee-badge',
     notificationTarget: 'employee-notifications',
+  },
+  VISITOR: {
+    audience: 'visitor',
+    navigator: 'VisitorTabs',
+    homeTarget: 'visitor-home',
+    notificationTarget: 'visitor-notifications',
   },
   ADMIN: {
     audience: 'admin',
@@ -66,7 +74,7 @@ export function isNotificationAllowedForRole(role: ActiveWorkspaceRole, type?: s
   }
 
   if (normalized.startsWith('VISITOR_')) {
-    return role === 'EMPLOYEE' || isAdminRole(role);
+    return role === 'VISITOR' || role === 'EMPLOYEE' || isAdminRole(role);
   }
 
   if (normalized.startsWith('WORKFORCE_')) {

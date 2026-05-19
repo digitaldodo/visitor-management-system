@@ -8,6 +8,7 @@ import { theme } from '../../theme';
 import { formatDateTime } from '../../utils/employeeFormatting';
 import { PrimaryButton } from '../buttons/PrimaryButton';
 import { AppTextField } from '../form/AppTextField';
+import { KeyboardAwareScreen } from '../layout/KeyboardAwareScreen';
 
 type Props = {
   visible: boolean;
@@ -120,84 +121,86 @@ export function EmployeeRescheduleModal({ visible, visitor, loading, onCancel, o
     <Modal animationType="slide" visible={visible} transparent onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-        <View style={styles.sheet}>
-          <Text style={styles.title}>Reschedule visit</Text>
-          <Text style={styles.helper}>
-            Keep the access window accurate for security. The backend remains the authority for visitor validity, QR timing, and role checks.
-          </Text>
+        <KeyboardAwareScreen alwaysBounceVertical={false} contentContainerStyle={styles.sheetContainer}>
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Reschedule visit</Text>
+            <Text style={styles.helper}>
+              Keep the access window accurate for security. The backend remains the authority for visitor validity, QR timing, and role checks.
+            </Text>
 
-          <View style={styles.windowSummary}>
-            <Text style={styles.windowLabel}>Timezone</Text>
-            <Text style={styles.windowValue}>{timezone}</Text>
-          </View>
-
-          <View style={styles.datetimeSection}>
-            <Text style={styles.sectionTitle}>Start time</Text>
-            <View style={styles.datetimeActions}>
-              <PrimaryButton label={formatDate(startAt)} onPress={() => openDatePicker('start')} tone="secondary" />
-              <PrimaryButton label={formatClock(startAt)} onPress={() => openTimePicker('start')} tone="secondary" />
+            <View style={styles.windowSummary}>
+              <Text style={styles.windowLabel}>Timezone</Text>
+              <Text style={styles.windowValue}>{timezone}</Text>
             </View>
-            <Text style={styles.inlineHelp}>Selected: {formatDateTime(startAt.toISOString(), timezone)}</Text>
-          </View>
 
-          <View style={styles.datetimeSection}>
-            <Text style={styles.sectionTitle}>End time</Text>
-            <View style={styles.datetimeActions}>
-              <PrimaryButton label={formatDate(endAt)} onPress={() => openDatePicker('end')} tone="secondary" />
-              <PrimaryButton label={formatClock(endAt)} onPress={() => openTimePicker('end')} tone="secondary" />
-            </View>
-            <Text style={styles.inlineHelp}>Access window: {formatDateTime(endAt.toISOString(), timezone)}</Text>
-          </View>
-
-          {Platform.OS !== 'android' ? (
-            <View style={styles.inlinePickers}>
-              <View style={styles.pickerBlock}>
-                <Text style={styles.inlinePickerLabel}>Start</Text>
-                <DateTimePicker value={startAt} mode="datetime" onChange={(_, value) => value ? setStartAt(value) : undefined} />
+            <View style={styles.datetimeSection}>
+              <Text style={styles.sectionTitle}>Start time</Text>
+              <View style={styles.datetimeActions}>
+                <PrimaryButton label={formatDate(startAt)} onPress={() => openDatePicker('start')} tone="secondary" />
+                <PrimaryButton label={formatClock(startAt)} onPress={() => openTimePicker('start')} tone="secondary" />
               </View>
-              <View style={styles.pickerBlock}>
-                <Text style={styles.inlinePickerLabel}>End</Text>
-                <DateTimePicker value={endAt} mode="datetime" onChange={(_, value) => value ? setEndAt(value) : undefined} />
-              </View>
+              <Text style={styles.inlineHelp}>Selected: {formatDateTime(startAt.toISOString(), timezone)}</Text>
             </View>
-          ) : null}
 
-          <View style={styles.windowSummary}>
-            <Text style={styles.windowLabel}>Duration</Text>
-            <Text style={styles.windowValue}>{durationMinutes} min</Text>
-          </View>
+            <View style={styles.datetimeSection}>
+              <Text style={styles.sectionTitle}>End time</Text>
+              <View style={styles.datetimeActions}>
+                <PrimaryButton label={formatDate(endAt)} onPress={() => openDatePicker('end')} tone="secondary" />
+                <PrimaryButton label={formatClock(endAt)} onPress={() => openTimePicker('end')} tone="secondary" />
+              </View>
+              <Text style={styles.inlineHelp}>Access window: {formatDateTime(endAt.toISOString(), timezone)}</Text>
+            </View>
 
-          <AppTextField
-            label="Reschedule note"
-            multiline
-            value={note}
-            onChangeText={setNote}
-            placeholder="Optional context for the visitor, front desk, or security desk."
-            errorText={submitted && hasInvalidRange ? 'Choose an end time at least 15 minutes after the start.' : undefined}
-          />
+            {Platform.OS !== 'android' ? (
+              <View style={styles.inlinePickers}>
+                <View style={styles.pickerBlock}>
+                  <Text style={styles.inlinePickerLabel}>Start</Text>
+                  <DateTimePicker value={startAt} mode="datetime" onChange={(_, value) => value ? setStartAt(value) : undefined} />
+                </View>
+                <View style={styles.pickerBlock}>
+                  <Text style={styles.inlinePickerLabel}>End</Text>
+                  <DateTimePicker value={endAt} mode="datetime" onChange={(_, value) => value ? setEndAt(value) : undefined} />
+                </View>
+              </View>
+            ) : null}
 
-          <View style={styles.actions}>
-            <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
-            <PrimaryButton
-              label="Update visit"
-              onPress={async () => {
-                setSubmitted(true);
-                if (hasInvalidRange) {
-                  return;
-                }
+            <View style={styles.windowSummary}>
+              <Text style={styles.windowLabel}>Duration</Text>
+              <Text style={styles.windowValue}>{durationMinutes} min</Text>
+            </View>
 
-                await onConfirm({
-                  scheduledStartTime: startAt.toISOString(),
-                  scheduledEndTime: endAt.toISOString(),
-                  expectedDurationMinutes: durationMinutes,
-                  timezone,
-                  note: note.trim() || null,
-                });
-              }}
-              loading={loading}
+            <AppTextField
+              label="Reschedule note"
+              multiline
+              value={note}
+              onChangeText={setNote}
+              placeholder="Optional context for the visitor, front desk, or security desk."
+              errorText={submitted && hasInvalidRange ? 'Choose an end time at least 15 minutes after the start.' : undefined}
             />
+
+            <View style={styles.actions}>
+              <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
+              <PrimaryButton
+                label="Update visit"
+                onPress={async () => {
+                  setSubmitted(true);
+                  if (hasInvalidRange) {
+                    return;
+                  }
+
+                  await onConfirm({
+                    scheduledStartTime: startAt.toISOString(),
+                    scheduledEndTime: endAt.toISOString(),
+                    expectedDurationMinutes: durationMinutes,
+                    timezone,
+                    note: note.trim() || null,
+                  });
+                }}
+                loading={loading}
+              />
+            </View>
           </View>
-        </View>
+        </KeyboardAwareScreen>
       </View>
     </Modal>
   );
@@ -246,6 +249,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: theme.colors.overlay,
+  },
+  sheetContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   sheet: {
     gap: theme.spacing.md,

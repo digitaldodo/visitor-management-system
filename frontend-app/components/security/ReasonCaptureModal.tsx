@@ -6,6 +6,7 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import { PrimaryButton } from '../buttons/PrimaryButton';
 import { AppTextField } from '../form/AppTextField';
+import { KeyboardAwareScreen } from '../layout/KeyboardAwareScreen';
 
 type Props = {
   visible: boolean;
@@ -46,32 +47,37 @@ export function ReasonCaptureModal({
     <Modal animationType="slide" visible={visible} transparent onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-        <View style={[styles.sheet, { paddingHorizontal: layout.contentPadding, paddingBottom: insets.bottom + theme.spacing.lg }]}>
-          <Text maxFontSizeMultiplier={1.12} style={styles.title}>{title}</Text>
-          <Text maxFontSizeMultiplier={1.08} style={styles.helper}>{helperText}</Text>
-          <AppTextField
-            label="Reason"
-            multiline
-            value={reason}
-            onChangeText={setReason}
-            placeholder="Record what happened, who was verified, and why security took this action."
-            errorText={submitted && tooShort ? `Enter at least ${minLength} characters.` : undefined}
-          />
-          <View style={[styles.actions, layout.fieldStacked ? styles.actionsStacked : null]}>
-            <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
-            <PrimaryButton
-              label={confirmLabel}
-              onPress={async () => {
-                setSubmitted(true);
-                if (tooShort) {
-                  return;
-                }
-                await onConfirm(reason.trim());
-              }}
-              loading={loading}
+        <KeyboardAwareScreen
+          alwaysBounceVertical={false}
+          contentContainerStyle={styles.sheetContainer}
+        >
+          <View style={[styles.sheet, { paddingHorizontal: layout.contentPadding, paddingBottom: insets.bottom + theme.spacing.lg }]}>
+            <Text maxFontSizeMultiplier={1.12} style={styles.title}>{title}</Text>
+            <Text maxFontSizeMultiplier={1.08} style={styles.helper}>{helperText}</Text>
+            <AppTextField
+              label="Reason"
+              multiline
+              value={reason}
+              onChangeText={setReason}
+              placeholder="Record what happened, who was verified, and why security took this action."
+              errorText={submitted && tooShort ? `Enter at least ${minLength} characters.` : undefined}
             />
+            <View style={[styles.actions, layout.fieldStacked ? styles.actionsStacked : null]}>
+              <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
+              <PrimaryButton
+                label={confirmLabel}
+                onPress={async () => {
+                  setSubmitted(true);
+                  if (tooShort) {
+                    return;
+                  }
+                  await onConfirm(reason.trim());
+                }}
+                loading={loading}
+              />
+            </View>
           </View>
-        </View>
+        </KeyboardAwareScreen>
       </View>
     </Modal>
   );
@@ -82,6 +88,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: theme.colors.overlay,
+  },
+  sheetContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   sheet: {
     gap: theme.spacing.md,

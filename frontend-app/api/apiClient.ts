@@ -146,7 +146,7 @@ async function captureApiLatency(config?: RetryableRequestConfig, status?: numbe
 
   const durationMs = Date.now() - config._startedAt;
   const path = String(config.url || '');
-  const isOperationalPath = /\/(security|employee|admin|notifications|auth|mobile|versions|health)/.test(path);
+  const isOperationalPath = /\/(security|employee|visitor|admin|notifications|auth|mobile|versions|health)/.test(path);
   if (!isOperationalPath && durationMs < 2_000) {
     return;
   }

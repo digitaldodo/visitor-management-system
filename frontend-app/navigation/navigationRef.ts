@@ -22,6 +22,12 @@ export function navigateToWorkspace(target: WorkspaceNavigationTarget) {
     case 'employee-notifications':
       navigate('EmployeeTabs', { screen: 'Notifications' });
       break;
+    case 'visitor-home':
+      navigate('VisitorTabs', { screen: 'Home' });
+      break;
+    case 'visitor-notifications':
+      navigate('VisitorTabs', { screen: 'Notifications' });
+      break;
     case 'security-scan':
       navigate('SecurityTabs', { screen: 'Scan' });
       break;
@@ -52,6 +58,14 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
     navigationRef.resetRoot({
       index: 0,
       routes: [{ name: 'SecurityTabs', params: { screen: 'Scan' } }],
+    });
+    return;
+  }
+
+  if (config.navigator === 'VisitorTabs') {
+    navigationRef.resetRoot({
+      index: 0,
+      routes: [{ name: 'VisitorTabs', params: { screen: 'Home' } }],
     });
     return;
   }

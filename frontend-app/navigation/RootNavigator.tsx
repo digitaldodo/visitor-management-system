@@ -23,10 +23,18 @@ import { ProfileScreen } from '../screens/security/ProfileScreen';
 import { ScanScreen } from '../screens/security/ScanScreen';
 import { VisitorsScreen } from '../screens/security/VisitorsScreen';
 import { WorkforceScreen } from '../screens/security/WorkforceScreen';
+import {
+  VisitorHomeScreen,
+  VisitorNotificationsScreen,
+  VisitorPassScreen,
+  VisitorProfileScreen,
+  VisitorRequestScreen,
+} from '../screens/visitor/VisitorScreens';
 
 const RootStack = createNativeStackNavigator();
 const SecurityTabs = createBottomTabNavigator();
 const EmployeeTabs = createBottomTabNavigator();
+const VisitorTabs = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
 const AdminStack = createNativeStackNavigator();
 
@@ -55,6 +63,8 @@ export function RootNavigator() {
             <RootStack.Screen name="SecurityTabs" component={SecurityNavigator} />
           ) : workspaceConfig?.navigator === 'EmployeeTabs' ? (
             <RootStack.Screen name="EmployeeTabs" component={EmployeeNavigator} />
+          ) : workspaceConfig?.navigator === 'VisitorTabs' ? (
+            <RootStack.Screen name="VisitorTabs" component={VisitorNavigator} />
           ) : (
             <RootStack.Screen name="AdminStack" component={AdminNavigator} />
           )}
@@ -97,6 +107,20 @@ function EmployeeNavigator() {
       <EmployeeTabs.Screen name="Notifications" component={NotificationsScreen} />
       <EmployeeTabs.Screen name="Settings" component={SettingsScreen} />
     </EmployeeTabs.Navigator>
+  );
+}
+
+function VisitorNavigator() {
+  const screenOptions = useMobileTabOptions();
+
+  return (
+    <VisitorTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <VisitorTabs.Screen name="Home" component={VisitorHomeScreen} />
+      <VisitorTabs.Screen name="Request" component={VisitorRequestScreen} />
+      <VisitorTabs.Screen name="Pass" component={VisitorPassScreen} />
+      <VisitorTabs.Screen name="Notifications" component={VisitorNotificationsScreen} />
+      <VisitorTabs.Screen name="Profile" component={VisitorProfileScreen} />
+    </VisitorTabs.Navigator>
   );
 }
 
@@ -156,6 +180,9 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Presence: 'time-outline',
     Notifications: 'notifications-outline',
     Settings: 'settings-outline',
+    Home: 'home-outline',
+    Request: 'add-circle-outline',
+    Pass: 'ticket-outline',
   };
 
   return iconMap[routeName] || 'ellipse-outline';
