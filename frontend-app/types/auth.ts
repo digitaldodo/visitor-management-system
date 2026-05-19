@@ -43,10 +43,6 @@ export type VisitorRegisterPayload = {
   password: string;
   phone?: string | null;
   phoneCountryCode?: string | null;
-  companyCode?: string | null;
-  companyName?: string | null;
-  hostEmployee?: string | null;
-  purposeOfVisit?: string | null;
 };
 
 export type AuthUser = {

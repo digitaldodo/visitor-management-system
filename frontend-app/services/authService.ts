@@ -55,7 +55,7 @@ export async function login(payload: LoginPayload) {
     data: {
       identifier: payload.identifier.trim(),
       password: payload.password,
-      companyCode: payload.companyCode?.trim() ? payload.companyCode.trim().toUpperCase() : null,
+      ...(payload.companyCode?.trim() ? { companyCode: payload.companyCode.trim().toUpperCase() } : {}),
       portalAudience: payload.audience,
     },
   });

@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -8,10 +8,13 @@ import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { EmployeeHostSelector } from '../../components/form/EmployeeHostSelector';
+import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useCheckInVisitorMutation,
@@ -77,8 +80,8 @@ export function VisitorsScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const deferredSearch = useDeferredValue(search.trim());
-  const deferredHostSearch = useDeferredValue(hostSearch.trim());
+  const deferredSearch = useDebouncedValue(search.trim(), 220);
+  const deferredHostSearch = useDebouncedValue(hostSearch.trim(), 220);
 
   const monitoring = useSecurityMonitoring(deferredSearch);
   const visitors = useSecurityVisitors(deferredSearch, statusFilter === 'ALL' ? undefined : statusFilter);
@@ -275,55 +278,32 @@ export function VisitorsScreen() {
           </View>
 
           <AppTextField label="Visitor name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
-          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-              <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" />
-            </View>
-            <View style={styles.inlineFieldWide}>
-              <AppTextField label="Phone number" value={phone} onChangeText={setPhone} placeholder="555 0100" keyboardType="phone-pad" />
-            </View>
-          </View>
+          <InternationalPhoneInput
+            countryCode={phoneCountryCode}
+            phone={phone}
+            onCountryCodeChange={setPhoneCountryCode}
+            onPhoneChange={setPhone}
+          />
           <AppTextField label="Email" value={email} onChangeText={setEmail} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
           <AppTextField label="Organization" value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
           <AppTextField label="Purpose of visit" value={purposeOfVisit} onChangeText={setPurposeOfVisit} placeholder="Meeting, service, delivery, audit" />
 
           <View style={styles.hostPanel}>
-            <Text style={styles.panelTitle}>Host employee</Text>
-            <Text style={styles.helperText}>Search the employee directory so approvals stay connected to the right host.</Text>
-            <AppTextField
-              label="Host search"
+            <EmployeeHostSelector
               value={hostSearch}
-              onChangeText={(value) => {
-                setHostSearch(value);
-                if (!value.trim()) {
-                  setSelectedHost(null);
-                }
+              onChangeText={setHostSearch}
+              selectedHost={selectedHost}
+              onSelectHost={(host) => {
+                setSelectedHost(host);
+                setHostSearch(host.fullName);
               }}
-              placeholder="Search by employee name or email"
+              onClearHost={() => setSelectedHost(null)}
+              hosts={hosts.data ?? []}
+              loading={hosts.isFetching}
+              errorText={hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
+              onRetry={() => void hosts.refetch()}
+              helperText="Search the employee directory so approvals stay connected to the right host."
             />
-            {selectedHost ? (
-              <View style={styles.selectedHost}>
-                <Text style={styles.selectedHostTitle}>{selectedHost.fullName}</Text>
-                <Text style={styles.helperText}>{[selectedHost.department, selectedHost.email].filter(Boolean).join(' · ')}</Text>
-              </View>
-            ) : null}
-            {deferredHostSearch.length >= 2 ? (
-              <View style={styles.hostResults}>
-                {(hosts.data ?? []).slice(0, 5).map((host) => (
-                  <Pressable
-                    key={host.id}
-                    onPress={() => {
-                      setSelectedHost(host);
-                      setHostSearch(host.fullName);
-                    }}
-                    style={styles.hostResult}
-                  >
-                    <Text style={styles.hostResultTitle}>{host.fullName}</Text>
-                    <Text style={styles.helperText}>{[host.department, host.email].filter(Boolean).join(' · ')}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
           </View>
 
           {visitorType === 'ONE_TIME' ? (
@@ -508,6 +488,13 @@ export function VisitorsScreen() {
       ) : null}
     </>
   );
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
 }
 
 const styles = StyleSheet.create({

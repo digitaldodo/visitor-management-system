@@ -1,5 +1,5 @@
-import { useDeferredValue, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthProvider';
@@ -11,9 +11,13 @@ import { DetailRow } from '../../components/employee/DetailRow';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { EmployeeHostSelector } from '../../components/form/EmployeeHostSelector';
+import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
+import { OrganizationSelector } from '../../components/form/OrganizationSelector';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useRequestVisitorVisitMutation,
@@ -105,7 +109,7 @@ export function VisitorRequestScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const deferredHostSearch = useDeferredValue(hostSearch.trim());
+  const deferredHostSearch = useDebouncedValue(hostSearch.trim(), 220);
   const hosts = useVisitorHosts(deferredHostSearch, companyCode.trim());
   const requestVisitMutation = useRequestVisitorVisitMutation();
   const uploadPhotoMutation = useUploadVisitorVisitPhotoMutation();
@@ -119,8 +123,8 @@ export function VisitorRequestScreen() {
       setFormError('Enter a reachable phone number.');
       return;
     }
-    if (!companyCode.trim() && !companyName.trim()) {
-      setFormError('Enter the organization code or organization name.');
+    if (!companyCode.trim()) {
+      setFormError('Select the host organization.');
       return;
     }
 
@@ -161,6 +165,8 @@ export function VisitorRequestScreen() {
       setPurposeOfVisit('');
       setHostSearch('');
       setSelectedHost(null);
+      setCompanyCode('');
+      setCompanyName('');
       setScheduledStart('');
       setDurationMinutes('60');
       setPhotoAsset(null);
@@ -177,59 +183,46 @@ export function VisitorRequestScreen() {
   return (
     <>
       <AppScreen title="Request Access" subtitle="Submit visitor-owned access requests without entering employee or security workflows.">
-        <SurfaceCard title="Visit details" subtitle="Use your organization context, host, and arrival window so approvals route cleanly.">
-          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-            <View style={styles.inlineFieldWide}>
-              <AppTextField label="Organization code" value={companyCode} onChangeText={setCompanyCode} placeholder="ACME" autoCapitalize="characters" />
-            </View>
-            <View style={styles.inlineFieldWide}>
-              <AppTextField label="Organization name" value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
-            </View>
-          </View>
-          <AppTextField label="Purpose" value={purposeOfVisit} onChangeText={setPurposeOfVisit} placeholder="Interview, meeting, service visit" returnKeyType="next" />
-          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-              <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" keyboardType="phone-pad" />
-            </View>
-            <View style={styles.inlineFieldWide}>
-              <AppTextField label="Phone" value={phone} onChangeText={setPhone} placeholder="555 0100" keyboardType="phone-pad" />
-            </View>
-          </View>
-          <AppTextField
-            label="Host"
-            value={hostSearch}
-            onChangeText={(value) => {
-              setHostSearch(value);
-              if (!value.trim()) {
-                setSelectedHost(null);
-              }
+        <SurfaceCard title="Visit details" subtitle="Select the host organization only for this access request. Visitor sign-in stays organization-free.">
+          <OrganizationSelector
+            selectedCode={companyCode}
+            selectedName={companyName}
+            helperText="Search the organization that owns the host or facility."
+            onSelect={(organization) => {
+              setCompanyCode(organization.companyCode);
+              setCompanyName(organization.companyName);
+              setSelectedHost(null);
+              setHostSearch('');
             }}
-            placeholder="Search host name or email"
+            onClear={() => {
+              setCompanyCode('');
+              setCompanyName('');
+              setSelectedHost(null);
+              setHostSearch('');
+            }}
           />
-          {selectedHost ? (
-            <View style={styles.selectedPanel}>
-              <Text style={styles.panelTitle}>{selectedHost.fullName}</Text>
-              <Text style={styles.helperText}>{[selectedHost.department, selectedHost.email].filter(Boolean).join(' · ')}</Text>
-            </View>
-          ) : null}
-          {deferredHostSearch.length >= 2 ? (
-            <View style={styles.resultStack}>
-              {(hosts.data ?? []).slice(0, 5).map((host) => (
-                <Pressable
-                  key={host.id}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    setSelectedHost(host);
-                    setHostSearch(host.fullName);
-                  }}
-                  style={styles.resultRow}
-                >
-                  <Text style={styles.panelTitle}>{host.fullName}</Text>
-                  <Text style={styles.helperText}>{[host.department, host.email].filter(Boolean).join(' · ')}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+          <AppTextField label="Purpose" value={purposeOfVisit} onChangeText={setPurposeOfVisit} placeholder="Interview, meeting, service visit" returnKeyType="next" />
+          <InternationalPhoneInput
+            countryCode={phoneCountryCode}
+            phone={phone}
+            onCountryCodeChange={setPhoneCountryCode}
+            onPhoneChange={setPhone}
+          />
+          <EmployeeHostSelector
+            value={hostSearch}
+            onChangeText={setHostSearch}
+            selectedHost={selectedHost}
+            onSelectHost={(host) => {
+              setSelectedHost(host);
+              setHostSearch(host.fullName);
+            }}
+            onClearHost={() => setSelectedHost(null)}
+            hosts={hosts.data ?? []}
+            loading={hosts.isFetching}
+            errorText={hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
+            onRetry={() => void hosts.refetch()}
+            helperText={companyCode ? 'Search employees in the selected organization.' : 'Select an organization first, then search the host.'}
+          />
           <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
             <View style={styles.inlineFieldWide}>
               <AppTextField label="Arrival time" value={scheduledStart} onChangeText={setScheduledStart} placeholder="2026-05-19T14:30" />
@@ -446,6 +439,13 @@ function formatPassWindow(pass: { accessWindowStartTime?: string | null; schedul
   return [start ? formatDateTime(start, pass.organizationTimezone) : null, end ? formatDateTime(end, pass.organizationTimezone) : null]
     .filter(Boolean)
     .join(' to ');
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
 }
 
 const styles = StyleSheet.create({

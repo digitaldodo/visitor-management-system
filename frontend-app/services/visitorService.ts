@@ -94,10 +94,6 @@ export async function registerVisitorAccount(payload: VisitorRegisterPayload) {
       password: payload.password,
       phone: payload.phone?.trim() || null,
       phoneCountryCode: payload.phoneCountryCode?.trim() || null,
-      companyCode: payload.companyCode?.trim() || null,
-      companyName: payload.companyName?.trim() || null,
-      hostEmployee: payload.hostEmployee?.trim() || null,
-      purposeOfVisit: payload.purposeOfVisit?.trim() || null,
     },
   });
 }

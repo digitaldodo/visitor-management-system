@@ -11,6 +11,7 @@ import { DetailRow } from '../../components/employee/DetailRow';
 import { PreferenceSwitchRow } from '../../components/employee/PreferenceSwitchRow';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
@@ -180,14 +181,12 @@ export function SettingsScreen() {
       </SurfaceCard>
 
       <SurfaceCard title="Editable profile" subtitle="Only the operational fields below can be changed from the employee app.">
-        <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-          <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-            <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" />
-          </View>
-          <View style={styles.inlineFieldWide}>
-            <AppTextField label="Phone number" value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
-          </View>
-        </View>
+        <InternationalPhoneInput
+          countryCode={phoneCountryCode}
+          phone={phone}
+          onCountryCodeChange={setPhoneCountryCode}
+          onPhoneChange={setPhone}
+        />
         <AppTextField
           label="Emergency contact"
           value={emergencyContact}

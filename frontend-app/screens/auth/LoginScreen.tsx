@@ -11,6 +11,8 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { AppTextField } from '../../components/form/AppTextField';
+import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
+import { OrganizationSelector } from '../../components/form/OrganizationSelector';
 import { KeyboardAwareScreen } from '../../components/layout/KeyboardAwareScreen';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useRegisterVisitorAccountMutation } from '../../hooks/useVisitorWorkspace';
@@ -35,10 +37,6 @@ const visitorRegisterSchema = z.object({
   password: z.string().min(12, 'Use at least 12 characters.'),
   phoneCountryCode: z.string().trim().optional(),
   phone: z.string().trim().optional(),
-  companyCode: z.string().trim().optional(),
-  companyName: z.string().trim().optional(),
-  hostEmployee: z.string().trim().optional(),
-  purposeOfVisit: z.string().trim().optional(),
 });
 
 type VisitorRegisterFormValues = z.infer<typeof visitorRegisterSchema>;
@@ -54,11 +52,10 @@ const audienceOptions: Array<{ value: WorkspaceAudience; label: string; descript
 
 const registerStepFields: Array<Array<keyof VisitorRegisterFormValues>> = [
   ['fullName', 'username', 'email', 'password'],
-  ['companyCode', 'companyName', 'hostEmployee', 'purposeOfVisit'],
   ['phoneCountryCode', 'phone'],
 ];
 
-const registerStepLabels = ['Identity', 'Organization', 'Contact'];
+const registerStepLabels = ['Identity', 'Contact'];
 
 export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
@@ -78,6 +75,7 @@ export function LoginScreen() {
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [biometricReadiness, setBiometricReadiness] = useState<BiometricReadiness | null>(null);
+  const [adminScope, setAdminScope] = useState<'organization' | 'platform'>('organization');
   const registerVisitorMutation = useRegisterVisitorAccountMutation();
 
   const {
@@ -103,6 +101,8 @@ export function LoginScreen() {
     formState: { errors: registerErrors },
     reset: resetRegister,
     trigger: triggerRegister,
+    setValue: setRegisterValue,
+    watch: watchRegister,
   } = useForm<VisitorRegisterFormValues>({
     resolver: zodResolver(visitorRegisterSchema),
     defaultValues: {
@@ -112,10 +112,6 @@ export function LoginScreen() {
       password: '',
       phoneCountryCode: '+1',
       phone: '',
-      companyCode: '',
-      companyName: '',
-      hostEmployee: '',
-      purposeOfVisit: '',
     },
   });
 
@@ -133,7 +129,13 @@ export function LoginScreen() {
   }, []);
 
   const selectedAudience = watch('audience');
+  const selectedCompanyCode = watch('companyCode');
   const rememberMe = watch('rememberMe');
+  const registerPhoneCountryCode = watchRegister('phoneCountryCode') || '+1';
+  const registerPhone = watchRegister('phone') || '';
+  const requiresOrganizationSelector = selectedAudience === 'employee'
+    || selectedAudience === 'security'
+    || (selectedAudience === 'admin' && adminScope === 'organization');
   const status = useMemo(() => buildAuthStatus(submitError, recoveryError, recoveryMessage, registerMessage), [
     recoveryError,
     recoveryMessage,
@@ -145,8 +147,16 @@ export function LoginScreen() {
     setSubmitError(null);
     setRegisterMessage(null);
 
+    if (requiresOrganizationSelector && !values.companyCode?.trim()) {
+      setSubmitError('Select an organization before signing in to this workspace.');
+      return;
+    }
+
     try {
-      await login(values as LoginPayload);
+      await login({
+        ...values,
+        companyCode: requiresOrganizationSelector ? values.companyCode : undefined,
+      } as LoginPayload);
     } catch (error) {
       setSubmitError(getErrorMessage(error, 'Sign in failed.'));
     }
@@ -165,10 +175,6 @@ export function LoginScreen() {
         password: '',
         phoneCountryCode: '+1',
         phone: '',
-        companyCode: '',
-        companyName: '',
-        hostEmployee: '',
-        purposeOfVisit: '',
       });
       setRegisterStep(0);
       setAuthMode('login');
@@ -272,6 +278,12 @@ export function LoginScreen() {
     setRecoveryMessage(null);
   };
 
+  useEffect(() => {
+    if (!requiresOrganizationSelector && selectedCompanyCode) {
+      setValue('companyCode', '', { shouldValidate: true });
+    }
+  }, [requiresOrganizationSelector, selectedCompanyCode, setValue]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAwareScreen
@@ -334,7 +346,12 @@ export function LoginScreen() {
                         key={option.value}
                         accessibilityRole="button"
                         accessibilityState={{ selected }}
-                        onPress={() => setValue('audience', option.value, { shouldValidate: true })}
+                        onPress={() => {
+                          setValue('audience', option.value, { shouldValidate: true });
+                          if (option.value === 'visitor') {
+                            setValue('companyCode', '', { shouldValidate: true });
+                          }
+                        }}
                         android_ripple={{ color: theme.colors.primarySoft }}
                         style={({ pressed }) => [
                           styles.audienceChip,
@@ -371,22 +388,37 @@ export function LoginScreen() {
                   )}
                 />
 
-                <Controller
-                  control={control}
-                  name="companyCode"
-                  render={({ field: { onChange, value } }) => (
-                    <AppTextField
-                      autoCapitalize="characters"
-                      autoCorrect={false}
-                      label="Organization code"
-                      helperText={selectedAudience === 'visitor' ? 'Optional for most visitor accounts.' : 'Required for organization-scoped workspaces.'}
-                      onChangeText={onChange}
-                      value={value}
-                      errorText={errors.companyCode?.message}
-                      returnKeyType="next"
-                    />
-                  )}
-                />
+                {selectedAudience === 'admin' ? (
+                  <View style={styles.scopePanel}>
+                    <Text style={styles.scopeTitle}>Admin scope</Text>
+                    <View style={styles.modeRow}>
+                      <ModeButton
+                        label="Organization"
+                        icon="business-outline"
+                        selected={adminScope === 'organization'}
+                        onPress={() => setAdminScope('organization')}
+                      />
+                      <ModeButton
+                        label="Super admin"
+                        icon="globe-outline"
+                        selected={adminScope === 'platform'}
+                        onPress={() => {
+                          setAdminScope('platform');
+                          setValue('companyCode', '', { shouldValidate: true });
+                        }}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+
+                {requiresOrganizationSelector ? (
+                  <OrganizationSelector
+                    selectedCode={selectedCompanyCode}
+                    helperText="Required for employee, security, and organization-admin workspaces."
+                    onSelect={(organization) => setValue('companyCode', organization.companyCode, { shouldValidate: true, shouldDirty: true })}
+                    onClear={() => setValue('companyCode', '', { shouldValidate: true, shouldDirty: true })}
+                  />
+                ) : null}
 
                 <Controller
                   control={control}
@@ -469,68 +501,23 @@ export function LoginScreen() {
                       )}
                     />
                   </>
-                ) : registerStep === 1 ? (
-                  <>
-                    <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-                      <View style={styles.inlineFieldWide}>
-                        <Controller
-                          control={registerControl}
-                          name="companyCode"
-                          render={({ field: { onChange, value } }) => (
-                            <AppTextField label="Organization code" value={value} onChangeText={onChange} placeholder="Optional" autoCapitalize="characters" />
-                          )}
-                        />
-                      </View>
-                      <View style={styles.inlineFieldWide}>
-                        <Controller
-                          control={registerControl}
-                          name="companyName"
-                          render={({ field: { onChange, value } }) => (
-                            <AppTextField label="Organization name" value={value} onChangeText={onChange} placeholder="Company or facility" />
-                          )}
-                        />
-                      </View>
-                    </View>
-                    <Controller
-                      control={registerControl}
-                      name="hostEmployee"
-                      render={({ field: { onChange, value } }) => (
-                        <AppTextField label="Host" value={value} onChangeText={onChange} placeholder="Host name, if known" />
-                      )}
-                    />
-                    <Controller
-                      control={registerControl}
-                      name="purposeOfVisit"
-                      render={({ field: { onChange, value } }) => (
-                        <AppTextField label="Purpose" value={value} onChangeText={onChange} placeholder="Meeting, interview, service visit" returnKeyType="next" />
-                      )}
-                    />
-                  </>
                 ) : (
                   <>
-                    <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-                      <Controller
-                        control={registerControl}
-                        name="phoneCountryCode"
-                        render={({ field: { onChange, value } }) => (
-                          <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-                            <AppTextField label="Code" value={value} onChangeText={onChange} placeholder="+1" keyboardType="phone-pad" />
-                          </View>
-                        )}
-                      />
-                      <Controller
-                        control={registerControl}
-                        name="phone"
-                        render={({ field: { onChange, value } }) => (
-                          <View style={styles.inlineFieldWide}>
-                            <AppTextField label="Phone" value={value} onChangeText={onChange} placeholder="555 0100" keyboardType="phone-pad" returnKeyType="done" onSubmitEditing={() => void onRegister()} />
-                          </View>
-                        )}
-                      />
-                    </View>
+                    <Controller
+                      control={registerControl}
+                      name="phone"
+                      render={() => (
+                        <InternationalPhoneInput
+                          countryCode={registerPhoneCountryCode}
+                          phone={registerPhone}
+                          onCountryCodeChange={(value) => setRegisterValue('phoneCountryCode', value, { shouldDirty: true, shouldValidate: true })}
+                          onPhoneChange={(value) => setRegisterValue('phone', value, { shouldDirty: true, shouldValidate: true })}
+                        />
+                      )}
+                    />
                     <View style={styles.onboardingNote}>
                       <Ionicons name="mail-unread-outline" size={20} color={theme.colors.info} />
-                      <Text style={styles.onboardingText}>After registration, AccessFlow sends a verification email before the visitor workspace is activated.</Text>
+                      <Text style={styles.onboardingText}>After registration, AccessFlow sends a verification email. Organization and host selection happens later when you request access.</Text>
                     </View>
                   </>
                 )}
@@ -1051,6 +1038,16 @@ const styles = StyleSheet.create({
   authOptionsStacked: {
     alignItems: 'stretch',
     flexDirection: 'column',
+  },
+  scopePanel: {
+    gap: theme.spacing.sm,
+  },
+  scopeTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   rememberRow: {
     flex: 1,
