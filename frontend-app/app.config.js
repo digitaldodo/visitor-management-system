@@ -1,8 +1,9 @@
 module.exports = ({ config }) => {
+  const defaultProjectId = 'f6f82d40-344d-4ae9-93bf-a58c869db1ac';
   const environment = process.env.EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT || config.extra?.accessflowReleaseChannel || 'production';
   const releaseChannel = process.env.EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL || environment;
   const distributionChannel = process.env.EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL || (environment === 'production' ? 'play-store' : 'internal');
-  const projectId = process.env.EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID || config.extra?.eas?.projectId || '';
+  const projectId = process.env.EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID || config.extra?.eas?.projectId || defaultProjectId;
   const versionCode = config.android?.versionCode || 1;
   const buildId = process.env.EXPO_PUBLIC_ACCESSFLOW_BUILD_ID || config.extra?.accessflowBuildId || `${config.version}+${versionCode}`;
   const updatesEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED ?? environment !== 'development') !== 'false';
@@ -23,7 +24,10 @@ module.exports = ({ config }) => {
     },
     extra: {
       ...config.extra,
-      eas: projectId ? { projectId } : config.extra?.eas,
+      eas: {
+        ...config.extra?.eas,
+        projectId,
+      },
       accessflowReleaseChannel: releaseChannel,
       accessflowDistributionChannel: distributionChannel,
       accessflowBuildId: buildId,

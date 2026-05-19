@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 12.0.0",
+    "version": ">= 18.0.0",
     "appVersionSource": "local"
   },
   "build": {
@@ -8,35 +8,77 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL": "https://accessflow-api-goww.onrender.com/api/v1",
+        "EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID": "f6f82d40-344d-4ae9-93bf-a58c869db1ac",
         "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "development",
         "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "development",
         "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
         "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "false"
       }
     },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "autoIncrement": "versionCode",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL": "https://accessflow-api-goww.onrender.com/api/v1",
+        "EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID": "f6f82d40-344d-4ae9-93bf-a58c869db1ac",
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "preview",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "true",
+        "EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE": "shared-guard"
+      }
+    },
     "staging": {
       "distribution": "internal",
       "channel": "staging",
+      "autoIncrement": "versionCode",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL": "https://accessflow-api-goww.onrender.com/api/v1",
+        "EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID": "f6f82d40-344d-4ae9-93bf-a58c869db1ac",
         "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "staging",
         "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "staging",
-        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal"
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "true"
       }
     },
     "internal": {
       "distribution": "internal",
       "channel": "internal",
+      "autoIncrement": "versionCode",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL": "https://accessflow-api-goww.onrender.com/api/v1",
+        "EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID": "f6f82d40-344d-4ae9-93bf-a58c869db1ac",
         "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "internal",
         "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "internal",
-        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal"
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED": "true",
+        "EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE": "shared-guard"
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": "versionCode",
       "channel": "production",
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL": "https://accessflow-api-goww.onrender.com/api/v1",
+        "EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID": "f6f82d40-344d-4ae9-93bf-a58c869db1ac",
         "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "production",
         "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "production",
         "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "play-store",

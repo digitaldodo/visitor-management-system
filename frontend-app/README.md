@@ -39,14 +39,19 @@ No endpoint is hardcoded in the app logic. The backend URL must come from the Ex
 
 ## Enterprise Release Channels
 
-AccessFlow Mobile uses isolated Expo/EAS channels for `development`, `staging`, `internal`, and `production`.
+AccessFlow Mobile is linked to Expo project `f6f82d40-344d-4ae9-93bf-a58c869db1ac` and uses isolated Expo/EAS channels for `development`, `preview`, `staging`, `internal`, and `production`.
 
 ```bash
+npm run build:preview:android
+npm run build:production:android
+npm run update:preview
 npm run update:staging
 npm run update:production
 ```
 
-Production OTA updates are runtime-version gated with `runtimeVersion.policy = appVersion`. The backend `/api/versions` handshake remains the compatibility source of truth for minimum app/runtime versions, forced update windows, rollback flags, and staged rollout metadata.
+Preview and internal Android builds produce APK artifacts for direct enterprise testing. Production Android builds produce Play Store-ready AAB artifacts. OTA updates are runtime-version gated with `runtimeVersion.policy = appVersion`; bump `expo.version` for native/runtime changes so incompatible updates cannot land on stale binaries. The backend `/api/versions` handshake remains the compatibility source of truth for minimum app/runtime versions, forced update windows, rollback flags, and staged rollout metadata.
+
+See [docs/android-deployment.md](docs/android-deployment.md) for the full EAS Android deployment workflow.
 
 ## Operational Readiness
 

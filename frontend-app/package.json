@@ -9,8 +9,13 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "doctor": "npx expo-doctor",
-    "update:staging": "eas update --channel staging",
-    "update:production": "eas update --channel production"
+    "eas:whoami": "npx eas-cli@latest whoami",
+    "build:preview:android": "npx eas-cli@latest build --platform android --profile preview",
+    "build:production:android": "npx eas-cli@latest build --platform android --profile production",
+    "build:preview:android:local": "npx eas-cli@latest build --platform android --profile preview --local",
+    "update:staging": "npx eas-cli@latest update --channel staging",
+    "update:preview": "npx eas-cli@latest update --channel preview",
+    "update:production": "npx eas-cli@latest update --channel production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
