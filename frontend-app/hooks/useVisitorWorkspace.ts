@@ -38,10 +38,11 @@ export function useVisitorHistory() {
 }
 
 export function useVisitorHosts(query?: string, companyCode?: string) {
+  const normalizedQuery = (query || '').trim();
   return useQuery({
-    queryKey: ['visitor', 'hosts', query, companyCode],
-    queryFn: () => getVisitorHosts(query, companyCode),
-    enabled: Boolean((query || '').trim().length >= 2 || (companyCode || '').trim()),
+    queryKey: ['visitor', 'hosts', normalizedQuery, companyCode],
+    queryFn: () => getVisitorHosts(normalizedQuery, companyCode),
+    enabled: normalizedQuery.length >= 2 && Boolean((companyCode || '').trim()),
     placeholderData: (previous) => previous,
   });
 }

@@ -19,8 +19,8 @@ export function OrganizationSelector({
   label = 'Organization',
   selectedCode,
   selectedName,
-  helperText = 'Search by organization name or code.',
-  placeholder = 'Search organization',
+  helperText = 'Search by organization name.',
+  placeholder = 'Search by organization name',
   onSelect,
   onClear,
 }: OrganizationSelectorProps) {
@@ -30,7 +30,7 @@ export function OrganizationSelector({
 
   useEffect(() => {
     if (selectedName || selectedCode) {
-      setQuery([selectedName, selectedCode].filter(Boolean).join(' · '));
+      setQuery(selectedName || selectedCode || '');
     }
   }, [selectedCode, selectedName]);
 
@@ -68,9 +68,9 @@ export function OrganizationSelector({
       errorText={organizations.isError ? errorMessage(organizations.error, 'Organizations could not be loaded.') : null}
       emptyText="No organizations found"
       selectedTitle={selectedName || null}
-      selectedMeta={[selectedCode, selectedName ? undefined : 'Selected organization'].filter(Boolean).join(' · ') || null}
+      selectedMeta={[selectedRegionLabel(organizations.data ?? [], selectedCode), selectedCode ? `Code ${selectedCode}` : null].filter(Boolean).join(' · ') || null}
       onSelect={(organization) => {
-        setQuery(`${organization.companyName} · ${organization.companyCode}`);
+        setQuery(organization.companyName);
         onSelect(organization);
       }}
       onRetry={() => {
@@ -78,13 +78,18 @@ export function OrganizationSelector({
       }}
       getKey={(organization) => organization.id || organization.companyCode}
       getTitle={(organization) => organization.companyName}
-      getMeta={(organization) => [organization.companyCode, organization.regionCountry, organization.timezone].filter(Boolean).join(' · ')}
+      getMeta={(organization) => [organization.regionCountry, organization.timezone].filter(Boolean).join(' · ')}
       onClearSelection={onClear ? () => {
         setQuery('');
         onClear();
       } : undefined}
     />
   );
+}
+
+function selectedRegionLabel(organizations: OrganizationOption[], selectedCode?: string | null) {
+  const selected = organizations.find((organization) => organization.companyCode === selectedCode);
+  return [selected?.regionCountry, selected?.timezone].filter(Boolean).join(' · ') || null;
 }
 
 function errorMessage(error: unknown, fallback: string) {

@@ -21,6 +21,7 @@ type AutocompleteDropdownProps<T> = {
   emptyText?: string;
   selectedTitle?: string | null;
   selectedMeta?: string | null;
+  selectedAvatarText?: string | null;
   onSelect: (item: T) => void;
   onRetry?: () => void;
   getKey: (item: T) => string;
@@ -44,6 +45,7 @@ export function AutocompleteDropdown<T>({
   emptyText = 'No matches found.',
   selectedTitle,
   selectedMeta,
+  selectedAvatarText,
   onSelect,
   onRetry,
   getKey,
@@ -53,8 +55,9 @@ export function AutocompleteDropdown<T>({
   keyboardType = 'default',
   autoCapitalize = 'none',
 }: AutocompleteDropdownProps<T>) {
+  const hasSelection = Boolean(selectedTitle);
   const queryReady = value.trim().length >= minQueryLength;
-  const showResults = queryReady || loading || Boolean(errorText);
+  const showResults = !hasSelection && (queryReady || loading || Boolean(errorText));
 
   const animate = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -62,45 +65,52 @@ export function AutocompleteDropdown<T>({
 
   return (
     <View style={styles.container}>
-      <AppTextField
-        label={label}
-        value={value}
-        onChangeText={(nextValue) => {
-          animate();
-          onChangeText(nextValue);
-        }}
-        placeholder={placeholder}
-        helperText={helperText}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-      />
-
-      {selectedTitle ? (
-        <View style={styles.selectedPanel}>
-          <View style={styles.selectedIcon}>
-            <Ionicons name="checkmark" size={18} color={theme.colors.success} />
+      {hasSelection ? (
+        <>
+          <Text maxFontSizeMultiplier={1.1} style={styles.label}>{label}</Text>
+          <View style={styles.selectedPanel}>
+            <View style={styles.selectedIcon}>
+              {selectedAvatarText ? (
+                <Text maxFontSizeMultiplier={1} style={styles.selectedAvatarText}>{selectedAvatarText}</Text>
+              ) : (
+                <Ionicons name="checkmark" size={18} color={theme.colors.success} />
+              )}
+            </View>
+            <View style={styles.selectedCopy}>
+              <Text maxFontSizeMultiplier={1.08} style={styles.selectedTitle}>{selectedTitle}</Text>
+              {selectedMeta ? <Text maxFontSizeMultiplier={1.08} style={styles.metaText}>{selectedMeta}</Text> : null}
+            </View>
+            {onClearSelection ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Clear ${label}`}
+                hitSlop={8}
+                onPress={() => {
+                  animate();
+                  onClearSelection();
+                }}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close" size={18} color={theme.colors.textSecondary} />
+              </Pressable>
+            ) : null}
           </View>
-          <View style={styles.selectedCopy}>
-            <Text maxFontSizeMultiplier={1.08} style={styles.selectedTitle}>{selectedTitle}</Text>
-            {selectedMeta ? <Text maxFontSizeMultiplier={1.08} style={styles.metaText}>{selectedMeta}</Text> : null}
-          </View>
-          {onClearSelection ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Clear ${label}`}
-              hitSlop={8}
-              onPress={() => {
-                animate();
-                onClearSelection();
-              }}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close" size={18} color={theme.colors.textSecondary} />
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+        </>
+      ) : (
+        <AppTextField
+          label={label}
+          value={value}
+          onChangeText={(nextValue) => {
+            animate();
+            onChangeText(nextValue);
+          }}
+          placeholder={placeholder}
+          helperText={helperText}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
+        />
+      )}
 
       {showResults ? (
         <View style={styles.resultsPanel}>
@@ -172,6 +182,13 @@ const styles = StyleSheet.create({
   container: {
     gap: theme.spacing.sm,
   },
+  label: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   selectedPanel: {
     minHeight: 58,
     flexDirection: 'row',
@@ -190,6 +207,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.successSoft,
+  },
+  selectedAvatarText: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
   },
   selectedCopy: {
     flex: 1,

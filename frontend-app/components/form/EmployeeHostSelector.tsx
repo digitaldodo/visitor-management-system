@@ -47,6 +47,7 @@ export function EmployeeHostSelector({
       emptyText="No employees found"
       selectedTitle={selectedHost?.fullName ?? null}
       selectedMeta={selectedHost ? [selectedHost.department, selectedHost.email, selectedHost.organizationName].filter(Boolean).join(' · ') : null}
+      selectedAvatarText={selectedHost ? initialsFor(selectedHost.fullName) : null}
       onSelect={(host) => {
         onSelectHost(host);
       }}
@@ -54,7 +55,19 @@ export function EmployeeHostSelector({
       getKey={(host) => host.id}
       getTitle={(host) => host.fullName}
       getMeta={(host) => [host.department, host.email, host.username].filter(Boolean).join(' · ')}
-      onClearSelection={onClearHost}
+      onClearSelection={() => {
+        onClearHost();
+        onChangeText('');
+      }}
     />
   );
+}
+
+function initialsFor(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 }

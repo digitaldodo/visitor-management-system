@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Linking, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthProvider';
@@ -11,6 +11,7 @@ import { DetailRow } from '../../components/employee/DetailRow';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { ArrivalTimeSelector, nearestArrivalTime } from '../../components/form/ArrivalTimeSelector';
 import { EmployeeHostSelector } from '../../components/form/EmployeeHostSelector';
 import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
 import { OrganizationSelector } from '../../components/form/OrganizationSelector';
@@ -93,24 +94,30 @@ export function VisitorHomeScreen() {
 }
 
 export function VisitorRequestScreen() {
+  const { session } = useAuth();
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [companyCode, setCompanyCode] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [companyTimezone, setCompanyTimezone] = useState(localTimezone);
   const [purposeOfVisit, setPurposeOfVisit] = useState('');
   const [hostSearch, setHostSearch] = useState('');
   const [selectedHost, setSelectedHost] = useState<HostDirectoryEntry | null>(null);
   const [phoneCountryCode, setPhoneCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
-  const [scheduledStart, setScheduledStart] = useState('');
+  const [scheduledStart, setScheduledStart] = useState<Date>(() => nearestArrivalTime());
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [photoAsset, setPhotoAsset] = useState<{ uri: string; name: string; type: string } | null>(null);
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [calendarEventUrl, setCalendarEventUrl] = useState<string | null>(null);
 
   const deferredHostSearch = useDebouncedValue(hostSearch.trim(), 220);
+  const hostSearchReady = deferredHostSearch.length >= 2 && Boolean(companyCode.trim());
   const hosts = useVisitorHosts(deferredHostSearch, companyCode.trim());
+  const hostResults = hostSearchReady ? hosts.data ?? [] : [];
   const requestVisitMutation = useRequestVisitorVisitMutation();
   const uploadPhotoMutation = useUploadVisitorVisitPhotoMutation();
 
@@ -130,6 +137,7 @@ export function VisitorRequestScreen() {
 
     setFormError(null);
     setSuccessMessage(null);
+    setCalendarEventUrl(null);
 
     try {
       let photoUrl: string | null = null;
@@ -141,9 +149,10 @@ export function VisitorRequestScreen() {
       }
 
       const duration = Number(durationMinutes) || 60;
-      const startAt = scheduledStart.trim() ? new Date(scheduledStart.trim()) : null;
-      const scheduledStartTime = startAt && !Number.isNaN(startAt.getTime()) ? startAt.toISOString() : null;
-      const scheduledEndTime = scheduledStartTime ? new Date(new Date(scheduledStartTime).getTime() + duration * 60_000).toISOString() : null;
+      const startAt = scheduledStart;
+      const endAt = new Date(startAt.getTime() + duration * 60_000);
+      const scheduledStartTime = startAt.toISOString();
+      const scheduledEndTime = endAt.toISOString();
 
       const visit = await requestVisitMutation.mutateAsync({
         phoneCountryCode: phoneCountryCode.trim() || null,
@@ -156,18 +165,30 @@ export function VisitorRequestScreen() {
         scheduledStartTime,
         scheduledEndTime,
         expectedDurationMinutes: duration,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone: companyTimezone || localTimezone,
         photoUrl,
         photoPublicId,
       });
 
       setSuccessMessage(`${visit.purposeOfVisit || 'Visit request'} submitted. Track approval status from Home or Pass.`);
+      setCalendarEventUrl(buildGoogleCalendarUrl({
+        visitorName: session?.user.fullName || visit.fullName || 'Visitor',
+        organizationName: companyName.trim() || visit.organizationName || visit.organizationCode || 'Host organization',
+        hostEmployee: selectedHost?.fullName || hostSearch.trim() || visit.hostEmployee || 'Host pending',
+        purposeOfVisit: purposeOfVisit.trim(),
+        startAt,
+        endAt,
+        timezone: companyTimezone || localTimezone,
+        location: companyName.trim() || visit.organizationName || 'Host facility',
+        notes: 'Visitor access request submitted in AccessFlow.',
+      }));
       setPurposeOfVisit('');
       setHostSearch('');
       setSelectedHost(null);
       setCompanyCode('');
       setCompanyName('');
-      setScheduledStart('');
+      setCompanyTimezone(localTimezone);
+      setScheduledStart(nearestArrivalTime());
       setDurationMinutes('60');
       setPhotoAsset(null);
       await Promise.all([
@@ -182,21 +203,23 @@ export function VisitorRequestScreen() {
 
   return (
     <>
-      <AppScreen title="Request Access" subtitle="Submit visitor-owned access requests without entering employee or security workflows.">
-        <SurfaceCard title="Visit details" subtitle="Select the host organization only for this access request. Visitor sign-in stays organization-free.">
+      <AppScreen title="Request Visit" subtitle="Choose the place, host, and arrival time. AccessFlow handles the operational details in the background.">
+        <SurfaceCard title="Plan your visit" subtitle="Start with the organization name, then choose the host you are meeting.">
           <OrganizationSelector
             selectedCode={companyCode}
             selectedName={companyName}
-            helperText="Search the organization that owns the host or facility."
+            helperText="Search the organization or facility name."
             onSelect={(organization) => {
               setCompanyCode(organization.companyCode);
               setCompanyName(organization.companyName);
+              setCompanyTimezone(organization.timezone || localTimezone);
               setSelectedHost(null);
               setHostSearch('');
             }}
             onClear={() => {
               setCompanyCode('');
               setCompanyName('');
+              setCompanyTimezone(localTimezone);
               setSelectedHost(null);
               setHostSearch('');
             }}
@@ -216,21 +239,23 @@ export function VisitorRequestScreen() {
               setSelectedHost(host);
               setHostSearch(host.fullName);
             }}
-            onClearHost={() => setSelectedHost(null)}
-            hosts={hosts.data ?? []}
-            loading={hosts.isFetching}
-            errorText={hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
+            onClearHost={() => {
+              setSelectedHost(null);
+              setHostSearch('');
+            }}
+            hosts={hostResults}
+            loading={hostSearchReady && hosts.isFetching}
+            errorText={hostSearchReady && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
             onRetry={() => void hosts.refetch()}
-            helperText={companyCode ? 'Search employees in the selected organization.' : 'Select an organization first, then search the host.'}
+            helperText={companyCode ? 'Type at least two letters to find your host.' : 'Select an organization first, then search the host.'}
           />
-          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-            <View style={styles.inlineFieldWide}>
-              <AppTextField label="Arrival time" value={scheduledStart} onChangeText={setScheduledStart} placeholder="2026-05-19T14:30" />
-            </View>
-            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-              <AppTextField label="Minutes" value={durationMinutes} onChangeText={setDurationMinutes} keyboardType="number-pad" placeholder="60" />
-            </View>
-          </View>
+          <ArrivalTimeSelector
+            value={scheduledStart}
+            durationMinutes={durationMinutes}
+            timezone={companyTimezone || localTimezone}
+            onChange={setScheduledStart}
+            onDurationChange={setDurationMinutes}
+          />
           <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
             {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo optional</Text></View>}
             <View style={styles.photoMeta}>
@@ -249,6 +274,9 @@ export function VisitorRequestScreen() {
             <View style={styles.messageStack}>
               <StatusPill label="Submitted" tone="success" />
               <Text style={styles.bodyText}>{successMessage}</Text>
+              {calendarEventUrl ? (
+                <PrimaryButton label="Add to Google Calendar" tone="secondary" onPress={() => void Linking.openURL(calendarEventUrl)} />
+              ) : null}
             </View>
           ) : null}
           <PrimaryButton label="Submit access request" onPress={() => void submitRequest()} loading={requestVisitMutation.isPending || uploadPhotoMutation.isPending} />
@@ -439,6 +467,53 @@ function formatPassWindow(pass: { accessWindowStartTime?: string | null; schedul
   return [start ? formatDateTime(start, pass.organizationTimezone) : null, end ? formatDateTime(end, pass.organizationTimezone) : null]
     .filter(Boolean)
     .join(' to ');
+}
+
+function buildGoogleCalendarUrl({
+  visitorName,
+  organizationName,
+  hostEmployee,
+  purposeOfVisit,
+  startAt,
+  endAt,
+  timezone,
+  location,
+  notes,
+}: {
+  visitorName: string;
+  organizationName: string;
+  hostEmployee: string;
+  purposeOfVisit: string;
+  startAt: Date;
+  endAt: Date;
+  timezone: string;
+  location: string;
+  notes: string;
+}) {
+  const title = `AccessFlow visit: ${purposeOfVisit || organizationName}`;
+  const details = [
+    `Visitor: ${visitorName}`,
+    `Organization: ${organizationName}`,
+    `Host: ${hostEmployee}`,
+    `Meeting time: ${formatDateTime(startAt.toISOString(), timezone)}`,
+    `Access window: ${formatDateTime(startAt.toISOString(), timezone)} to ${formatDateTime(endAt.toISOString(), timezone)}`,
+    notes,
+  ].join('\n');
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${toGoogleCalendarDate(startAt)}/${toGoogleCalendarDate(endAt)}`,
+    details,
+    location,
+    ctz: timezone,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function toGoogleCalendarDate(value: Date) {
+  return value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
