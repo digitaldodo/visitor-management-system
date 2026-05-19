@@ -114,10 +114,12 @@ export function VisitorRequestScreen() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [calendarEventUrl, setCalendarEventUrl] = useState<string | null>(null);
 
-  const deferredHostSearch = useDebouncedValue(hostSearch.trim(), 220);
-  const hostSearchReady = deferredHostSearch.length >= 2 && Boolean(companyCode.trim());
-  const hosts = useVisitorHosts(deferredHostSearch, companyCode.trim());
-  const hostResults = hostSearchReady ? hosts.data ?? [] : [];
+  const normalizedHostSearch = hostSearch.trim();
+  const deferredHostSearch = useDebouncedValue(normalizedHostSearch, 220);
+  const hostSearchSettling = normalizedHostSearch.length >= 2 && normalizedHostSearch !== deferredHostSearch;
+  const hostSearchReady = !selectedHost && deferredHostSearch.length >= 2 && Boolean(companyCode.trim());
+  const hosts = useVisitorHosts(selectedHost ? '' : deferredHostSearch, companyCode.trim());
+  const hostResults = hostSearchReady && !hostSearchSettling ? hosts.data ?? [] : [];
   const requestVisitMutation = useRequestVisitorVisitMutation();
   const uploadPhotoMutation = useUploadVisitorVisitPhotoMutation();
 
@@ -237,15 +239,14 @@ export function VisitorRequestScreen() {
             selectedHost={selectedHost}
             onSelectHost={(host) => {
               setSelectedHost(host);
-              setHostSearch(host.fullName);
             }}
             onClearHost={() => {
               setSelectedHost(null);
               setHostSearch('');
             }}
             hosts={hostResults}
-            loading={hostSearchReady && hosts.isFetching}
-            errorText={hostSearchReady && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
+            loading={!selectedHost && Boolean(companyCode.trim()) && (hostSearchSettling || (hostSearchReady && hosts.isFetching))}
+            errorText={hostSearchReady && !hostSearchSettling && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
             onRetry={() => void hosts.refetch()}
             helperText={companyCode ? 'Type at least two letters to find your host.' : 'Select an organization first, then search the host.'}
           />

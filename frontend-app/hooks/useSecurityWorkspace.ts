@@ -80,7 +80,6 @@ export function useSecurityHosts(query?: string) {
     queryKey: ['security', 'hosts', query ?? ''],
     queryFn: () => getSecurityHosts(query),
     enabled: Boolean(query && query.trim().length >= 2),
-    placeholderData: (previous) => previous,
   });
 }
 

@@ -1,5 +1,6 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '../../theme';
@@ -23,6 +24,7 @@ export function ArrivalTimeSelector({
 }: ArrivalTimeSelectorProps) {
   const duration = Number(durationMinutes) || 60;
   const accessEndsAt = new Date(value.getTime() + duration * 60_000);
+  const quickArrivalOptions = useMemo(() => quickOptions(), [value]);
 
   const openAndroidPicker = (mode: 'date' | 'time') => {
     DateTimePickerAndroid.open({
@@ -55,17 +57,21 @@ export function ArrivalTimeSelector({
       </View>
 
       <View style={styles.quickGrid}>
-        {quickOptions().map((option) => (
-          <Pressable
-            key={option.label}
-            accessibilityRole="button"
-            onPress={() => onChange(option.value)}
-            android_ripple={{ color: theme.colors.primarySoft }}
-            style={({ pressed }) => [styles.quickChip, pressed ? styles.pressed : null]}
-          >
-            <Text maxFontSizeMultiplier={1.05} style={styles.quickChipText}>{option.label}</Text>
-          </Pressable>
-        ))}
+        {quickArrivalOptions.map((option) => {
+          const selected = sameMinute(value, option.value);
+          return (
+            <Pressable
+              key={option.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => onChange(option.value)}
+              android_ripple={{ color: theme.colors.primarySoft }}
+              style={({ pressed }) => [styles.quickChip, selected ? styles.quickChipSelected : null, pressed ? styles.pressed : null]}
+            >
+              <Text maxFontSizeMultiplier={1.05} style={[styles.quickChipText, selected ? styles.quickChipTextSelected : null]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.pickerRow}>
@@ -136,7 +142,7 @@ function quickOptions() {
   tomorrowMorning.setHours(9, 0, 0, 0);
 
   const options = [
-    { label: 'Now', value: new Date() },
+    { label: 'Now', value: nearestArrivalTime(0) },
     { label: 'In 30 mins', value: nearestArrivalTime(30) },
     { label: 'Tomorrow Morning', value: tomorrowMorning },
   ];
@@ -146,6 +152,10 @@ function quickOptions() {
   }
 
   return options;
+}
+
+function sameMinute(left: Date, right: Date) {
+  return Math.abs(left.getTime() - right.getTime()) < 60_000;
 }
 
 function PickerButton({
@@ -259,10 +269,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primarySoft,
     paddingHorizontal: theme.spacing.md,
   },
+  quickChipSelected: {
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
+  },
   quickChipText: {
     color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: '800',
+  },
+  quickChipTextSelected: {
+    color: theme.colors.textPrimary,
   },
   pickerRow: {
     flexDirection: 'row',

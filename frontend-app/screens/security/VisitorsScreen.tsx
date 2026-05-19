@@ -81,11 +81,14 @@ export function VisitorsScreen() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
-  const deferredHostSearch = useDebouncedValue(hostSearch.trim(), 220);
+  const normalizedHostSearch = hostSearch.trim();
+  const deferredHostSearch = useDebouncedValue(normalizedHostSearch, 220);
+  const hostSearchSettling = normalizedHostSearch.length >= 2 && normalizedHostSearch !== deferredHostSearch;
+  const hostSearchReady = !selectedHost && deferredHostSearch.length >= 2;
 
   const monitoring = useSecurityMonitoring(deferredSearch);
   const visitors = useSecurityVisitors(deferredSearch, statusFilter === 'ALL' ? undefined : statusFilter);
-  const hosts = useSecurityHosts(deferredHostSearch);
+  const hosts = useSecurityHosts(selectedHost ? '' : deferredHostSearch);
 
   const createVisitorMutation = useCreateVisitorMutation();
   const uploadVisitorPhotoMutation = useUploadVisitorPhotoMutation();
@@ -295,12 +298,14 @@ export function VisitorsScreen() {
               selectedHost={selectedHost}
               onSelectHost={(host) => {
                 setSelectedHost(host);
-                setHostSearch(host.fullName);
               }}
-              onClearHost={() => setSelectedHost(null)}
-              hosts={hosts.data ?? []}
-              loading={hosts.isFetching}
-              errorText={hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
+              onClearHost={() => {
+                setSelectedHost(null);
+                setHostSearch('');
+              }}
+              hosts={hostSearchReady && !hostSearchSettling ? hosts.data ?? [] : []}
+              loading={!selectedHost && (hostSearchSettling || (hostSearchReady && hosts.isFetching))}
+              errorText={hostSearchReady && !hostSearchSettling && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
               onRetry={() => void hosts.refetch()}
               helperText="Search the employee directory so approvals stay connected to the right host."
             />

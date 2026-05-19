@@ -43,7 +43,6 @@ export function useVisitorHosts(query?: string, companyCode?: string) {
     queryKey: ['visitor', 'hosts', normalizedQuery, companyCode],
     queryFn: () => getVisitorHosts(normalizedQuery, companyCode),
     enabled: normalizedQuery.length >= 2 && Boolean((companyCode || '').trim()),
-    placeholderData: (previous) => previous,
   });
 }
 

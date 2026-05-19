@@ -45,11 +45,14 @@ export function EmployeeHostSelector({
       loading={loading}
       errorText={errorText}
       emptyText="No employees found"
+      emptyBody="Try a name, email, or department."
       selectedTitle={selectedHost?.fullName ?? null}
       selectedMeta={selectedHost ? [selectedHost.department, selectedHost.email, selectedHost.organizationName].filter(Boolean).join(' · ') : null}
       selectedAvatarText={selectedHost ? initialsFor(selectedHost.fullName) : null}
+      resultIconName="person-outline"
       onSelect={(host) => {
         onSelectHost(host);
+        onChangeText('');
       }}
       onRetry={onRetry}
       getKey={(host) => host.id}

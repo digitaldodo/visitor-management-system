@@ -27,20 +27,30 @@ export function OrganizationSelector({
   const organizations = usePublicOrganizations();
   const [query, setQuery] = useState(selectedName || selectedCode || '');
   const debouncedQuery = useDebouncedValue(query.trim(), 180);
+  const activeOrganizations = useMemo(() => (organizations.data ?? []).filter((item) => item.activeStatus !== false), [organizations.data]);
+  const selectedOrganization = useMemo(
+    () => activeOrganizations.find((organization) => organization.companyCode === selectedCode) ?? null,
+    [activeOrganizations, selectedCode],
+  );
+  const selectedDisplayName = selectedName || selectedOrganization?.companyName || (selectedCode ? 'Organization selected' : null);
+  const selectedDisplayMeta = [
+    selectedOrganization?.regionCountry,
+    selectedOrganization?.timezone,
+    selectedCode && selectedOrganization ? `Org code ${selectedCode}` : null,
+  ].filter(Boolean).join(' · ') || null;
 
   useEffect(() => {
-    if (selectedName || selectedCode) {
-      setQuery(selectedName || selectedCode || '');
+    if (selectedDisplayName) {
+      setQuery(selectedOrganization?.companyName || selectedName || '');
     }
-  }, [selectedCode, selectedName]);
+  }, [selectedDisplayName, selectedName, selectedOrganization?.companyName]);
 
   const results = useMemo(() => {
     const normalized = debouncedQuery.toLowerCase();
-    const all = (organizations.data ?? []).filter((item) => item.activeStatus !== false);
     if (!normalized) {
-      return all.slice(0, 8);
+      return activeOrganizations.slice(0, 8);
     }
-    return all
+    return activeOrganizations
       .filter((item) => [
         item.companyName,
         item.companyCode,
@@ -48,7 +58,7 @@ export function OrganizationSelector({
         item.timezone,
       ].filter(Boolean).join(' ').toLowerCase().includes(normalized))
       .slice(0, 8);
-  }, [debouncedQuery, organizations.data]);
+  }, [activeOrganizations, debouncedQuery]);
 
   return (
     <AutocompleteDropdown
@@ -67,8 +77,10 @@ export function OrganizationSelector({
       loading={organizations.isLoading || organizations.isFetching}
       errorText={organizations.isError ? errorMessage(organizations.error, 'Organizations could not be loaded.') : null}
       emptyText="No organizations found"
-      selectedTitle={selectedName || null}
-      selectedMeta={[selectedRegionLabel(organizations.data ?? [], selectedCode), selectedCode ? `Code ${selectedCode}` : null].filter(Boolean).join(' · ') || null}
+      emptyBody="Try a different organization or facility name."
+      selectedTitle={selectedDisplayName}
+      selectedMeta={selectedDisplayMeta}
+      resultIconName="business-outline"
       onSelect={(organization) => {
         setQuery(organization.companyName);
         onSelect(organization);
@@ -85,11 +97,6 @@ export function OrganizationSelector({
       } : undefined}
     />
   );
-}
-
-function selectedRegionLabel(organizations: OrganizationOption[], selectedCode?: string | null) {
-  const selected = organizations.find((organization) => organization.companyCode === selectedCode);
-  return [selected?.regionCountry, selected?.timezone].filter(Boolean).join(' · ') || null;
 }
 
 function errorMessage(error: unknown, fallback: string) {

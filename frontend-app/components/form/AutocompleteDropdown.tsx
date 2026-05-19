@@ -1,5 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
+import {
+  Keyboard,
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  UIManager,
+  View,
+} from 'react-native';
 
 import { theme } from '../../theme';
 import { AppTextField } from './AppTextField';
@@ -19,9 +29,11 @@ type AutocompleteDropdownProps<T> = {
   loading?: boolean;
   errorText?: string | null;
   emptyText?: string;
+  emptyBody?: string;
   selectedTitle?: string | null;
   selectedMeta?: string | null;
   selectedAvatarText?: string | null;
+  resultIconName?: keyof typeof Ionicons.glyphMap;
   onSelect: (item: T) => void;
   onRetry?: () => void;
   getKey: (item: T) => string;
@@ -43,9 +55,11 @@ export function AutocompleteDropdown<T>({
   loading,
   errorText,
   emptyText = 'No matches found.',
+  emptyBody = 'Try a different search.',
   selectedTitle,
   selectedMeta,
   selectedAvatarText,
+  resultIconName = 'search',
   onSelect,
   onRetry,
   getKey,
@@ -127,28 +141,35 @@ export function AutocompleteDropdown<T>({
               ) : null}
             </View>
           ) : results.length ? (
-            results.slice(0, 8).map((item) => (
-              <Pressable
-                key={getKey(item)}
-                accessibilityRole="button"
-                onPress={() => {
-                  animate();
-                  onSelect(item);
-                }}
-                android_ripple={{ color: theme.colors.primarySoft }}
-                style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
-              >
-                <View style={styles.resultIcon}>
-                  <Ionicons name="search" size={17} color={theme.colors.info} />
-                </View>
-                <View style={styles.resultCopy}>
-                  <Text maxFontSizeMultiplier={1.08} style={styles.resultTitle}>{getTitle(item)}</Text>
-                  {getMeta?.(item) ? <Text maxFontSizeMultiplier={1.08} style={styles.metaText}>{getMeta(item)}</Text> : null}
-                </View>
-              </Pressable>
-            ))
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              style={styles.resultsScroll}
+            >
+              {results.slice(0, 8).map((item) => (
+                <Pressable
+                  key={getKey(item)}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    animate();
+                    Keyboard.dismiss();
+                    onSelect(item);
+                  }}
+                  android_ripple={{ color: theme.colors.primarySoft }}
+                  style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
+                >
+                  <View style={styles.resultIcon}>
+                    <Ionicons name={resultIconName} size={17} color={theme.colors.info} />
+                  </View>
+                  <View style={styles.resultCopy}>
+                    <Text maxFontSizeMultiplier={1.08} style={styles.resultTitle}>{getTitle(item)}</Text>
+                    {getMeta?.(item) ? <Text maxFontSizeMultiplier={1.08} style={styles.metaText}>{getMeta(item)}</Text> : null}
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
           ) : (
-            <StateRow icon="file-tray-outline" title={emptyText} body="Try a name, email, code, or department." />
+            <StateRow icon="file-tray-outline" title={emptyText} body={emptyBody} />
           )}
         </View>
       ) : null}
@@ -237,6 +258,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
+  },
+  resultsScroll: {
+    maxHeight: 360,
   },
   resultRow: {
     minHeight: 60,
