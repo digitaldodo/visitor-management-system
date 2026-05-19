@@ -9,6 +9,31 @@ export type LoginPayload = {
   password: string;
   companyCode?: string;
   audience: WorkspaceAudience;
+  rememberMe?: boolean;
+};
+
+export type ForgotPasswordPayload = {
+  identifier: string;
+};
+
+export type VerifyPasswordResetOtpPayload = {
+  identifier: string;
+  otp: string;
+};
+
+export type ResetPasswordPayload = {
+  resetToken: string;
+  newPassword: string;
+};
+
+export type ForgotPasswordResponseDto = {
+  accepted: boolean;
+  expiresAt?: string | null;
+};
+
+export type VerifyPasswordResetOtpResponseDto = {
+  resetToken: string;
+  expiresAt?: string | null;
 };
 
 export type VisitorRegisterPayload = {

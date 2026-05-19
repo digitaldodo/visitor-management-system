@@ -1,10 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
+import { getBiometricReadiness, type BiometricReadiness } from '../../auth/biometricReadiness';
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
@@ -12,6 +14,7 @@ import { AppTextField } from '../../components/form/AppTextField';
 import { KeyboardAwareScreen } from '../../components/layout/KeyboardAwareScreen';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useRegisterVisitorAccountMutation } from '../../hooks/useVisitorWorkspace';
+import { requestPasswordReset, resetPassword, verifyPasswordResetOtp } from '../../services/authService';
 import { theme } from '../../theme';
 import type { LoginPayload, VisitorRegisterPayload, WorkspaceAudience } from '../../types/auth';
 
@@ -20,6 +23,7 @@ const loginSchema = z.object({
   password: z.string().min(8, 'Enter your password.'),
   companyCode: z.string().trim().optional(),
   audience: z.enum(['visitor', 'security', 'employee', 'admin']),
+  rememberMe: z.boolean(),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -38,21 +42,42 @@ const visitorRegisterSchema = z.object({
 });
 
 type VisitorRegisterFormValues = z.infer<typeof visitorRegisterSchema>;
+type AuthMode = 'login' | 'register' | 'recovery';
+type RecoveryStep = 'identify' | 'verify' | 'reset' | 'done';
 
-const audienceOptions: Array<{ value: WorkspaceAudience; label: string; description: string }> = [
-  { value: 'visitor', label: 'Visitor', description: 'Register, request access, view pass status' },
-  { value: 'security', label: 'Security', description: 'Checkpoint, scan, and live access operations' },
-  { value: 'employee', label: 'Employee', description: 'Badge, approvals, and presence workflows' },
-  { value: 'admin', label: 'Admin', description: 'Admin and super-admin operational access' },
+const audienceOptions: Array<{ value: WorkspaceAudience; label: string; description: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { value: 'visitor', label: 'Visitor', description: 'Pass status and visit requests', icon: 'ticket-outline' },
+  { value: 'security', label: 'Security', description: 'Checkpoint and scan operations', icon: 'shield-checkmark-outline' },
+  { value: 'employee', label: 'Employee', description: 'Badge, approvals, and presence', icon: 'card-outline' },
+  { value: 'admin', label: 'Admin', description: 'Admin and super-admin access', icon: 'settings-outline' },
 ];
+
+const registerStepFields: Array<Array<keyof VisitorRegisterFormValues>> = [
+  ['fullName', 'username', 'email', 'password'],
+  ['companyCode', 'companyName', 'hostEmployee', 'purposeOfVisit'],
+  ['phoneCountryCode', 'phone'],
+];
+
+const registerStepLabels = ['Identity', 'Organization', 'Contact'];
 
 export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const [submitError, setSubmitError] = useState<string | null>(lastError);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [registerStep, setRegisterStep] = useState(0);
   const [registerMessage, setRegisterMessage] = useState<string | null>(null);
+  const [recoveryStep, setRecoveryStep] = useState<RecoveryStep>('identify');
+  const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
+  const [recoveryOtp, setRecoveryOtp] = useState('');
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [biometricReadiness, setBiometricReadiness] = useState<BiometricReadiness | null>(null);
   const registerVisitorMutation = useRegisterVisitorAccountMutation();
 
   const {
@@ -68,6 +93,7 @@ export function LoginScreen() {
       password: '',
       companyCode: '',
       audience: 'visitor',
+      rememberMe: true,
     },
   });
 
@@ -76,6 +102,7 @@ export function LoginScreen() {
     handleSubmit: handleRegisterSubmit,
     formState: { errors: registerErrors },
     reset: resetRegister,
+    trigger: triggerRegister,
   } = useForm<VisitorRegisterFormValues>({
     resolver: zodResolver(visitorRegisterSchema),
     defaultValues: {
@@ -92,15 +119,36 @@ export function LoginScreen() {
     },
   });
 
+  useEffect(() => {
+    let active = true;
+    void getBiometricReadiness().then((readiness) => {
+      if (active) {
+        setBiometricReadiness(readiness);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const selectedAudience = watch('audience');
+  const rememberMe = watch('rememberMe');
+  const status = useMemo(() => buildAuthStatus(submitError, recoveryError, recoveryMessage, registerMessage), [
+    recoveryError,
+    recoveryMessage,
+    registerMessage,
+    submitError,
+  ]);
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
+    setRegisterMessage(null);
 
     try {
       await login(values as LoginPayload);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Sign in failed.');
+      setSubmitError(getErrorMessage(error, 'Sign in failed.'));
     }
   });
 
@@ -122,13 +170,107 @@ export function LoginScreen() {
         hostEmployee: '',
         purposeOfVisit: '',
       });
+      setRegisterStep(0);
       setAuthMode('login');
       setValue('audience', 'visitor', { shouldValidate: true });
-      setRegisterMessage('Visitor account created. Check your email to verify the account, then sign in.');
+      setRegisterMessage('Visitor account created. Verify your email, then sign in.');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Visitor registration failed.');
+      setSubmitError(getErrorMessage(error, 'Visitor registration failed.'));
     }
   });
+
+  const advanceRegisterStep = async () => {
+    const valid = await triggerRegister(registerStepFields[registerStep]);
+    if (valid) {
+      setRegisterStep((step) => Math.min(step + 1, registerStepLabels.length - 1));
+    }
+  };
+
+  const submitRecoveryIdentifier = async () => {
+    const identifier = recoveryIdentifier.trim();
+    if (identifier.length < 3) {
+      setRecoveryError('Enter the email or username for the account.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryError(null);
+    setRecoveryMessage(null);
+    try {
+      const response = await requestPasswordReset({ identifier });
+      setRecoveryStep('verify');
+      setRecoveryMessage(`If the account exists, a 6 digit code was sent. ${formatExpiry(response.expiresAt)}`);
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error, 'Password recovery could not be started.'));
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const submitRecoveryOtp = async () => {
+    const identifier = recoveryIdentifier.trim();
+    const otp = recoveryOtp.trim();
+    if (!/^\d{6}$/.test(otp)) {
+      setRecoveryError('Enter the 6 digit verification code.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryError(null);
+    setRecoveryMessage(null);
+    try {
+      const response = await verifyPasswordResetOtp({ identifier, otp });
+      setResetToken(response.resetToken);
+      setRecoveryStep('reset');
+      setRecoveryMessage(`Code verified. Choose a new password. ${formatExpiry(response.expiresAt)}`);
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error, 'The verification code was rejected or expired.'));
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const submitNewPassword = async () => {
+    if (!resetToken) {
+      setRecoveryError('Restart recovery to request a fresh verification code.');
+      setRecoveryStep('identify');
+      return;
+    }
+
+    if (newPassword.length < 12) {
+      setRecoveryError('Use at least 12 characters for the new password.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setRecoveryError('The passwords do not match.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryError(null);
+    setRecoveryMessage(null);
+    try {
+      await resetPassword({ resetToken, newPassword });
+      setRecoveryStep('done');
+      setRecoveryOtp('');
+      setResetToken(null);
+      setNewPassword('');
+      setConfirmPassword('');
+      setRecoveryMessage('Password updated. Sign in with the new password.');
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error, 'Password reset failed.'));
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const switchMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setSubmitError(null);
+    setRecoveryError(null);
+    setRecoveryMessage(null);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -145,225 +287,600 @@ export function LoginScreen() {
           },
         ]}
       >
-        <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null, { maxWidth: layout.isLargeTablet ? 1120 : 920 }]}>
-            <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
-              <View style={styles.brandPanel}>
-                <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
-                <Text style={styles.brandSubline}>AccessFlow Mobile</Text>
-              </View>
-              <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
-                Native access for visitors and operational teams
-              </Text>
-              <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
-                Sign in or register to request access, view passes, scan badges, approve visits, and operate your assigned workspace from Android phones and tablets.
-              </Text>
-              <View style={styles.proofRow}>
-                <Text style={styles.proofChip}>Visitor ready</Text>
-                <Text style={styles.proofChip}>Guard ready</Text>
-                <Text style={styles.proofChip}>Employee badge</Text>
+        <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null, { maxWidth: layout.isLargeTablet ? 1120 : 940 }]}>
+          <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
+            <View style={styles.brandPanel}>
+              <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+              <View style={styles.brandBadge}>
+                <Ionicons name="lock-closed-outline" size={15} color={theme.colors.info} />
+                <Text style={styles.brandSubline}>Secure mobile workspace</Text>
               </View>
             </View>
-
-            <SurfaceCard
-              title={authMode === 'login' ? 'Secure sign-in' : 'Visitor registration'}
-              subtitle={authMode === 'login' ? 'Choose your workspace, then authenticate against the live AccessFlow backend.' : 'Create a visitor account for access requests, pass status, QR badges, notifications, and history.'}
-            >
-              <View style={styles.modeRow}>
-                {(['login', 'register'] as const).map((mode) => {
-                  const selected = authMode === mode;
-                  return (
-                    <Pressable
-                      key={mode}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      onPress={() => {
-                        setAuthMode(mode);
-                        setSubmitError(null);
-                      }}
-                      style={[styles.modeButton, selected ? styles.modeButtonSelected : null]}
-                    >
-                      <Text style={[styles.modeButtonLabel, selected ? styles.modeButtonLabelSelected : null]}>
-                        {mode === 'login' ? 'Sign in' : 'Register visitor'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {authMode === 'login' ? (
-                <>
-                  <View style={styles.audienceRow}>
-                    {audienceOptions.map((option) => {
-                      const selected = selectedAudience === option.value;
-                      return (
-                        <Pressable
-                          key={option.value}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          onPress={() => setValue('audience', option.value, { shouldValidate: true })}
-                          style={[styles.audienceChip, selected ? styles.audienceChipSelected : null]}
-                        >
-                          <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{option.label}</Text>
-                          <Text style={[styles.audienceDescription, selected ? styles.audienceDescriptionSelected : null]}>
-                            {option.description}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <Controller
-                    control={control}
-                    name="identifier"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="email-address"
-                        label="Username or email"
-                        onChangeText={onChange}
-                        value={value}
-                        errorText={errors.identifier?.message}
-                        returnKeyType="next"
-                      />
-                    )}
-                  />
-
-                  <Controller
-                    control={control}
-                    name="companyCode"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField
-                        autoCapitalize="characters"
-                        autoCorrect={false}
-                        label="Organization code"
-                        helperText={selectedAudience === 'visitor' ? 'Optional for visitor accounts unless your organization requires it.' : 'Required for organization-scoped security, employee, and most admin accounts.'}
-                        onChangeText={onChange}
-                        value={value}
-                        errorText={errors.companyCode?.message}
-                        returnKeyType="next"
-                      />
-                    )}
-                  />
-
-                  <Controller
-                    control={control}
-                    name="password"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        label="Password"
-                        onChangeText={onChange}
-                        secureTextEntry
-                        value={value}
-                        errorText={errors.password?.message}
-                        returnKeyType="go"
-                        onSubmitEditing={() => void onSubmit()}
-                      />
-                    )}
-                  />
-                </>
-              ) : (
-                <>
-                  <Controller
-                    control={registerControl}
-                    name="fullName"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Full name" value={value} onChangeText={onChange} placeholder="Your full name" errorText={registerErrors.fullName?.message} returnKeyType="next" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="username"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Username" value={value} onChangeText={onChange} placeholder="visitor_name" autoCapitalize="none" autoCorrect={false} errorText={registerErrors.username?.message} returnKeyType="next" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="email"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Email" value={value} onChangeText={onChange} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} errorText={registerErrors.email?.message} returnKeyType="next" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="password"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Password" value={value} onChangeText={onChange} placeholder="12+ characters" secureTextEntry autoCapitalize="none" errorText={registerErrors.password?.message} returnKeyType="next" />
-                    )}
-                  />
-                  <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
-                    <Controller
-                      control={registerControl}
-                      name="phoneCountryCode"
-                      render={({ field: { onChange, value } }) => (
-                        <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
-                          <AppTextField label="Code" value={value} onChangeText={onChange} placeholder="+1" keyboardType="phone-pad" />
-                        </View>
-                      )}
-                    />
-                    <Controller
-                      control={registerControl}
-                      name="phone"
-                      render={({ field: { onChange, value } }) => (
-                        <View style={styles.inlineFieldWide}>
-                          <AppTextField label="Phone" value={value} onChangeText={onChange} placeholder="555 0100" keyboardType="phone-pad" />
-                        </View>
-                      )}
-                    />
-                  </View>
-                  <Controller
-                    control={registerControl}
-                    name="companyCode"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Organization code" value={value} onChangeText={onChange} placeholder="Optional" autoCapitalize="characters" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="companyName"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Organization name" value={value} onChangeText={onChange} placeholder="Company or facility" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="hostEmployee"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Host" value={value} onChangeText={onChange} placeholder="Host name, if known" />
-                    )}
-                  />
-                  <Controller
-                    control={registerControl}
-                    name="purposeOfVisit"
-                    render={({ field: { onChange, value } }) => (
-                      <AppTextField label="Purpose" value={value} onChangeText={onChange} placeholder="Meeting, interview, service visit" onSubmitEditing={() => void onRegister()} returnKeyType="done" />
-                    )}
-                  />
-                </>
-              )}
-
-              {registerMessage ? <Text style={styles.successText}>{registerMessage}</Text> : null}
-              {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
-
-              <PrimaryButton
-                label={authMode === 'login' ? 'Continue to workspace' : 'Create visitor account'}
-                onPress={() => void (authMode === 'login' ? onSubmit() : onRegister())}
-                loading={authMode === 'login' ? isBusy : registerVisitorMutation.isPending}
-              />
-            </SurfaceCard>
+            <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
+              Trusted access for every role
+            </Text>
+            <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
+              Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.
+            </Text>
+            <View style={styles.proofRow}>
+              <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : 'Biometric-ready'} />
+              <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
+              <TrustChip icon="business-outline" label="Enterprise roles" />
+            </View>
           </View>
+
+          <SurfaceCard title={titleForMode(authMode, recoveryStep)} subtitle={subtitleForMode(authMode, recoveryStep)}>
+            <View style={styles.modeRow}>
+              {(['login', 'register', 'recovery'] as const).map((mode) => (
+                <ModeButton
+                  key={mode}
+                  label={mode === 'login' ? 'Sign in' : mode === 'register' ? 'Visitor' : 'Recover'}
+                  icon={mode === 'login' ? 'log-in-outline' : mode === 'register' ? 'person-add-outline' : 'key-outline'}
+                  selected={authMode === mode}
+                  onPress={() => switchMode(mode)}
+                />
+              ))}
+            </View>
+
+            {status ? <StatusPanel status={status} /> : null}
+
+            {authMode === 'login' ? (
+              <>
+                <View style={styles.audienceGrid}>
+                  {audienceOptions.map((option) => {
+                    const selected = selectedAudience === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        onPress={() => setValue('audience', option.value, { shouldValidate: true })}
+                        android_ripple={{ color: theme.colors.primarySoft }}
+                        style={({ pressed }) => [
+                          styles.audienceChip,
+                          selected ? styles.audienceChipSelected : null,
+                          pressed ? styles.pressed : null,
+                        ]}
+                      >
+                        <View style={styles.audienceHeader}>
+                          <Ionicons name={option.icon} size={20} color={selected ? theme.colors.info : theme.colors.textSecondary} />
+                          <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{option.label}</Text>
+                        </View>
+                        <Text style={styles.audienceDescription}>{option.description}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Controller
+                  control={control}
+                  name="identifier"
+                  render={({ field: { onChange, value } }) => (
+                    <AppTextField
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="username"
+                      textContentType="username"
+                      keyboardType="email-address"
+                      label="Username or email"
+                      onChangeText={onChange}
+                      value={value}
+                      errorText={errors.identifier?.message}
+                      returnKeyType="next"
+                    />
+                  )}
+                />
+
+                <Controller
+                  control={control}
+                  name="companyCode"
+                  render={({ field: { onChange, value } }) => (
+                    <AppTextField
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      label="Organization code"
+                      helperText={selectedAudience === 'visitor' ? 'Optional for most visitor accounts.' : 'Required for organization-scoped workspaces.'}
+                      onChangeText={onChange}
+                      value={value}
+                      errorText={errors.companyCode?.message}
+                      returnKeyType="next"
+                    />
+                  )}
+                />
+
+                <Controller
+                  control={control}
+                  name="password"
+                  render={({ field: { onChange, value } }) => (
+                    <AppTextField
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="current-password"
+                      textContentType="password"
+                      label="Password"
+                      onChangeText={onChange}
+                      secureTextEntry
+                      value={value}
+                      errorText={errors.password?.message}
+                      returnKeyType="go"
+                      onSubmitEditing={() => void onSubmit()}
+                    />
+                  )}
+                />
+
+                <View style={[styles.authOptionsRow, layout.fieldStacked ? styles.authOptionsStacked : null]}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: rememberMe }}
+                    onPress={() => setValue('rememberMe', !rememberMe, { shouldDirty: true })}
+                    style={styles.rememberRow}
+                    hitSlop={8}
+                  >
+                    <View style={[styles.checkbox, rememberMe ? styles.checkboxSelected : null]}>
+                      {rememberMe ? <Ionicons name="checkmark" size={16} color={theme.colors.textInverse} /> : null}
+                    </View>
+                    <View style={styles.rememberCopy}>
+                      <Text style={styles.rememberLabel}>Remember this device</Text>
+                      <Text style={styles.rememberHelp}>Stores only tokens in secure device storage.</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => switchMode('recovery')} hitSlop={8} style={styles.linkButton}>
+                    <Text style={styles.linkText}>Forgot Password?</Text>
+                  </Pressable>
+                </View>
+
+                <PrimaryButton
+                  label="Continue securely"
+                  onPress={() => void onSubmit()}
+                  loading={isBusy}
+                />
+              </>
+            ) : authMode === 'register' ? (
+              <>
+                <ProgressHeader step={registerStep} />
+                {registerStep === 0 ? (
+                  <>
+                    <Controller
+                      control={registerControl}
+                      name="fullName"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Full name" value={value} onChangeText={onChange} placeholder="Your full name" errorText={registerErrors.fullName?.message} returnKeyType="next" textContentType="name" />
+                      )}
+                    />
+                    <Controller
+                      control={registerControl}
+                      name="username"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Username" value={value} onChangeText={onChange} placeholder="visitor_name" autoCapitalize="none" autoCorrect={false} autoComplete="username-new" errorText={registerErrors.username?.message} returnKeyType="next" />
+                      )}
+                    />
+                    <Controller
+                      control={registerControl}
+                      name="email"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Email" value={value} onChangeText={onChange} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" errorText={registerErrors.email?.message} returnKeyType="next" />
+                      )}
+                    />
+                    <Controller
+                      control={registerControl}
+                      name="password"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Password" value={value} onChangeText={onChange} placeholder="12+ characters" secureTextEntry autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" errorText={registerErrors.password?.message} returnKeyType="next" />
+                      )}
+                    />
+                  </>
+                ) : registerStep === 1 ? (
+                  <>
+                    <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+                      <View style={styles.inlineFieldWide}>
+                        <Controller
+                          control={registerControl}
+                          name="companyCode"
+                          render={({ field: { onChange, value } }) => (
+                            <AppTextField label="Organization code" value={value} onChangeText={onChange} placeholder="Optional" autoCapitalize="characters" />
+                          )}
+                        />
+                      </View>
+                      <View style={styles.inlineFieldWide}>
+                        <Controller
+                          control={registerControl}
+                          name="companyName"
+                          render={({ field: { onChange, value } }) => (
+                            <AppTextField label="Organization name" value={value} onChangeText={onChange} placeholder="Company or facility" />
+                          )}
+                        />
+                      </View>
+                    </View>
+                    <Controller
+                      control={registerControl}
+                      name="hostEmployee"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Host" value={value} onChangeText={onChange} placeholder="Host name, if known" />
+                      )}
+                    />
+                    <Controller
+                      control={registerControl}
+                      name="purposeOfVisit"
+                      render={({ field: { onChange, value } }) => (
+                        <AppTextField label="Purpose" value={value} onChangeText={onChange} placeholder="Meeting, interview, service visit" returnKeyType="next" />
+                      )}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+                      <Controller
+                        control={registerControl}
+                        name="phoneCountryCode"
+                        render={({ field: { onChange, value } }) => (
+                          <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
+                            <AppTextField label="Code" value={value} onChangeText={onChange} placeholder="+1" keyboardType="phone-pad" />
+                          </View>
+                        )}
+                      />
+                      <Controller
+                        control={registerControl}
+                        name="phone"
+                        render={({ field: { onChange, value } }) => (
+                          <View style={styles.inlineFieldWide}>
+                            <AppTextField label="Phone" value={value} onChangeText={onChange} placeholder="555 0100" keyboardType="phone-pad" returnKeyType="done" onSubmitEditing={() => void onRegister()} />
+                          </View>
+                        )}
+                      />
+                    </View>
+                    <View style={styles.onboardingNote}>
+                      <Ionicons name="mail-unread-outline" size={20} color={theme.colors.info} />
+                      <Text style={styles.onboardingText}>After registration, AccessFlow sends a verification email before the visitor workspace is activated.</Text>
+                    </View>
+                  </>
+                )}
+                <View style={styles.navigationRow}>
+                  <PrimaryButton
+                    label="Back"
+                    tone="secondary"
+                    disabled={registerStep === 0 || registerVisitorMutation.isPending}
+                    onPress={() => setRegisterStep((step) => Math.max(step - 1, 0))}
+                  />
+                  <View style={styles.navigationPrimary}>
+                    {registerStep < registerStepLabels.length - 1 ? (
+                      <PrimaryButton label="Next" onPress={() => void advanceRegisterStep()} />
+                    ) : (
+                      <PrimaryButton label="Create visitor account" onPress={() => void onRegister()} loading={registerVisitorMutation.isPending} />
+                    )}
+                  </View>
+                </View>
+              </>
+            ) : (
+              <RecoveryFlow
+                step={recoveryStep}
+                identifier={recoveryIdentifier}
+                otp={recoveryOtp}
+                newPassword={newPassword}
+                confirmPassword={confirmPassword}
+                loading={recoveryLoading}
+                onIdentifierChange={setRecoveryIdentifier}
+                onOtpChange={setRecoveryOtp}
+                onNewPasswordChange={setNewPassword}
+                onConfirmPasswordChange={setConfirmPassword}
+                onIdentify={() => void submitRecoveryIdentifier()}
+                onVerify={() => void submitRecoveryOtp()}
+                onReset={() => void submitNewPassword()}
+                onRestart={() => {
+                  setRecoveryStep('identify');
+                  setRecoveryOtp('');
+                  setResetToken(null);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setRecoveryError(null);
+                  setRecoveryMessage(null);
+                }}
+                onReturnToLogin={() => switchMode('login')}
+              />
+            )}
+          </SurfaceCard>
+        </View>
       </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
 
+function TrustChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+  return (
+    <View style={styles.trustChip}>
+      <Ionicons name={icon} size={16} color={theme.colors.info} />
+      <Text style={styles.trustChipText}>{label}</Text>
+    </View>
+  );
+}
+
+function ModeButton({
+  icon,
+  label,
+  selected,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.modeButton, selected ? styles.modeButtonSelected : null, pressed ? styles.pressed : null]}
+    >
+      <Ionicons name={icon} size={18} color={selected ? theme.colors.info : theme.colors.textSecondary} />
+      <Text style={[styles.modeButtonLabel, selected ? styles.modeButtonLabelSelected : null]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function ProgressHeader({ step }: { step: number }) {
+  return (
+    <View style={styles.progressBlock}>
+      <View style={styles.progressTrack}>
+        {registerStepLabels.map((label, index) => {
+          const active = index <= step;
+          return (
+            <View key={label} style={styles.progressItem}>
+              <View style={[styles.progressDot, active ? styles.progressDotActive : null]}>
+                <Text style={[styles.progressNumber, active ? styles.progressNumberActive : null]}>{index + 1}</Text>
+              </View>
+              <Text style={[styles.progressLabel, active ? styles.progressLabelActive : null]}>{label}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${((step + 1) / registerStepLabels.length) * 100}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+function RecoveryFlow({
+  step,
+  identifier,
+  otp,
+  newPassword,
+  confirmPassword,
+  loading,
+  onIdentifierChange,
+  onOtpChange,
+  onNewPasswordChange,
+  onConfirmPasswordChange,
+  onIdentify,
+  onVerify,
+  onReset,
+  onRestart,
+  onReturnToLogin,
+}: {
+  step: RecoveryStep;
+  identifier: string;
+  otp: string;
+  newPassword: string;
+  confirmPassword: string;
+  loading: boolean;
+  onIdentifierChange: (value: string) => void;
+  onOtpChange: (value: string) => void;
+  onNewPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
+  onIdentify: () => void;
+  onVerify: () => void;
+  onReset: () => void;
+  onRestart: () => void;
+  onReturnToLogin: () => void;
+}) {
+  if (step === 'done') {
+    return (
+      <>
+        <View style={styles.recoveryDone}>
+          <Ionicons name="checkmark-circle-outline" size={42} color={theme.colors.success} />
+          <Text style={styles.recoveryDoneTitle}>Account access restored</Text>
+          <Text style={styles.recoveryDoneBody}>All refresh sessions were revoked by the backend. Sign in again with the new password.</Text>
+        </View>
+        <PrimaryButton label="Return to sign in" onPress={onReturnToLogin} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.recoverySteps}>
+        <RecoveryStepItem active={step === 'identify'} complete={step !== 'identify'} label="Email" />
+        <RecoveryStepItem active={step === 'verify'} complete={step === 'reset'} label="Code" />
+        <RecoveryStepItem active={step === 'reset'} complete={false} label="Password" />
+      </View>
+
+      {step === 'identify' ? (
+        <>
+          <AppTextField
+            label="Email or username"
+            value={identifier}
+            onChangeText={onIdentifierChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            autoComplete="username"
+            returnKeyType="send"
+            onSubmitEditing={onIdentify}
+          />
+          <PrimaryButton label="Send verification code" onPress={onIdentify} loading={loading} />
+        </>
+      ) : step === 'verify' ? (
+        <>
+          <AppTextField
+            label="6 digit code"
+            value={otp}
+            onChangeText={(value) => onOtpChange(value.replace(/[^\d]/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            placeholder="000000"
+            maxLength={6}
+            returnKeyType="done"
+            onSubmitEditing={onVerify}
+          />
+          <View style={styles.navigationRow}>
+            <PrimaryButton label="Resend" tone="secondary" onPress={onIdentify} disabled={loading} />
+            <View style={styles.navigationPrimary}>
+              <PrimaryButton label="Verify code" onPress={onVerify} loading={loading} />
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
+          <AppTextField
+            label="New password"
+            value={newPassword}
+            onChangeText={onNewPasswordChange}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            helperText="Use 12 or more characters. Existing sessions will be revoked."
+            returnKeyType="next"
+          />
+          <AppTextField
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={onConfirmPasswordChange}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            returnKeyType="done"
+            onSubmitEditing={onReset}
+          />
+          <PrimaryButton label="Update password" onPress={onReset} loading={loading} />
+        </>
+      )}
+
+      <Pressable accessibilityRole="button" onPress={onRestart} hitSlop={8} style={styles.secondaryLink}>
+        <Text style={styles.secondaryLinkText}>Restart recovery</Text>
+      </Pressable>
+    </>
+  );
+}
+
+function RecoveryStepItem({ active, complete, label }: { active: boolean; complete: boolean; label: string }) {
+  return (
+    <View style={[styles.recoveryStepItem, active ? styles.recoveryStepItemActive : null]}>
+      <Ionicons
+        name={complete ? 'checkmark-circle' : active ? 'radio-button-on' : 'ellipse-outline'}
+        size={16}
+        color={complete ? theme.colors.success : active ? theme.colors.info : theme.colors.textMuted}
+      />
+      <Text style={[styles.recoveryStepLabel, active ? styles.recoveryStepLabelActive : null]}>{label}</Text>
+    </View>
+  );
+}
+
+function StatusPanel({ status }: { status: { tone: 'danger' | 'success' | 'warning' | 'info'; title: string; body: string } }) {
+  const toneStyles = {
+    danger: { icon: 'alert-circle-outline' as const, color: theme.colors.danger, backgroundColor: theme.colors.dangerSoft },
+    success: { icon: 'checkmark-circle-outline' as const, color: theme.colors.success, backgroundColor: theme.colors.successSoft },
+    warning: { icon: 'warning-outline' as const, color: theme.colors.warning, backgroundColor: theme.colors.warningSoft },
+    info: { icon: 'information-circle-outline' as const, color: theme.colors.info, backgroundColor: theme.colors.infoSoft },
+  }[status.tone];
+
+  return (
+    <View style={[styles.statusPanel, { backgroundColor: toneStyles.backgroundColor }]}>
+      <Ionicons name={toneStyles.icon} size={22} color={toneStyles.color} />
+      <View style={styles.statusCopy}>
+        <Text style={styles.statusTitle}>{status.title}</Text>
+        <Text style={styles.statusBody}>{status.body}</Text>
+      </View>
+    </View>
+  );
+}
+
+function buildAuthStatus(
+  submitError: string | null,
+  recoveryError: string | null,
+  recoveryMessage: string | null,
+  registerMessage: string | null,
+) {
+  if (recoveryError) {
+    return classifyError(recoveryError);
+  }
+  if (submitError) {
+    return classifyError(submitError);
+  }
+  if (recoveryMessage) {
+    return { tone: 'info' as const, title: 'Recovery in progress', body: recoveryMessage };
+  }
+  if (registerMessage) {
+    return { tone: 'success' as const, title: 'Visitor onboarding started', body: registerMessage };
+  }
+  return null;
+}
+
+function classifyError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('locked')) {
+    return { tone: 'warning' as const, title: 'Account locked', body: `${message} Contact an administrator or use recovery when available.` };
+  }
+  if (normalized.includes('expired') || normalized.includes('revoked') || normalized.includes('invalid session')) {
+    return { tone: 'warning' as const, title: 'Session expired', body: message };
+  }
+  if (normalized.includes('network') || normalized.includes('could not reach') || normalized.includes('timeout')) {
+    return { tone: 'warning' as const, title: 'Connection issue', body: `${message} Check connectivity, then retry.` };
+  }
+  if (normalized.includes('server') || normalized.includes('backend') || normalized.includes('503') || normalized.includes('502')) {
+    return { tone: 'danger' as const, title: 'Service unavailable', body: `${message} Retry once the backend is reachable.` };
+  }
+  if (normalized.includes('credential') || normalized.includes('password') || normalized.includes('unauthorized') || normalized.includes('invalid')) {
+    return { tone: 'danger' as const, title: 'Sign in was not accepted', body: `${message} You can retry or recover the account.` };
+  }
+  return { tone: 'danger' as const, title: 'Action failed', body: message };
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function titleForMode(mode: AuthMode, recoveryStep: RecoveryStep) {
+  if (mode === 'register') {
+    return 'Visitor onboarding';
+  }
+  if (mode === 'recovery') {
+    return recoveryStep === 'done' ? 'Recovery complete' : 'Secure account recovery';
+  }
+  return 'Secure sign-in';
+}
+
+function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep) {
+  if (mode === 'register') {
+    return 'Create a verified visitor account with clear steps and less mobile form friction.';
+  }
+  if (mode === 'recovery') {
+    return recoveryStep === 'done'
+      ? 'Your password has been reset and previous sessions were cleared.'
+      : 'Verify your email code, then set a new password without exposing saved credentials.';
+  }
+  return 'Choose your workspace, authenticate, and optionally restore this session on future launches.';
+}
+
+function formatExpiry(expiresAt?: string | null) {
+  if (!expiresAt) {
+    return '';
+  }
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return `Code expires at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+}
+
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.canvas,
@@ -375,7 +892,6 @@ const styles = StyleSheet.create({
   },
   frame: {
     width: '100%',
-    maxWidth: 1080,
     alignSelf: 'center',
     gap: theme.spacing.xl,
   },
@@ -404,29 +920,27 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     alignSelf: 'flex-start',
   },
-  eyebrow: {
-    color: theme.colors.primary,
-    fontSize: theme.typography.caption.fontSize,
-    fontWeight: theme.typography.caption.fontWeight,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  brandSubline: {
+  brandBadge: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
-    color: theme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '800',
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 7,
+  },
+  brandSubline: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 28,
+    fontSize: 29,
     fontWeight: '800',
   },
   titleCompact: {
@@ -442,16 +956,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
-  proofChip: {
+  trustChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 8,
+  },
+  trustChipText: {
     color: theme.colors.textPrimary,
     fontSize: 12,
     fontWeight: '800',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 7,
   },
   modeRow: {
     flexDirection: 'row',
@@ -459,14 +978,15 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
+    gap: 4,
+    paddingHorizontal: theme.spacing.sm,
   },
   modeButtonSelected: {
     borderColor: theme.colors.primaryLine,
@@ -474,19 +994,26 @@ const styles = StyleSheet.create({
   },
   modeButtonLabel: {
     color: theme.colors.textSecondary,
-    fontSize: theme.typography.bodyStrong.fontSize,
-    fontWeight: theme.typography.bodyStrong.fontWeight,
+    fontSize: 13,
+    fontWeight: '800',
     textAlign: 'center',
   },
   modeButtonLabelSelected: {
     color: theme.colors.textPrimary,
   },
-  audienceRow: {
+  pressed: {
+    opacity: 0.82,
+  },
+  audienceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
   audienceChip: {
-    minHeight: 58,
-    gap: 4,
+    flexGrow: 1,
+    flexBasis: '46%',
+    minHeight: 76,
+    gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -496,6 +1023,11 @@ const styles = StyleSheet.create({
   audienceChipSelected: {
     borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
+  },
+  audienceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   audienceLabel: {
     color: theme.colors.textPrimary,
@@ -510,17 +1042,146 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  audienceDescriptionSelected: {
+  authOptionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  authOptionsStacked: {
+    alignItems: 'stretch',
+    flexDirection: 'column',
+  },
+  rememberRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    minHeight: 52,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.input,
+  },
+  checkboxSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  rememberCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  rememberLabel: {
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  rememberHelp: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  linkButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  linkText: {
+    color: theme.colors.info,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  secondaryLink: {
+    alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  secondaryLinkText: {
     color: theme.colors.textSecondary,
-  },
-  errorText: {
-    color: theme.colors.danger,
     fontSize: 14,
+    fontWeight: '800',
   },
-  successText: {
-    color: theme.colors.success,
-    fontSize: 14,
-    lineHeight: 20,
+  statusPanel: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  statusCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  statusTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  statusBody: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  progressBlock: {
+    gap: theme.spacing.sm,
+  },
+  progressTrack: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  progressItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  progressDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  progressDotActive: {
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+  },
+  progressNumber: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressNumberActive: {
+    color: theme.colors.textPrimary,
+  },
+  progressLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressLabelActive: {
+    color: theme.colors.textPrimary,
+  },
+  progressBar: {
+    height: 4,
+    overflow: 'hidden',
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
   },
   inlineFields: {
     flexDirection: 'row',
@@ -537,5 +1198,74 @@ const styles = StyleSheet.create({
   },
   inlineFieldWide: {
     flex: 1,
+  },
+  onboardingNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    padding: theme.spacing.md,
+  },
+  onboardingText: {
+    flex: 1,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  navigationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  navigationPrimary: {
+    flex: 1,
+  },
+  recoverySteps: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  recoveryStepItem: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+  },
+  recoveryStepItemActive: {
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+  },
+  recoveryStepLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  recoveryStepLabelActive: {
+    color: theme.colors.textPrimary,
+  },
+  recoveryDone: {
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+  },
+  recoveryDoneTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+    textAlign: 'center',
+  },
+  recoveryDoneBody: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });

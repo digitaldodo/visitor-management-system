@@ -9,16 +9,17 @@ import { theme } from '../../theme';
 export function SessionRecoveryScreen() {
   const { recovery, retryBootstrap, logout, isBusy, session } = useAuth();
   const layout = useResponsiveLayout();
+  const copy = recoveryCopy(recovery?.reason, recovery?.message);
 
   return (
     <View style={styles.container}>
       <View style={[styles.frame, { maxWidth: layout.isTablet ? 720 : 480 }]}>
         <SurfaceCard
-          title="Session recovery required"
-          subtitle="The app avoided restoring a stale or incomplete session state. Use the safe recovery options below."
+          title={copy.title}
+          subtitle={copy.subtitle}
         >
           <View style={styles.messageBlock}>
-            <Text style={styles.message}>{recovery?.message || 'The secure runtime could not finish bootstrapping.'}</Text>
+            <Text style={styles.message}>{copy.message}</Text>
             {session?.user.fullName ? (
               <Text style={styles.context}>Last operator: {session.user.fullName}</Text>
             ) : null}
@@ -27,17 +28,64 @@ export function SessionRecoveryScreen() {
             ) : null}
           </View>
           <View style={styles.actions}>
-            <PrimaryButton label="Retry recovery" onPress={() => void retryBootstrap()} loading={isBusy} />
+            <PrimaryButton label={copy.primaryAction} onPress={() => void retryBootstrap()} loading={isBusy} />
             <PrimaryButton label="Sign out safely" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
           </View>
         </SurfaceCard>
         <View style={styles.helpBlock}>
-          <Text style={styles.helpTitle}>What this protects against</Text>
-          <Text style={styles.helpBody}>Stale tokens, broken refresh loops, runtime upgrades, and partially written session data are isolated here instead of freezing the workspace.</Text>
+          <Text style={styles.helpTitle}>{copy.helpTitle}</Text>
+          <Text style={styles.helpBody}>{copy.helpBody}</Text>
         </View>
       </View>
     </View>
   );
+}
+
+function recoveryCopy(reason?: string, message?: string | null) {
+  const normalizedReason = String(reason || '').toLowerCase();
+  const fallbackMessage = message || 'The secure runtime could not finish bootstrapping.';
+
+  if (normalizedReason.includes('network')) {
+    return {
+      title: 'Connection recovery',
+      subtitle: 'AccessFlow preserved the saved session, but the backend could not be reached.',
+      message: fallbackMessage,
+      primaryAction: 'Retry connection',
+      helpTitle: 'What to check',
+      helpBody: 'Confirm the device network or VPN, then retry. Signing out clears the remembered session from secure storage.',
+    };
+  }
+
+  if (normalizedReason.includes('version')) {
+    return {
+      title: 'App update required',
+      subtitle: 'This build is no longer compatible with the backend runtime policy.',
+      message: fallbackMessage,
+      primaryAction: 'Check again',
+      helpTitle: 'Why this appears',
+      helpBody: 'Version recovery prevents a mismatched app and backend from entering a broken authenticated state.',
+    };
+  }
+
+  if (normalizedReason.includes('config')) {
+    return {
+      title: 'Configuration required',
+      subtitle: 'The mobile runtime is missing a valid backend URL.',
+      message: fallbackMessage,
+      primaryAction: 'Retry configuration',
+      helpTitle: 'Deployment note',
+      helpBody: 'Set the Expo API base URL for this build profile, then restart the app.',
+    };
+  }
+
+  return {
+    title: 'Session recovery required',
+    subtitle: 'The app avoided restoring a stale or incomplete session state. Use the safe recovery options below.',
+    message: fallbackMessage,
+    primaryAction: 'Retry recovery',
+    helpTitle: 'What this protects against',
+    helpBody: 'Stale tokens, broken refresh loops, runtime upgrades, and partially written session data are isolated here instead of freezing the workspace.',
+  };
 }
 
 const styles = StyleSheet.create({

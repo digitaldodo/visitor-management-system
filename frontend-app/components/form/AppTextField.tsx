@@ -13,7 +13,7 @@ type Props = TextInputProps & {
 };
 
 export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
-  { label, helperText, errorText, style, onFocus, secureTextEntry, ...props },
+  { label, helperText, errorText, style, onFocus, onBlur, secureTextEntry, ...props },
   ref,
 ) {
   const hasError = Boolean(errorText);
@@ -21,6 +21,7 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
   const inputRef = useRef<TextInput>(null);
   const { scrollToInput } = useKeyboardAwareScroll();
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
   const isPasswordField = Boolean(secureTextEntry);
 
   useImperativeHandle(ref, () => inputRef.current as TextInput);
@@ -32,6 +33,7 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
         style={[
           styles.inputFrame,
           { minHeight: layout.touchTarget },
+          focused ? styles.inputFocused : null,
           hasError ? styles.inputError : null,
           props.multiline ? styles.multiline : null,
           style,
@@ -43,12 +45,17 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
           selectionColor={theme.colors.primary}
           maxFontSizeMultiplier={1.12}
           secureTextEntry={isPasswordField && !passwordVisible}
-          textContentType={isPasswordField ? 'password' : props.textContentType}
-          autoComplete={isPasswordField ? 'password' : props.autoComplete}
+          textContentType={props.textContentType ?? (isPasswordField ? 'password' : undefined)}
+          autoComplete={props.autoComplete ?? (isPasswordField ? 'password' : undefined)}
           style={[styles.input, props.multiline ? styles.multilineInput : null, isPasswordField ? styles.passwordInput : null]}
           onFocus={(event) => {
+            setFocused(true);
             onFocus?.(event);
             scrollToInput(inputRef.current);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
           }}
           {...props}
         />
@@ -67,6 +74,11 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
               color={theme.colors.textSecondary}
             />
           </Pressable>
+        ) : null}
+        {hasError && !isPasswordField ? (
+          <View style={styles.errorIcon}>
+            <Ionicons name="alert-circle-outline" size={20} color={theme.colors.danger} />
+          </View>
         ) : null}
       </View>
       {errorText ? <Text maxFontSizeMultiplier={1.1} style={styles.errorText}>{errorText}</Text> : helperText ? <Text maxFontSizeMultiplier={1.1} style={styles.helperText}>{helperText}</Text> : null}
@@ -93,6 +105,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.input,
     overflow: 'hidden',
+  },
+  inputFocused: {
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.surfaceSubtle,
   },
   input: {
     flex: 1,
@@ -123,6 +139,11 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: theme.colors.danger,
+  },
+  errorIcon: {
+    width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   helperText: {
     color: theme.colors.textSecondary,

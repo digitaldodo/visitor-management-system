@@ -1,6 +1,15 @@
 import { publicRequest } from '../api/apiClient';
 import { resolveActiveRole } from '../auth/roleResolver';
-import type { AuthResponseDto, AuthSession, LoginPayload } from '../types/auth';
+import type {
+  AuthResponseDto,
+  AuthSession,
+  ForgotPasswordPayload,
+  ForgotPasswordResponseDto,
+  LoginPayload,
+  ResetPasswordPayload,
+  VerifyPasswordResetOtpPayload,
+  VerifyPasswordResetOtpResponseDto,
+} from '../types/auth';
 import type { UserProfile } from '../types/domain';
 
 function sanitizeRoles(roles: string[] | undefined) {
@@ -53,6 +62,38 @@ export async function login(payload: LoginPayload) {
 
   const profile = await fetchCurrentUser(auth.accessToken, auth.tokenType);
   return mapSession(auth, profile, payload.audience);
+}
+
+export async function requestPasswordReset(payload: ForgotPasswordPayload) {
+  return publicRequest<ForgotPasswordResponseDto>({
+    url: '/auth/forgot-password',
+    method: 'POST',
+    data: {
+      identifier: payload.identifier.trim(),
+    },
+  });
+}
+
+export async function verifyPasswordResetOtp(payload: VerifyPasswordResetOtpPayload) {
+  return publicRequest<VerifyPasswordResetOtpResponseDto>({
+    url: '/auth/verify-otp',
+    method: 'POST',
+    data: {
+      identifier: payload.identifier.trim(),
+      otp: payload.otp.trim(),
+    },
+  });
+}
+
+export async function resetPassword(payload: ResetPasswordPayload) {
+  return publicRequest({
+    url: '/auth/reset-password',
+    method: 'POST',
+    data: {
+      resetToken: payload.resetToken,
+      newPassword: payload.newPassword,
+    },
+  });
 }
 
 export async function fetchCurrentUser(accessToken: string, tokenType = 'Bearer') {

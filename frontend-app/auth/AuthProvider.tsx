@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isBusy, setIsBusy] = useState(false);
   const isMountedRef = useRef(true);
   const sessionRef = useRef<AuthSession | null>(null);
+  const rememberSessionRef = useRef(false);
 
   const setStateSafely = useCallback((nextState: AuthBootstrapState) => {
     if (isMountedRef.current) {
@@ -51,9 +52,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persistAuthenticatedSession = useCallback(
-    async (session: AuthSession, versions?: VersionHandshakePayload | null) => {
+    async (
+      session: AuthSession,
+      versions?: VersionHandshakePayload | null,
+      options?: { rememberSession?: boolean },
+    ) => {
+      const shouldPersist = options?.rememberSession ?? rememberSessionRef.current;
+      rememberSessionRef.current = shouldPersist;
       sessionRef.current = session;
-      await writePersistedSession(session);
+      if (shouldPersist) {
+        await writePersistedSession(session);
+      } else {
+        await clearPersistedSession();
+      }
       await writeRuntimeSnapshot({
         apiBaseUrl: apiConfig.apiBaseUrl,
         appVersion: apiConfig.appVersion,
@@ -83,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearSessionState = useCallback(
     async (reason?: string) => {
       sessionRef.current = null;
+      rememberSessionRef.current = false;
       await Promise.all([
         clearPersistedSession(),
         clearRuntimeSnapshot(),
@@ -173,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       sessionRef.current = persistedSession;
+      rememberSessionRef.current = true;
       const previousRuntime = await readRuntimeSnapshot();
       const versions = await withTimeout(getApiVersions(), 8_000, 'Version handshake timed out.');
       ensureVersionSupport(versions);
@@ -195,7 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'Session restore timed out.',
       );
 
-      await persistAuthenticatedSession(session, versions);
+      await persistAuthenticatedSession(session, versions, { rememberSession: true });
     } catch (error) {
       const normalizedError = normalizeApiError(error);
       if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
@@ -247,7 +260,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsBusy(true);
       try {
         const session = await loginRequest(payload);
-        await persistAuthenticatedSession(session);
+        await persistAuthenticatedSession(session, null, { rememberSession: Boolean(payload.rememberMe) });
         resetNavigationToRoleHome(session.user.activeRole);
       } catch (error) {
         const normalizedError = normalizeApiError(error);
