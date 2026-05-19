@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '../../theme';
 
@@ -6,6 +6,7 @@ export function BootScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.badge}>
+        <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
         <Text style={styles.badgeLabel}>AccessFlow</Text>
       </View>
       <Text style={styles.title}>Restoring your operational workspace</Text>
@@ -27,10 +28,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.canvas,
   },
   badge: {
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.primarySoft,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
   },
   badgeLabel: {
     color: theme.colors.primary,

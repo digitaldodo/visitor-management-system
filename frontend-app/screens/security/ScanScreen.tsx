@@ -427,7 +427,7 @@ export function ScanScreen() {
                 </View>
               ) : (
                 <>
-                  <View style={[styles.cameraFrame, layout.isTablet ? styles.cameraFrameTablet : null]}>
+                  <View style={[styles.cameraFrame, { height: layout.scannerHeight }]}>
                     <CameraView
                       ref={cameraRef}
                       style={styles.camera}
@@ -437,19 +437,27 @@ export function ScanScreen() {
                       barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                       onBarcodeScanned={cameraActive ? ({ data }) => onScannedPayload(data) : undefined}
                     />
+                    <View pointerEvents="none" style={styles.scanGuide}>
+                      <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+                      <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+                      <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+                      <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                    </View>
                     <View style={styles.cameraOverlay}>
-                      <Text style={styles.overlayEyebrow}>Live scan</Text>
-                      <Text style={styles.overlayTitle}>{scannerMode === 'idle' ? 'Ready for badge scan' : scannerMode === 'processing' ? 'Processing scan…' : 'Scan paused'}</Text>
-                      <Text style={styles.overlayBody}>Align the QR inside the frame. The backend remains the single source of truth for validation.</Text>
+                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayEyebrow}>Live scan</Text>
+                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayTitle}>{scannerMode === 'idle' ? 'Ready for badge scan' : scannerMode === 'processing' ? 'Processing scan...' : 'Scan paused'}</Text>
+                      {layout.isSmallPhone ? null : (
+                        <Text maxFontSizeMultiplier={1.06} style={styles.overlayBody}>Align the QR inside the frame. Backend validation remains authoritative.</Text>
+                      )}
                     </View>
                   </View>
 
-                  <View style={styles.controlRow}>
-                    <Pressable onPress={() => setTorchEnabled((current) => !current)} style={styles.iconControl}>
+                  <View style={[styles.controlRow, layout.fieldStacked ? styles.controlRowStacked : null]}>
+                    <Pressable accessibilityRole="button" onPress={() => setTorchEnabled((current) => !current)} style={styles.iconControl}>
                       <Ionicons name={torchEnabled ? 'flash' : 'flash-off'} size={22} color={theme.colors.textPrimary} />
                       <Text style={styles.iconControlText}>{torchEnabled ? 'Torch on' : 'Torch off'}</Text>
                     </Pressable>
-                    <Pressable onPress={resetScanner} style={styles.iconControl}>
+                    <Pressable accessibilityRole="button" onPress={resetScanner} style={styles.iconControl}>
                       <Ionicons name="refresh" size={22} color={theme.colors.textPrimary} />
                       <Text style={styles.iconControlText}>Resume scan</Text>
                     </Pressable>
@@ -465,7 +473,7 @@ export function ScanScreen() {
                 value={manualPayload}
                 placeholder="Paste a QR payload, verification link, or employee badge token."
               />
-              <View style={styles.buttonGrid}>
+              <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
                 <PrimaryButton
                   label="Verify payload"
                   onPress={() => {
@@ -522,7 +530,7 @@ export function ScanScreen() {
 
                 <Text style={styles.bodyText}>{visitorVerification.message || 'Visitor verification completed.'}</Text>
 
-                <View style={styles.buttonGrid}>
+                <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
                   {visitorVerification.valid && visitorVerification.canCheckIn ? (
                     <PrimaryButton label="Approve check-in" onPress={() => void handleVisitorCheckIn()} loading={visitorCheckInMutation.isPending} />
                   ) : null}
@@ -581,7 +589,7 @@ export function ScanScreen() {
 
                 <Text style={styles.bodyText}>{employeeScan.message || 'Workforce badge processed successfully.'}</Text>
 
-                <View style={styles.buttonGrid}>
+                <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
                   {employeeScan.employee?.id ? (
                     <PrimaryButton
                       label={employeeScan.currentlyIn ? 'Manual check-out' : 'Manual check-in'}
@@ -672,16 +680,49 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   cameraFrame: {
-    height: 300,
     borderRadius: theme.radii.xl,
     overflow: 'hidden',
     backgroundColor: '#10212E',
   },
-  cameraFrameTablet: {
-    minHeight: 360,
-  },
   camera: {
     flex: 1,
+  },
+  scanGuide: {
+    position: 'absolute',
+    left: '18%',
+    right: '18%',
+    top: '20%',
+    bottom: '28%',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 34,
+    height: 34,
+    borderColor: 'rgba(216, 235, 247, 0.95)',
+  },
+  scanCornerTopLeft: {
+    left: 0,
+    top: 0,
+    borderLeftWidth: 4,
+    borderTopWidth: 4,
+  },
+  scanCornerTopRight: {
+    right: 0,
+    top: 0,
+    borderRightWidth: 4,
+    borderTopWidth: 4,
+  },
+  scanCornerBottomLeft: {
+    left: 0,
+    bottom: 0,
+    borderLeftWidth: 4,
+    borderBottomWidth: 4,
+  },
+  scanCornerBottomRight: {
+    right: 0,
+    bottom: 0,
+    borderRightWidth: 4,
+    borderBottomWidth: 4,
   },
   cameraOverlay: {
     position: 'absolute',
@@ -714,6 +755,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  controlRowStacked: {
+    flexDirection: 'column',
+  },
   iconControl: {
     flex: 1,
     flexDirection: 'row',
@@ -731,6 +775,10 @@ const styles = StyleSheet.create({
   },
   buttonGrid: {
     gap: theme.spacing.sm,
+  },
+  buttonGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   verificationHeader: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import type { EmployeeBadge } from '../../types/domain';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
 import { DetailRow } from './DetailRow';
@@ -12,22 +13,24 @@ type Props = {
 };
 
 export function EmployeeBadgeCard({ badge, compact = false }: Props) {
+  const layout = useResponsiveLayout();
+
   return (
-    <View style={[styles.card, compact ? styles.cardCompact : null]}>
-      <View style={styles.header}>
-        <View style={styles.identityRow}>
+    <View style={[styles.card, { padding: layout.cardPadding }, compact ? styles.cardCompact : null]}>
+      <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
+        <View style={[styles.identityRow, layout.isSmallPhone ? styles.identityRowCompact : null]}>
           {badge.employeePhotoUrl ? <Image source={{ uri: badge.employeePhotoUrl }} style={styles.avatar} /> : <AvatarFallback fullName={badge.fullName} />}
           <View style={styles.identityCopy}>
-            <Text style={styles.name}>{badge.fullName}</Text>
-            <Text style={styles.meta}>{badge.department || badge.designation || 'Operational employee'}</Text>
-            <Text style={styles.organization}>{badge.organizationName || badge.organizationCode || 'AccessFlow'}</Text>
+            <Text maxFontSizeMultiplier={1.1} style={[styles.name, layout.isSmallPhone ? styles.nameCompact : null]}>{badge.fullName}</Text>
+            <Text maxFontSizeMultiplier={1.08} style={styles.meta}>{badge.department || badge.designation || 'Operational employee'}</Text>
+            <Text maxFontSizeMultiplier={1.06} style={styles.organization}>{badge.organizationName || badge.organizationCode || 'AccessFlow'}</Text>
           </View>
         </View>
         <StatusPill label={badge.active ? 'Active' : 'Revoked'} tone={badge.active ? 'success' : 'danger'} />
       </View>
 
       <View style={styles.qrShell}>
-        {badge.qrImageDataUri ? <Image source={{ uri: badge.qrImageDataUri }} style={styles.qrImage} fadeDuration={0} /> : null}
+        {badge.qrImageDataUri ? <Image source={{ uri: badge.qrImageDataUri }} style={[styles.qrImage, { maxHeight: layout.isTablet ? 360 : 280 }]} fadeDuration={0} /> : null}
         <Text style={styles.qrCaption}>Static credential QR</Text>
       </View>
 
@@ -62,7 +65,6 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: theme.radii.xl,
     backgroundColor: '#0F2031',
-    padding: theme.spacing.lg,
     gap: theme.spacing.lg,
   },
   cardCompact: {
@@ -73,10 +75,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: theme.spacing.md,
   },
+  headerCompact: {
+    flexDirection: 'column',
+  },
   identityRow: {
     flex: 1,
     flexDirection: 'row',
     gap: theme.spacing.md,
+  },
+  identityRowCompact: {
+    alignItems: 'center',
   },
   avatar: {
     width: 60,
@@ -106,6 +114,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
   },
+  nameCompact: {
+    fontSize: 20,
+  },
   meta: {
     color: '#D6E7F6',
     fontSize: theme.typography.body.fontSize,
@@ -128,7 +139,6 @@ const styles = StyleSheet.create({
   qrImage: {
     width: '100%',
     aspectRatio: 1,
-    maxHeight: 300,
     alignSelf: 'center',
   },
   qrCaption: {

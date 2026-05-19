@@ -41,7 +41,7 @@ function AppBootstrap() {
 
   return (
     <>
-      <StatusBar style="dark" backgroundColor={theme.colors.canvas} />
+      <StatusBar style="light" backgroundColor={theme.colors.canvas} />
       <RootNavigator />
       <OperationalLockOverlay />
     </>

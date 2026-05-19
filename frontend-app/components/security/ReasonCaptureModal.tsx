@@ -1,6 +1,8 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import { PrimaryButton } from '../buttons/PrimaryButton';
 import { AppTextField } from '../form/AppTextField';
@@ -26,6 +28,8 @@ export function ReasonCaptureModal({
   onCancel,
   onConfirm,
 }: Props) {
+  const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -42,9 +46,9 @@ export function ReasonCaptureModal({
     <Modal animationType="slide" visible={visible} transparent onRequestClose={onCancel}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-        <View style={styles.sheet}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.helper}>{helperText}</Text>
+        <View style={[styles.sheet, { paddingHorizontal: layout.contentPadding, paddingBottom: insets.bottom + theme.spacing.lg }]}>
+          <Text maxFontSizeMultiplier={1.12} style={styles.title}>{title}</Text>
+          <Text maxFontSizeMultiplier={1.08} style={styles.helper}>{helperText}</Text>
           <AppTextField
             label="Reason"
             multiline
@@ -53,7 +57,7 @@ export function ReasonCaptureModal({
             placeholder="Record what happened, who was verified, and why security took this action."
             errorText={submitted && tooShort ? `Enter at least ${minLength} characters.` : undefined}
           />
-          <View style={styles.actions}>
+          <View style={[styles.actions, layout.fieldStacked ? styles.actionsStacked : null]}>
             <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
             <PrimaryButton
               label={confirmLabel}
@@ -84,8 +88,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.radii.xl,
     borderTopRightRadius: theme.radii.xl,
     backgroundColor: theme.colors.surface,
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
+    paddingTop: theme.spacing.lg,
   },
   title: {
     color: theme.colors.textPrimary,
@@ -100,5 +103,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+  },
+  actionsStacked: {
+    flexDirection: 'column',
   },
 });

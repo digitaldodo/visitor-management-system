@@ -20,7 +20,7 @@ export function StatusPill({ label, tone = 'default' }: Props) {
 
   return (
     <View style={[styles.pill, { backgroundColor }]}>
-      <Text style={[styles.label, { color }]}>{label}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color }]}>{label}</Text>
     </View>
   );
 }

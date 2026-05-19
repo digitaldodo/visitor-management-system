@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
@@ -17,33 +17,47 @@ type Props = {
 
 export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth }: Props) {
   const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingHorizontal: layout.contentPadding,
-            paddingBottom: layout.isTablet ? theme.spacing.xxl + theme.spacing.sm : theme.spacing.xxl,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-          ) : undefined
-        }
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 12}
+        style={styles.flex}
       >
-        <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth }]}>
-          <View style={styles.header}>
-            <Text allowFontScaling style={styles.title}>{title}</Text>
-            {subtitle ? <Text allowFontScaling style={styles.subtitle}>{subtitle}</Text> : null}
+        <ScrollView
+          alwaysBounceVertical={false}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardDismissMode="on-drag"
+          overScrollMode="auto"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            {
+              gap: layout.cardSpacing,
+              paddingHorizontal: layout.contentPadding,
+              paddingTop: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md,
+              paddingBottom: insets.bottom + layout.tabBarHeight + theme.spacing.lg,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+            ) : undefined
+          }
+        >
+          <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth, gap: layout.cardSpacing }]}>
+            <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
+              <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>
+              {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
+            </View>
+            <RuntimeBanner />
+            <View style={[styles.children, { gap: layout.cardSpacing }]}>{children}</View>
           </View>
-          <RuntimeBanner />
-          <View style={styles.children}>{children}</View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -53,21 +67,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.canvas,
   },
+  flex: {
+    flex: 1,
+  },
   content: {
     alignItems: 'center',
-    gap: theme.spacing.lg,
   },
   frame: {
     width: '100%',
-    gap: theme.spacing.lg,
   },
   header: {
     gap: theme.spacing.sm,
+  },
+  headerCompact: {
+    gap: theme.spacing.xs,
   },
   title: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.title.fontSize,
     fontWeight: theme.typography.title.fontWeight,
+  },
+  titleCompact: {
+    fontSize: 22,
   },
   subtitle: {
     color: theme.colors.textSecondary,
@@ -75,6 +96,5 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   children: {
-    gap: theme.spacing.lg,
   },
 });

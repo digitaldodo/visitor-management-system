@@ -12,6 +12,7 @@ import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useCreateWorkforceOnboardingMutation,
   useManualEmployeeCheckInMutation,
@@ -38,6 +39,7 @@ const WORKER_TYPES = [
 
 export function WorkforceScreen() {
   const queryClient = useQueryClient();
+  const layout = useResponsiveLayout();
   const [search, setSearch] = useState('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [workforceAction, setWorkforceAction] = useState<WorkforceAction | null>(null);
@@ -188,8 +190,8 @@ export function WorkforceScreen() {
           <AppTextField label="Username (optional)" value={username} onChangeText={setUsername} placeholder="worker_001" autoCapitalize="none" />
           <AppTextField label="Email (optional)" value={email} onChangeText={setEmail} placeholder="worker@accessflow.local" autoCapitalize="none" keyboardType="email-address" />
           <AppTextField label="Department" value={department} onChangeText={setDepartment} placeholder="Facility support, landscaping, housekeeping" />
-          <View style={styles.inlineFields}>
-            <View style={styles.inlineField}>
+          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
               <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" />
             </View>
             <View style={styles.inlineFieldWide}>
@@ -210,19 +212,19 @@ export function WorkforceScreen() {
             ))}
           </View>
 
-          <View style={styles.inlineFields}>
+          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
             <View style={styles.inlineFieldWide}>
               <AppTextField label="Shift name" value={shiftName} onChangeText={setShiftName} placeholder="General Shift" />
             </View>
-            <View style={styles.inlineField}>
+            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
               <AppTextField label="Start" value={shiftStartTime} onChangeText={setShiftStartTime} placeholder="09:00" />
             </View>
-            <View style={styles.inlineField}>
+            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
               <AppTextField label="End" value={shiftEndTime} onChangeText={setShiftEndTime} placeholder="18:00" />
             </View>
           </View>
 
-          <View style={styles.photoRow}>
+          <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
             {workerPhoto ? <Image source={{ uri: workerPhoto.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo optional</Text></View>}
             <View style={styles.photoMeta}>
               <Text style={styles.photoTitle}>Worker photo</Text>
@@ -354,8 +356,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  inlineFieldsStacked: {
+    flexDirection: 'column',
+  },
   inlineField: {
     width: 96,
+  },
+  inlineFieldStacked: {
+    width: '100%',
   },
   inlineFieldWide: {
     flex: 1,
@@ -388,6 +396,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.md,
     alignItems: 'center',
+  },
+  photoRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   photoPreview: {
     width: 104,

@@ -1,13 +1,13 @@
-import { DefaultTheme } from '@react-navigation/native';
+import { DarkTheme } from '@react-navigation/native';
 
 import { theme as appTheme } from './tokens';
 
 export const theme = appTheme;
 
 export const navigationTheme = {
-  ...DefaultTheme,
+  ...DarkTheme,
   colors: {
-    ...DefaultTheme.colors,
+    ...DarkTheme.colors,
     background: theme.colors.canvas,
     card: theme.colors.surface,
     border: theme.colors.border,

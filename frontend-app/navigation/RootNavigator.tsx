@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig } from '../auth/workspaceConfig';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { navigationRef } from './navigationRef';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -71,8 +73,10 @@ function AuthNavigator() {
 }
 
 function SecurityNavigator() {
+  const screenOptions = useMobileTabOptions();
+
   return (
-    <SecurityTabs.Navigator backBehavior="history" screenOptions={tabScreenOptions}>
+    <SecurityTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
       <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />
@@ -83,8 +87,10 @@ function SecurityNavigator() {
 }
 
 function EmployeeNavigator() {
+  const screenOptions = useMobileTabOptions();
+
   return (
-    <EmployeeTabs.Navigator backBehavior="history" screenOptions={tabScreenOptions}>
+    <EmployeeTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
       <EmployeeTabs.Screen name="Badge" component={BadgeScreen} />
       <EmployeeTabs.Screen name="Requests" component={RequestsScreen} />
       <EmployeeTabs.Screen name="Presence" component={PresenceScreen} />
@@ -102,26 +108,37 @@ function AdminNavigator() {
   );
 }
 
-const tabScreenOptions = ({ route }: { route: { name: string } }) => ({
-  headerShown: false,
-  lazy: true,
-  tabBarActiveTintColor: theme.colors.primary,
-  tabBarInactiveTintColor: theme.colors.textMuted,
-  tabBarStyle: {
-    height: 76,
-    paddingTop: 8,
-    paddingBottom: 8,
-    backgroundColor: theme.colors.surface,
-    borderTopColor: theme.colors.border,
-  },
-  tabBarLabelStyle: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-  },
-  tabBarIcon: ({ color, size }: { color: string; size: number }) => (
-    <Ionicons color={color} name={iconForRoute(route.name)} size={size} />
-  ),
-});
+function useMobileTabOptions() {
+  const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
+
+  return ({ route }: { route: { name: string } }) => ({
+    headerShown: false,
+    lazy: true,
+    freezeOnBlur: true,
+    tabBarActiveTintColor: theme.colors.primary,
+    tabBarInactiveTintColor: theme.colors.textMuted,
+    tabBarHideOnKeyboard: true,
+    tabBarStyle: {
+      height: layout.tabBarHeight + insets.bottom,
+      paddingTop: layout.isSmallPhone ? 5 : 7,
+      paddingBottom: Math.max(insets.bottom, 8),
+      backgroundColor: theme.colors.surface,
+      borderTopColor: theme.colors.border,
+      elevation: 8,
+    },
+    tabBarItemStyle: {
+      minHeight: layout.isSmallPhone ? 52 : 58,
+    },
+    tabBarLabelStyle: {
+      fontSize: layout.isSmallPhone ? 10 : 11,
+      fontWeight: '700' as const,
+    },
+    tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
+      <Ionicons color={color} name={iconForRoute(route.name)} size={focused ? 23 : 21} />
+    ),
+  });
+}
 
 function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
   const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {

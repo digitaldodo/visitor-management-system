@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 
 type Props = TextInputProps & {
@@ -14,22 +15,26 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
   ref,
 ) {
   const hasError = Boolean(errorText);
+  const layout = useResponsiveLayout();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.1} style={styles.label}>{label}</Text>
       <TextInput
         ref={ref}
         placeholderTextColor={theme.colors.textMuted}
+        selectionColor={theme.colors.primary}
+        maxFontSizeMultiplier={1.12}
         style={[
           styles.input,
+          { minHeight: layout.touchTarget },
           hasError ? styles.inputError : null,
           props.multiline ? styles.multiline : null,
           style,
         ]}
         {...props}
       />
-      {errorText ? <Text style={styles.errorText}>{errorText}</Text> : helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
+      {errorText ? <Text maxFontSizeMultiplier={1.1} style={styles.errorText}>{errorText}</Text> : helperText ? <Text maxFontSizeMultiplier={1.1} style={styles.helperText}>{helperText}</Text> : null}
     </View>
   );
 });
@@ -46,7 +51,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   input: {
-    minHeight: 52,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,

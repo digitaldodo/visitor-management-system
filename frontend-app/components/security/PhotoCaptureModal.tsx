@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import { PrimaryButton } from '../buttons/PrimaryButton';
 
@@ -20,6 +22,7 @@ type Props = {
 };
 
 export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props) {
+  const layout = useResponsiveLayout();
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [preview, setPreview] = useState<CameraCapturedPicture | null>(null);
@@ -71,9 +74,9 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
 
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={onCancel}>
-      <View style={styles.screen}>
+      <SafeAreaView style={[styles.screen, { paddingHorizontal: layout.contentPadding }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
+          <Text maxFontSizeMultiplier={1.12} style={styles.title}>{title}</Text>
           <Pressable accessibilityRole="button" onPress={onCancel} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={theme.colors.textPrimary} />
           </Pressable>
@@ -92,7 +95,7 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
         ) : preview ? (
           <>
             <Image source={{ uri: preview.uri }} style={styles.preview} />
-            <View style={styles.footer}>
+            <View style={[styles.footer, layout.fieldStacked ? styles.footerStacked : null]}>
               <PrimaryButton label="Retake" onPress={() => setPreview(null)} tone="secondary" />
               <PrimaryButton label="Use photo" onPress={confirmPhoto} />
             </View>
@@ -100,13 +103,13 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
         ) : (
           <>
             <CameraView ref={cameraRef} style={styles.camera} facing="front" />
-            <View style={styles.footer}>
+            <View style={[styles.footer, layout.fieldStacked ? styles.footerStacked : null]}>
               <PrimaryButton label="Cancel" onPress={onCancel} tone="secondary" />
               <PrimaryButton label="Capture photo" onPress={() => void capturePhoto()} loading={isTakingPhoto} />
             </View>
           </>
         )}
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -115,8 +118,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.canvas,
-    paddingTop: Platform.select({ ios: 64, default: 24 }),
-    paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.lg,
     gap: theme.spacing.lg,
   },
@@ -152,6 +153,9 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+  },
+  footerStacked: {
+    flexDirection: 'column',
   },
   centerState: {
     flex: 1,

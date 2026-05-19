@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 
 type Item = {
@@ -8,12 +9,14 @@ type Item = {
 };
 
 export function OperationalFieldList({ items }: { items: Item[] }) {
+  const layout = useResponsiveLayout();
+
   return (
     <View style={styles.grid}>
       {items.map((item) => (
-        <View key={item.label} style={styles.item}>
-          <Text style={styles.label}>{item.label}</Text>
-          <Text style={styles.value}>{item.value || 'Not recorded'}</Text>
+        <View key={item.label} style={[styles.item, { minWidth: layout.isPhone ? '100%' : '45%' }]}>
+          <Text maxFontSizeMultiplier={1.08} style={styles.label}>{item.label}</Text>
+          <Text maxFontSizeMultiplier={1.08} style={styles.value}>{item.value || 'Not recorded'}</Text>
         </View>
       ))}
     </View>
@@ -27,7 +30,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   item: {
-    minWidth: '45%',
     flexGrow: 1,
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,

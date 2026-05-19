@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 import { StatusPill } from '../feedback/StatusPill';
 
@@ -12,16 +13,18 @@ type Props = {
 };
 
 export function RecordCard({ title, subtitle, meta, status, tone = 'default' }: Props) {
+  const layout = useResponsiveLayout();
+
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
+      <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
         <View style={styles.titleWrap}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <Text maxFontSizeMultiplier={1.1} style={styles.title}>{title}</Text>
+          {subtitle ? <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {status ? <StatusPill label={status} tone={tone} /> : null}
       </View>
-      {meta ? <Text style={styles.meta}>{meta}</Text> : null}
+      {meta ? <Text maxFontSizeMultiplier={1.08} style={styles.meta}>{meta}</Text> : null}
     </View>
   );
 }
@@ -37,6 +40,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: theme.spacing.md,
+  },
+  headerCompact: {
+    flexDirection: 'column',
+    gap: theme.spacing.sm,
   },
   titleWrap: {
     flex: 1,

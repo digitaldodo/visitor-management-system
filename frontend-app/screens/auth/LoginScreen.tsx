@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
 import { useAuth } from '../../auth/AuthProvider';
@@ -31,6 +31,7 @@ const audienceOptions: Array<{ value: WorkspaceAudience; label: string; descript
 export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
   const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
   const [submitError, setSubmitError] = useState<string | null>(lastError);
 
   const {
@@ -64,15 +65,37 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <View style={[styles.container, { paddingHorizontal: layout.contentPadding }]}>
-          <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null]}>
+        <ScrollView
+          alwaysBounceVertical={false}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.container,
+            {
+              minHeight: layout.height - insets.top - insets.bottom,
+              paddingHorizontal: layout.contentPadding,
+              paddingTop: layout.isCompactHeight ? theme.spacing.md : theme.spacing.xl,
+              paddingBottom: insets.bottom + theme.spacing.xl,
+            },
+          ]}
+        >
+          <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null, { maxWidth: layout.isLargeTablet ? 1120 : 920 }]}>
             <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
-            <Text style={styles.eyebrow}>AccessFlow Mobile</Text>
-            <Text style={styles.title}>Operational access on Android-first field devices</Text>
-            <Text style={styles.subtitle}>
-              This mobile client keeps backend policy, JWT rules, and role authorization server-side. Sign in to the
-              workspace you operate from most often.
-            </Text>
+              <View style={styles.brandRow}>
+                <Image source={require('../../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+                <View>
+                  <Text style={styles.eyebrow}>AccessFlow</Text>
+                  <Text style={styles.brandSubline}>Mobile operations</Text>
+                </View>
+              </View>
+              <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
+                Native access control for field teams
+              </Text>
+              <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
+                Sign in to scan badges, approve access, and operate your assigned workspace from a phone, tablet, or guard device.
+              </Text>
             </View>
 
             <SurfaceCard
@@ -85,6 +108,8 @@ export function LoginScreen() {
                   return (
                     <Pressable
                       key={option.value}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
                       onPress={() => setValue('audience', option.value, { shouldValidate: true })}
                       style={[styles.audienceChip, selected ? styles.audienceChipSelected : null]}
                     >
@@ -150,7 +175,7 @@ export function LoginScreen() {
               <PrimaryButton label="Continue to workspace" onPress={() => void onSubmit()} loading={isBusy} />
             </SurfaceCard>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -165,7 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.canvas,
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
   },
   frame: {
@@ -179,11 +204,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   hero: {
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
   },
   heroWide: {
     flex: 1,
     paddingRight: theme.spacing.lg,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  logo: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
   },
   eyebrow: {
     color: theme.colors.primary,
@@ -192,10 +227,19 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  brandSubline: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '800',
+  },
+  titleCompact: {
+    fontSize: 24,
   },
   subtitle: {
     color: theme.colors.textSecondary,
@@ -206,6 +250,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   audienceChip: {
+    minHeight: 58,
     gap: 4,
     borderRadius: theme.radii.md,
     borderWidth: 1,
@@ -228,6 +273,7 @@ const styles = StyleSheet.create({
   audienceDescription: {
     color: theme.colors.textSecondary,
     fontSize: 13,
+    lineHeight: 18,
   },
   audienceDescriptionSelected: {
     color: theme.colors.primary,

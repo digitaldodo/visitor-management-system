@@ -7,7 +7,7 @@
     "scheme": "accessflow",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "runtimeVersion": {
       "policy": "appVersion"
@@ -15,7 +15,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4F7FB"
+      "backgroundColor": "#07111D"
     },
     "ios": {
       "supportsTablet": true
@@ -37,7 +37,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F4F7FB"
+        "backgroundColor": "#07111D"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

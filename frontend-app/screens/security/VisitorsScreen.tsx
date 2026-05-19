@@ -12,6 +12,7 @@ import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useCheckInVisitorMutation,
   useCheckOutVisitorMutation,
@@ -56,6 +57,7 @@ const DURATION_OPTIONS = [
 
 export function VisitorsScreen() {
   const queryClient = useQueryClient();
+  const layout = useResponsiveLayout();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'CHECKED_IN' | 'REJECTED'>('ALL');
   const [visitorType, setVisitorType] = useState<VisitorType>('WALK_IN');
@@ -273,8 +275,8 @@ export function VisitorsScreen() {
           </View>
 
           <AppTextField label="Visitor name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
-          <View style={styles.inlineFields}>
-            <View style={styles.inlineField}>
+          <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+            <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
               <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" />
             </View>
             <View style={styles.inlineFieldWide}>
@@ -285,7 +287,9 @@ export function VisitorsScreen() {
           <AppTextField label="Organization" value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
           <AppTextField label="Purpose of visit" value={purposeOfVisit} onChangeText={setPurposeOfVisit} placeholder="Meeting, service, delivery, audit" />
 
-          <SurfaceCard title="Host employee" subtitle="Search the employee directory so approvals stay connected to the right host.">
+          <View style={styles.hostPanel}>
+            <Text style={styles.panelTitle}>Host employee</Text>
+            <Text style={styles.helperText}>Search the employee directory so approvals stay connected to the right host.</Text>
             <AppTextField
               label="Host search"
               value={hostSearch}
@@ -320,7 +324,7 @@ export function VisitorsScreen() {
                 ))}
               </View>
             ) : null}
-          </SurfaceCard>
+          </View>
 
           {visitorType === 'ONE_TIME' ? (
             <>
@@ -345,7 +349,7 @@ export function VisitorsScreen() {
             </>
           ) : null}
 
-          <View style={styles.photoRow}>
+          <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
             {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo required</Text></View>}
             <View style={styles.photoMeta}>
               <Text style={styles.photoTitle}>Visitor photo</Text>
@@ -411,7 +415,7 @@ export function VisitorsScreen() {
                       { label: 'Status', value: visitorStatusLabel(visitor.status) },
                     ]}
                   />
-                  <View style={styles.actionGrid}>
+                  <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
                     {visitor.status === 'APPROVED' ? (
                       <PrimaryButton
                         label="Check in"
@@ -536,8 +540,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  inlineFieldsStacked: {
+    flexDirection: 'column',
+  },
   inlineField: {
     width: 96,
+  },
+  inlineFieldStacked: {
+    width: '100%',
   },
   inlineFieldWide: {
     flex: 1,
@@ -547,6 +557,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     backgroundColor: theme.colors.primarySoft,
     padding: theme.spacing.md,
+  },
+  hostPanel: {
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  panelTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   selectedHostTitle: {
     color: theme.colors.textPrimary,
@@ -571,6 +592,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.md,
     alignItems: 'center',
+  },
+  photoRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   photoPreview: {
     width: 104,
@@ -619,5 +644,9 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     gap: theme.spacing.sm,
+  },
+  actionGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 });

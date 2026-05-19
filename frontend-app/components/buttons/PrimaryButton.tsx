@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { theme } from '../../theme';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function PrimaryButton({ label, onPress, disabled, loading, tone = 'primary' }: Props) {
+  const layout = useResponsiveLayout();
   const toneStyles = {
     primary: {
       backgroundColor: theme.colors.primary,
@@ -34,11 +36,13 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       accessibilityLabel={label}
       accessibilityRole="button"
       disabled={disabled || loading}
-      hitSlop={4}
+      hitSlop={6}
       onPress={onPress}
+      android_ripple={{ color: tone === 'primary' || tone === 'danger' ? 'rgba(255,255,255,0.18)' : 'rgba(14,90,138,0.12)' }}
       style={({ pressed }) => [
         styles.button,
         {
+          minHeight: layout.touchTarget,
           backgroundColor: toneStyles.backgroundColor,
           borderColor: toneStyles.borderColor,
           opacity: disabled ? 0.55 : pressed ? 0.82 : 1,
@@ -48,10 +52,10 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={toneStyles.labelColor} />
-          <Text style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
+          <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
         </View>
       ) : (
-        <Text style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
+        <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -59,7 +63,6 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 56,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: theme.radii.md,

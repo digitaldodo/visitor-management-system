@@ -12,6 +12,7 @@ import { PreferenceSwitchRow } from '../../components/employee/PreferenceSwitchR
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { AppScreen } from '../../components/layout/AppScreen';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useEmployeeBadge,
   useEmployeeProfile,
@@ -31,6 +32,7 @@ const LANGUAGE_OPTIONS = [
 
 export function SettingsScreen() {
   const queryClient = useQueryClient();
+  const layout = useResponsiveLayout();
   const { session, logout, isBusy, refreshSession } = useAuth();
   const profile = useEmployeeProfile();
   const badge = useEmployeeBadge();
@@ -150,7 +152,7 @@ export function SettingsScreen() {
       }}
     >
       <SurfaceCard title="Credential photo" subtitle="Your photo updates the badge preview, but the static QR identity remains unchanged until the backend revokes it.">
-        <View style={styles.photoRow}>
+        <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
           {identityProfile?.employeePhotoUrl ? (
             <Image source={{ uri: identityProfile.employeePhotoUrl }} style={styles.avatar} />
           ) : (
@@ -178,8 +180,8 @@ export function SettingsScreen() {
       </SurfaceCard>
 
       <SurfaceCard title="Editable profile" subtitle="Only the operational fields below can be changed from the employee app.">
-        <View style={styles.inlineFields}>
-          <View style={styles.inlineField}>
+        <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+          <View style={[styles.inlineField, layout.fieldStacked ? styles.inlineFieldStacked : null]}>
             <AppTextField label="Country code" value={phoneCountryCode} onChangeText={setPhoneCountryCode} placeholder="+1" />
           </View>
           <View style={styles.inlineFieldWide}>
@@ -349,6 +351,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     alignItems: 'center',
   },
+  photoRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   avatar: {
     width: 96,
     height: 96,
@@ -389,8 +395,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
+  inlineFieldsStacked: {
+    flexDirection: 'column',
+  },
   inlineField: {
     width: 96,
+  },
+  inlineFieldStacked: {
+    width: '100%',
   },
   inlineFieldWide: {
     flex: 1,
