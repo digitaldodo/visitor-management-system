@@ -39,13 +39,12 @@ No endpoint is hardcoded in the app logic. The backend URL must come from the Ex
 
 ## Enterprise Release Channels
 
-AccessFlow Mobile is linked to Expo project `f6f82d40-344d-4ae9-93bf-a58c869db1ac` and uses isolated Expo/EAS channels for `development`, `preview`, `staging`, `internal`, and `production`.
+AccessFlow Mobile is linked to Expo project `f6f82d40-344d-4ae9-93bf-a58c869db1ac` and uses two isolated Expo/EAS Android release lanes: `preview` for internal APK rollout and `production` for Play Store-ready AAB builds.
 
 ```bash
 npm run build:preview:android
 npm run build:production:android
 npm run update:preview
-npm run update:staging
 npm run update:production
 ```
 

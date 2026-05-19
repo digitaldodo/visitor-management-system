@@ -138,7 +138,11 @@ function readPositiveNumber(value: string | undefined, fallbackValue: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackValue;
 }
 
-const apiBaseUrl = normalizeUrl(process.env.EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL ?? '');
+const apiBaseUrl = normalizeUrl(
+  process.env.EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL
+  ?? Constants.expoConfig?.extra?.accessflowApiBaseUrl
+  ?? '',
+);
 const apiRootUrl = deriveApiRoot(apiBaseUrl);
 const expoProjectId = (process.env.EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID ?? Constants.expoConfig?.extra?.eas?.projectId ?? '').trim();
 const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '0.0.0';
@@ -184,13 +188,19 @@ export const apiConfig: RuntimeConfig = {
     staleCacheMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_STALE_CACHE_MS, 2 * 60_000),
   },
   release: {
-    otaEnabled: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED, environment !== 'development'),
+    otaEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED,
+      Boolean(Constants.expoConfig?.extra?.accessflowOtaEnabled ?? environment !== 'development'),
+    ),
     stagedRolloutCohort: String(process.env.EXPO_PUBLIC_ACCESSFLOW_ROLLOUT_COHORT ?? 'stable').trim(),
     internalTesting: distributionChannel === 'internal' || environment === 'internal',
     updateCheckIntervalMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_UPDATE_CHECK_MS, 15 * 60_000),
   },
   deviceManagement: {
-    managedMode: normalizeManagedMode(process.env.EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE),
+    managedMode: normalizeManagedMode(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE
+      ?? Constants.expoConfig?.extra?.accessflowManagedDeviceMode,
+    ),
     kioskModeReady: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_KIOSK_READY, false),
   },
   branding: {

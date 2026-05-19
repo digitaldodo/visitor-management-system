@@ -1,6 +1,6 @@
 # AccessFlow Android Deployment
 
-This app is linked to Expo project `f6f82d40-344d-4ae9-93bf-a58c869db1ac` through `extra.eas.projectId` in `app.json` and `app.config.js`. EAS profiles also pass the same value through `EXPO_PUBLIC_ACCESSFLOW_EXPO_PROJECT_ID`.
+This app is linked to Expo project `@anshmrns-organization/accessflow` with project ID `f6f82d40-344d-4ae9-93bf-a58c869db1ac` through `owner`, `slug`, and `extra.eas.projectId`. Deployment defaults are centralized in `app.config.js`; `eas.json` only defines the two Android release lanes.
 
 ## One-time Setup
 
@@ -32,7 +32,7 @@ This runs:
 npx eas-cli@latest build --platform android --profile preview
 ```
 
-The profile uses internal distribution, APK output, production API config, OTA channel `preview`, and `autoIncrement: versionCode` so testers can install newer APKs over older APKs.
+The profile uses internal distribution, APK output, production API config, OTA channel `preview`, shared-guard device posture, and `autoIncrement: true` so EAS safely increments Android `versionCode` for newer APK installs.
 
 After the build finishes, share the EAS build URL or QR code from the Expo dashboard with testers. Android testers can open the link on the device and install the APK directly after allowing installs from the browser or file manager used by the organization.
 
@@ -62,6 +62,8 @@ npx eas-cli@latest build --platform android --profile production
 
 The production profile emits an Android App Bundle, uses channel `production`, and keeps OTA updates enabled with the production API base URL.
 
+Future Play Store submissions can use the existing `submit.production.android.track` config after Google Play credentials are connected.
+
 ## OTA Updates
 
 Publish OTA updates only when JavaScript and assets are compatible with the native runtime already installed on devices:
@@ -76,9 +78,11 @@ Runtime compatibility is guarded by `runtimeVersion.policy = appVersion`. When n
 ## Versioning Rules
 
 - `expo.version` is the semantic app/runtime version.
-- `android.versionCode` starts at `15` and is auto-incremented by EAS build profiles.
+- `android.versionCode` is currently `16` and is auto-incremented by EAS build profiles with `autoIncrement: true`.
 - `EXPO_PUBLIC_ACCESSFLOW_BUILD_ID` defaults to `version+versionCode`.
 - Do not publish OTA updates across runtime versions.
+
+With `runtimeVersion.policy = appVersion`, native/runtime changes require bumping `expo.version` before building and publishing updates.
 
 ## Android Permission Policy
 
@@ -97,10 +101,11 @@ Audio recording, video media reads, overlay windows, legacy external storage wri
 
 Run these before requesting or sharing a build:
 
-```bash
+```powershell
 npm run typecheck
 npm run doctor
-npx expo config --json
+npx expo config --json # defaults to production outside EAS
+$env:EAS_BUILD_PROFILE='preview'; npx expo config --json
 npx eas-cli@latest build --platform android --profile preview --non-interactive
 ```
 

@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "AccessFlow Mobile",
-    "slug": "accessflow-mobile",
+    "owner": "anshmrns-organization",
+    "slug": "accessflow",
     "version": "1.5.0",
     "scheme": "accessflow",
     "orientation": "default",
@@ -21,7 +22,7 @@
     },
     "android": {
       "package": "com.accessflow.mobile",
-      "versionCode": 15,
+      "versionCode": 16,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.POST_NOTIFICATIONS",
@@ -70,8 +71,7 @@
         "projectId": "f6f82d40-344d-4ae9-93bf-a58c869db1ac"
       },
       "accessflowReleaseChannel": "production",
-      "accessflowDistributionChannel": "play-store",
-      "accessflowBuildId": "1.5.0+15"
+      "accessflowDistributionChannel": "play-store"
     }
   }
 }
