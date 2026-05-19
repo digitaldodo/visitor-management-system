@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
@@ -52,6 +52,8 @@ type ReasonAction =
   | { type: 'employee-check-in'; employeeId: string }
   | { type: 'employee-check-out'; employeeId: string };
 
+type ScannerMode = 'idle' | 'processing' | 'feedback';
+
 export function ScanScreen() {
   const queryClient = useQueryClient();
   const isFocused = useIsFocused();
@@ -61,10 +63,12 @@ export function ScanScreen() {
   const isMountedRef = useRef(true);
   const lastScanAtRef = useRef(0);
   const lastScannedPayloadRef = useRef('');
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guidePulse = useRef(new Animated.Value(0)).current;
   const [permission, requestPermission] = useCameraPermissions();
   const [manualPayload, setManualPayload] = useState('');
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const [scannerMode, setScannerMode] = useState<'idle' | 'processing' | 'paused'>('idle');
+  const [scannerMode, setScannerMode] = useState<ScannerMode>('idle');
   const [scanError, setScanError] = useState<string | null>(null);
   const [lastPayload, setLastPayload] = useState('');
   const [lastActionMessage, setLastActionMessage] = useState<string | null>(null);
@@ -97,6 +101,19 @@ export function ScanScreen() {
     || manualEmployeeCheckOutMutation.isPending;
 
   const cameraActive = Boolean(appIsActive && isFocused && permission?.granted && scannerMode === 'idle' && !reasonAction);
+  const scanGuideFrameStyle = useMemo(() => ({
+    left: (layout.isTablet ? '24%' : layout.isSmallPhone ? '15%' : '17%') as `${number}%`,
+    right: (layout.isTablet ? '24%' : layout.isSmallPhone ? '15%' : '17%') as `${number}%`,
+    top: (layout.isSmallPhone ? '15%' : '17%') as `${number}%`,
+    bottom: (layout.isTablet ? '24%' : layout.isSmallPhone ? '31%' : '28%') as `${number}%`,
+  }), [layout.isSmallPhone, layout.isTablet]);
+  const guideScale = guidePulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] });
+  const guideOpacity = guidePulse.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] });
+  const scanLineTranslate = guidePulse.interpolate({ inputRange: [0, 1], outputRange: [8, 116] });
+  const scannerCopy = useMemo(
+    () => scannerStatusCopy(scannerMode, scanError, visitorVerification, employeeScan, lastActionMessage),
+    [employeeScan, lastActionMessage, scanError, scannerMode, visitorVerification],
+  );
 
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
@@ -146,13 +163,40 @@ export function ScanScreen() {
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+      }
     };
   }, []);
 
   useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(guidePulse, {
+          toValue: 1,
+          duration: 1150,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(guidePulse, {
+          toValue: 0,
+          duration: 1150,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [guidePulse]);
+
+  useEffect(() => {
     if (!isFocused) {
       setTorchEnabled(false);
-      setScannerMode((current) => (current === 'processing' ? 'paused' : current));
+      setScannerMode((current) => (current === 'processing' ? 'feedback' : current));
     }
   }, [isFocused]);
 
@@ -162,7 +206,7 @@ export function ScanScreen() {
       setAppIsActive(active);
       if (!active) {
         setTorchEnabled(false);
-        setScannerMode((current) => (current === 'processing' ? 'paused' : current));
+        setScannerMode((current) => (current === 'processing' ? 'feedback' : current));
       }
     });
 
@@ -182,6 +226,10 @@ export function ScanScreen() {
   };
 
   const resetScanner = () => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
     lastScanAtRef.current = 0;
     lastScannedPayloadRef.current = '';
     setVisitorVerification(null);
@@ -191,8 +239,20 @@ export function ScanScreen() {
     setScannerMode('idle');
   };
 
+  const scheduleScannerReset = (delayMs = 1700) => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+    resetTimerRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        resetScanner();
+      }
+    }, delayMs);
+  };
+
   const processPayload = async (payload: string) => {
     const nextPayload = payload.trim();
+    let shouldAutoReset = false;
     if (!nextPayload) {
       if (isMountedRef.current) {
         setScannerMode('idle');
@@ -213,6 +273,7 @@ export function ScanScreen() {
           setEmployeeScan(result);
           setLastActionMessage(result.message || result.headline || 'Workforce presence updated.');
         }
+        shouldAutoReset = result.valid;
         await recordOperationalMetric({
           name: 'workforce_presence',
           tags: {
@@ -226,6 +287,7 @@ export function ScanScreen() {
           setVisitorVerification(result);
           setLastActionMessage(result.message || result.headline || 'Visitor badge verified.');
         }
+        shouldAutoReset = Boolean(result.valid && !result.canCheckIn && !result.canCheckOut);
         await recordOperationalMetric({
           name: result.valid ? 'visitor_verification' : 'qr_validation_issue',
           tags: {
@@ -273,7 +335,10 @@ export function ScanScreen() {
       }
     } finally {
       if (isMountedRef.current) {
-        setScannerMode('paused');
+        setScannerMode('feedback');
+        if (shouldAutoReset) {
+          scheduleScannerReset();
+        }
       }
     }
   };
@@ -306,6 +371,8 @@ export function ScanScreen() {
 
     const visitor = await visitorCheckInMutation.mutateAsync(lastPayload);
     setLastActionMessage(`${visitor.fullName} checked in successfully.`);
+    setScannerMode('feedback');
+    scheduleScannerReset();
     await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-in' } });
     await refreshWorkspace();
   };
@@ -321,6 +388,8 @@ export function ScanScreen() {
       statusLabel: visitorStatusLabel(visitor.status),
     } : current);
     setLastActionMessage(`${visitor.fullName} checked out successfully.`);
+    setScannerMode('feedback');
+    scheduleScannerReset();
     await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-out' } });
     await refreshWorkspace();
   };
@@ -438,16 +507,34 @@ export function ScanScreen() {
                       onBarcodeScanned={cameraActive ? ({ data }) => onScannedPayload(data) : undefined}
                     />
                     <View pointerEvents="none" style={styles.scanGuide}>
-                      <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-                      <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                      <Animated.View style={[styles.scanTarget, scanGuideFrameStyle, { opacity: guideOpacity, transform: [{ scale: guideScale }] }]}>
+                        <View style={styles.scanTargetBorder} />
+                        <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanLineTranslate }] }]} />
+                        <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+                        <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+                        <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+                        <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+                        <View style={[styles.alignmentTick, styles.alignmentTickTop]} />
+                        <View style={[styles.alignmentTick, styles.alignmentTickBottom]} />
+                        <View style={[styles.alignmentTickVertical, styles.alignmentTickLeft]} />
+                        <View style={[styles.alignmentTickVertical, styles.alignmentTickRight]} />
+                      </Animated.View>
+                      <View style={styles.scanHintPill}>
+                        <Ionicons name="scan-outline" size={14} color={theme.colors.textInverse} />
+                        <Text style={styles.scanHintText}>Fit QR inside frame</Text>
+                      </View>
                     </View>
+                    {scannerMode === 'feedback' ? (
+                      <View pointerEvents="none" style={[styles.scanFeedback, scannerCopy.tone === 'danger' ? styles.scanFeedbackDanger : styles.scanFeedbackSuccess]}>
+                        <Ionicons name={scannerCopy.icon} size={28} color={scannerCopy.tone === 'danger' ? theme.colors.danger : theme.colors.success} />
+                        <Text maxFontSizeMultiplier={1.05} style={styles.scanFeedbackTitle}>{scannerCopy.title}</Text>
+                      </View>
+                    ) : null}
                     <View style={styles.cameraOverlay}>
-                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayEyebrow}>Live scan</Text>
-                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayTitle}>{scannerMode === 'idle' ? 'Ready for badge scan' : scannerMode === 'processing' ? 'Processing scan...' : 'Scan paused'}</Text>
+                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayEyebrow}>{scannerCopy.eyebrow}</Text>
+                      <Text maxFontSizeMultiplier={1.08} style={styles.overlayTitle}>{scannerCopy.title}</Text>
                       {layout.isSmallPhone ? null : (
-                        <Text maxFontSizeMultiplier={1.06} style={styles.overlayBody}>Align the QR inside the frame. Backend validation remains authoritative.</Text>
+                        <Text maxFontSizeMultiplier={1.06} style={styles.overlayBody}>{scannerCopy.body}</Text>
                       )}
                     </View>
                   </View>
@@ -459,7 +546,7 @@ export function ScanScreen() {
                     </Pressable>
                     <Pressable accessibilityRole="button" onPress={resetScanner} style={styles.iconControl}>
                       <Ionicons name="refresh" size={22} color={theme.colors.textPrimary} />
-                      <Text style={styles.iconControlText}>Resume scan</Text>
+                      <Text style={styles.iconControlText}>{scannerMode === 'idle' ? 'Reset scanner' : 'Scan next'}</Text>
                     </Pressable>
                   </View>
                 </>
@@ -640,6 +727,84 @@ function truncatePayload(value: string) {
   return value.length > 48 ? `${value.slice(0, 45)}...` : value;
 }
 
+function scannerStatusCopy(
+  scannerMode: ScannerMode,
+  scanError: string | null,
+  visitorVerification: QrVerificationResult | null,
+  employeeScan: EmployeeScanResult | null,
+  lastActionMessage: string | null,
+) {
+  if (scannerMode === 'processing') {
+    return {
+      eyebrow: 'Validating',
+      title: 'Checking badge...',
+      body: 'Hold steady for backend verification. Access is granted only after the secure validation response.',
+      icon: 'sync-circle-outline' as const,
+      tone: 'info' as const,
+    };
+  }
+
+  if (scanError || visitorVerification?.valid === false || employeeScan?.valid === false) {
+    return {
+      eyebrow: 'Review needed',
+      title: 'Scan needs attention',
+      body: 'Use the result panel to retry, deny, escalate, or record a supervised override when policy allows.',
+      icon: 'alert-circle-outline' as const,
+      tone: 'danger' as const,
+    };
+  }
+
+  if (lastActionMessage?.toLowerCase().includes('checked in')) {
+    return {
+      eyebrow: 'Approved',
+      title: 'Check-in Successful',
+      body: 'Recorded by the backend. The scanner will ready itself for the next badge.',
+      icon: 'checkmark-circle-outline' as const,
+      tone: 'success' as const,
+    };
+  }
+
+  if (lastActionMessage?.toLowerCase().includes('checked out')) {
+    return {
+      eyebrow: 'Recorded',
+      title: 'Check-out Successful',
+      body: 'The exit event was saved. The scanner will be ready for the next operation.',
+      icon: 'checkmark-circle-outline' as const,
+      tone: 'success' as const,
+    };
+  }
+
+  if (employeeScan?.valid) {
+    return {
+      eyebrow: 'Workforce',
+      title: scanResultLabel(employeeScan.action || employeePresenceLabel(employeeScan.attendance || employeeScan.employee)),
+      body: 'Presence updated securely. The camera will resume automatically for rapid checkpoint flow.',
+      icon: 'checkmark-circle-outline' as const,
+      tone: 'success' as const,
+    };
+  }
+
+  if (visitorVerification?.valid) {
+    return {
+      eyebrow: 'Badge verified',
+      title: visitorVerification.canCheckOut ? 'Ready for check-out' : visitorVerification.canCheckIn ? 'Access Approved' : 'Badge Valid',
+      body: visitorVerification.canCheckIn
+        ? 'Confirm the visitor and approve check-in from the result panel.'
+        : 'Visitor credentials are valid. The scanner will reset when no further action is needed.',
+      icon: 'checkmark-circle-outline' as const,
+      tone: 'success' as const,
+    };
+  }
+
+  return {
+    eyebrow: 'Live scan',
+    title: 'Ready for badge scan',
+    body: 'Center the QR in the illuminated frame and hold steady for a quick secure read.',
+    icon: 'scan-outline' as const,
+    tone: 'info' as const,
+  };
+}
+
 const styles = StyleSheet.create({
   permissionState: {
     gap: theme.spacing.md,
@@ -691,16 +856,39 @@ const styles = StyleSheet.create({
   },
   scanGuide: {
     position: 'absolute',
-    left: '18%',
-    right: '18%',
-    top: '20%',
-    bottom: '28%',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  scanTarget: {
+    position: 'absolute',
+    minHeight: 148,
+  },
+  scanTargetBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(237, 243, 251, 0.42)',
+    backgroundColor: 'rgba(8, 15, 28, 0.08)',
+  },
+  scanLine: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    top: 0,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: theme.colors.success,
+    shadowColor: theme.colors.success,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
   },
   scanCorner: {
     position: 'absolute',
-    width: 34,
-    height: 34,
-    borderColor: 'rgba(237, 243, 251, 0.96)',
+    width: 42,
+    height: 42,
+    borderColor: theme.colors.textInverse,
   },
   scanCornerTopLeft: {
     left: 0,
@@ -725,6 +913,76 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRightWidth: 4,
     borderBottomWidth: 4,
+  },
+  alignmentTick: {
+    position: 'absolute',
+    left: '42%',
+    right: '42%',
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(237, 243, 251, 0.82)',
+  },
+  alignmentTickTop: {
+    top: 10,
+  },
+  alignmentTickBottom: {
+    bottom: 10,
+  },
+  alignmentTickVertical: {
+    position: 'absolute',
+    top: '40%',
+    bottom: '40%',
+    width: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(237, 243, 251, 0.82)',
+  },
+  alignmentTickLeft: {
+    left: 10,
+  },
+  alignmentTickRight: {
+    right: 10,
+  },
+  scanHintPill: {
+    position: 'absolute',
+    top: 14,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(8, 15, 28, 0.72)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  scanHintText: {
+    color: theme.colors.textInverse,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scanFeedback: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: '34%',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    padding: theme.spacing.md,
+  },
+  scanFeedbackSuccess: {
+    borderColor: 'rgba(34, 197, 94, 0.34)',
+    backgroundColor: 'rgba(5, 46, 22, 0.82)',
+  },
+  scanFeedbackDanger: {
+    borderColor: 'rgba(248, 113, 113, 0.38)',
+    backgroundColor: 'rgba(69, 10, 10, 0.82)',
+  },
+  scanFeedbackTitle: {
+    color: theme.colors.textInverse,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+    textAlign: 'center',
   },
   cameraOverlay: {
     position: 'absolute',
