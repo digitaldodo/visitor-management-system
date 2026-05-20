@@ -10,7 +10,6 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { navigationRef } from './navigationRef';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
-import { AdminOperationalScreen } from '../screens/admin/AdminOperationalScreen';
 import { BootScreen } from '../screens/common/BootScreen';
 import { SessionRecoveryScreen } from '../screens/common/SessionRecoveryScreen';
 import { BadgeScreen } from '../screens/employee/BadgeScreen';
@@ -25,6 +24,16 @@ import { SecurityRegisterScreen } from '../screens/security/SecurityRegisterScre
 import { VisitorsScreen } from '../screens/security/VisitorsScreen';
 import { WorkforceScreen } from '../screens/security/WorkforceScreen';
 import {
+  AdminAlertsScreen,
+  AdminApprovalsScreen,
+  AdminDashboardScreen,
+  AdminEmployeesScreen,
+  AdminRegisterScreen,
+  AdminSettingsScreen,
+  AdminVisitorsScreen,
+  AdminWorkforceScreen,
+} from '../screens/admin/AdminOperationalScreen';
+import {
   VisitorHomeScreen,
   VisitorNotificationsScreen,
   VisitorPassScreen,
@@ -36,8 +45,8 @@ const RootStack = createNativeStackNavigator();
 const SecurityTabs = createBottomTabNavigator();
 const EmployeeTabs = createBottomTabNavigator();
 const VisitorTabs = createBottomTabNavigator();
+const AdminTabs = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
-const AdminStack = createNativeStackNavigator();
 
 export function RootNavigator() {
   const auth = useAuth();
@@ -127,10 +136,19 @@ function VisitorNavigator() {
 }
 
 function AdminNavigator() {
+  const screenOptions = useMobileTabOptions();
+
   return (
-    <AdminStack.Navigator screenOptions={{ headerShown: false }}>
-      <AdminStack.Screen name="AdminOperational" component={AdminOperationalScreen} />
-    </AdminStack.Navigator>
+    <AdminTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
+      <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
+      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
+      <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
+      <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
+      <AdminTabs.Screen name="Register" component={AdminRegisterScreen} />
+      <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} />
+      <AdminTabs.Screen name="Settings" component={AdminSettingsScreen} />
+    </AdminTabs.Navigator>
   );
 }
 
@@ -186,6 +204,9 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Home: 'home-outline',
     Request: 'add-circle-outline',
     Pass: 'ticket-outline',
+    Dashboard: 'grid-outline',
+    Approvals: 'checkmark-done-outline',
+    Employees: 'id-card-outline',
   };
 
   return iconMap[routeName] || 'ellipse-outline';

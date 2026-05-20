@@ -11,6 +11,7 @@ import com.visitor.management.dto.DepartmentResponse;
 import com.visitor.management.dto.DepartmentUpdateRequest;
 import com.visitor.management.dto.EmployeeAttendanceResponse;
 import com.visitor.management.dto.HomepageSettingsRequest;
+import com.visitor.management.dto.ManualOverrideCheckInRequest;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.SuperAdminCreateRequest;
@@ -297,6 +298,26 @@ public class AdminController {
         return ApiResponse.ok("Admin visitor loaded.", visitorService.get(id, authentication.getName()));
     }
 
+    @PatchMapping("/visitors/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> approveVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ApprovalDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor approved.", visitorService.approve(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> rejectVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ApprovalDecisionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor rejected.", visitorService.reject(id, request, authentication.getName()));
+    }
+
     @PostMapping("/visitors")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> createVisitor(@Valid @RequestBody VisitorCreateRequest request, Authentication authentication) {
@@ -325,6 +346,42 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Visitor checked out.", visitorService.checkOut(id, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/deny-entry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> denyVisitorEntry(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor denied at security checkpoint.", visitorService.denyEntry(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/suspend")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> suspendVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Recurring visitor suspended.", visitorService.suspend(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> reactivateVisitor(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Recurring visitor reactivated.", visitorService.reactivateRecurring(id, authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/escalate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> escalateVisitorIssue(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor issue escalated.", visitorService.escalateIssue(id, request.reason(), authentication.getName()));
     }
 
     @DeleteMapping("/visitors/{id}")
