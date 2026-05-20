@@ -8,6 +8,7 @@ Firebase is integrated as mobile operational infrastructure only. Spring Boot re
 - Crashlytics: native/JS crash visibility, non-fatal runtime errors, scanner failures, notification failures, offline sync failures, auth recovery failures, and lifecycle recovery failures.
 - Firebase Analytics: lightweight operational events only. No PII, QR payloads, names, email addresses, phone numbers, auth tokens, or business payloads are logged.
 - Expo Notifications: notification channels, categories/actions, foreground response handling, and Expo push fallback.
+- Runtime observability facade: provider-neutral instrumentation for global JS exceptions, unhandled async failures, navigation issues, API failure storms, sync reconnect loops, slow runtime operations, and Crashlytics context attributes. This keeps a future Sentry/tracing provider additive instead of invasive.
 
 ## Mobile Configuration
 
@@ -58,6 +59,27 @@ Tracked events are intentionally sparse:
 - `offline_mode_activation`, `offline_operation_queued`, `offline_operation_synced`, `offline_sync_failure`
 - `notification_received`, `notification_opened`, `notification_failure`
 - `session_recovery`, `session_invalidated`, `runtime_failure`
+- `operational_warning`, `app_runtime_initialized`, `app_state_changed`
+
+## Crashlytics Context
+
+Crash reports attach only low-risk operational context:
+
+- app version, native build/runtime version, build id, environment, release channel, distribution channel
+- active role, workspace code/name fallback, current navigation screen, Android version, device type, app state
+- last error code/scope/level and bounded breadcrumbs for screen changes, API failure storms, sync loops, and recovery events
+
+Crash reports do not include passwords, auth tokens, QR payloads, visitor details, names, emails, phone numbers, photos, credential payloads, or raw business payloads. User ids are converted to a local non-PII fingerprint before being sent to Crashlytics.
+
+## Diagnostics Screen
+
+Authenticated profile screens include an expandable app diagnostics panel with:
+
+- app version, runtime version, build id, release channel, OTA status
+- Crashlytics configured/available state, native Firebase availability, previous-crash and unsent-report indicators
+- sync health, API reachability, network/offline mode, offline queue size, last offline sync, push permission, and runtime health
+
+The panel is operational metadata only and intentionally excludes API base URLs, auth state internals, visitor records, QR data, push tokens, and account PII.
 
 ## Production Validation
 
@@ -67,5 +89,10 @@ Before release, verify on Android phones and tablets:
 - FCM token appears in Spring Boot `mobile_device_registrations`.
 - Push delivery works in foreground, background, and cold-start states.
 - Crashlytics receives a test non-fatal error and a controlled test crash.
+- React render crashes are caught by the global error boundary and show recovery actions instead of a white screen.
+- Unhandled JS exceptions and async failures appear as sanitized non-fatal Crashlytics records.
+- Repeated API failures, backend timeouts, SSL failures, sync reconnect loops, and offline queue reconciliation failures create bounded diagnostic events instead of log spam.
+- Offline scan queue failures and reconnect recovery create local diagnostics and sync metrics without exposing QR payloads.
+- Navigation failures and scanner interruptions are visible in the operational diagnostics stream.
 - Analytics DebugView shows only operational events.
 - Auth, role routing, QR scanning, and offline sync still use Spring Boot APIs.

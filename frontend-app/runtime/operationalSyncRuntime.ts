@@ -2,6 +2,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { apiConfig } from '../api/apiConfig';
 import { getOperationalEvents } from '../services/operationalEventService';
+import { recordSyncFailure } from './observability';
 import type {
   OperationalEvent,
   OperationalEventBatch,
@@ -166,6 +167,12 @@ class OperationalSyncRuntime {
           status: reconnectAttempt > 2 ? 'degraded' : 'reconnecting',
           lastError: error instanceof Error ? error.message : 'Operational sync failed.',
           reconnectAttempt,
+        });
+        void recordSyncFailure({
+          code: 'RUNTIME_SYNC_POLL_FAILED',
+          message: error instanceof Error ? error.message : 'Operational sync failed.',
+          reconnectAttempt,
+          status: reconnectAttempt > 2 ? 'degraded' : 'reconnecting',
         });
         this.schedule(Math.min(MAX_RECONNECT_DELAY_MS, 1_000 * 2 ** Math.min(reconnectAttempt, 5)));
       } finally {

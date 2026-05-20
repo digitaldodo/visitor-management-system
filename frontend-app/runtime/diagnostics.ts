@@ -7,7 +7,8 @@ import type { DiagnosticContext, DiagnosticEvent, DiagnosticLevel, DiagnosticSco
 const DIAGNOSTIC_STORAGE_KEY = 'accessflow.mobile.diagnostics';
 const MAX_EVENTS = 60;
 const REDACTED_PLACEHOLDER = '[redacted]';
-const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access)/i;
+const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor|address|otp|pin|credential|photo|image)/i;
+const SENSITIVE_VALUE_PATTERN = /(bearer\s+[a-z0-9._-]+|eyj[a-z0-9._-]+|password=|token=|authorization=)/i;
 
 export async function readDiagnosticEvents() {
   const rawValue = await AsyncStorage.getItem(DIAGNOSTIC_STORAGE_KEY);
@@ -68,6 +69,9 @@ function sanitizeContext(context?: DiagnosticContext) {
     }
 
     if (typeof value === 'string') {
+      if (SENSITIVE_VALUE_PATTERN.test(value)) {
+        return [key, REDACTED_PLACEHOLDER];
+      }
       return [key, value.length > 180 ? `${value.slice(0, 177)}...` : value];
     }
 

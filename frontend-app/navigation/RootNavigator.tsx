@@ -10,6 +10,7 @@ import { getWorkspaceConfig } from '../auth/workspaceConfig';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useLocalization } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
+import { recordObservedError, trackScreenContext } from '../runtime/observability';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { BootScreen } from '../screens/common/BootScreen';
@@ -60,9 +61,36 @@ export function RootNavigator() {
   const workspaceConfig = auth.status === 'authenticated'
     ? getWorkspaceConfig(auth.session.user.activeRole)
     : null;
+  const activeRole = auth.status === 'authenticated' ? auth.session.user.activeRole : null;
+
+  const captureCurrentRoute = () => {
+    const route = navigationRef.getCurrentRoute() as { name?: string } | undefined;
+    if (!route?.name) {
+      return;
+    }
+    void trackScreenContext(route.name, activeRole);
+  };
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linkingConfig}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navigationTheme}
+      linking={linkingConfig}
+      onReady={captureCurrentRoute}
+      onStateChange={captureCurrentRoute}
+      onUnhandledAction={(action) => {
+        void recordObservedError({
+          error: new Error(`Unhandled navigation action: ${String(action.type || 'unknown')}`),
+          code: 'NAVIGATION_ACTION_UNHANDLED',
+          scope: 'navigation',
+          level: 'warn',
+          context: {
+            actionType: String(action.type || 'unknown'),
+            role: activeRole ?? 'signed_out',
+          },
+        });
+      }}
+    >
       {auth.status === 'bootstrapping' ? (
         <BootScreen />
       ) : auth.status === 'recovery' ? (

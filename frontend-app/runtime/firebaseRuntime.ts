@@ -32,11 +32,23 @@ type FirebaseUserContext = {
   audience?: WorkspaceAudience | null;
 };
 
-const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor)/i;
+export type FirebaseOperationalContext = {
+  currentWorkspace?: string | null;
+  currentRole?: ActiveWorkspaceRole | null;
+  currentAudience?: WorkspaceAudience | null;
+  currentScreen?: string | null;
+  deviceType?: string | null;
+  osVersion?: string | null;
+  appState?: string | null;
+};
+
+const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor|address|otp|pin|credential|photo|image)/i;
+const SENSITIVE_VALUE_PATTERN = /(bearer\s+[a-z0-9._-]+|eyj[a-z0-9._-]+|password=|token=|authorization=)/i;
 const MAX_PARAM_LENGTH = 80;
 const moduleCache: FirebaseModuleCache = {};
 
 let initialized = false;
+let operationalContext: FirebaseOperationalContext = {};
 
 export async function initializeFirebaseRuntime() {
   if (initialized || !apiConfig.firebase.enabled || !hasNativeFirebase()) {
@@ -65,6 +77,58 @@ export async function initializeFirebaseRuntime() {
   });
 
   return true;
+}
+
+export async function setFirebaseOperationalContext(context: FirebaseOperationalContext) {
+  operationalContext = {
+    ...operationalContext,
+    ...context,
+  };
+
+  await setFirebaseRuntimeAttributes({
+    workspace: operationalContext.currentWorkspace,
+    active_role: operationalContext.currentRole,
+    audience: operationalContext.currentAudience,
+    current_screen: operationalContext.currentScreen,
+    device_type: operationalContext.deviceType,
+    os_version: operationalContext.osVersion,
+    app_state: operationalContext.appState,
+  });
+}
+
+export async function getFirebaseCrashReportingState() {
+  const available = apiConfig.firebase.crashlyticsEnabled && hasNativeFirebase() && Boolean(loadCrashlyticsModule());
+  let didCrashPreviously = false;
+  let hasUnsentReports = false;
+
+  if (available) {
+    const crashlyticsModule = loadCrashlyticsModule();
+    let crashlytics: unknown = null;
+    try {
+      crashlytics = crashlyticsModule?.getCrashlytics?.();
+    } catch {
+      crashlytics = null;
+    }
+    try {
+      didCrashPreviously = Boolean(await crashlyticsModule.didCrashOnPreviousExecution?.(crashlytics));
+    } catch {
+      didCrashPreviously = false;
+    }
+    try {
+      hasUnsentReports = Boolean(await crashlyticsModule.checkForUnsentReports?.(crashlytics));
+    } catch {
+      hasUnsentReports = false;
+    }
+  }
+
+  return {
+    initialized,
+    available,
+    enabled: apiConfig.firebase.crashlyticsEnabled,
+    nativeAvailable: hasNativeFirebase(),
+    didCrashPreviously,
+    hasUnsentReports,
+  };
 }
 
 export async function getFirebaseMessagingToken() {
@@ -250,10 +314,19 @@ export async function recordFirebaseError(error: unknown, code: string, params?:
 
   try {
     const crashlytics = crashlyticsModule.getCrashlytics();
-    await setFirebaseRuntimeAttributes(sanitizeAnalyticsParams({
+    const sanitizedParams = sanitizeAnalyticsParams(params);
+    await setFirebaseRuntimeAttributes({
       last_error_code: code,
-      last_error_scope: params?.scope,
-    }));
+      last_error_scope: sanitizedParams.scope,
+      last_error_level: sanitizedParams.level,
+      last_error_screen: operationalContext.currentScreen,
+      active_role: operationalContext.currentRole,
+      workspace: operationalContext.currentWorkspace,
+    });
+    crashlyticsModule.log(
+      crashlytics,
+      `error:${sanitizeAnalyticsEventName(code)} ${JSON.stringify(sanitizedParams)}`.slice(0, 300),
+    );
     crashlyticsModule.recordError(crashlytics, normalizeError(error, code), code);
   } catch {
     // Non-fatal reporting is best-effort.
@@ -427,19 +500,34 @@ function sanitizeAnalyticsValue(value: unknown) {
   }
 
   if (typeof value === 'string') {
-    return value.slice(0, MAX_PARAM_LENGTH);
+    const safeValue = SENSITIVE_VALUE_PATTERN.test(value) ? '[redacted]' : value;
+    return safeValue.slice(0, MAX_PARAM_LENGTH);
   }
 
   return JSON.stringify(value).slice(0, MAX_PARAM_LENGTH);
 }
 
 function sanitizeUserId(userId: string | null) {
-  return userId ? `accessflow:${userId}`.slice(0, 120) : '';
+  return userId ? `af-user-${fingerprintValue(userId)}`.slice(0, 120) : '';
 }
 
 function normalizeError(error: unknown, code: string) {
   if (error instanceof Error) {
+    error.message = sanitizeErrorMessage(error.message, code);
     return error;
   }
-  return new Error(`${code}: ${typeof error === 'string' ? error : 'Unknown Firebase operational error'}`);
+  return new Error(`${code}: ${typeof error === 'string' ? sanitizeErrorMessage(error, code) : 'Unknown Firebase operational error'}`);
+}
+
+function sanitizeErrorMessage(message: string, fallback: string) {
+  const normalized = String(message || fallback);
+  return SENSITIVE_VALUE_PATTERN.test(normalized) ? `${fallback}: sensitive error details redacted` : normalized.slice(0, 500);
+}
+
+function fingerprintValue(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
 }

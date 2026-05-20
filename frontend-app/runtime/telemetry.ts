@@ -6,7 +6,8 @@ import type { OperationalMetric, OperationalMetricName } from '../types/runtime'
 
 const METRIC_STORAGE_KEY = 'accessflow.mobile.operational-metrics';
 const MAX_METRICS = 120;
-const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name)/i;
+const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor|address|otp|pin|credential|photo|image)/i;
+const SENSITIVE_VALUE_PATTERN = /(bearer\s+[a-z0-9._-]+|eyj[a-z0-9._-]+|password=|token=|authorization=)/i;
 
 type MetricInput = {
   name: OperationalMetricName;
@@ -71,7 +72,14 @@ function sanitizeTags(tags?: MetricInput['tags']) {
 
   const entries = Object.entries(tags)
     .filter(([key, value]) => value !== undefined && !SENSITIVE_KEY_PATTERN.test(key))
-    .map(([key, value]) => [key, typeof value === 'string' && value.length > 80 ? `${value.slice(0, 77)}...` : value]);
+    .map(([key, value]) => [
+      key,
+      typeof value === 'string'
+        ? SENSITIVE_VALUE_PATTERN.test(value)
+          ? '[redacted]'
+          : value.length > 80 ? `${value.slice(0, 77)}...` : value
+        : value,
+    ]);
 
   return Object.fromEntries(entries) as OperationalMetric['tags'];
 }

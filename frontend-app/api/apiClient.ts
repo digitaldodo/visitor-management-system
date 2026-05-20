@@ -8,6 +8,7 @@ import axios, {
 import { apiConfig } from './apiConfig';
 import { createAppError, createPayloadError, normalizeApiError } from './error';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import { recordApiFailure } from '../runtime/observability';
 import { recordOperationalMetric } from '../runtime/telemetry';
 import type { AppError } from '../types/api';
 import type { AuthResponseDto, AuthSession } from '../types/auth';
@@ -85,7 +86,17 @@ publicApi.interceptors.response.use(
     return response;
   },
   async (error: AxiosError) => {
-    await captureApiLatency(error.config as RetryableRequestConfig | undefined, error.response?.status);
+    const config = error.config as RetryableRequestConfig | undefined;
+    await captureApiLatency(config, error.response?.status);
+    const normalized = normalizeApiError(error);
+    await recordApiFailure({
+      method: String(config?.method || 'GET').toUpperCase(),
+      path: String(config?.url || ''),
+      status: normalized.status ?? null,
+      kind: normalized.kind,
+      retryCount: config?._networkRetryCount ?? 0,
+      durationMs: getRequestDuration(config),
+    });
     return Promise.reject(error);
   },
 );
@@ -161,6 +172,10 @@ async function captureApiLatency(config?: RetryableRequestConfig, status?: numbe
       slow: durationMs >= 2_000,
     },
   });
+}
+
+function getRequestDuration(config?: RetryableRequestConfig) {
+  return config?._startedAt ? Date.now() - config._startedAt : null;
 }
 
 function normalizePathForTelemetry(path: string) {
@@ -294,9 +309,18 @@ async function captureApiDiagnostic(error: AppError, config?: RetryableRequestCo
     message: error.message,
     context: {
       method: String(config?.method || 'GET').toUpperCase(),
-      path: String(config?.url || ''),
+      path: normalizePathForTelemetry(String(config?.url || '')),
       status: error.status ?? null,
       retryCount: config?._networkRetryCount ?? 0,
     },
+  });
+
+  await recordApiFailure({
+    method: String(config?.method || 'GET').toUpperCase(),
+    path: String(config?.url || ''),
+    status: error.status ?? null,
+    kind: error.kind,
+    retryCount: config?._networkRetryCount ?? 0,
+    durationMs: getRequestDuration(config),
   });
 }

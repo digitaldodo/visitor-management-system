@@ -33,6 +33,7 @@ import {
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
+import { getObservabilitySnapshot } from '../../runtime/observability';
 import type { UploadAsset } from '../../services/accountService';
 import {
   listTrustedDevices,
@@ -97,6 +98,7 @@ export function AccountProfileScreen({
   const [trustedDevices, setTrustedDevices] = useState<TrustedDeviceRecord[]>([]);
   const [localTrustProfile, setLocalTrustProfile] = useState<LocalDeviceTrustProfile | null>(null);
   const [securityCenterBusy, setSecurityCenterBusy] = useState(false);
+  const [observabilitySnapshot, setObservabilitySnapshot] = useState<Awaited<ReturnType<typeof getObservabilitySnapshot>> | null>(null);
 
   const identity = profile.data;
   const role = session?.user.activeRole ?? identity?.roles?.[0] ?? 'EMPLOYEE';
@@ -144,6 +146,13 @@ export function AccountProfileScreen({
   useEffect(() => {
     void loadSecurityCenter();
   }, [loadSecurityCenter]);
+
+  useEffect(() => {
+    if (!advancedOpen) {
+      return;
+    }
+    void getObservabilitySnapshot().then(setObservabilitySnapshot).catch(() => setObservabilitySnapshot(null));
+  }, [advancedOpen, runtime.runtimeHealth, runtime.syncConnection.status, runtime.offlineOperationalQueueSize]);
 
   const refreshAll = async () => {
     await Promise.all([
@@ -587,10 +596,20 @@ export function AccountProfileScreen({
           <View style={styles.detailStack}>
             <DetailRow label="Environment" value={apiConfig.environment} />
             <DetailRow label="Distribution" value={apiConfig.distributionChannel} />
-            <DetailRow label="API base" value={apiConfig.apiBaseUrl} />
             <DetailRow label="App version" value={apiConfig.appVersion} />
             <DetailRow label="Runtime version" value={apiConfig.runtimeVersion} />
             <DetailRow label="Build ID" value={apiConfig.buildId} />
+            <DetailRow label="Release channel" value={apiConfig.releaseChannel} />
+            <DetailRow label="OTA status" value={runtime.otaUpdate.updateDownloaded ? 'downloaded' : runtime.otaUpdate.updateAvailable ? 'available' : runtime.otaUpdate.enabled ? 'enabled' : 'disabled'} />
+            <DetailRow label="Crash reporting" value={observabilitySnapshot?.crashReportingAvailable ? 'enabled' : observabilitySnapshot?.crashReportingEnabled ? 'configured' : 'disabled'} />
+            <DetailRow label="Native Firebase" value={observabilitySnapshot?.crashReportingNativeAvailable ? 'available' : 'not loaded'} />
+            <DetailRow label="Previous crash" value={observabilitySnapshot?.didCrashPreviously ? 'detected' : 'none'} />
+            <DetailRow label="Unsent crash reports" value={observabilitySnapshot?.hasUnsentCrashReports ? 'pending' : 'none'} />
+            <DetailRow label="Sync health" value={`${runtime.syncConnection.status}${runtime.syncConnection.reconnectAttempt ? ` (${runtime.syncConnection.reconnectAttempt} retries)` : ''}`} />
+            <DetailRow label="API reachable" value={runtime.networkState.isApiReachable ? 'yes' : 'no'} />
+            <DetailRow label="Network" value={runtime.offlineOperationalMode} />
+            <DetailRow label="Offline queue" value={`${runtime.offlineOperationalQueueSize} operation${runtime.offlineOperationalQueueSize === 1 ? '' : 's'}`} />
+            <DetailRow label="Last offline sync" value={runtime.offlineLastSyncAt ? formatDateTime(runtime.offlineLastSyncAt) : 'Not recorded'} />
             <DetailRow label="Push permission" value={runtime.pushPermissionStatus || 'Unknown'} />
             <DetailRow label="Runtime health" value={runtime.runtimeHealth} />
           </View>

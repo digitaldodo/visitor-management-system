@@ -26,7 +26,6 @@ import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } fr
 import {
   getFirebaseMessagingToken,
   getInitialFirebaseNotification,
-  initializeFirebaseRuntime,
   onFirebaseForegroundMessage,
   onFirebaseNotificationOpened,
   onFirebaseTokenRefresh,
@@ -34,6 +33,7 @@ import {
   trackFirebaseEvent,
   type FirebaseMessagePayload,
 } from './firebaseRuntime';
+import { initializeProductionObservability, recordSyncFailure, setObservabilityContext } from './observability';
 import { applyDownloadedOtaUpdate, checkForOtaUpdate, readOtaUpdateState } from './otaUpdates';
 import { clearOperationalMetrics, readOperationalMetrics, recordOperationalMetric } from './telemetry';
 import { approveEmployeeVisitor, rejectEmployeeVisitor } from '../services/employeeService';
@@ -863,10 +863,17 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         await invalidateOperationalQueries();
       }
       await refreshOfflineQueueSize();
+    } catch (error) {
+      await recordSyncFailure({
+        code: 'OFFLINE_QUEUE_RECONCILIATION_FAILED',
+        message: error instanceof Error ? error.message : 'Offline queue reconciliation failed.',
+        status: syncConnection.status,
+      });
+      throw error;
     } finally {
       setIsSyncingOfflineOperations(false);
     }
-  }, [auth.status, invalidateOperationalQueries, refreshOfflineQueueSize, sessionLock.isLocked, upsertSystemNotification]);
+  }, [auth.status, invalidateOperationalQueries, refreshOfflineQueueSize, sessionLock.isLocked, syncConnection.status, upsertSystemNotification]);
 
   const syncNow = useCallback(async () => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {
@@ -1043,8 +1050,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [auth, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
 
   useEffect(() => {
-    void initializeFirebaseRuntime();
+    void initializeProductionObservability();
   }, []);
+
+  useEffect(() => {
+    void setObservabilityContext({
+      role: auth.status === 'authenticated' ? auth.session.user.activeRole : null,
+      audience: auth.status === 'authenticated' ? getWorkspaceConfig(auth.session.user.activeRole).audience : null,
+      workspace: auth.status === 'authenticated'
+        ? auth.session.user.organizationCode || auth.session.user.organizationName || 'platform'
+        : null,
+    });
+  }, [auth.status, auth.session]);
 
   useEffect(() => {
     const unsubscribeState = operationalSyncRuntime.subscribeState(setSyncConnection);

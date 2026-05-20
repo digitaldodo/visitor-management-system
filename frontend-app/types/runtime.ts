@@ -33,7 +33,7 @@ export type VersionHandshakePayload = {
 };
 
 export type DiagnosticLevel = 'info' | 'warn' | 'error';
-export type DiagnosticScope = 'api' | 'auth' | 'runtime' | 'scanner' | 'notification' | 'navigation' | 'security' | 'telemetry' | 'sync';
+export type DiagnosticScope = 'api' | 'auth' | 'runtime' | 'scanner' | 'notification' | 'navigation' | 'security' | 'telemetry' | 'sync' | 'performance';
 export type DiagnosticContext = Record<string, string | number | boolean | null | undefined | object>;
 
 export type DiagnosticEvent = {
@@ -216,7 +216,10 @@ export type OperationalMetricName =
   | 'operational_events_received'
   | 'runtime_recovery'
   | 'session_invalidated'
-  | 'mobile_security_event';
+  | 'mobile_security_event'
+  | 'event_loop_lag'
+  | 'slow_runtime_operation'
+  | 'memory_pressure';
 
 export type OperationalMetric = {
   id: string;

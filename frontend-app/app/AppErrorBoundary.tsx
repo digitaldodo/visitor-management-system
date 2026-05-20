@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { recordFirebaseError } from '../runtime/firebaseRuntime';
+import { recordOperationalMetric } from '../runtime/telemetry';
 import { theme } from '../theme';
 import { sanitizeUserFacingErrorMessage } from '../api/error';
 
@@ -54,6 +55,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   private handleReset = async () => {
+    const incidentId = this.state.incidentId;
     this.setState((current) => ({
       ...current,
       isRecovering: true,
@@ -66,6 +68,16 @@ export class AppErrorBoundary extends Component<Props, State> {
         message: '',
         incidentId: '',
         isRecovering: false,
+      });
+      await recordOperationalMetric({ name: 'runtime_recovery', tags: { source: 'error_boundary' } });
+      await recordDiagnosticEvent({
+        level: 'info',
+        scope: 'runtime',
+        code: 'RUNTIME_RECOVERED',
+        message: 'Runtime recovered successfully after a guarded shell reset.',
+        context: {
+          incidentId,
+        },
       });
     } catch (error) {
       this.setState((current) => ({
