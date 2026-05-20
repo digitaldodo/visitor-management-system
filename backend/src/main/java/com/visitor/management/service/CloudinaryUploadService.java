@@ -34,6 +34,10 @@ public class CloudinaryUploadService {
         return uploadImage(file, "employee-photos", "employee-");
     }
 
+    public VisitorPhotoUploadResponse uploadAccountPhoto(MultipartFile file) {
+        return uploadImage(file, "account-photos", "account-");
+    }
+
     private VisitorPhotoUploadResponse uploadImage(MultipartFile file, String folderSuffix, String publicIdPrefix) {
         validate(file);
 

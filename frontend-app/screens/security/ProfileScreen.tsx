@@ -1,54 +1,38 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 
-import { useAuth } from '../../auth/AuthProvider';
-import { PrimaryButton } from '../../components/buttons/PrimaryButton';
+import { MetricCard } from '../../components/cards/MetricCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
-import { AppScreen } from '../../components/layout/AppScreen';
-import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
-import { apiConfig } from '../../api/apiConfig';
-import { theme } from '../../theme';
+import { DetailRow } from '../../components/employee/DetailRow';
+import { useSecurityAttendance, useSecurityMonitoring, useSecurityOverview } from '../../hooks/useSecurityWorkspace';
+import { AccountProfileScreen } from '../common/AccountProfileScreen';
 
 export function ProfileScreen() {
-  const { session, logout, isBusy, refreshSession } = useAuth();
-  const runtime = useOperationalRuntime();
+  const overview = useSecurityOverview();
+  const monitoring = useSecurityMonitoring();
+  const attendance = useSecurityAttendance();
 
   return (
-    <AppScreen title="Profile" subtitle="Operator identity, tenant context, secure session status, and runtime health.">
-      <SurfaceCard title={session?.user.fullName || 'AccessFlow operator'}>
-        <View style={styles.detailList}>
-          <Text style={styles.text}>{session?.user.email}</Text>
-          <Text style={styles.text}>Workspace: {session?.user.activeRole}</Text>
-          <Text style={styles.text}>Organization: {session?.user.organizationCode || 'Platform-wide'}</Text>
-          <Text style={styles.text}>Last sync: {session?.lastSyncedAt ? new Date(session.lastSyncedAt).toLocaleString() : 'Unknown'}</Text>
-        </View>
-      </SurfaceCard>
-
-      <SurfaceCard title="Runtime">
-        <View style={styles.detailList}>
-          <Text style={styles.text}>Environment: {apiConfig.environment}</Text>
-          <Text style={styles.text}>Distribution: {apiConfig.distributionChannel}</Text>
-          <Text style={styles.text}>API base: {apiConfig.apiBaseUrl}</Text>
-          <Text style={styles.text}>App version: {apiConfig.appVersion}</Text>
-          <Text style={styles.text}>Runtime version: {apiConfig.runtimeVersion}</Text>
-          <Text style={styles.text}>Build ID: {apiConfig.buildId}</Text>
-          <Text style={styles.text}>Push permission: {runtime.pushPermissionStatus}</Text>
-          <Text style={styles.text}>Runtime health: {runtime.runtimeHealth}</Text>
-        </View>
-      </SurfaceCard>
-
-      <PrimaryButton label="Refresh session" onPress={() => void refreshSession()} loading={isBusy} />
-      <PrimaryButton label="Log out" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
-    </AppScreen>
+    <AccountProfileScreen
+      title="Profile"
+      subtitle="Security identity, checkpoint context, account settings, and diagnostics without exposing organization-controlled access fields."
+      refreshing={overview.isRefetching || monitoring.isRefetching || attendance.isRefetching}
+      onRefresh={() => {
+        void overview.refetch();
+        void monitoring.refetch();
+        void attendance.refetch();
+      }}
+      roleSummary={(
+        <SurfaceCard title="Security operations" subtitle="Your mobile workspace stays scoped to checkpoint verification, visitor handling, and workforce presence support.">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <MetricCard label="Inside" value={monitoring.data?.counts?.inside ?? monitoring.data?.currentlyInside?.length ?? 0} tone="success" />
+            <MetricCard label="Overdue" value={monitoring.data?.overdueVisitors?.length ?? 0} tone={(monitoring.data?.overdueVisitors?.length ?? 0) ? 'warning' : 'default'} />
+            <MetricCard label="Attendance scans" value={attendance.data?.length ?? 0} tone="info" />
+          </View>
+          <DetailRow label="Assignment" value={overview.data?.area || 'Security checkpoint'} />
+          <DetailRow label="Access scope" value="QR scan, visitor exceptions, workforce onboarding, and presence verification" />
+          <DetailRow label="Organization controls" value="Role, checkpoint assignment, and approval limits are managed by administrators" />
+        </SurfaceCard>
+      )}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  detailList: {
-    gap: theme.spacing.sm,
-  },
-  text: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: 22,
-  },
-});

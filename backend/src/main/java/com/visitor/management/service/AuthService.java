@@ -1,6 +1,8 @@
 package com.visitor.management.service;
 
 import com.visitor.management.config.CorsOriginResolver;
+import com.visitor.management.dto.AccountProfileUpdateRequest;
+import com.visitor.management.dto.ActionResponse;
 import com.visitor.management.dto.AuthRequest;
 import com.visitor.management.dto.AuthResponse;
 import com.visitor.management.dto.EmailVerificationDispatchRequest;
@@ -319,15 +321,60 @@ public class AuthService {
     }
 
     public UserProfileResponse currentUser(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("Authentication is required.");
+        return toProfile(currentAuthenticatedUser(authentication));
+    }
+
+    public UserProfileResponse updateAccountProfile(Authentication authentication, AccountProfileUpdateRequest request) {
+        User user = currentAuthenticatedUser(authentication);
+
+        String username = trimToNull(request.username());
+        if (username != null && !username.equals(user.getUsername())) {
+            String normalizedUsername = normalizeUsername(username);
+            if (!normalizedUsername.equals(user.getUsername()) && userRepository.existsByUsernameIgnoreCase(normalizedUsername)) {
+                throw new ConflictException("An account with this username already exists.");
+            }
+            user.setUsername(normalizedUsername);
         }
 
-        User user = userRepository.findById(authentication.getName())
-                .filter(this::isActiveAccount)
-                .orElseThrow(() -> new UnauthorizedException("Authenticated user was not found."));
+        if (request.phone() != null || request.phoneCountryCode() != null) {
+            PhoneNumberService.NormalizedPhone phone = phoneNumberService.normalize(
+                    request.phoneCountryCode() != null ? request.phoneCountryCode() : user.getPhoneCountryCode(),
+                    request.phone(),
+                    false
+            );
+            user.setPhone(phone != null ? phone.e164() : null);
+            user.setPhoneCountryCode(phone != null ? phone.countryCode() : phoneNumberService.normalizeDialCode(request.phoneCountryCode()));
+        }
+        if (request.employeePhotoUrl() != null) {
+            user.setEmployeePhotoUrl(trimToNull(request.employeePhotoUrl()));
+        }
+        if (request.emergencyContact() != null) {
+            user.setEmergencyContact(trimToNull(request.emergencyContact()));
+        }
+        if (request.preferredLanguage() != null) {
+            user.setPreferredLanguage(normalizeLanguage(request.preferredLanguage()));
+        }
+        if (request.notificationEmailEnabled() != null) {
+            user.setNotificationEmailEnabled(request.notificationEmailEnabled());
+        }
+        if (request.notificationInAppEnabled() != null) {
+            user.setNotificationInAppEnabled(request.notificationInAppEnabled());
+        }
 
-        return toProfile(user);
+        return toProfile(userRepository.save(user));
+    }
+
+    public ActionResponse updateAccountPassword(Authentication authentication, String currentPassword, String newPassword) {
+        User user = currentAuthenticatedUser(authentication);
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new UnauthorizedException("Current password is incorrect.");
+        }
+        validateStrongPassword(newPassword);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordChangedAt(Instant.now());
+        userRepository.save(user);
+        revokeAllRefreshTokens(user.getId());
+        return ActionResponse.ok();
     }
 
     private AuthResponse issueTokens(User user) {
@@ -512,6 +559,16 @@ public class AuthService {
         );
     }
 
+    private User currentAuthenticatedUser(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedException("Authentication is required.");
+        }
+
+        return userRepository.findById(authentication.getName())
+                .filter(this::isActiveAccount)
+                .orElseThrow(() -> new UnauthorizedException("Authenticated user was not found."));
+    }
+
     private String visitorVerificationUrl(String rawToken) {
         String publicOrigin = corsOriginResolver.resolvePublicOrigin();
         if (publicOrigin == null) {
@@ -594,6 +651,11 @@ public class AuthService {
 
     private String normalizeIdentifier(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeLanguage(String value) {
+        String language = trimToNull(value);
+        return language == null ? null : language.toLowerCase(Locale.ROOT);
     }
 
     private String normalizeUsername(String value) {

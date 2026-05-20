@@ -1,12 +1,14 @@
 package com.visitor.management.controller;
 
 import com.visitor.management.dto.ActionResponse;
+import com.visitor.management.dto.AccountProfileUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.AuthRequest;
 import com.visitor.management.dto.AuthResponse;
 import com.visitor.management.dto.EmailVerificationDispatchRequest;
 import com.visitor.management.dto.EmailVerificationDispatchResponse;
 import com.visitor.management.dto.EmailVerificationStatusResponse;
+import com.visitor.management.dto.EmployeePasswordUpdateRequest;
 import com.visitor.management.dto.ForgotPasswordRequest;
 import com.visitor.management.dto.ForgotPasswordResponse;
 import com.visitor.management.dto.LogoutRequest;
@@ -14,29 +16,37 @@ import com.visitor.management.dto.RefreshTokenRequest;
 import com.visitor.management.dto.RegisterRequest;
 import com.visitor.management.dto.ResetPasswordRequest;
 import com.visitor.management.dto.UserProfileResponse;
+import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VerifyOtpRequest;
 import com.visitor.management.dto.VerifyOtpResponse;
 import com.visitor.management.service.AuthService;
+import com.visitor.management.service.CloudinaryUploadService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping({"/api/v1/auth", "/api/auth", "/auth"})
 public class AuthController {
 
     private final AuthService authService;
+    private final CloudinaryUploadService cloudinaryUploadService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, CloudinaryUploadService cloudinaryUploadService) {
         this.authService = authService;
+        this.cloudinaryUploadService = cloudinaryUploadService;
     }
 
     @PostMapping("/login")
@@ -112,6 +122,30 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<UserProfileResponse> me(Authentication authentication) {
         return ApiResponse.ok("Current user loaded.", authService.currentUser(authentication));
+    }
+
+    @PatchMapping("/profile")
+    public ApiResponse<UserProfileResponse> updateProfile(
+            @Valid @RequestBody AccountProfileUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Account profile updated.", authService.updateAccountProfile(authentication, request));
+    }
+
+    @PatchMapping("/profile/password")
+    public ApiResponse<ActionResponse> updatePassword(
+            @Valid @RequestBody EmployeePasswordUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok(
+                "Account password updated.",
+                authService.updateAccountPassword(authentication, request.currentPassword(), request.newPassword())
+        );
+    }
+
+    @PostMapping(value = "/profile/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<VisitorPhotoUploadResponse> uploadProfilePhoto(@RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok("Account photo uploaded.", cloudinaryUploadService.uploadAccountPhoto(file));
     }
 
     private String clientFingerprint(HttpServletRequest request) {

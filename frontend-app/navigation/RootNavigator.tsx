@@ -116,7 +116,7 @@ function EmployeeNavigator() {
       <EmployeeTabs.Screen name="Requests" component={RequestsScreen} />
       <EmployeeTabs.Screen name="Presence" component={PresenceScreen} />
       <EmployeeTabs.Screen name="Notifications" component={NotificationsScreen} />
-      <EmployeeTabs.Screen name="Settings" component={SettingsScreen} />
+      <EmployeeTabs.Screen name="Profile" component={SettingsScreen} />
     </EmployeeTabs.Navigator>
   );
 }
@@ -147,7 +147,7 @@ function AdminNavigator() {
       <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
       <AdminTabs.Screen name="Register" component={AdminRegisterScreen} />
       <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} />
-      <AdminTabs.Screen name="Settings" component={AdminSettingsScreen} />
+      <AdminTabs.Screen name="Profile" component={AdminSettingsScreen} />
     </AdminTabs.Navigator>
   );
 }

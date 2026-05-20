@@ -18,6 +18,7 @@ import { OrganizationSelector } from '../../components/form/OrganizationSelector
 import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
+import { AccountProfileScreen } from '../common/AccountProfileScreen';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
@@ -419,49 +420,37 @@ export function VisitorNotificationsScreen() {
 }
 
 export function VisitorProfileScreen() {
-  const { session, logout, isBusy, refreshSession } = useAuth();
   const history = useVisitorHistory();
 
   return (
-    <AppScreen
+    <AccountProfileScreen
       title="Profile"
-      subtitle="Visitor identity, organization context, notification readiness, and visit history."
+      subtitle="Visitor identity, personal account settings, pass readiness, and visit history."
       refreshing={history.isRefetching}
       onRefresh={() => {
         void history.refetch();
       }}
-    >
-      <SurfaceCard title={session?.user.fullName || 'Visitor profile'} subtitle="Identity comes from your verified visitor account.">
-        <DetailRow label="Name" value={session?.user.fullName || history.data?.fullName || 'Visitor'} />
-        <DetailRow label="Email" value={session?.user.email || 'Verified email pending'} />
-        <DetailRow label="Organization" value={session?.user.organizationName || session?.user.organizationCode || history.data?.organizationName || 'Request scoped'} muted={!session?.user.organizationName && !session?.user.organizationCode && !history.data?.organizationName} />
-        <DetailRow label="Account role" value="VISITOR" />
-        <DetailRow label="Last sync" value={session?.lastSyncedAt ? formatDateTime(session.lastSyncedAt) : 'Unknown'} muted={!session?.lastSyncedAt} />
-      </SurfaceCard>
-
-      <SurfaceCard title="Visit history">
-        <View style={styles.metricsGrid}>
-          <MetricCard label="Total" value={history.data?.totalVisits ?? 0} tone="default" />
-          <MetricCard label="Approved" value={history.data?.approvedVisits ?? 0} tone="success" />
-          <MetricCard label="Rejected" value={history.data?.rejectedVisits ?? 0} tone={(history.data?.rejectedVisits ?? 0) ? 'danger' : 'default'} />
-        </View>
-        {(history.data?.records ?? []).slice(0, 6).map((visit) => (
-          <RecordCard
-            key={visit.id}
-            title={visit.purposeOfVisit || 'Visit'}
-            subtitle={[visit.organizationName, visit.hostEmployee].filter(Boolean).join(' · ')}
-            meta={formatVisitorWindow(visit)}
-            status={visitorStatusLabel(visit.status)}
-            tone={statusTone(visit.status)}
-          />
-        ))}
-      </SurfaceCard>
-
-      <View style={styles.messageStack}>
-        <PrimaryButton label="Refresh session" onPress={() => void refreshSession()} loading={isBusy} />
-        <PrimaryButton label="Log out" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
-      </View>
-    </AppScreen>
+      roleSummary={(
+        <SurfaceCard title="Visit history" subtitle="Visitor profile data stays scoped to your own requests and active passes.">
+          <View style={styles.metricsGrid}>
+            <MetricCard label="Total" value={history.data?.totalVisits ?? 0} tone="default" />
+            <MetricCard label="Approved" value={history.data?.approvedVisits ?? 0} tone="success" />
+            <MetricCard label="Rejected" value={history.data?.rejectedVisits ?? 0} tone={(history.data?.rejectedVisits ?? 0) ? 'danger' : 'default'} />
+          </View>
+          {(history.data?.records ?? []).slice(0, 6).map((visit) => (
+            <RecordCard
+              key={visit.id}
+              title={visit.purposeOfVisit || 'Visit'}
+              subtitle={[visit.organizationName, visit.hostEmployee].filter(Boolean).join(' · ')}
+              meta={formatVisitorWindow(visit)}
+              status={visitorStatusLabel(visit.status)}
+              tone={statusTone(visit.status)}
+            />
+          ))}
+          {history.data?.records?.length ? null : <EmptyState title="No visits yet" body="Your completed and requested visits will appear here." />}
+        </SurfaceCard>
+      )}
+    />
   );
 }
 

@@ -6,7 +6,7 @@ import { theme } from '../../theme';
 type Props = {
   label: string;
   value: string | number;
-  tone?: 'default' | 'success' | 'warning' | 'danger';
+  tone?: 'default' | 'success' | 'warning' | 'danger' | 'info';
 };
 
 export function MetricCard({ label, value, tone = 'default' }: Props) {
@@ -16,6 +16,7 @@ export function MetricCard({ label, value, tone = 'default' }: Props) {
     success: theme.colors.successSoft,
     warning: theme.colors.warningSoft,
     danger: theme.colors.dangerSoft,
+    info: theme.colors.infoSoft,
   }[tone];
 
   return (

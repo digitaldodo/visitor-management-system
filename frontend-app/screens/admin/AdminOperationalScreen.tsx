@@ -8,12 +8,14 @@ import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { MetricCard } from '../../components/cards/MetricCard';
 import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
+import { DetailRow } from '../../components/employee/DetailRow';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { AccountProfileScreen } from '../common/AccountProfileScreen';
 import {
   useAdminOverview,
   useAdminReports,
@@ -102,7 +104,46 @@ export function AdminEmployeesScreen() {
 }
 
 export function AdminSettingsScreen() {
-  return <AdminOperationalScreen section="settings" />;
+  return <AdminAccountSettingsScreen />;
+}
+
+function AdminAccountSettingsScreen() {
+  const overview = useAdminOverview();
+  const reports = useAdminReports();
+  const users = useAdminUsers();
+  const workforceOnboarding = useAdminWorkforceOnboarding();
+  const notifications = useNotificationsQuery(24);
+
+  const pendingWorkforce = (workforceOnboarding.data ?? []).filter((worker) => String(worker.accountStatus || '').toUpperCase() !== 'ACTIVE').length;
+  const disabledUsers = (users.data ?? []).filter((user) => !user.active || String(user.accountStatus || '').toUpperCase() !== 'ACTIVE').length;
+
+  return (
+    <AccountProfileScreen
+      title="Profile"
+      subtitle="Admin identity, organization oversight, secure account settings, and diagnostics for mobile operations."
+      refreshing={overview.isRefetching || reports.isRefetching || users.isRefetching || workforceOnboarding.isRefetching || notifications.isRefetching}
+      onRefresh={() => {
+        void overview.refetch();
+        void reports.refetch();
+        void users.refetch();
+        void workforceOnboarding.refetch();
+        void notifications.refetch();
+      }}
+      roleSummary={(
+        <SurfaceCard title="Admin oversight" subtitle="Mobile admin controls expose operational visibility while role, organization, and permission authority remain backend-managed.">
+          <View style={styles.metricsGrid}>
+            <MetricCard label="Users" value={users.data?.length ?? 0} tone="info" />
+            <MetricCard label="Pending workforce" value={pendingWorkforce} tone={pendingWorkforce ? 'warning' : 'default'} />
+            <MetricCard label="Disabled users" value={disabledUsers} tone={disabledUsers ? 'danger' : 'default'} />
+            <MetricCard label="Unread alerts" value={notifications.data?.unreadCount ?? 0} tone={(notifications.data?.unreadCount ?? 0) ? 'warning' : 'default'} />
+          </View>
+          <DetailRow label="Mobile admin scope" value="Approvals, visitor operations, alerts, register, workforce, and employee access controls" />
+          <DetailRow label="Operational area" value={overview.data?.area || 'Organization administration'} />
+          <DetailRow label="Audit reports" value={`${reports.data?.length ?? 0} available`} />
+        </SurfaceCard>
+      )}
+    />
+  );
 }
 
 export function AdminOperationalScreen({ section }: SectionProps) {
