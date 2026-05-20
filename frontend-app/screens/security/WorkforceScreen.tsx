@@ -16,6 +16,7 @@ import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
 import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import {
   useCreateWorkforceOnboardingMutation,
   useManualEmployeeCheckInMutation,
@@ -24,6 +25,7 @@ import {
   useUploadWorkforcePhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
 import { getSecurityEmployees } from '../../services/securityService';
+import { readCachedAttendance, searchCachedEmployees } from '../../storage/offlineOperationalStore';
 import { theme } from '../../theme';
 import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry } from '../../types/domain';
 import { employeePresenceLabel, formatDateTime, relativePresenceSummary, statusTone } from '../../utils/securityFormatting';
@@ -44,6 +46,7 @@ export function WorkforceScreen() {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
   const { showSnackbar } = useOperationalSnackbar();
+  const runtime = useOperationalRuntime();
   const [search, setSearch] = useState('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [workforceAction, setWorkforceAction] = useState<WorkforceAction | null>(null);
@@ -62,6 +65,8 @@ export function WorkforceScreen() {
   const [shiftStartTime, setShiftStartTime] = useState('09:00');
   const [shiftEndTime, setShiftEndTime] = useState('18:00');
   const [formError, setFormError] = useState<string | null>(null);
+  const [cachedEmployees, setCachedEmployees] = useState<EmployeeDirectoryEntry[]>([]);
+  const [cachedAttendance, setCachedAttendance] = useState<EmployeeAttendanceRecord[]>([]);
 
   const attendance = useSecurityAttendance();
   const normalizedSearch = search.trim();
@@ -88,15 +93,45 @@ export function WorkforceScreen() {
     }
   }, [employees.error, employees.isError, showSnackbar]);
 
+  const offlineLookupActive = runtime.offlineOperationalMode !== 'online';
+
+  useEffect(() => {
+    if (!offlineLookupActive && employees.results.length) {
+      setCachedEmployees(employees.results);
+    }
+    if (!offlineLookupActive && attendance.data?.length) {
+      setCachedAttendance(attendance.data);
+      return;
+    }
+
+    if (offlineLookupActive) {
+      void Promise.all([
+        searchCachedEmployees(normalizedSearch),
+        readCachedAttendance(),
+      ])
+        .then(([nextEmployees, nextAttendance]) => {
+          setCachedEmployees(nextEmployees);
+          setCachedAttendance(nextAttendance);
+        })
+        .catch(() => {
+          setCachedEmployees([]);
+          setCachedAttendance([]);
+        });
+    }
+  }, [attendance.data, employees.results, normalizedSearch, offlineLookupActive]);
+
+  const employeeItems = offlineLookupActive ? cachedEmployees : employees.results;
+  const attendanceItems = offlineLookupActive ? cachedAttendance : attendance.data ?? cachedAttendance;
+
   const recentPresenceByEmployee = useMemo(() => {
     const map = new Map<string, EmployeeAttendanceRecord>();
-    (attendance.data ?? []).forEach((entry) => {
+    attendanceItems.forEach((entry) => {
       if (!map.has(entry.employeeUserId)) {
         map.set(entry.employeeUserId, entry);
       }
     });
     return map;
-  }, [attendance.data]);
+  }, [attendanceItems]);
 
   const refreshWorkspace = async () => {
     await Promise.all([
@@ -205,7 +240,12 @@ export function WorkforceScreen() {
           return attendance.refetch();
         }}
       >
-        <SurfaceCard title="Assisted onboarding" subtitle="Capture the worker identity, service type, and shift context for admin approval.">
+        <SurfaceCard
+          title="Assisted onboarding"
+          subtitle={offlineLookupActive
+            ? 'New workforce onboarding requires connectivity so admin approval and credential issuance stay authoritative.'
+            : 'Capture the worker identity, service type, and shift context for admin approval.'}
+        >
           <AppTextField label="Worker name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
           <AppTextField label="Username (optional)" value={username} onChangeText={setUsername} placeholder="worker_001" autoCapitalize="none" />
           <AppTextField label="Email (optional)" value={email} onChangeText={setEmail} placeholder="worker@accessflow.local" autoCapitalize="none" keyboardType="email-address" />
@@ -267,20 +307,26 @@ export function WorkforceScreen() {
           ) : null}
 
           <PrimaryButton
-            label="Submit onboarding request"
+            label={offlineLookupActive ? 'Onboarding requires connectivity' : 'Submit onboarding request'}
             onPress={() => void submitOnboarding()}
             loading={createWorkforceMutation.isPending || uploadWorkforcePhotoMutation.isPending}
+            disabled={offlineLookupActive}
           />
         </SurfaceCard>
 
-        <SurfaceCard title="Workforce search" subtitle="Look up cleaners, gardeners, support staff, contract labor, and active employees from the backend directory.">
+        <SurfaceCard
+          title="Workforce search"
+          subtitle={offlineLookupActive
+            ? `Offline lookup uses approved cached workers only. Last sync: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
+            : 'Look up cleaners, gardeners, support staff, contract labor, and active employees from the backend directory.'}
+        >
           <AppTextField label="Search workforce" value={search} onChangeText={setSearch} placeholder="Search by name, employee ID, designation, or department" />
-          {employees.isLoading ? (
+          {!offlineLookupActive && employees.isLoading ? (
             <EmptyState title="Searching workforce" body="Loading matching employees..." />
-          ) : employees.isError ? (
+          ) : !offlineLookupActive && employees.isError ? (
             <EmptyState title="Unable to load results" body={employees.error?.message || 'Search failed. Retry shortly.'} />
-          ) : employees.results.length ? (
-            employees.results.slice(0, 10).map((employee) => {
+          ) : employeeItems.length ? (
+            employeeItems.slice(0, 10).map((employee) => {
               const recent = recentPresenceByEmployee.get(employee.id);
               return (
                 <View key={employee.id} style={styles.directoryCard}>
@@ -304,11 +350,19 @@ export function WorkforceScreen() {
                     ]}
                   />
                   <View style={styles.actionRow}>
-                    <PrimaryButton
-                      label={employee.currentlyIn ? 'Assist check-out' : 'Assist check-in'}
-                      onPress={() => setWorkforceAction({ type: employee.currentlyIn ? 'check-out' : 'check-in', employee })}
-                      tone="secondary"
-                    />
+                    {offlineLookupActive ? (
+                      <PrimaryButton
+                        label="Manual actions require connectivity"
+                        onPress={() => showSnackbar({ message: 'Offline Mode allows cached lookup only here. Use QR scan for queued offline presence.', tone: 'warning' })}
+                        tone="secondary"
+                      />
+                    ) : (
+                      <PrimaryButton
+                        label={employee.currentlyIn ? 'Assist check-out' : 'Assist check-in'}
+                        onPress={() => setWorkforceAction({ type: employee.currentlyIn ? 'check-out' : 'check-in', employee })}
+                        tone="secondary"
+                      />
+                    )}
                   </View>
                 </View>
               );
@@ -319,8 +373,8 @@ export function WorkforceScreen() {
         </SurfaceCard>
 
         <SurfaceCard title="Presence logs" subtitle="Recent security-visible workforce access events only.">
-          {attendance.data?.length ? (
-            attendance.data.slice(0, 10).map((entry) => (
+          {attendanceItems.length ? (
+            attendanceItems.slice(0, 10).map((entry) => (
               <RecordCard
                 key={entry.id}
                 title={entry.employeeName}

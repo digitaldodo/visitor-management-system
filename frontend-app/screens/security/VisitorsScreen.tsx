@@ -18,6 +18,7 @@ import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import {
   useCheckInVisitorMutation,
   useCheckOutVisitorMutation,
@@ -31,6 +32,7 @@ import {
   useUploadVisitorPhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
 import { getSecurityHosts } from '../../services/securityService';
+import { searchCachedVisitors } from '../../storage/offlineOperationalStore';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, SecurityMonitoring, VisitorRecord, VisitorType } from '../../types/domain';
 import {
@@ -63,6 +65,7 @@ export function VisitorsScreen() {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
   const { showSnackbar } = useOperationalSnackbar();
+  const runtime = useOperationalRuntime();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'CHECKED_IN' | 'REJECTED'>('ALL');
   const [visitorType, setVisitorType] = useState<VisitorType>('WALK_IN');
@@ -80,6 +83,7 @@ export function VisitorsScreen() {
   const [photoPreviewVisible, setPhotoPreviewVisible] = useState(false);
   const [actionState, setActionState] = useState<VisitorAction | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [cachedVisitors, setCachedVisitors] = useState<VisitorRecord[]>([]);
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const normalizedHostSearch = hostSearch.trim();
@@ -110,9 +114,23 @@ export function VisitorsScreen() {
     }
   }, [hostSearchState.error, hostSearchState.isError, showSnackbar]);
 
+  useEffect(() => {
+    if (runtime.offlineOperationalMode === 'online' && visitors.data?.items.length) {
+      setCachedVisitors(visitors.data.items);
+      return;
+    }
+
+    void searchCachedVisitors(deferredSearch, statusFilter)
+      .then(setCachedVisitors)
+      .catch(() => setCachedVisitors([]));
+  }, [deferredSearch, runtime.offlineOperationalMode, statusFilter, visitors.data?.items]);
+
+  const offlineLookupActive = runtime.offlineOperationalMode !== 'online';
+  const visitorItems = offlineLookupActive ? cachedVisitors : visitors.data?.items ?? cachedVisitors;
+
   const operationalHighlights = useMemo(
-    () => buildOperationalHighlights(monitoring.data, visitors.data?.items ?? []),
-    [monitoring.data, visitors.data?.items],
+    () => buildOperationalHighlights(offlineLookupActive ? undefined : monitoring.data, visitorItems),
+    [offlineLookupActive, monitoring.data, visitorItems],
   );
 
   const refreshWorkspace = async () => {
@@ -275,7 +293,12 @@ export function VisitorsScreen() {
         refreshing={monitoring.isRefetching || visitors.isRefetching}
         onRefresh={() => Promise.all([monitoring.refetch(), visitors.refetch()])}
       >
-        <SurfaceCard title="Walk-in registration" subtitle="Optimized for front-desk speed with minimal typing and immediate photo capture.">
+        <SurfaceCard
+          title="Walk-in registration"
+          subtitle={offlineLookupActive
+            ? 'Registration requires connectivity so identity photos, host assignment, and badge creation stay backend-verified.'
+            : 'Optimized for front-desk speed with minimal typing and immediate photo capture.'}
+        >
           <View style={styles.segmentRow}>
             {QUICK_VISITOR_TYPES.map((type) => (
               <Pressable
@@ -359,14 +382,19 @@ export function VisitorsScreen() {
           ) : null}
 
           <PrimaryButton
-            label="Register visitor"
+            label={offlineLookupActive ? 'Registration requires connectivity' : 'Register visitor'}
             onPress={() => void submitRegistration()}
             loading={createVisitorMutation.isPending || uploadVisitorPhotoMutation.isPending}
-            disabled={!photoAsset}
+            disabled={!photoAsset || offlineLookupActive}
           />
         </SurfaceCard>
 
-        <SurfaceCard title="Checkpoint queue" subtitle="Search across the live queue without opening a dashboard-heavy workspace.">
+        <SurfaceCard
+          title="Checkpoint queue"
+          subtitle={offlineLookupActive
+            ? `Offline lookup from cached records only. Last sync: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
+            : 'Search across the live queue without opening a dashboard-heavy workspace.'}
+        >
           <AppTextField
             label="Search queue"
             value={search}
@@ -396,7 +424,7 @@ export function VisitorsScreen() {
                   onLongPress={() => showSnackbar({ message: 'Open Record for full history and badge actions', tone: 'info' })}
                 />
                 <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-                  {visitor.status === 'APPROVED' ? (
+                  {!offlineLookupActive && visitor.status === 'APPROVED' ? (
                     <PrimaryButton
                       label="Check in"
                       onPress={async () => {
@@ -411,7 +439,7 @@ export function VisitorsScreen() {
                       loading={checkInMutation.isPending}
                     />
                   ) : null}
-                  {visitor.status === 'CHECKED_IN' ? (
+                  {!offlineLookupActive && visitor.status === 'CHECKED_IN' ? (
                     <PrimaryButton
                       label="Check out"
                       onPress={async () => {
@@ -427,9 +455,15 @@ export function VisitorsScreen() {
                       tone="secondary"
                     />
                   ) : null}
-                  <PrimaryButton label="Override" onPress={() => setActionState({ type: 'override', visitor })} tone="secondary" />
-                  <PrimaryButton label="Deny entry" onPress={() => setActionState({ type: 'deny', visitor })} tone="danger" />
-                  <PrimaryButton label="Escalate" onPress={() => setActionState({ type: 'escalate', visitor })} tone="secondary" />
+                  {!offlineLookupActive ? (
+                    <>
+                      <PrimaryButton label="Override" onPress={() => setActionState({ type: 'override', visitor })} tone="secondary" />
+                      <PrimaryButton label="Deny entry" onPress={() => setActionState({ type: 'deny', visitor })} tone="danger" />
+                      <PrimaryButton label="Escalate" onPress={() => setActionState({ type: 'escalate', visitor })} tone="secondary" />
+                    </>
+                  ) : (
+                    <PrimaryButton label="Open cached record" onPress={() => openVisitorRecord(visitor)} tone="secondary" />
+                  )}
                 </View>
               </View>
             ))
@@ -439,9 +473,9 @@ export function VisitorsScreen() {
         </SurfaceCard>
 
         <SurfaceCard title="Recent records" subtitle="Compact visitor history for fast scanning. Tap a row to open the full operational record.">
-          {visitors.data?.items.length ? (
+          {visitorItems.length ? (
             <View style={styles.compactList}>
-              {visitors.data.items.slice(0, 12).map((visitor) => (
+              {visitorItems.slice(0, 12).map((visitor) => (
                 <VisitorCompactRow
                   key={visitor.id}
                   visitor={visitor}

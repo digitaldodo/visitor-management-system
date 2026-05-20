@@ -10,6 +10,10 @@ export function RuntimeBanner() {
     runtimeHealth,
     devicePosture,
     offlineScanQueueSize,
+    offlineOperationalMode,
+    offlineOperationalQueueSize,
+    offlineLastSyncAt,
+    isSyncingOfflineOperations,
   } = useOperationalRuntime();
 
   if (runtimeHealth === 'locked') {
@@ -30,23 +34,42 @@ export function RuntimeBanner() {
     );
   }
 
-  if (!degradedMessage && pushPermissionStatus !== 'DENIED' && !devicePosture.suspicious && offlineScanQueueSize === 0) {
+  if (
+    !degradedMessage
+    && pushPermissionStatus !== 'DENIED'
+    && !devicePosture.suspicious
+    && offlineOperationalQueueSize === 0
+    && offlineOperationalMode === 'online'
+    && !isSyncingOfflineOperations
+  ) {
     return null;
   }
 
-  const tone = degradedMessage || devicePosture.suspicious ? styles.danger : offlineScanQueueSize > 0 ? styles.warning : styles.info;
-  const title = degradedMessage
-    ? 'Degraded sync'
+  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious
+    ? styles.danger
+    : offlineOperationalQueueSize > 0
+      ? styles.warning
+      : styles.info;
+  const title = offlineOperationalMode === 'offline'
+    ? 'Offline Mode'
+    : isSyncingOfflineOperations
+      ? 'Syncing...'
+      : degradedMessage
+        ? 'Degraded sync'
     : devicePosture.suspicious
       ? 'Device review required'
-      : offlineScanQueueSize > 0
-        ? 'Offline scan queue active'
+      : offlineOperationalQueueSize > 0
+        ? 'Queued actions pending'
         : 'Notifications limited';
-  const message = degradedMessage
+  const message = offlineOperationalMode === 'offline'
+    ? `Cached records are available for known visitors and workforce only. ${offlineOperationalQueueSize ? `${offlineOperationalQueueSize} action${offlineOperationalQueueSize === 1 ? '' : 's'} pending sync.` : lastSyncCopy(offlineLastSyncAt)}`
+    : isSyncingOfflineOperations
+      ? 'Back online. AccessFlow is safely replaying queued checkpoint actions and refreshing operational records.'
+      : degradedMessage
     ?? (devicePosture.suspicious
       ? 'This device was flagged by session policy. AccessFlow has limited operations until the session is safely resumed.'
-      : offlineScanQueueSize > 0
-        ? `${offlineScanQueueSize} scan${offlineScanQueueSize === 1 ? '' : 's'} are waiting for supervised retry. Access is never granted from offline cache alone.`
+      : offlineOperationalQueueSize > 0
+        ? `${offlineOperationalQueueSize} action${offlineOperationalQueueSize === 1 ? '' : 's'} queued, including ${offlineScanQueueSize} scan${offlineScanQueueSize === 1 ? '' : 's'}. Access is marked provisional until sync confirms.`
         : 'Push notifications are turned off on this device. In-app alerts will still appear while the app is open.');
 
   return (
@@ -87,3 +110,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
+
+function lastSyncCopy(lastSyncAt: string | null) {
+  if (!lastSyncAt) {
+    return 'No local sync timestamp is available yet.';
+  }
+
+  return `Last sync ${new Date(lastSyncAt).toLocaleString()}.`;
+}

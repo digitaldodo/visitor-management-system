@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import * as ScreenCapture from 'expo-screen-capture';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import NetInfo from '@react-native-community/netinfo';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import {
@@ -30,8 +31,13 @@ import {
   unregisterNotificationDevice,
 } from '../services/notificationService';
 import { getMobileSessionPolicy, submitMobileTelemetry } from '../services/operationalService';
+import { syncOfflineOperationalQueue } from '../services/offlineSyncService';
 import { getApiVersions, getHealthStatus } from '../services/systemService';
-import { readOfflineScanQueue } from '../storage/offlineScanQueue';
+import {
+  cleanupOfflineOperationalCache,
+  readOfflineOperationalMetadata,
+  readOfflineOperationalQueue,
+} from '../storage/offlineOperationalStore';
 import {
   clearSessionLockState,
   readOrCreateDeviceId,
@@ -39,14 +45,26 @@ import {
   writeSessionLockState,
 } from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
-import type { DevicePostureState, OtaUpdateState, SessionLockReason, SessionLockState } from '../types/runtime';
+import type {
+  DevicePostureState,
+  NetworkReachabilityState,
+  OfflineOperationalMode,
+  OtaUpdateState,
+  SessionLockReason,
+  SessionLockState,
+} from '../types/runtime';
 
 type OperationalRuntimeContextValue = {
   degradedMessage: string | null;
   runtimeUpdateAvailable: boolean;
   otaUpdate: OtaUpdateState;
   devicePosture: DevicePostureState;
+  networkState: NetworkReachabilityState;
+  offlineOperationalMode: OfflineOperationalMode;
   offlineScanQueueSize: number;
+  offlineOperationalQueueSize: number;
+  offlineLastSyncAt: string | null;
+  isSyncingOfflineOperations: boolean;
   pushPermissionStatus: string;
   pushToken: string | null;
   localNotifications: NotificationRecord[];
@@ -94,6 +112,15 @@ const defaultDevicePosture: DevicePostureState = {
 
 const RESUME_RECOVERY_THROTTLE_MS = 12_000;
 const FORCE_REFRESH_AFTER_BACKGROUND_MS = 30_000;
+const initialNetworkState: NetworkReachabilityState = {
+  isConnected: null,
+  isInternetReachable: null,
+  isApiReachable: true,
+  lastOnlineAt: null,
+  lastOfflineAt: null,
+  lastApiReachableAt: null,
+  consecutiveFailures: 0,
+};
 
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
@@ -118,7 +145,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [runtimeUpdateAvailable, setRuntimeUpdateAvailable] = useState(false);
   const [otaUpdate, setOtaUpdate] = useState<OtaUpdateState>(() => readOtaUpdateState());
   const [devicePosture, setDevicePosture] = useState<DevicePostureState>(defaultDevicePosture);
+  const [networkState, setNetworkState] = useState<NetworkReachabilityState>(initialNetworkState);
   const [offlineScanQueueSize, setOfflineScanQueueSize] = useState(0);
+  const [offlineOperationalQueueSize, setOfflineOperationalQueueSize] = useState(0);
+  const [offlineLastSyncAt, setOfflineLastSyncAt] = useState<string | null>(null);
+  const [isSyncingOfflineOperations, setIsSyncingOfflineOperations] = useState(false);
   const [localNotifications, setLocalNotifications] = useState<NotificationRecord[]>([]);
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -139,8 +170,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [persistLockState, sessionLock]);
 
   const refreshOfflineQueueSize = useCallback(async () => {
-    const queuedScans = await readOfflineScanQueue().catch(() => []);
-    setOfflineScanQueueSize(queuedScans.length);
+    const [queuedOperations, metadata] = await Promise.all([
+      readOfflineOperationalQueue().catch(() => []),
+      readOfflineOperationalMetadata().catch(() => null),
+    ]);
+    setOfflineOperationalQueueSize(queuedOperations.length);
+    setOfflineScanQueueSize(queuedOperations.filter((item) => item.qrPayload).length);
+    setOfflineLastSyncAt(metadata?.lastSyncAt ?? null);
   }, []);
 
   const applySessionLock = useCallback(
@@ -559,6 +595,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     try {
       const [health, versions] = await Promise.all([getHealthStatus(), getApiVersions()]);
       setDegradedMessage(null);
+      setNetworkState((current) => ({
+        ...current,
+        isApiReachable: true,
+        consecutiveFailures: 0,
+        lastApiReachableAt: new Date().toISOString(),
+        lastOnlineAt: new Date().toISOString(),
+      }));
 
       const recommendedUpdate =
         versions.recommendedAppVersion
@@ -597,6 +640,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       }
     } catch (error) {
       setDegradedMessage('Operational sync is running in degraded mode. Data may be briefly stale while the app retries.');
+      setNetworkState((current) => ({
+        ...current,
+        isApiReachable: false,
+        consecutiveFailures: current.consecutiveFailures + 1,
+        lastOfflineAt: new Date().toISOString(),
+      }));
       upsertSystemNotification({
         id: 'system-connectivity',
         type: 'SYSTEM_BACKEND_CONNECTIVITY_ISSUE',
@@ -620,6 +669,34 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
   }, [applySessionLock, auth, upsertSystemNotification]);
 
+  const syncOfflineOperations = useCallback(async () => {
+    if (auth.status !== 'authenticated' || sessionLock.isLocked) {
+      return;
+    }
+
+    setIsSyncingOfflineOperations(true);
+    try {
+      const summary = await syncOfflineOperationalQueue();
+      if (summary.synced > 0) {
+        upsertSystemNotification({
+          id: `offline-sync-${Date.now()}`,
+          type: 'SYSTEM_BACKEND_CONNECTIVITY_RESTORED',
+          category: 'SYSTEM',
+          priority: 'MEDIUM',
+          title: 'Offline actions synced',
+          message: `${summary.synced} queued operation${summary.synced === 1 ? '' : 's'} recovered after reconnect.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          source: 'local',
+        });
+        await invalidateOperationalQueries();
+      }
+      await refreshOfflineQueueSize();
+    } finally {
+      setIsSyncingOfflineOperations(false);
+    }
+  }, [auth.status, invalidateOperationalQueries, refreshOfflineQueueSize, sessionLock.isLocked, upsertSystemNotification]);
+
   const syncNow = useCallback(async () => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {
       return;
@@ -634,6 +711,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             probeRuntime(),
             syncDevicePolicy(),
             flushTelemetry(),
+            syncOfflineOperations(),
+            cleanupOfflineOperationalCache(),
             refreshOfflineQueueSize(),
           ]);
         } finally {
@@ -643,7 +722,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     await syncPromiseRef.current;
-  }, [auth.status, reconcileOperationalQueries, invalidateRoleQueries, probeRuntime, syncDevicePolicy, flushTelemetry, refreshOfflineQueueSize, sessionLock.isLocked]);
+  }, [auth.status, reconcileOperationalQueries, invalidateRoleQueries, probeRuntime, syncDevicePolicy, flushTelemetry, syncOfflineOperations, refreshOfflineQueueSize, sessionLock.isLocked]);
 
   const runLifecycleRecovery = useCallback(
     async (reason: 'resume' | 'inactive', elapsedMs: number) => {
@@ -704,6 +783,21 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             await applySessionLock('inactive');
           }
         } catch (error) {
+          if (isOfflineNetworkState(networkState)) {
+            setDegradedMessage('Offline Operational Mode is active. Cached guard workflows remain available and queued actions will sync when connectivity returns.');
+            await refreshOfflineQueueSize();
+            await recordDiagnosticEvent({
+              level: 'warn',
+              scope: 'runtime',
+              code: 'LIFECYCLE_RECOVERY_DEFERRED_OFFLINE',
+              message: 'Lifecycle recovery was deferred because the backend is unreachable.',
+              context: {
+                reason,
+                elapsedMs,
+              },
+            });
+            return;
+          }
           queryClient.clear();
           await recordDiagnosticEvent({
             level: 'error',
@@ -734,6 +828,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       refreshOfflineQueueSize,
       runOtaCheck,
       syncDevicePolicy,
+      networkState,
     ],
   );
 
@@ -795,6 +890,39 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await refreshOfflineQueueSize();
     })().catch(() => undefined);
   }, [refreshOfflineQueueSize]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const connected = state.isConnected ?? null;
+      const reachable = state.isInternetReachable ?? null;
+      const offline = connected === false || reachable === false;
+      const now = new Date().toISOString();
+
+      setNetworkState((current) => ({
+        ...current,
+        isConnected: connected,
+        isInternetReachable: reachable,
+        lastOnlineAt: offline ? current.lastOnlineAt : now,
+        lastOfflineAt: offline ? now : current.lastOfflineAt,
+      }));
+
+      if (!offline && auth.status === 'authenticated') {
+        void syncNow();
+      }
+    });
+
+    void NetInfo.fetch().then((state) => {
+      const connected = state.isConnected ?? null;
+      const reachable = state.isInternetReachable ?? null;
+      setNetworkState((current) => ({
+        ...current,
+        isConnected: connected,
+        isInternetReachable: reachable,
+      }));
+    }).catch(() => undefined);
+
+    return unsubscribe;
+  }, [auth.status, syncNow]);
 
   useEffect(() => {
     void runOtaCheck(false);
@@ -1020,13 +1148,24 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         ? 'degraded'
         : 'healthy';
 
+  const offlineOperationalMode: OfflineOperationalMode = isOfflineNetworkState(networkState)
+    ? 'offline'
+    : runtimeHealth === 'degraded' || networkState.consecutiveFailures > 0
+      ? 'degraded'
+      : 'online';
+
   const value = useMemo<OperationalRuntimeContextValue>(
     () => ({
       degradedMessage,
       runtimeUpdateAvailable,
       otaUpdate,
       devicePosture,
+      networkState,
+      offlineOperationalMode,
       offlineScanQueueSize,
+      offlineOperationalQueueSize,
+      offlineLastSyncAt,
+      isSyncingOfflineOperations,
       pushPermissionStatus,
       pushToken,
       localNotifications,
@@ -1044,7 +1183,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       runtimeUpdateAvailable,
       otaUpdate,
       devicePosture,
+      networkState,
+      offlineOperationalMode,
       offlineScanQueueSize,
+      offlineOperationalQueueSize,
+      offlineLastSyncAt,
+      isSyncingOfflineOperations,
       pushPermissionStatus,
       pushToken,
       localNotifications,
@@ -1091,4 +1235,10 @@ function compareVersionStrings(left: string, right: string) {
   }
 
   return 0;
+}
+
+function isOfflineNetworkState(state: NetworkReachabilityState) {
+  return state.isConnected === false
+    || state.isInternetReachable === false
+    || (!state.isApiReachable && state.consecutiveFailures >= 2);
 }

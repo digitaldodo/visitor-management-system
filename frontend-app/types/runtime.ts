@@ -95,6 +95,103 @@ export type OfflineScanQueueItem = {
   lastError?: string | null;
 };
 
+export type NetworkReachabilityState = {
+  isConnected: boolean | null;
+  isInternetReachable: boolean | null;
+  isApiReachable: boolean;
+  lastOnlineAt: string | null;
+  lastOfflineAt: string | null;
+  lastApiReachableAt: string | null;
+  consecutiveFailures: number;
+};
+
+export type OfflineOperationalMode = 'online' | 'degraded' | 'offline';
+
+export type OfflineOperationalQueueStatus = 'pending' | 'syncing' | 'failed';
+
+export type OfflineOperationalOperationType =
+  | 'visitor-qr-check-in'
+  | 'visitor-check-out'
+  | 'visitor-qr-verify'
+  | 'employee-qr-scan';
+
+export type OfflineOperationalQueueItem = {
+  id: string;
+  clientOperationId: string;
+  dedupeKey: string;
+  operationType: OfflineOperationalOperationType;
+  kind: 'visitor' | 'employee' | 'unknown';
+  qrPayload?: string | null;
+  payloadFingerprint?: string | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  localStatus?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attempts: number;
+  status: OfflineOperationalQueueStatus;
+  lastError?: string | null;
+};
+
+export type OfflineOperationalQueueInput = {
+  operationType: OfflineOperationalOperationType;
+  kind: OfflineOperationalQueueItem['kind'];
+  qrPayload?: string | null;
+  payloadFingerprint?: string | null;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  localStatus?: string | null;
+  dedupeKey?: string;
+};
+
+export type OfflineOperationalQueueResult = {
+  item: OfflineOperationalQueueItem;
+  duplicate: boolean;
+};
+
+export type OfflineOperationalCacheMetadata = {
+  lastSyncAt: string | null;
+  lastCleanupAt: string | null;
+  schemaVersion: number;
+};
+
+export type OfflineOperationalCacheEntry<T> = {
+  record: T;
+  cachedAt: string;
+  lastSeenAt: string;
+  source?: string | null;
+};
+
+export type OfflineOperationalCache = {
+  visitors: Record<string, OfflineOperationalCacheEntry<import('./domain').VisitorRecord>>;
+  employees: Record<string, OfflineOperationalCacheEntry<import('./domain').EmployeeDirectoryEntry>>;
+  hosts: Record<string, OfflineOperationalCacheEntry<import('./domain').HostDirectoryEntry>>;
+  attendance: Record<string, OfflineOperationalCacheEntry<import('./domain').EmployeeAttendanceRecord>>;
+  qrVerifications: Record<string, {
+    payloadFingerprint: string;
+    result: import('./domain').QrVerificationResult;
+    visitorId?: string | null;
+    cachedAt: string;
+    lastSeenAt: string;
+  }>;
+  employeeQrScans: Record<string, {
+    payloadFingerprint: string;
+    result: import('./domain').EmployeeScanResult;
+    employeeId?: string | null;
+    cachedAt: string;
+    lastSeenAt: string;
+  }>;
+  recentOperationalRecords: Array<{
+    id: string;
+    recordType: 'visitor' | 'attendance' | 'offline-operation';
+    recordId: string;
+    title: string;
+    status?: string | null;
+    occurredAt: string;
+  }>;
+  metadata: OfflineOperationalCacheMetadata;
+};
+
 export type OperationalMetricName =
   | 'app_health'
   | 'api_latency'
@@ -108,6 +205,9 @@ export type OperationalMetricName =
   | 'notification_failure'
   | 'qr_validation_issue'
   | 'network_degraded'
+  | 'offline_operation_queued'
+  | 'offline_operation_synced'
+  | 'offline_operation_failed'
   | 'runtime_recovery'
   | 'session_invalidated';
 

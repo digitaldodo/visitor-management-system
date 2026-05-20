@@ -7,6 +7,7 @@ import { Animated, AppState, Easing, Image, Pressable, StyleSheet, Text, View } 
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
+import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -16,7 +17,16 @@ import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { recordDiagnosticEvent } from '../../runtime/diagnostics';
 import { recordOperationalMetric } from '../../runtime/telemetry';
-import { enqueueOfflineScan } from '../../storage/offlineScanQueue';
+import {
+  buildOfflineEmployeeScan,
+  buildOfflineVisitorVerification,
+  canUseCachedEmployeeForOfflineOperation,
+  canUseCachedVisitorForOfflineOperation,
+  enqueueOfflineOperation,
+  findCachedEmployeeScan,
+  findCachedQrVerification,
+  fingerprintPayload,
+} from '../../storage/offlineOperationalStore';
 import {
   useCheckOutVisitorMutation,
   useDenyVisitorMutation,
@@ -59,6 +69,7 @@ export function ScanScreen() {
   const isFocused = useIsFocused();
   const layout = useResponsiveLayout();
   const runtime = useOperationalRuntime();
+  const { showSnackbar } = useOperationalSnackbar();
   const cameraRef = useRef<CameraView | null>(null);
   const isMountedRef = useRef(true);
   const lastScanAtRef = useRef(0);
@@ -111,9 +122,10 @@ export function ScanScreen() {
   const guideOpacity = guidePulse.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] });
   const scanLineTranslate = guidePulse.interpolate({ inputRange: [0, 1], outputRange: [8, 116] });
   const scannerCopy = useMemo(
-    () => scannerStatusCopy(scannerMode, scanError, visitorVerification, employeeScan, lastActionMessage),
-    [employeeScan, lastActionMessage, scanError, scannerMode, visitorVerification],
+    () => scannerStatusCopy(scannerMode, scanError, visitorVerification, employeeScan, lastActionMessage, runtime.offlineOperationalMode),
+    [employeeScan, lastActionMessage, runtime.offlineOperationalMode, scanError, scannerMode, visitorVerification],
   );
+  const liveActionsAvailable = runtime.offlineOperationalMode === 'online';
 
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
@@ -250,6 +262,105 @@ export function ScanScreen() {
     }, delayMs);
   };
 
+  const processOfflinePayload = async (nextPayload: string) => {
+    const payloadFingerprint = fingerprintPayload(nextPayload);
+    if (looksLikeEmployeeQr(nextPayload)) {
+      const cached = await findCachedEmployeeScan(nextPayload);
+      if (!cached) {
+        await enqueueOfflineOperation({
+          operationType: 'employee-qr-scan',
+          kind: 'employee',
+          qrPayload: nextPayload,
+          payloadFingerprint,
+          dedupeKey: `employee-scan:${payloadFingerprint}`,
+        });
+        setScanError('Offline Mode: this workforce badge is not cached locally. The scan was queued for backend verification only; do not grant access until sync confirms.');
+        await refreshWorkspaceStateAfterOfflineQueue();
+        return true;
+      }
+
+      const policy = canUseCachedEmployeeForOfflineOperation(cached);
+      if (!policy.allowed) {
+        setEmployeeScan(buildOfflineEmployeeScan({ ...cached, queued: false }));
+        setScanError(`Offline Mode: ${policy.reason}`);
+        return true;
+      }
+
+      const queued = await enqueueOfflineOperation({
+        operationType: 'employee-qr-scan',
+        kind: 'employee',
+        qrPayload: nextPayload,
+        payloadFingerprint,
+        targetId: cached.employee?.id ?? cached.result.employee?.id ?? null,
+        targetLabel: cached.employee?.fullName ?? cached.result.employee?.fullName ?? 'Worker',
+        localStatus: cached.employee?.currentlyIn || cached.result.currentlyIn ? 'OFFLINE_CHECK_OUT_PENDING' : 'OFFLINE_CHECK_IN_PENDING',
+        dedupeKey: `employee-scan:${payloadFingerprint}`,
+      });
+      setEmployeeScan(buildOfflineEmployeeScan({ ...cached, queued: true }));
+      setLastActionMessage(queued.duplicate ? 'This workforce scan is already queued for sync.' : 'Offline workforce scan queued. Sync will confirm the final presence state.');
+      await recordOfflineQueuedMetric('employee-qr-scan', queued.duplicate);
+      await refreshWorkspaceStateAfterOfflineQueue();
+      return true;
+    }
+
+    const cached = await findCachedQrVerification(nextPayload);
+    if (!cached) {
+      await enqueueOfflineOperation({
+        operationType: 'visitor-qr-verify',
+        kind: 'visitor',
+        qrPayload: nextPayload,
+        payloadFingerprint,
+        dedupeKey: `visitor-verify:${payloadFingerprint}`,
+      });
+      setScanError('Offline Mode: this visitor badge is not cached locally. The scan was queued for backend verification only; do not approve entry until sync confirms.');
+      await refreshWorkspaceStateAfterOfflineQueue();
+      return true;
+    }
+
+    const policy = canUseCachedVisitorForOfflineOperation(cached);
+    if (!policy.allowed) {
+      setVisitorVerification(buildOfflineVisitorVerification({ ...cached, queued: false }));
+      setScanError(`Offline Mode: ${policy.reason}`);
+      return true;
+    }
+
+    const isCheckOut = String(cached.visitor?.status ?? cached.result.status) === 'CHECKED_IN';
+    const queued = await enqueueOfflineOperation({
+      operationType: isCheckOut ? 'visitor-check-out' : 'visitor-qr-check-in',
+      kind: 'visitor',
+      qrPayload: isCheckOut ? null : nextPayload,
+      payloadFingerprint,
+      targetId: cached.result.visitorId ?? cached.visitor?.id ?? null,
+      targetLabel: cached.visitor?.fullName ?? cached.result.fullName ?? 'Visitor',
+      localStatus: isCheckOut ? 'OFFLINE_CHECK_OUT_PENDING' : 'OFFLINE_CHECK_IN_PENDING',
+      dedupeKey: `${isCheckOut ? 'visitor-check-out' : 'visitor-check-in'}:${cached.result.visitorId ?? payloadFingerprint}`,
+    });
+
+    setVisitorVerification(buildOfflineVisitorVerification({ ...cached, queued: true }));
+    setLastActionMessage(queued.duplicate ? 'This visitor operation is already queued for sync.' : `Offline visitor ${isCheckOut ? 'check-out' : 'check-in'} queued. Sync will reconcile the final record.`);
+    await recordOfflineQueuedMetric(isCheckOut ? 'visitor-check-out' : 'visitor-qr-check-in', queued.duplicate);
+    await refreshWorkspaceStateAfterOfflineQueue();
+    return true;
+  };
+
+  const refreshWorkspaceStateAfterOfflineQueue = async () => {
+    await runtime.syncNow().catch(() => undefined);
+  };
+
+  const recordOfflineQueuedMetric = async (operationType: string, duplicate: boolean) => {
+    await recordOperationalMetric({
+      name: 'offline_operation_queued',
+      tags: {
+        operationType,
+        duplicate,
+      },
+    });
+    showSnackbar({
+      message: duplicate ? 'Queued action already pending' : 'Offline action queued for sync',
+      tone: 'warning',
+    });
+  };
+
   const processPayload = async (payload: string) => {
     const nextPayload = payload.trim();
     let shouldAutoReset = false;
@@ -267,6 +378,14 @@ export function ScanScreen() {
     setEmployeeScan(null);
 
     try {
+      if (runtime.offlineOperationalMode === 'offline') {
+        const handledOffline = await processOfflinePayload(nextPayload);
+        if (handledOffline) {
+          shouldAutoReset = true;
+          return;
+        }
+      }
+
       if (looksLikeEmployeeQr(nextPayload)) {
         const result = await employeeScanMutation.mutateAsync(nextPayload);
         if (isMountedRef.current) {
@@ -302,19 +421,18 @@ export function ScanScreen() {
       const message = error instanceof Error ? error.message : 'The QR scan could not be completed.';
       const kind = typeof error === 'object' && error && 'kind' in error ? String((error as { kind?: string }).kind) : 'unknown';
       if (kind === 'network') {
-        const queued = await enqueueOfflineScan(nextPayload, looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor');
+        const handledOffline = await processOfflinePayload(nextPayload);
         await recordDiagnosticEvent({
           level: 'warn',
           scope: 'scanner',
           code: 'SCAN_QUEUED_OFFLINE',
-          message: 'A scan was queued locally because the backend was unreachable.',
+          message: 'A scan was processed through Offline Operational Mode because the backend was unreachable.',
           context: {
-            queueId: queued.id,
-            kind: queued.kind,
+            handledOffline,
+            kind: looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor',
           },
         });
-        await runtime.syncNow().catch(() => undefined);
-        if (isMountedRef.current) {
+        if (isMountedRef.current && !handledOffline) {
           setScanError('Network is degraded. The scan was queued locally for a supervised retry when connectivity returns.');
         }
         return;
@@ -618,10 +736,10 @@ export function ScanScreen() {
                 <Text style={styles.bodyText}>{visitorVerification.message || 'Visitor verification completed.'}</Text>
 
                 <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
-                  {visitorVerification.valid && visitorVerification.canCheckIn ? (
+                  {liveActionsAvailable && visitorVerification.valid && visitorVerification.canCheckIn ? (
                     <PrimaryButton label="Approve check-in" onPress={() => void handleVisitorCheckIn()} loading={visitorCheckInMutation.isPending} />
                   ) : null}
-                  {visitorVerification.canCheckOut && visitorVerification.visitorId ? (
+                  {liveActionsAvailable && visitorVerification.canCheckOut && visitorVerification.visitorId ? (
                     <PrimaryButton
                       label="Check out visitor"
                       onPress={() => void handleVisitorCheckOut(visitorVerification.visitorId as string)}
@@ -629,17 +747,20 @@ export function ScanScreen() {
                       tone="secondary"
                     />
                   ) : null}
-                  {visitorVerification.visitorId ? (
+                  {liveActionsAvailable && visitorVerification.visitorId ? (
                     <PrimaryButton label="Deny entry" onPress={() => setReasonAction({ type: 'deny', visitorId: visitorVerification.visitorId as string })} tone="danger" />
                   ) : null}
-                  {visitorVerification.visitorId ? (
+                  {liveActionsAvailable && visitorVerification.visitorId ? (
                     <PrimaryButton label="Escalate issue" onPress={() => setReasonAction({ type: 'escalate', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
                   ) : null}
-                  {visitorVerification.visitorId ? (
+                  {liveActionsAvailable && visitorVerification.visitorId ? (
                     <PrimaryButton label="Report mismatch" onPress={() => setReasonAction({ type: 'mismatch', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
                   ) : null}
-                  {visitorVerification.visitorId && !visitorVerification.valid && !visitorVerification.canCheckOut ? (
+                  {liveActionsAvailable && visitorVerification.visitorId && !visitorVerification.valid && !visitorVerification.canCheckOut ? (
                     <PrimaryButton label="Manual override" onPress={() => setReasonAction({ type: 'override', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
+                  ) : null}
+                  {!liveActionsAvailable ? (
+                    <PrimaryButton label="Live actions require connectivity" onPress={() => showSnackbar({ message: 'Privileged actions are disabled in Offline Mode', tone: 'warning' })} tone="secondary" />
                   ) : null}
                 </View>
               </SurfaceCard>
@@ -677,7 +798,7 @@ export function ScanScreen() {
                 <Text style={styles.bodyText}>{employeeScan.message || 'Workforce badge processed successfully.'}</Text>
 
                 <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
-                  {employeeScan.employee?.id ? (
+                  {liveActionsAvailable && employeeScan.employee?.id ? (
                     <PrimaryButton
                       label={employeeScan.currentlyIn ? 'Manual check-out' : 'Manual check-in'}
                       onPress={() => setReasonAction({
@@ -686,6 +807,9 @@ export function ScanScreen() {
                       })}
                       tone="secondary"
                     />
+                  ) : null}
+                  {!liveActionsAvailable ? (
+                    <PrimaryButton label="Assisted actions require connectivity" onPress={() => showSnackbar({ message: 'Manual workforce overrides are disabled in Offline Mode', tone: 'warning' })} tone="secondary" />
                   ) : null}
                   <PrimaryButton label="Resume scanning" onPress={resetScanner} tone="secondary" />
                 </View>
@@ -733,12 +857,25 @@ function scannerStatusCopy(
   visitorVerification: QrVerificationResult | null,
   employeeScan: EmployeeScanResult | null,
   lastActionMessage: string | null,
+  offlineMode: 'online' | 'degraded' | 'offline',
 ) {
+  if (offlineMode === 'offline' && scannerMode === 'idle') {
+    return {
+      eyebrow: 'Offline Mode',
+      title: 'Ready for cached badge scan',
+      body: 'Known visitors and workforce can be processed provisionally. Unknown or stale badges are queued for backend verification.',
+      icon: 'cloud-offline-outline' as const,
+      tone: 'info' as const,
+    };
+  }
+
   if (scannerMode === 'processing') {
     return {
-      eyebrow: 'Validating',
-      title: 'Checking badge...',
-      body: 'Hold steady for backend verification. Access is granted only after the secure validation response.',
+      eyebrow: offlineMode === 'online' ? 'Validating' : 'Offline check',
+      title: offlineMode === 'online' ? 'Checking badge...' : 'Checking local cache...',
+      body: offlineMode === 'online'
+        ? 'Hold steady for backend verification. Access is granted only after the secure validation response.'
+        : 'AccessFlow is matching the badge against bounded local operational records.',
       icon: 'sync-circle-outline' as const,
       tone: 'info' as const,
     };

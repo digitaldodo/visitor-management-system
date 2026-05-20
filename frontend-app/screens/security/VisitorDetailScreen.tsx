@@ -11,6 +11,7 @@ import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import {
   useCheckInVisitorMutation,
   useCheckOutVisitorMutation,
@@ -39,6 +40,7 @@ export function VisitorDetailScreen() {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { showSnackbar } = useOperationalSnackbar();
+  const runtime = useOperationalRuntime();
   const params = (route.params ?? {}) as RouteParams;
   const visitorId = params.visitorId ?? params.initialVisitor?.id ?? null;
   const [historyOpen, setHistoryOpen] = useState(true);
@@ -52,6 +54,7 @@ export function VisitorDetailScreen() {
   const visitor = visitorQuery.data ?? params.initialVisitor ?? null;
 
   const intelligence = useMemo(() => buildVisitorIntelligence(visitor), [visitor]);
+  const offlineLookupActive = runtime.offlineOperationalMode !== 'online';
 
   const refreshWorkspace = async () => {
     await Promise.all([
@@ -130,12 +133,34 @@ export function VisitorDetailScreen() {
               <View style={styles.actionRow}>
                 <PrimaryButton label="Back" onPress={() => navigation.goBack()} tone="secondary" />
                 {visitor.status === 'APPROVED' ? (
-                  <PrimaryButton label="Check in" onPress={() => void checkIn()} loading={checkInMutation.isPending} />
+                  <PrimaryButton
+                    label={offlineLookupActive ? 'Check-in via scanner offline' : 'Check in'}
+                    onPress={() => {
+                      if (offlineLookupActive) {
+                        showSnackbar({ message: 'Use QR scan for offline queued check-in so badge cache validation is enforced.', tone: 'warning' });
+                        return;
+                      }
+                      void checkIn();
+                    }}
+                    loading={checkInMutation.isPending}
+                    tone={offlineLookupActive ? 'secondary' : 'primary'}
+                  />
                 ) : null}
                 {visitor.status === 'CHECKED_IN' ? (
-                  <PrimaryButton label="Check out" onPress={() => void checkOut()} loading={checkOutMutation.isPending} tone="secondary" />
+                  <PrimaryButton
+                    label={offlineLookupActive ? 'Check-out via scanner offline' : 'Check out'}
+                    onPress={() => {
+                      if (offlineLookupActive) {
+                        showSnackbar({ message: 'Use QR scan for offline queued check-out so badge cache validation is enforced.', tone: 'warning' });
+                        return;
+                      }
+                      void checkOut();
+                    }}
+                    loading={checkOutMutation.isPending}
+                    tone="secondary"
+                  />
                 ) : null}
-                {canReactivate(visitor) ? (
+                {!offlineLookupActive && canReactivate(visitor) ? (
                   <PrimaryButton
                     label="Reactivate"
                     onPress={() => setReactivateReasonOpen(true)}

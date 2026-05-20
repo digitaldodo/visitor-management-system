@@ -1,4 +1,13 @@
 import { request } from '../api/apiClient';
+import {
+  cacheEmployeeScan,
+  cacheQrVerification,
+  upsertCachedAttendance,
+  upsertCachedEmployees,
+  upsertCachedHosts,
+  upsertCachedVisitors,
+  upsertCachedVisitorsFromMonitoring,
+} from '../storage/offlineOperationalStore';
 import type {
   EmployeeAttendanceRecord,
   EmployeeDirectoryEntry,
@@ -82,7 +91,7 @@ export async function getSecurityOverview() {
 }
 
 export async function getSecurityVisitors(params?: { query?: string; page?: number; size?: number; status?: string; from?: string; to?: string }) {
-  return request<PageResponse<VisitorRecord>>({
+  const response = await request<PageResponse<VisitorRecord>>({
     url: '/security/visitors',
     method: 'GET',
     params: {
@@ -96,13 +105,17 @@ export async function getSecurityVisitors(params?: { query?: string; page?: numb
       direction: 'desc',
     },
   });
+  await upsertCachedVisitors(response.items, 'security-visitors').catch(() => undefined);
+  return response;
 }
 
 export async function getSecurityVisitorById(id: string) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(id)}`,
     method: 'GET',
   });
+  await upsertCachedVisitors([visitor], 'security-visitor-detail').catch(() => undefined);
+  return visitor;
 }
 
 export async function getSecurityVisitorPass(id: string) {
@@ -113,90 +126,113 @@ export async function getSecurityVisitorPass(id: string) {
 }
 
 export async function getSecurityMonitoring(query?: string) {
-  return request<SecurityMonitoring>({
+  const monitoring = await request<SecurityMonitoring>({
     url: '/security/monitoring',
     method: 'GET',
     params: query ? { query } : undefined,
   });
+  await upsertCachedVisitorsFromMonitoring(monitoring).catch(() => undefined);
+  return monitoring;
 }
 
 export async function getSecurityAttendance() {
-  return request<EmployeeAttendanceRecord[]>({
+  const attendance = await request<EmployeeAttendanceRecord[]>({
     url: '/security/employees/attendance',
     method: 'GET',
   });
+  await upsertCachedAttendance(attendance).catch(() => undefined);
+  return attendance;
 }
 
 export async function getSecurityEmployees(query?: string, signal?: AbortSignal) {
-  return request<EmployeeDirectoryEntry[]>({
+  const employees = await request<EmployeeDirectoryEntry[]>({
     url: '/security/employees',
     method: 'GET',
     params: query ? { query } : undefined,
     signal,
   });
+  await upsertCachedEmployees(employees, 'security-employees').catch(() => undefined);
+  return employees;
 }
 
 export async function getSecurityHosts(query?: string, signal?: AbortSignal) {
-  return request<HostDirectoryEntry[]>({
+  const hosts = await request<HostDirectoryEntry[]>({
     url: '/security/hosts',
     method: 'GET',
     params: query ? { query } : undefined,
     signal,
   });
+  await upsertCachedHosts(hosts).catch(() => undefined);
+  return hosts;
 }
 
-export async function verifyQrPayload(qrPayload: string) {
-  return request<QrVerificationResult>({
+export async function verifyQrPayload(qrPayload: string, clientOperationId?: string) {
+  const result = await request<QrVerificationResult>({
     url: '/security/qr-verification',
     method: 'POST',
     data: {
       qrPayload,
     },
+    headers: idempotencyHeaders(clientOperationId),
   });
+  await cacheQrVerification(qrPayload, result).catch(() => undefined);
+  return result;
 }
 
-export async function checkInWithQr(qrPayload: string) {
-  return request<VisitorRecord>({
+export async function checkInWithQr(qrPayload: string, clientOperationId?: string) {
+  const visitor = await request<VisitorRecord>({
     url: '/security/qr-check-in',
     method: 'POST',
     data: {
       qrPayload,
     },
+    headers: idempotencyHeaders(clientOperationId),
   });
+  await upsertCachedVisitors([visitor], 'security-qr-check-in').catch(() => undefined);
+  return visitor;
 }
 
-export async function scanEmployeeQr(qrPayload: string) {
-  return request<EmployeeScanResult>({
+export async function scanEmployeeQr(qrPayload: string, clientOperationId?: string) {
+  const result = await request<EmployeeScanResult>({
     url: '/security/employees/qr-scan',
     method: 'POST',
     data: {
       qrPayload,
     },
+    headers: idempotencyHeaders(clientOperationId),
   });
+  await cacheEmployeeScan(qrPayload, result).catch(() => undefined);
+  return result;
 }
 
 export async function manualEmployeeCheckIn({ employeeId, reason }: OverridePayload) {
-  return request<EmployeeAttendanceRecord>({
+  const record = await request<EmployeeAttendanceRecord>({
     url: `/security/employees/${encodeURIComponent(employeeId)}/check-in`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedAttendance([record]).catch(() => undefined);
+  return record;
 }
 
 export async function manualEmployeeCheckOut({ employeeId, reason }: OverridePayload) {
-  return request<EmployeeAttendanceRecord>({
+  const record = await request<EmployeeAttendanceRecord>({
     url: `/security/employees/${encodeURIComponent(employeeId)}/check-out`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedAttendance([record]).catch(() => undefined);
+  return record;
 }
 
 export async function createVisitorRegistration(payload: VisitorRegistrationPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: '/security/visitors',
     method: 'POST',
     data: payload,
   });
+  await upsertCachedVisitors([visitor], 'security-create-visitor').catch(() => undefined);
+  return visitor;
 }
 
 export async function uploadVisitorPhoto(asset: UploadAsset) {
@@ -232,72 +268,91 @@ export async function createWorkforceOnboarding(payload: WorkforceOnboardingPayl
 }
 
 export async function checkInVisitor(visitorId: string) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/check-in`,
     method: 'PATCH',
   });
+  await upsertCachedVisitors([visitor], 'security-check-in').catch(() => undefined);
+  return visitor;
 }
 
 export async function overrideCheckInVisitor({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/override-check-in`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-override').catch(() => undefined);
+  return visitor;
 }
 
-export async function checkOutVisitor(visitorId: string) {
-  return request<VisitorRecord>({
+export async function checkOutVisitor(visitorId: string, clientOperationId?: string) {
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/check-out`,
     method: 'PATCH',
+    headers: idempotencyHeaders(clientOperationId),
   });
+  await upsertCachedVisitors([visitor], 'security-check-out').catch(() => undefined);
+  return visitor;
 }
 
 export async function denyVisitorEntry({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/deny-entry`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-deny').catch(() => undefined);
+  return visitor;
 }
 
 export async function suspendVisitor({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/suspend`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-suspend').catch(() => undefined);
+  return visitor;
 }
 
 export async function revokeVisitor({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/revoke`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-revoke').catch(() => undefined);
+  return visitor;
 }
 
 export async function reactivateVisitor(visitorId: string) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/reactivate`,
     method: 'PATCH',
   });
+  await upsertCachedVisitors([visitor], 'security-reactivate').catch(() => undefined);
+  return visitor;
 }
 
 export async function escalateVisitorIssue({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/escalate`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-escalate').catch(() => undefined);
+  return visitor;
 }
 
 export async function reportVisitorMismatch({ visitorId, reason }: SecurityIncidentPayload) {
-  return request<VisitorRecord>({
+  const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/report-mismatch`,
     method: 'PATCH',
     data: { reason },
   });
+  await upsertCachedVisitors([visitor], 'security-mismatch').catch(() => undefined);
+  return visitor;
 }
 
 function createUploadFormData(asset: UploadAsset) {
@@ -308,4 +363,13 @@ function createUploadFormData(asset: UploadAsset) {
     type: asset.type ?? 'image/jpeg',
   } as unknown as Blob);
   return formData;
+}
+
+function idempotencyHeaders(clientOperationId?: string) {
+  return clientOperationId
+    ? {
+        'X-AccessFlow-Operation-Id': clientOperationId,
+        'Idempotency-Key': clientOperationId,
+      }
+    : undefined;
 }

@@ -95,19 +95,19 @@ export function useSecurityHosts(query?: string) {
 
 export function useVerifyQrMutation() {
   return useMutation({
-    mutationFn: verifyQrPayload,
+    mutationFn: (qrPayload: string) => verifyQrPayload(qrPayload),
   });
 }
 
 export function useQrCheckInMutation() {
   return useMutation({
-    mutationFn: checkInWithQr,
+    mutationFn: (qrPayload: string) => checkInWithQr(qrPayload),
   });
 }
 
 export function useEmployeeQrScanMutation() {
   return useMutation({
-    mutationFn: scanEmployeeQr,
+    mutationFn: (qrPayload: string) => scanEmployeeQr(qrPayload),
   });
 }
 
@@ -161,7 +161,7 @@ export function useOverrideCheckInMutation() {
 
 export function useCheckOutVisitorMutation() {
   return useMutation({
-    mutationFn: checkOutVisitor,
+    mutationFn: (visitorId: string) => checkOutVisitor(visitorId),
   });
 }
 
