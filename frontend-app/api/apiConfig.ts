@@ -29,6 +29,7 @@ type RuntimeConfig = {
     employeePollMs: number;
     adminPollMs: number;
     staleCacheMs: number;
+    eventBatchSize: number;
   };
   release: {
     otaEnabled: boolean;
@@ -252,6 +253,7 @@ export const apiConfig: RuntimeConfig = {
     employeePollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_EMPLOYEE_POLL_MS, 35_000),
     adminPollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_ADMIN_POLL_MS, 45_000),
     staleCacheMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_STALE_CACHE_MS, 2 * 60_000),
+    eventBatchSize: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_EVENT_BATCH_SIZE, 80),
   },
   release: {
     otaEnabled: readBoolean(

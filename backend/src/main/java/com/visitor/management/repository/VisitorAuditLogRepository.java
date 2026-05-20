@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface VisitorAuditLogRepository extends MongoRepository<VisitorAuditLog, String> {
     List<VisitorAuditLog> findAllByVisitorIdOrderByCreatedAtAsc(String visitorId);
+    List<VisitorAuditLog> findTop200ByOrderByCreatedAtDesc();
 }

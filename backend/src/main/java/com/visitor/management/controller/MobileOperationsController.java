@@ -7,6 +7,7 @@ import com.visitor.management.dto.DeviceIntegritySignalsResponse;
 import com.visitor.management.dto.MobileSessionPolicyResponse;
 import com.visitor.management.dto.MobileTelemetryRequest;
 import com.visitor.management.dto.MobileTelemetryResponse;
+import com.visitor.management.dto.OperationalEventBatchResponse;
 import com.visitor.management.dto.TrustedDeviceListResponse;
 import com.visitor.management.dto.TrustedDeviceRegistrationRequest;
 import com.visitor.management.dto.TrustedDeviceResponse;
@@ -16,9 +17,11 @@ import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.repository.MobileDeviceRegistrationRepository;
 import com.visitor.management.repository.UserRepository;
+import com.visitor.management.service.OperationalEventStreamService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -28,7 +31,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -44,15 +49,18 @@ public class MobileOperationsController {
 
     private final UserRepository userRepository;
     private final MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository;
+    private final OperationalEventStreamService operationalEventStreamService;
     private final AppProperties appProperties;
 
     public MobileOperationsController(
             UserRepository userRepository,
             MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository,
+            OperationalEventStreamService operationalEventStreamService,
             AppProperties appProperties
     ) {
         this.userRepository = userRepository;
         this.mobileDeviceRegistrationRepository = mobileDeviceRegistrationRepository;
+        this.operationalEventStreamService = operationalEventStreamService;
         this.appProperties = appProperties;
     }
 
@@ -75,6 +83,34 @@ public class MobileOperationsController {
         }
 
         return ApiResponse.ok("Mobile telemetry accepted.", new MobileTelemetryResponse(accepted));
+    }
+
+    @GetMapping("/operations/events")
+    public ApiResponse<OperationalEventBatchResponse> operationalEvents(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "80") int limit,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Operational events loaded.", operationalEventStreamService.events(authentication.getName(), cursor, limit));
+    }
+
+    @GetMapping(value = "/operations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter operationalStream(
+            @RequestParam(required = false) String cursor,
+            Authentication authentication
+    ) {
+        SseEmitter emitter = new SseEmitter(35_000L);
+        try {
+            OperationalEventBatchResponse batch = operationalEventStreamService.events(authentication.getName(), cursor, 80);
+            emitter.send(SseEmitter.event()
+                    .id(batch.cursor())
+                    .name(batch.heartbeat() ? "heartbeat" : "operations")
+                    .data(batch));
+            emitter.complete();
+        } catch (IOException ex) {
+            emitter.completeWithError(ex);
+        }
+        return emitter;
     }
 
     @GetMapping("/session-policy")

@@ -24,6 +24,10 @@ public interface VisitorRepository extends MongoRepository<Visitor, String> {
 
     Optional<Visitor> findTopByOrganizationIdOrderByUpdatedAtDesc(String organizationId);
 
+    List<Visitor> findTop200ByOrganizationIdOrderByCreatedAtDesc(String organizationId);
+
+    List<Visitor> findTop200ByOrderByCreatedAtDesc();
+
     long countByStatus(VisitorStatus status);
 
     List<Visitor> findAllByStatusOrderByCheckInTimeDesc(VisitorStatus status);

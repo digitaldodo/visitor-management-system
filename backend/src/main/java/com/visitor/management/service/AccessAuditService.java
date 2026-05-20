@@ -139,6 +139,12 @@ public class AccessAuditService {
         record(actor, action, "EMERGENCY_OPERATION", targetId, targetName, outcome, detail);
     }
 
+    public void recordReportExport(User actor, String reportType, String format, String organizationId, String organizationName, String organizationCode, int rowCount) {
+        record(actor, organizationId, organizationName, organizationCode,
+                "REPORT_EXPORTED", "OPERATIONAL_REPORT", reportType, reportType, "SUCCESS",
+                "Generated %s %s export with %d row(s).".formatted(format, reportType, rowCount));
+    }
+
     public void recordOrganizationChanged(User actor, Organization organization, String action, String detail) {
         if (organization == null) {
             return;

@@ -13,6 +13,7 @@ import com.visitor.management.dto.DepartmentUpdateRequest;
 import com.visitor.management.dto.EmployeeAttendanceResponse;
 import com.visitor.management.dto.HomepageSettingsRequest;
 import com.visitor.management.dto.ManualOverrideCheckInRequest;
+import com.visitor.management.dto.OperationalReportExportResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.SuperAdminCreateRequest;
@@ -33,6 +34,7 @@ import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.DepartmentService;
 import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.HomepageService;
+import com.visitor.management.service.OperationalReportExportService;
 import com.visitor.management.service.VisitorService;
 import com.visitor.management.service.WorkforceOnboardingService;
 import jakarta.validation.Valid;
@@ -77,6 +79,7 @@ public class AdminController {
     private final WorkforceOnboardingService workforceOnboardingService;
     private final HomepageService homepageService;
     private final AccessAuditService accessAuditService;
+    private final OperationalReportExportService operationalReportExportService;
     private final AppProperties appProperties;
     private final CorsOriginResolver corsOriginResolver;
     private final String activeProfile;
@@ -91,6 +94,7 @@ public class AdminController {
             WorkforceOnboardingService workforceOnboardingService,
             HomepageService homepageService,
             AccessAuditService accessAuditService,
+            OperationalReportExportService operationalReportExportService,
             AppProperties appProperties,
             CorsOriginResolver corsOriginResolver,
             @Value("${spring.profiles.active:default}") String activeProfile
@@ -104,6 +108,7 @@ public class AdminController {
         this.workforceOnboardingService = workforceOnboardingService;
         this.homepageService = homepageService;
         this.accessAuditService = accessAuditService;
+        this.operationalReportExportService = operationalReportExportService;
         this.appProperties = appProperties;
         this.corsOriginResolver = corsOriginResolver;
         this.activeProfile = activeProfile;
@@ -212,6 +217,15 @@ public class AdminController {
     @GetMapping("/reports")
     public ApiResponse<List<Map<String, String>>> reports(Authentication authentication) {
         return ApiResponse.ok("Audit oversight loaded.", accessAuditService.latestSecurityOversight(authentication.getName()));
+    }
+
+    @GetMapping("/reports/export")
+    public ApiResponse<OperationalReportExportResponse> exportReport(
+            @RequestParam(defaultValue = "visitor-register") String reportType,
+            @RequestParam(defaultValue = "CSV") String format,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Operational report export prepared.", operationalReportExportService.export(authentication.getName(), reportType, format));
     }
 
     @GetMapping("/workforce-attendance")

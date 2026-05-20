@@ -20,6 +20,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
+import { openOperationalDeepLink } from './operationalDeepLinks';
+import { operationalSyncRuntime } from './operationalSyncRuntime';
 import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
 import {
   getFirebaseMessagingToken,
@@ -55,6 +57,7 @@ import {
   writeSessionLockState,
 } from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
+import type { OperationalEvent, OperationalSyncConnectionState } from '../types/operationalSync';
 import type {
   DevicePostureState,
   NetworkReachabilityState,
@@ -78,6 +81,8 @@ type OperationalRuntimeContextValue = {
   pushPermissionStatus: string;
   pushToken: string | null;
   localNotifications: NotificationRecord[];
+  liveOperationalEvents: OperationalEvent[];
+  syncConnection: OperationalSyncConnectionState;
   runtimeHealth: 'healthy' | 'degraded' | 'locked' | 'update-required';
   sessionLock: SessionLockState;
   isUnlocking: boolean;
@@ -137,6 +142,16 @@ const initialNetworkState: NetworkReachabilityState = {
   consecutiveFailures: 0,
 };
 
+const initialSyncConnection: OperationalSyncConnectionState = {
+  status: 'idle',
+  cursor: null,
+  lastEventAt: null,
+  lastConnectedAt: null,
+  lastError: null,
+  reconnectAttempt: 0,
+  pendingEventCount: 0,
+};
+
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -168,6 +183,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [offlineLastSyncAt, setOfflineLastSyncAt] = useState<string | null>(null);
   const [isSyncingOfflineOperations, setIsSyncingOfflineOperations] = useState(false);
   const [localNotifications, setLocalNotifications] = useState<NotificationRecord[]>([]);
+  const [liveOperationalEvents, setLiveOperationalEvents] = useState<OperationalEvent[]>([]);
+  const [syncConnection, setSyncConnection] = useState<OperationalSyncConnectionState>(initialSyncConnection);
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
 
@@ -330,6 +347,64 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           return role === 'ADMIN';
         }
         return false;
+      },
+    });
+  }, [auth, queryClient]);
+
+  const handleOperationalEvents = useCallback((events: OperationalEvent[]) => {
+    if (auth.status !== 'authenticated' || !events.length) {
+      return;
+    }
+
+    setLiveOperationalEvents((current) => {
+      const merged = new Map<string, OperationalEvent>();
+      [...events, ...current].forEach((event) => {
+        if (event.id) {
+          merged.set(event.id, event);
+        }
+      });
+      return Array.from(merged.values())
+        .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt))
+        .slice(0, 80);
+    });
+
+    const categories = new Set(events.map((event) => String(event.category || '').toLowerCase()));
+    const targetTypes = new Set(events.map((event) => String(event.targetType || '').toUpperCase()));
+
+    const shouldInvalidateEmergency = categories.has('incident') || targetTypes.has('EMERGENCY_OPERATION');
+    const shouldInvalidateNotifications = categories.has('audit') || categories.has('approval') || categories.has('incident');
+
+    void queryClient.invalidateQueries({
+      predicate: (query) => {
+        const firstKey = String(Array.isArray(query.queryKey) ? query.queryKey[0] : '');
+        if (firstKey === 'notifications') {
+          return shouldInvalidateNotifications;
+        }
+        if (firstKey === 'emergency') {
+          return shouldInvalidateEmergency;
+        }
+        if (firstKey === 'security') {
+          return auth.session.user.activeRole === 'SECURITY_GUARD';
+        }
+        if (firstKey === 'employee') {
+          return auth.session.user.activeRole === 'EMPLOYEE';
+        }
+        if (firstKey === 'visitor') {
+          return auth.session.user.activeRole === 'VISITOR';
+        }
+        if (firstKey === 'admin') {
+          return auth.session.user.activeRole === 'ADMIN';
+        }
+        return false;
+      },
+    });
+
+    void recordOperationalMetric({
+      name: 'operational_events_received',
+      value: events.length,
+      tags: {
+        role: auth.session.user.activeRole,
+        categories: Array.from(categories).join(',').slice(0, 80),
       },
     });
   }, [auth, queryClient]);
@@ -539,12 +614,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [upsertSystemNotification]);
 
   const handleNotificationRoute = useCallback(
-    (type?: string | null) => {
+    (payload: Record<string, string | undefined> | string | null | undefined) => {
       if (auth.status !== 'authenticated') {
         return;
       }
 
+      const data = typeof payload === 'string' ? { type: payload } : (payload ?? {});
       const role = auth.session.user.activeRole;
+      const type = data.type;
       if (!isNotificationAllowedForRole(role, type)) {
         void recordDiagnosticEvent({
           level: 'warn',
@@ -556,6 +633,21 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             type: type ?? null,
           },
         });
+        return;
+      }
+
+      if (openOperationalDeepLink(role, {
+        type: data.type,
+        category: data.category,
+        visitorId: data.visitorId,
+        workforceId: data.workforceId,
+        employeeId: data.employeeId,
+        incidentId: data.incidentId,
+        credentialId: data.credentialId,
+        targetType: data.targetType,
+        targetId: data.targetId,
+        actionUrl: data.actionUrl,
+      })) {
         return;
       }
 
@@ -620,7 +712,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     await invalidateRoleQueries();
-    handleNotificationRoute(data.type);
+    handleNotificationRoute(data);
   }, [auth, handleNotificationRoute, invalidateRoleQueries]);
 
   const handleFirebaseNotificationResponse = useCallback(async (message: FirebaseMessagePayload, source: 'foreground' | 'opened' | 'initial') => {
@@ -662,7 +754,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     await invalidateRoleQueries();
     if (source !== 'foreground') {
-      handleNotificationRoute(data.type);
+      handleNotificationRoute(data);
     }
   }, [auth, handleNotificationRoute, invalidateRoleQueries]);
 
@@ -787,6 +879,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           await Promise.all([
             reconcileOperationalQueries(),
             invalidateRoleQueries(),
+            operationalSyncRuntime.syncNow(),
             probeRuntime(),
             syncDevicePolicy(),
             flushTelemetry(),
@@ -954,6 +1047,26 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, []);
 
   useEffect(() => {
+    const unsubscribeState = operationalSyncRuntime.subscribeState(setSyncConnection);
+    const unsubscribeEvents = operationalSyncRuntime.subscribe((events) => {
+      handleOperationalEvents(events);
+    });
+
+    return () => {
+      unsubscribeEvents();
+      unsubscribeState();
+    };
+  }, [handleOperationalEvents]);
+
+  useEffect(() => {
+    if (auth.status === 'authenticated' && !sessionLock.isLocked) {
+      operationalSyncRuntime.start(syncConnection.cursor);
+      return;
+    }
+    operationalSyncRuntime.stop();
+  }, [auth.status, sessionLock.isLocked]);
+
+  useEffect(() => {
     void (async () => {
       const [hasHardware, isEnrolled, persistedLockState] = await Promise.all([
         LocalAuthentication.hasHardwareAsync().catch(() => false),
@@ -990,7 +1103,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       }));
 
       if (!offline && auth.status === 'authenticated') {
+        operationalSyncRuntime.resume();
         void syncNow();
+      } else if (offline) {
+        operationalSyncRuntime.markOffline();
       }
     });
 
@@ -1161,6 +1277,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     const subscription = AppState.addEventListener('change', (nextState) => {
       const previousState = appStateRef.current;
       appStateRef.current = nextState;
+      operationalSyncRuntime.setAppState(nextState);
 
       if (nextState === 'background' || nextState === 'inactive') {
         backgroundedAtRef.current = Date.now();
@@ -1303,6 +1420,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       pushPermissionStatus,
       pushToken,
       localNotifications,
+      liveOperationalEvents,
+      syncConnection,
       runtimeHealth,
       sessionLock,
       isUnlocking,
@@ -1326,6 +1445,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       pushPermissionStatus,
       pushToken,
       localNotifications,
+      liveOperationalEvents,
+      syncConnection,
       runtimeHealth,
       sessionLock,
       isUnlocking,

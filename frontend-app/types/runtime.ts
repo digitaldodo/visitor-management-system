@@ -213,6 +213,7 @@ export type OperationalMetricName =
   | 'offline_operation_queued'
   | 'offline_operation_synced'
   | 'offline_operation_failed'
+  | 'operational_events_received'
   | 'runtime_recovery'
   | 'session_invalidated'
   | 'mobile_security_event';

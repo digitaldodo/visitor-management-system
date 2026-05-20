@@ -6,6 +6,10 @@ import type { ActiveWorkspaceRole } from '../types/auth';
 export const navigationRef = createNavigationContainerRef();
 
 export function navigateToWorkspace(target: WorkspaceNavigationTarget) {
+  navigateToWorkspaceContext(target);
+}
+
+export function navigateToWorkspaceContext(target: WorkspaceNavigationTarget, params?: Record<string, unknown>) {
   if (!navigationRef.isReady()) {
     return;
   }
@@ -17,25 +21,52 @@ export function navigateToWorkspace(target: WorkspaceNavigationTarget) {
       navigate('EmployeeTabs', { screen: 'Badge' });
       break;
     case 'employee-requests':
-      navigate('EmployeeTabs', { screen: 'Requests' });
+      navigate('EmployeeTabs', { screen: 'Requests', params });
+      break;
+    case 'employee-presence':
+      navigate('EmployeeTabs', { screen: 'Presence', params });
       break;
     case 'employee-notifications':
-      navigate('EmployeeTabs', { screen: 'Notifications' });
+      navigate('EmployeeTabs', { screen: 'Notifications', params });
       break;
     case 'visitor-home':
       navigate('VisitorTabs', { screen: 'Home' });
       break;
+    case 'visitor-pass':
+      navigate('VisitorTabs', { screen: 'Pass', params });
+      break;
     case 'visitor-notifications':
-      navigate('VisitorTabs', { screen: 'Notifications' });
+      navigate('VisitorTabs', { screen: 'Notifications', params });
       break;
     case 'security-scan':
-      navigate('SecurityTabs', { screen: 'Scan' });
+      navigate('SecurityStack', { screen: 'SecurityTabs', params: { screen: 'Scan' } });
+      break;
+    case 'security-visitor-detail':
+      navigate('SecurityStack', { screen: 'VisitorDetail', params });
+      break;
+    case 'security-workforce':
+      navigate('SecurityStack', { screen: 'SecurityTabs', params: { screen: 'Workforce', params } });
       break;
     case 'security-alerts':
-      navigate('SecurityTabs', { screen: 'Alerts' });
+      navigate('SecurityStack', { screen: 'SecurityTabs', params: { screen: 'Alerts', params } });
+      break;
+    case 'security-emergency':
+      navigate('SecurityStack', { screen: 'SecurityTabs', params: { screen: 'Emergency', params } });
       break;
     case 'admin-operations':
-      navigate('AdminStack', { screen: 'AdminOperational' });
+      navigate('AdminStack', { screen: 'Dashboard', params });
+      break;
+    case 'admin-approvals':
+      navigate('AdminStack', { screen: 'Approvals', params });
+      break;
+    case 'admin-visitors':
+      navigate('AdminStack', { screen: 'Visitors', params });
+      break;
+    case 'admin-employees':
+      navigate('AdminStack', { screen: 'Employees', params });
+      break;
+    case 'admin-emergency':
+      navigate('AdminStack', { screen: 'Emergency', params });
       break;
   }
 }
@@ -49,7 +80,7 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
   if (config.navigator === 'AdminStack') {
     navigationRef.resetRoot({
       index: 0,
-      routes: [{ name: 'AdminStack', params: { screen: 'AdminOperational' } }],
+      routes: [{ name: 'AdminStack', params: { screen: 'Dashboard' } }],
     });
     return;
   }
@@ -57,7 +88,7 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
   if (config.navigator === 'SecurityTabs') {
     navigationRef.resetRoot({
       index: 0,
-      routes: [{ name: 'SecurityTabs', params: { screen: 'Scan' } }],
+      routes: [{ name: 'SecurityStack', params: { screen: 'SecurityTabs', params: { screen: 'Scan' } } }],
     });
     return;
   }

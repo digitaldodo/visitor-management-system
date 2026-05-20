@@ -236,6 +236,7 @@ export function useOperationalActivityFeed() {
     }
 
     nextItems.push(
+      ...buildLiveOperationalItems(runtime.liveOperationalEvents, t),
       ...buildNotificationItems(notifications.data?.items ?? [], role, t),
       ...buildEmergencyItems(emergencyFeed.data ?? [], t),
       ...buildRuntimeItems(runtime, t, organization),
@@ -491,6 +492,68 @@ function buildNotificationItems(records: NotificationRecord[], role: ActiveWorks
     stale: isStale(record.createdAt),
     groupKey: `notification:${record.type ?? record.category ?? record.id}:${record.visitorId ?? record.id}`,
   }));
+}
+
+function buildLiveOperationalItems(records: ReturnType<typeof useOperationalRuntime>['liveOperationalEvents'], t: ReturnType<typeof useLocalization>['t']) {
+  return records.map((record): OperationalFeedItem => {
+    const category = normalizeFeedCategory(record.category);
+    const severity = normalizeFeedSeverity(record.severity, category);
+    return {
+      id: `live-${record.id}`,
+      category,
+      severity,
+      actor: record.actorName || t('feed.actorSystem'),
+      title: record.title || record.type.replaceAll('_', ' '),
+      detail: record.detail,
+      occurredAt: record.occurredAt || new Date().toISOString(),
+      organization: record.organizationName ?? null,
+      source: t('feed.sourceRuntime'),
+      targetType: normalizeTargetType(record.targetType, category),
+      targetId: record.targetId ?? null,
+      stale: false,
+      groupKey: `live:${record.type}:${record.targetId ?? record.id}`,
+    };
+  });
+}
+
+function normalizeFeedCategory(value?: string | null): OperationalFeedCategory {
+  const normalized = String(value || '').toLowerCase();
+  if (['visitor', 'workforce', 'approval', 'incident', 'sync', 'notification', 'runtime'].includes(normalized)) {
+    return normalized as OperationalFeedCategory;
+  }
+  return 'runtime';
+}
+
+function normalizeFeedSeverity(value: string | null | undefined, category: OperationalFeedCategory): OperationalFeedSeverity {
+  const normalized = String(value || '').toLowerCase();
+  if (['info', 'warning', 'security', 'emergency', 'approval', 'denied'].includes(normalized)) {
+    return normalized as OperationalFeedSeverity;
+  }
+  return category === 'approval' ? 'approval' : category === 'incident' ? 'security' : 'info';
+}
+
+function normalizeTargetType(value: string | null | undefined, category: OperationalFeedCategory): OperationalFeedItem['targetType'] {
+  const normalized = String(value || '').toUpperCase();
+  const feedCategory = category as string;
+  if (normalized.includes('VISITOR')) {
+    return 'visitor';
+  }
+  if (normalized.includes('EMPLOYEE') || normalized.includes('WORKFORCE')) {
+    return 'workforce';
+  }
+  if (normalized.includes('EMERGENCY') || feedCategory === 'incident') {
+    return 'incident';
+  }
+  if (feedCategory === 'visitor') {
+    return 'visitor';
+  }
+  if (feedCategory === 'workforce') {
+    return 'workforce';
+  }
+  if (feedCategory === 'incident') {
+    return 'incident';
+  }
+  return 'runtime';
 }
 
 function buildEmergencyItems(records: EmergencyIncident[], t: ReturnType<typeof useLocalization>['t']) {

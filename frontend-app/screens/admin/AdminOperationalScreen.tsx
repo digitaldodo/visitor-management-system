@@ -42,6 +42,7 @@ import { useNotificationsQuery } from '../../hooks/useNotificationsQuery';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
+import { shareOperationalReport } from '../../services/operationalExportService';
 import { theme } from '../../theme';
 import type {
   AdminOperationalAnalytics,
@@ -324,6 +325,17 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const exportOperationalSnapshot = async (snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) => {
     try {
       const format = String(snapshot.format || 'CSV').toUpperCase();
+      const reportType = reportTypeForSnapshot(snapshot);
+      if ((format === 'PDF' || format === 'CSV') && session?.user.activeRole) {
+        const prepared = await shareOperationalReport({
+          role: session.user.activeRole,
+          reportType,
+          format,
+        });
+        setActionMessage(`${prepared.title} ${format} export generated.`);
+        await refreshWorkspace();
+        return;
+      }
       const filename = `${slugify(snapshot.label)}-${new Date().toISOString().slice(0, 10)}`;
       if (format === 'PDF') {
         const Print = await import('expo-print');
@@ -1022,6 +1034,26 @@ function escapeReport(value: unknown) {
 function slugify(value?: string | null) {
   const slug = String(value || 'operational-snapshot').toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, '');
   return slug || 'operational-snapshot';
+}
+
+function reportTypeForSnapshot(snapshot: AnalyticsSnapshot) {
+  const label = String(snapshot.label || '').toLowerCase();
+  if (label.includes('incident')) {
+    return 'incident-report';
+  }
+  if (label.includes('denied') || label.includes('reject')) {
+    return 'denied-entry-report';
+  }
+  if (label.includes('workforce') || label.includes('attendance')) {
+    return 'workforce-activity';
+  }
+  if (label.includes('audit')) {
+    return 'operational-audit-log';
+  }
+  if (label.includes('checkpoint')) {
+    return 'checkpoint-activity';
+  }
+  return 'visitor-register';
 }
 
 function WorkforceList({

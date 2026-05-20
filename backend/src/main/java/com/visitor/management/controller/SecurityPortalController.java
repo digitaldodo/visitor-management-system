@@ -8,6 +8,7 @@ import com.visitor.management.dto.EmployeeAttendanceScanResponse;
 import com.visitor.management.dto.EmployeeBadgeResponse;
 import com.visitor.management.dto.EmployeeDirectoryResponse;
 import com.visitor.management.dto.ManualOverrideCheckInRequest;
+import com.visitor.management.dto.OperationalReportExportResponse;
 import com.visitor.management.dto.PageResponse;
 import com.visitor.management.dto.QrVerificationRequest;
 import com.visitor.management.dto.QrVerificationResponse;
@@ -27,6 +28,7 @@ import com.visitor.management.config.AppProperties;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.EmployeeAttendanceService;
+import com.visitor.management.service.OperationalReportExportService;
 import com.visitor.management.service.WorkforceOnboardingService;
 import com.visitor.management.service.VisitorService;
 import com.visitor.management.service.VisitorInviteService;
@@ -61,6 +63,7 @@ public class SecurityPortalController {
     private final WorkforceOnboardingService workforceOnboardingService;
     private final AppProperties appProperties;
     private final VisitorInviteService visitorInviteService;
+    private final OperationalReportExportService operationalReportExportService;
 
     public SecurityPortalController(
             VisitorService visitorService,
@@ -68,7 +71,8 @@ public class SecurityPortalController {
             EmployeeAttendanceService employeeAttendanceService,
             WorkforceOnboardingService workforceOnboardingService,
             AppProperties appProperties,
-            VisitorInviteService visitorInviteService
+            VisitorInviteService visitorInviteService,
+            OperationalReportExportService operationalReportExportService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
@@ -76,6 +80,7 @@ public class SecurityPortalController {
         this.workforceOnboardingService = workforceOnboardingService;
         this.appProperties = appProperties;
         this.visitorInviteService = visitorInviteService;
+        this.operationalReportExportService = operationalReportExportService;
     }
 
     @GetMapping("/overview")
@@ -176,6 +181,15 @@ public class SecurityPortalController {
     @GetMapping("/monitoring")
     public ApiResponse<SecurityMonitoringResponse> monitoring(@RequestParam(required = false) String query, Authentication authentication) {
         return ApiResponse.ok("Security monitoring loaded.", visitorService.securityMonitoring(authentication.getName(), query));
+    }
+
+    @GetMapping("/reports/export")
+    public ApiResponse<OperationalReportExportResponse> exportReport(
+            @RequestParam(defaultValue = "operational-summary") String reportType,
+            @RequestParam(defaultValue = "CSV") String format,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Security report export prepared.", operationalReportExportService.export(authentication.getName(), reportType, format));
     }
 
     @GetMapping("/hosts")

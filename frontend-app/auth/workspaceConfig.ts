@@ -4,12 +4,21 @@ export type WorkspaceNavigatorName = 'SecurityTabs' | 'EmployeeTabs' | 'VisitorT
 export type WorkspaceNavigationTarget =
   | 'employee-badge'
   | 'employee-requests'
+  | 'employee-presence'
   | 'employee-notifications'
   | 'visitor-home'
+  | 'visitor-pass'
   | 'visitor-notifications'
   | 'security-scan'
+  | 'security-visitor-detail'
+  | 'security-workforce'
   | 'security-alerts'
-  | 'admin-operations';
+  | 'security-emergency'
+  | 'admin-operations'
+  | 'admin-approvals'
+  | 'admin-visitors'
+  | 'admin-employees'
+  | 'admin-emergency';
 
 type WorkspaceConfig = {
   audience: WorkspaceAudience;
