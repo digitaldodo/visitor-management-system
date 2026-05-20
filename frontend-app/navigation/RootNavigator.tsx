@@ -21,6 +21,7 @@ import { AlertsScreen } from '../screens/security/AlertsScreen';
 import { ProfileScreen } from '../screens/security/ProfileScreen';
 import { ScanScreen } from '../screens/security/ScanScreen';
 import { SecurityRegisterScreen } from '../screens/security/SecurityRegisterScreen';
+import { VisitorDetailScreen } from '../screens/security/VisitorDetailScreen';
 import { VisitorsScreen } from '../screens/security/VisitorsScreen';
 import { WorkforceScreen } from '../screens/security/WorkforceScreen';
 import {
@@ -42,6 +43,7 @@ import {
 } from '../screens/visitor/VisitorScreens';
 
 const RootStack = createNativeStackNavigator();
+const SecurityStack = createNativeStackNavigator();
 const SecurityTabs = createBottomTabNavigator();
 const EmployeeTabs = createBottomTabNavigator();
 const VisitorTabs = createBottomTabNavigator();
@@ -70,7 +72,7 @@ export function RootNavigator() {
           }}
         >
           {workspaceConfig?.navigator === 'SecurityTabs' ? (
-            <RootStack.Screen name="SecurityTabs" component={SecurityNavigator} />
+            <RootStack.Screen name="SecurityStack" component={SecurityStackNavigator} />
           ) : workspaceConfig?.navigator === 'EmployeeTabs' ? (
             <RootStack.Screen name="EmployeeTabs" component={EmployeeNavigator} />
           ) : workspaceConfig?.navigator === 'VisitorTabs' ? (
@@ -89,6 +91,20 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
     </AuthStack.Navigator>
+  );
+}
+
+function SecurityStackNavigator() {
+  return (
+    <SecurityStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
+      <SecurityStack.Screen name="SecurityTabs" component={SecurityNavigator} />
+      <SecurityStack.Screen name="VisitorDetail" component={VisitorDetailScreen} />
+    </SecurityStack.Navigator>
   );
 }
 

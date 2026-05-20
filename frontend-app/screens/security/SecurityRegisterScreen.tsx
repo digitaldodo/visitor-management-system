@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
-import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
+import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { AppScreen } from '../../components/layout/AppScreen';
@@ -15,18 +16,17 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useReactivateVisitorMutation,
   useSecurityAttendance,
-  useSecurityVisitorPass,
+  useSecurityMonitoring,
   useSecurityVisitors,
 } from '../../hooks/useSecurityWorkspace';
 import { theme } from '../../theme';
-import type { EmployeeAttendanceRecord, VisitorRecord, VisitorStatus } from '../../types/domain';
+import type { EmployeeAttendanceRecord, SecurityMonitoring, VisitorRecord, VisitorStatus } from '../../types/domain';
 import {
   employeePresenceLabel,
   formatDateTime,
   formatVisitorWindow,
   statusTone,
   visitorStatusLabel,
-  visitorTypeLabel,
 } from '../../utils/securityFormatting';
 
 type RegisterKind = 'ALL' | 'VISITORS' | 'WORKFORCE';
@@ -56,21 +56,21 @@ const DATE_OPTIONS: { label: string; value: DateWindow }[] = [
 ];
 
 export function SecurityRegisterScreen() {
+  const navigation = useNavigation<{ navigate: (screen: string, params?: unknown) => void }>();
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { showSnackbar } = useOperationalSnackbar();
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<RegisterKind>('ALL');
   const [status, setStatus] = useState<RegisterStatus>('ALL');
   const [dateWindow, setDateWindow] = useState<DateWindow>('30D');
   const [page, setPage] = useState(0);
-  const [selectedVisitor, setSelectedVisitor] = useState<VisitorRecord | null>(null);
   const [selectedAttendance, setSelectedAttendance] = useState<EmployeeAttendanceRecord | null>(null);
-  const [badgeVisitorId, setBadgeVisitorId] = useState<string | null>(null);
-  const [referenceVisitor, setReferenceVisitor] = useState<VisitorRecord | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [menuVisitor, setMenuVisitor] = useState<VisitorRecord | null>(null);
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const dateRange = useMemo(() => buildDateRange(dateWindow), [dateWindow]);
+  const monitoring = useSecurityMonitoring(deferredSearch);
   const visitors = useSecurityVisitors(
     kind === 'WORKFORCE' ? '' : deferredSearch,
     status === 'ALL' ? undefined : status,
@@ -80,7 +80,6 @@ export function SecurityRegisterScreen() {
     dateRange.to,
   );
   const attendance = useSecurityAttendance();
-  const visitorPass = useSecurityVisitorPass(badgeVisitorId);
   const reactivateMutation = useReactivateVisitorMutation();
 
   const filteredAttendance = useMemo(() => {
@@ -93,38 +92,43 @@ export function SecurityRegisterScreen() {
 
   const visitorItems = kind === 'WORKFORCE' ? [] : visitors.data?.items ?? [];
   const attendanceItems = kind === 'VISITORS' ? [] : filteredAttendance;
-  const isRefreshing = visitors.isRefetching || attendance.isRefetching || visitorPass.isRefetching;
+  const highlights = useMemo(() => buildOperationalHighlights(monitoring.data, visitorItems), [monitoring.data, visitorItems]);
+  const isRefreshing = visitors.isRefetching || attendance.isRefetching || monitoring.isRefetching;
 
-  const selectVisitor = (visitor: VisitorRecord) => {
-    setSelectedVisitor(visitor);
-    setSelectedAttendance(null);
+  const openVisitorRecord = (visitor: VisitorRecord) => {
+    setMenuVisitor(null);
+    navigation.navigate('VisitorDetail', { visitorId: visitor.id, initialVisitor: visitor });
   };
 
   const selectAttendance = (entry: EmployeeAttendanceRecord) => {
     setSelectedAttendance(entry);
-    setSelectedVisitor(null);
-    setBadgeVisitorId(null);
+    setMenuVisitor(null);
   };
 
   const refreshRegister = async () => {
     await Promise.all([
       visitors.refetch(),
       attendance.refetch(),
+      monitoring.refetch(),
       queryClient.invalidateQueries({ queryKey: ['security', 'monitoring'] }),
     ]);
   };
 
   const reactivateRecurring = async (visitor: VisitorRecord) => {
-    const updated = await reactivateMutation.mutateAsync(visitor.id);
-    setSelectedVisitor(updated);
-    setActionMessage(`${updated.fullName} was reactivated with backend audit history preserved.`);
-    await refreshRegister();
+    try {
+      const updated = await reactivateMutation.mutateAsync(visitor.id);
+      setMenuVisitor(null);
+      showSnackbar({ message: `${updated.fullName} access reactivated`, tone: 'success' });
+      await refreshRegister();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to reactivate visitor'), tone: 'danger' });
+    }
   };
 
   return (
     <AppScreen
       title="Security Register"
-      subtitle="Searchable gate register for previous visitors, workforce presence, denied entries, expired visits, and badge audit reference."
+      subtitle="High-density operational register for visitors, workforce presence, badges, approvals, and audit history."
       refreshing={isRefreshing}
       onRefresh={refreshRegister}
     >
@@ -172,99 +176,55 @@ export function SecurityRegisterScreen() {
         />
       </SurfaceCard>
 
-      {referenceVisitor ? (
-        <SurfaceCard title="Reference approval" subtitle="Pinned for visual comparison and recurring-visit context. No historical values are modified here.">
-          <VisitorIdentityHeader visitor={referenceVisitor} />
-          <OperationalFieldList
-            items={[
-              { label: 'Previous approval', value: referenceVisitor.approvedAt ? formatDateTime(referenceVisitor.approvedAt) : visitorStatusLabel(referenceVisitor.status) },
-              { label: 'Host', value: referenceVisitor.hostEmployee || 'Unassigned' },
-              { label: 'Organization', value: referenceVisitor.organizationName || referenceVisitor.companyName || 'Not recorded' },
-              { label: 'Badge', value: referenceVisitor.badgeId || 'Not issued' },
-            ]}
-          />
-          <PrimaryButton label="Clear reference" onPress={() => setReferenceVisitor(null)} tone="secondary" />
-        </SurfaceCard>
-      ) : null}
+      <SurfaceCard title="Operational highlights" subtitle="Priority visitors only. Full history stays compact below.">
+        {highlights.length ? (
+          highlights.map((visitor) => (
+            <OperationalHighlightCard
+              key={`highlight-${visitor.id}`}
+              visitor={visitor}
+              onPress={() => openVisitorRecord(visitor)}
+              onLongPress={() => setMenuVisitor(visitor)}
+            />
+          ))
+        ) : (
+          <EmptyState title="No priority records" body="Inside visitors, recent check-ins, denials, suspensions, and approvals will appear here first." />
+        )}
+      </SurfaceCard>
 
-      {selectedVisitor ? (
-        <SurfaceCard title="Visitor record detail" subtitle="Audit-safe reference view for guard validation and previous approvals.">
-          <VisitorIdentityHeader visitor={selectedVisitor} />
-          <OperationalFieldList
-            items={[
-              { label: 'Host employee', value: selectedVisitor.hostEmployee || 'Unassigned' },
-              { label: 'Organization', value: selectedVisitor.organizationName || selectedVisitor.companyName || 'Not recorded' },
-              { label: 'Phone', value: [selectedVisitor.phoneCountryCode, selectedVisitor.phone].filter(Boolean).join(' ') || 'Not recorded' },
-              { label: 'Purpose', value: selectedVisitor.purposeOfVisit || 'Not recorded' },
-              { label: 'Arrival/check-in', value: selectedVisitor.checkInTime ? formatDateTime(selectedVisitor.checkInTime) : formatVisitorWindow(selectedVisitor) },
-              { label: 'Check-out', value: selectedVisitor.checkOutTime ? formatDateTime(selectedVisitor.checkOutTime) : 'Not checked out' },
-              { label: 'Approval status', value: visitorStatusLabel(selectedVisitor.status) },
-              { label: 'Security notes', value: latestSecurityNote(selectedVisitor) || 'No security note recorded' },
-            ]}
-          />
+      {menuVisitor ? (
+        <SurfaceCard title="Operational menu" subtitle="Long-press actions for the selected visitor record.">
+          <VisitorCompactRow visitor={menuVisitor} onPress={() => openVisitorRecord(menuVisitor)} />
           <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-            <PrimaryButton label="View badge" onPress={() => setBadgeVisitorId(selectedVisitor.id)} tone="secondary" />
-            <PrimaryButton label="Reference approval" onPress={() => setReferenceVisitor(selectedVisitor)} tone="secondary" />
-            {canReactivate(selectedVisitor) ? (
+            <PrimaryButton label="Open Record" onPress={() => openVisitorRecord(menuVisitor)} />
+            {canReactivate(menuVisitor) ? (
               <PrimaryButton
-                label="Re-initiate recurring"
-                onPress={() => void reactivateRecurring(selectedVisitor)}
-                tone="secondary"
+                label="Reactivate access"
+                onPress={() => void reactivateRecurring(menuVisitor)}
                 loading={reactivateMutation.isPending}
+                tone="secondary"
               />
-            ) : null}
-            <PrimaryButton label="Close details" onPress={() => setSelectedVisitor(null)} tone="secondary" />
+            ) : (
+              <PrimaryButton
+                label="More actions"
+                onPress={() => showSnackbar({ message: 'Additional operational actions are available inside Open Record', tone: 'info' })}
+                tone="secondary"
+              />
+            )}
+            <PrimaryButton label="Close menu" onPress={() => setMenuVisitor(null)} tone="secondary" />
           </View>
-          <StatusTimeline visitor={selectedVisitor} />
-        </SurfaceCard>
-      ) : null}
-
-      {badgeVisitorId ? (
-        <SurfaceCard title="Badge reference" subtitle="Read-only badge preview for visual verification. Backend pass rules still control validity.">
-          {visitorPass.data ? (
-            <>
-              <VisitorBadgePreview visitor={selectedVisitor} pass={visitorPass.data} />
-              <OperationalFieldList
-                items={[
-                  { label: 'Badge ID', value: visitorPass.data.badgeId || 'Not issued' },
-                  { label: 'Check-in state', value: visitorPass.data.checkInState || visitorStatusLabel(visitorPass.data.status) },
-                  { label: 'Valid', value: visitorPass.data.valid ? 'Yes' : 'No' },
-                  { label: 'Expires', value: visitorPass.data.expiresAt ? formatDateTime(visitorPass.data.expiresAt) : 'Pending' },
-                ]}
-              />
-              <PrimaryButton label="Hide badge" onPress={() => setBadgeVisitorId(null)} tone="secondary" />
-            </>
-          ) : visitorPass.isError ? (
-            <View style={styles.messageStack}>
-              <StatusPill label="Badge unavailable" tone="warning" />
-              <Text style={styles.bodyText}>{getErrorMessage(visitorPass.error, 'Badge details could not be loaded for this record.')}</Text>
-              <PrimaryButton label="Hide badge" onPress={() => setBadgeVisitorId(null)} tone="secondary" />
-            </View>
-          ) : (
-            <View style={styles.messageStack}>
-              <StatusPill label="Loading badge" tone="info" />
-              <Text style={styles.bodyText}>Loading the backend badge reference...</Text>
-            </View>
-          )}
         </SurfaceCard>
       ) : null}
 
       {selectedAttendance ? (
-        <SurfaceCard title="Workforce entry detail" subtitle="Read-only workforce register event for guard reference.">
-          <RecordCard
-            title={selectedAttendance.employeeName}
-            subtitle={[selectedAttendance.department, selectedAttendance.designation].filter(Boolean).join(' · ')}
-            meta={[selectedAttendance.employeeId ? `ID ${selectedAttendance.employeeId}` : null, selectedAttendance.organizationName].filter(Boolean).join(' · ')}
-            status={employeePresenceLabel(selectedAttendance)}
-            tone={statusTone(selectedAttendance.status)}
-          />
+        <SurfaceCard title="Workforce entry detail" subtitle="Read-only workforce register event for guard review.">
+          <WorkforceCompactRow entry={selectedAttendance} onPress={() => undefined} />
           <OperationalFieldList
             items={[
               { label: 'Check-in', value: selectedAttendance.checkInTime ? formatDateTime(selectedAttendance.checkInTime) : 'Not checked in' },
               { label: 'Check-out', value: selectedAttendance.checkOutTime ? formatDateTime(selectedAttendance.checkOutTime) : 'Not checked out' },
               { label: 'Guard assist', value: selectedAttendance.securityGuardName || 'Static QR/self-service' },
               { label: 'Override note', value: selectedAttendance.overrideReason || 'No override note' },
-              { label: 'Shift', value: [selectedAttendance.shiftName, selectedAttendance.shiftStartTime, selectedAttendance.shiftEndTime].filter(Boolean).join(' · ') || 'Not assigned' },
+              { label: 'Shift', value: [selectedAttendance.shiftName, selectedAttendance.shiftStartTime, selectedAttendance.shiftEndTime].filter(Boolean).join(' - ') || 'Not assigned' },
               { label: 'Record state', value: selectedAttendance.state || selectedAttendance.status || 'Recorded' },
             ]}
           />
@@ -272,34 +232,19 @@ export function SecurityRegisterScreen() {
         </SurfaceCard>
       ) : null}
 
-      <SurfaceCard title="Visitor history" subtitle="Paged visitor register records with visual identity and badge status.">
+      <SurfaceCard title="Visitor history" subtitle="Compact scan-first register. Tap a row for full identity, badge, QR, approvals, and audit trail.">
         {visitorItems.length ? (
           <>
-            {visitorItems.map((visitor) => (
-              <View key={visitor.id} style={styles.registerCard}>
-                <VisitorIdentityHeader visitor={visitor} compact />
-                <OperationalFieldList
-                  items={[
-                    { label: 'Window', value: formatVisitorWindow(visitor) },
-                    { label: 'Host', value: visitor.hostEmployee || 'Unassigned' },
-                    { label: 'Badge / QR', value: visitor.badgeId || (visitor.qrCode ? 'QR issued' : 'Not issued') },
-                    { label: 'Created', value: visitor.createdAt ? formatDateTime(visitor.createdAt) : 'Unknown' },
-                  ]}
+            <View style={styles.compactList}>
+              {visitorItems.map((visitor) => (
+                <VisitorCompactRow
+                  key={visitor.id}
+                  visitor={visitor}
+                  onPress={() => openVisitorRecord(visitor)}
+                  onLongPress={() => setMenuVisitor(visitor)}
                 />
-                <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-                  <PrimaryButton label="Open details" onPress={() => selectVisitor(visitor)} tone="secondary" />
-                  <PrimaryButton
-                    label="View badge"
-                    onPress={() => {
-                      selectVisitor(visitor);
-                      setBadgeVisitorId(visitor.id);
-                    }}
-                    tone="secondary"
-                  />
-                  <PrimaryButton label="Reference" onPress={() => setReferenceVisitor(visitor)} tone="secondary" />
-                </View>
-              </View>
-            ))}
+              ))}
+            </View>
             <View style={[styles.paginationRow, layout.fieldStacked ? styles.paginationStacked : null]}>
               <PrimaryButton label="Newer" onPress={() => setPage((current) => Math.max(0, current - 1))} tone="secondary" disabled={page === 0} />
               <Text style={styles.pageText}>Page {page + 1} of {Math.max(visitors.data?.totalPages ?? 1, 1)}</Text>
@@ -311,45 +256,22 @@ export function SecurityRegisterScreen() {
         )}
       </SurfaceCard>
 
-      <SurfaceCard title="Workforce entries" subtitle="Recent employee and workforce check-ins for gate-register reference.">
+      <SurfaceCard title="Workforce entries" subtitle="Compact employee and workforce presence history.">
         {attendanceItems.length ? (
-          attendanceItems.map((entry) => (
-            <View key={entry.id} style={styles.registerCard}>
-              <RecordCard
-                title={entry.employeeName}
-                subtitle={[entry.department, entry.designation, entry.organizationName].filter(Boolean).join(' · ')}
-                meta={[
-                  entry.employeeId ? `ID ${entry.employeeId}` : null,
-                  entry.checkInTime ? `In: ${formatDateTime(entry.checkInTime)}` : null,
-                  entry.checkOutTime ? `Out: ${formatDateTime(entry.checkOutTime)}` : null,
-                ].filter(Boolean).join(' · ')}
-                status={employeePresenceLabel(entry)}
-                tone={statusTone(entry.status)}
+          <View style={styles.compactList}>
+            {attendanceItems.map((entry) => (
+              <WorkforceCompactRow
+                key={entry.id}
+                entry={entry}
+                onPress={() => selectAttendance(entry)}
+                onLongPress={() => showSnackbar({ message: `${entry.employeeName} workforce entry opened`, tone: 'info' })}
               />
-              <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-                <PrimaryButton label="Open details" onPress={() => selectAttendance(entry)} tone="secondary" />
-                <PrimaryButton
-                  label="Verify previous"
-                  onPress={() => {
-                    selectAttendance(entry);
-                    setActionMessage(`${entry.employeeName} previous workforce access is open for guard reference.`);
-                  }}
-                  tone="secondary"
-                />
-              </View>
-            </View>
-          ))
+            ))}
+          </View>
         ) : (
           <EmptyState title="No workforce entries" body="Workforce check-in and check-out events will appear after guard scans or assisted actions." />
         )}
       </SurfaceCard>
-
-      {actionMessage ? (
-        <SurfaceCard title="Register update">
-          <StatusPill label="Recorded" tone="success" />
-          <Text style={styles.bodyText}>{actionMessage}</Text>
-        </SurfaceCard>
-      ) : null}
     </AppScreen>
   );
 }
@@ -372,80 +294,159 @@ function SegmentRow<T extends string>({
           onPress={() => onChange(option.value)}
           style={[styles.segment, value === option.value ? styles.segmentActive : null]}
         >
-          <Text style={[styles.segmentLabel, value === option.value ? styles.segmentLabelActive : null]}>{option.label}</Text>
+          <Text numberOfLines={1} style={[styles.segmentLabel, value === option.value ? styles.segmentLabelActive : null]}>{option.label}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-function VisitorIdentityHeader({ visitor, compact = false }: { visitor: VisitorRecord; compact?: boolean }) {
+const OperationalHighlightCard = memo(function OperationalHighlightCard({
+  visitor,
+  onPress,
+  onLongPress,
+}: {
+  visitor: VisitorRecord;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
   return (
-    <View style={[styles.identityRow, compact ? styles.identityRowCompact : null]}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.highlightCard, pressed ? styles.pressed : null]}
+    >
       {visitor.photoUrl ? (
-        <Image source={{ uri: visitor.photoUrl }} style={[styles.identityPhoto, compact ? styles.identityPhotoCompact : null]} />
+        <Image source={{ uri: visitor.photoUrl }} style={styles.highlightPhoto} />
       ) : (
-        <View style={[styles.identityPhotoFallback, compact ? styles.identityPhotoCompact : null]}>
-          <Text style={styles.identityPhotoFallbackText}>No photo</Text>
+        <View style={styles.highlightPhotoMissing}>
+          <Text style={styles.photoMissingText}>No photo</Text>
         </View>
       )}
-      <View style={styles.identityCopy}>
-        <View style={styles.identityTitleRow}>
-          <Text maxFontSizeMultiplier={1.1} style={styles.identityName}>{visitor.fullName}</Text>
+      <View style={styles.highlightCopy}>
+        <View style={styles.rowTitleLine}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.rowName}>{visitor.fullName}</Text>
           <StatusPill label={visitorStatusLabel(visitor.status)} tone={statusTone(visitor.status)} />
         </View>
-        <Text maxFontSizeMultiplier={1.08} style={styles.identityMeta}>
-          {[visitor.companyName || visitor.organizationName, visitorTypeLabel(visitor.visitorType), visitor.badgeId ? `Badge ${visitor.badgeId}` : 'Badge pending']
-            .filter(Boolean)
-            .join(' · ')}
+        <Text maxFontSizeMultiplier={1.06} numberOfLines={1} style={styles.rowMeta}>
+          {[visitor.companyName || visitor.organizationName, visitor.hostEmployee ? `Host ${visitor.hostEmployee}` : null].filter(Boolean).join(' - ') || 'Visitor record'}
         </Text>
-        <Text maxFontSizeMultiplier={1.08} style={styles.identityMeta}>
-          {visitor.photoUrl ? 'Photo-backed identity record' : 'Photo missing - badge verification blocked'}
+        <Text maxFontSizeMultiplier={1.06} numberOfLines={1} style={styles.rowMeta}>
+          {highlightReason(visitor)} - {latestTimestamp(visitor)}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
-}
+});
 
-function VisitorBadgePreview({ visitor, pass }: { visitor: VisitorRecord | null; pass: NonNullable<ReturnType<typeof useSecurityVisitorPass>['data']> }) {
+const VisitorCompactRow = memo(function VisitorCompactRow({
+  visitor,
+  onPress,
+  onLongPress,
+}: {
+  visitor: VisitorRecord;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
   return (
-    <View style={styles.badgePreview}>
-      {pass.photoUrl ? <Image source={{ uri: pass.photoUrl }} style={styles.badgePhoto} /> : visitor?.photoUrl ? <Image source={{ uri: visitor.photoUrl }} style={styles.badgePhoto} /> : null}
-      <View style={styles.badgeCopy}>
-        <Text style={styles.identityName}>{pass.fullName || visitor?.fullName || 'Visitor'}</Text>
-        <Text style={styles.identityMeta}>{[pass.organizationName || visitor?.organizationName, pass.hostEmployee || visitor?.hostEmployee].filter(Boolean).join(' · ')}</Text>
-        <Text style={styles.identityMeta}>{pass.purposeOfVisit || visitor?.purposeOfVisit || 'Visit access'}</Text>
-      </View>
-      {pass.qrImageDataUri ? <Image source={{ uri: pass.qrImageDataUri }} style={styles.qrImage} resizeMode="contain" /> : null}
-    </View>
-  );
-}
-
-function StatusTimeline({ visitor }: { visitor: VisitorRecord }) {
-  const history = visitor.statusHistory ?? [];
-  if (!history.length) {
-    return (
-      <View style={styles.timelineEmpty}>
-        <Text style={styles.bodyText}>No status history entries were returned for this record.</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.timeline}>
-      <Text style={styles.sectionLabel}>Immutable status history</Text>
-      {history.slice(0, 8).map((entry, index) => (
-        <View key={`${entry.timestamp || 'event'}-${index}`} style={styles.timelineRow}>
-          <View style={styles.timelineDot} />
-          <View style={styles.timelineCopy}>
-            <Text style={styles.timelineTitle}>{entry.action || visitorStatusLabel(entry.status)}</Text>
-            <Text style={styles.identityMeta}>{entry.timestamp ? formatDateTime(entry.timestamp) : 'Timestamp not recorded'}</Text>
-            {entry.note ? <Text style={styles.bodyText}>{entry.note}</Text> : null}
-          </View>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.compactRow, pressed ? styles.pressed : null]}
+    >
+      {visitor.photoUrl ? <Image source={{ uri: visitor.photoUrl }} style={styles.rowPhoto} /> : <View style={styles.rowPhotoMissing} />}
+      <View style={styles.compactCopy}>
+        <View style={styles.rowTitleLine}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.rowName}>{visitor.fullName}</Text>
+          <StatusPill label={visitorStatusLabel(visitor.status)} tone={statusTone(visitor.status)} />
         </View>
-      ))}
-    </View>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {[visitor.companyName || visitor.organizationName || 'Organization not recorded', visitor.hostEmployee || 'Host unassigned'].join(' - ')}
+        </Text>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {visitorStatusLabel(visitor.status)} - {latestTimestamp(visitor)}
+        </Text>
+      </View>
+    </Pressable>
   );
+});
+
+const WorkforceCompactRow = memo(function WorkforceCompactRow({
+  entry,
+  onPress,
+  onLongPress,
+}: {
+  entry: EmployeeAttendanceRecord;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.compactRow, pressed ? styles.pressed : null]}
+    >
+      <View style={styles.workforceAvatar}>
+        <Text style={styles.workforceAvatarText}>{entry.employeeName.slice(0, 2).toUpperCase()}</Text>
+      </View>
+      <View style={styles.compactCopy}>
+        <View style={styles.rowTitleLine}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.rowName}>{entry.employeeName}</Text>
+          <StatusPill label={employeePresenceLabel(entry)} tone={statusTone(entry.status)} />
+        </View>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {[entry.department || entry.organizationName || 'Workforce', entry.designation || entry.employeeId].filter(Boolean).join(' - ')}
+        </Text>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {employeePresenceLabel(entry)} - {formatDateTime(entry.checkOutTime || entry.checkInTime || entry.createdAt)}
+        </Text>
+      </View>
+    </Pressable>
+  );
+});
+
+function buildOperationalHighlights(monitoring?: SecurityMonitoring, visitorItems: VisitorRecord[] = []) {
+  const ordered = [
+    ...(monitoring?.suspendedVisitors ?? []),
+    ...(monitoring?.rejectedVisitors ?? []),
+    ...(monitoring?.overdueVisitors ?? []),
+    ...(monitoring?.currentlyInside ?? []),
+    ...(monitoring?.approvedVisitors ?? []),
+    ...visitorItems.filter((visitor) => ['CHECKED_IN', 'APPROVED', 'CHECKED_OUT'].includes(String(visitor.status || ''))),
+  ];
+  const seen = new Set<string>();
+  return ordered.filter((visitor) => {
+    if (!visitor.id || seen.has(visitor.id)) {
+      return false;
+    }
+    seen.add(visitor.id);
+    return true;
+  }).slice(0, 3);
+}
+
+function highlightReason(visitor: VisitorRecord) {
+  if (visitor.status === 'SUSPENDED') {
+    return 'Suspension flag';
+  }
+  if (visitor.status === 'REJECTED') {
+    return 'Denied entry';
+  }
+  if (visitor.status === 'CHECKED_IN') {
+    return 'Currently inside';
+  }
+  if (visitor.status === 'CHECKED_OUT') {
+    return 'Latest check-out';
+  }
+  if (visitor.status === 'APPROVED') {
+    return 'Ready arrival';
+  }
+  return visitorStatusLabel(visitor.status);
 }
 
 function buildDateRange(window: DateWindow) {
@@ -496,13 +497,8 @@ function matchesAttendanceDate(entry: EmployeeAttendanceRecord, from?: string, t
   return (!from || value >= new Date(from).getTime()) && (!to || value <= new Date(to).getTime());
 }
 
-function latestSecurityNote(visitor: VisitorRecord) {
-  return [
-    visitor.rejectionReason,
-    visitor.suspensionReason,
-    visitor.revocationReason,
-    ...(visitor.statusHistory ?? []).map((entry) => entry.note),
-  ].find((note) => Boolean(note && note.trim()));
+function latestTimestamp(visitor: VisitorRecord) {
+  return formatDateTime(visitor.checkOutTime || visitor.checkInTime || visitor.approvedAt || visitor.updatedAt || visitor.createdAt);
 }
 
 function canReactivate(visitor: VisitorRecord) {
@@ -548,72 +544,114 @@ const styles = StyleSheet.create({
   segmentLabelActive: {
     color: theme.colors.textPrimary,
   },
-  registerCard: {
+  compactList: {
+    gap: 1,
+    borderRadius: theme.radii.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  compactRow: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surfaceMuted,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  highlightCard: {
+    minHeight: 96,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: theme.spacing.md,
     borderRadius: theme.radii.md,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.md,
   },
-  identityRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    alignItems: 'center',
+  pressed: {
+    opacity: 0.82,
   },
-  identityRowCompact: {
-    alignItems: 'flex-start',
-  },
-  identityPhoto: {
-    width: 96,
-    height: 96,
-    borderRadius: 22,
+  highlightPhoto: {
+    width: 66,
+    height: 66,
+    borderRadius: 16,
     backgroundColor: theme.colors.surfaceRaised,
   },
-  identityPhotoCompact: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-  },
-  identityPhotoFallback: {
-    width: 96,
-    height: 96,
-    borderRadius: 22,
+  highlightPhotoMissing: {
+    width: 66,
+    height: 66,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.danger,
     backgroundColor: theme.colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: theme.spacing.sm,
+    padding: theme.spacing.xs,
   },
-  identityPhotoFallbackText: {
+  photoMissingText: {
     color: theme.colors.danger,
     textAlign: 'center',
     fontSize: theme.typography.caption.fontSize,
     fontWeight: theme.typography.caption.fontWeight,
     textTransform: 'uppercase',
   },
-  identityCopy: {
+  highlightCopy: {
     flex: 1,
     gap: theme.spacing.xs,
   },
-  identityTitleRow: {
+  compactCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  rowPhoto: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  rowPhotoMissing: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  workforceAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.accentSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 184, 166, 0.28)',
+  },
+  workforceAvatarText: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: '800',
+  },
+  rowTitleLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: theme.spacing.sm,
   },
-  identityName: {
-    flexShrink: 1,
+  rowName: {
+    flex: 1,
     color: theme.colors.textPrimary,
     fontSize: theme.typography.bodyStrong.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
-  identityMeta: {
+  rowMeta: {
     color: theme.colors.textSecondary,
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: 21,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.body.fontWeight,
   },
   actionGrid: {
     gap: theme.spacing.sm,
@@ -621,69 +659,6 @@ const styles = StyleSheet.create({
   actionGridWide: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  badgePreview: {
-    gap: theme.spacing.md,
-    alignItems: 'center',
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-    padding: theme.spacing.md,
-  },
-  badgePhoto: {
-    width: 98,
-    height: 98,
-    borderRadius: 24,
-    backgroundColor: theme.colors.surfaceRaised,
-  },
-  badgeCopy: {
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  qrImage: {
-    width: 210,
-    height: 210,
-    borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.textInverse,
-  },
-  timeline: {
-    gap: theme.spacing.md,
-  },
-  sectionLabel: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.bodyStrong.fontSize,
-    fontWeight: theme.typography.bodyStrong.fontWeight,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.primary,
-    marginTop: 5,
-  },
-  timelineCopy: {
-    flex: 1,
-    gap: theme.spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    paddingBottom: theme.spacing.md,
-  },
-  timelineTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
-    fontWeight: theme.typography.bodyStrong.fontWeight,
-  },
-  timelineEmpty: {
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-    padding: theme.spacing.md,
   },
   paginationRow: {
     flexDirection: 'row',
@@ -700,13 +675,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
     textAlign: 'center',
-  },
-  messageStack: {
-    gap: theme.spacing.sm,
-  },
-  bodyText: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: 22,
   },
 });

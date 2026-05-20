@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
-import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
+import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { EmployeeHostSelector } from '../../components/form/EmployeeHostSelector';
@@ -30,13 +31,11 @@ import {
   useUploadVisitorPhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
 import { theme } from '../../theme';
-import type { HostDirectoryEntry, VisitorRecord, VisitorType } from '../../types/domain';
+import type { HostDirectoryEntry, SecurityMonitoring, VisitorRecord, VisitorType } from '../../types/domain';
 import {
   formatDateTime,
-  formatVisitorWindow,
   statusTone,
   visitorStatusLabel,
-  visitorTypeLabel,
 } from '../../utils/securityFormatting';
 
 type VisitorAction =
@@ -59,8 +58,10 @@ const DURATION_OPTIONS = [
 ];
 
 export function VisitorsScreen() {
+  const navigation = useNavigation<{ navigate: (screen: string, params?: unknown) => void }>();
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { showSnackbar } = useOperationalSnackbar();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'CHECKED_IN' | 'REJECTED'>('ALL');
   const [visitorType, setVisitorType] = useState<VisitorType>('WALK_IN');
@@ -78,7 +79,6 @@ export function VisitorsScreen() {
   const [photoPreviewVisible, setPhotoPreviewVisible] = useState(false);
   const [actionState, setActionState] = useState<VisitorAction | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const normalizedHostSearch = hostSearch.trim();
@@ -99,27 +99,10 @@ export function VisitorsScreen() {
   const escalateMutation = useEscalateVisitorMutation();
   const mismatchMutation = useReportVisitorMismatchMutation();
 
-  const queueSections = useMemo(() => [
-    {
-      title: 'Ready arrivals',
-      subtitle: 'Approved visitors waiting for fast checkpoint action.',
-      records: monitoring.data?.approvedVisitors ?? [],
-    },
-    {
-      title: 'Currently inside',
-      subtitle: 'Visitors already on site and visible to security.',
-      records: monitoring.data?.currentlyInside ?? [],
-    },
-    {
-      title: 'Exceptions',
-      subtitle: 'Overdue, denied, or suspended visitors that need attention.',
-      records: [
-        ...(monitoring.data?.overdueVisitors ?? []),
-        ...(monitoring.data?.rejectedVisitors ?? []),
-        ...(monitoring.data?.suspendedVisitors ?? []),
-      ],
-    },
-  ], [monitoring.data]);
+  const operationalHighlights = useMemo(
+    () => buildOperationalHighlights(monitoring.data, visitors.data?.items ?? []),
+    [monitoring.data, visitors.data?.items],
+  );
 
   const refreshWorkspace = async () => {
     await Promise.all([
@@ -145,58 +128,71 @@ export function VisitorsScreen() {
     setVisitorType('WALK_IN');
   };
 
+  const openVisitorRecord = (visitor: VisitorRecord) => {
+    navigation.navigate('VisitorDetail', { visitorId: visitor.id, initialVisitor: visitor });
+  };
+
   const submitRegistration = async () => {
     if (!fullName.trim() || fullName.trim().length < 2) {
       setFormError('Enter the visitor full name.');
+      showSnackbar({ message: 'Enter the visitor full name', tone: 'warning' });
       return;
     }
     if (!phone.trim()) {
       setFormError('Enter a phone number.');
+      showSnackbar({ message: 'Enter a phone number', tone: 'warning' });
       return;
     }
     if (!purposeOfVisit.trim()) {
       setFormError('Enter the purpose of visit.');
+      showSnackbar({ message: 'Enter the purpose of visit', tone: 'warning' });
       return;
     }
     if (!selectedHost) {
       setFormError('Select a host employee.');
+      showSnackbar({ message: 'Select a host employee', tone: 'warning' });
       return;
     }
     if (visitorType === 'ONE_TIME' && !scheduledStart.trim()) {
       setFormError('Enter the scheduled arrival time.');
+      showSnackbar({ message: 'Enter the scheduled arrival time', tone: 'warning' });
       return;
     }
     if (!photoAsset) {
       setFormError('Capture a visitor photo before registration.');
+      showSnackbar({ message: 'Capture a visitor photo before registration', tone: 'warning' });
       return;
     }
 
-    setFormError(null);
-    const uploadedPhoto = await uploadVisitorPhotoMutation.mutateAsync(photoAsset);
-    const payload = {
-      fullName: fullName.trim(),
-      phone: phone.trim(),
-      phoneCountryCode: phoneCountryCode.trim(),
-      email: email.trim() || null,
-      companyName: companyName.trim() || null,
-      purposeOfVisit: purposeOfVisit.trim(),
-      hostEmployee: selectedHost.fullName,
-      hostEmployeeId: selectedHost.id,
-      photoUrl: uploadedPhoto.url,
-      photoPublicId: uploadedPhoto.publicId,
-      visitorType,
-      scheduledStartTime: visitorType === 'ONE_TIME' ? new Date(scheduledStart).toISOString() : null,
-      expectedDurationMinutes: visitorType === 'ONE_TIME' ? Number(durationMinutes) : null,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    };
-    const visitor = await createVisitorMutation.mutateAsync(payload);
-    setActionMessage(
-      visitor.status === 'APPROVED'
-        ? `${visitor.fullName} is approved and QR-ready for checkpoint processing.`
-        : `${visitor.fullName} registered successfully. Approval remains with the backend workflow.`,
-    );
-    resetForm();
-    await refreshWorkspace();
+    try {
+      setFormError(null);
+      const uploadedPhoto = await uploadVisitorPhotoMutation.mutateAsync(photoAsset);
+      const payload = {
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        phoneCountryCode: phoneCountryCode.trim(),
+        email: email.trim() || null,
+        companyName: companyName.trim() || null,
+        purposeOfVisit: purposeOfVisit.trim(),
+        hostEmployee: selectedHost.fullName,
+        hostEmployeeId: selectedHost.id,
+        photoUrl: uploadedPhoto.url,
+        photoPublicId: uploadedPhoto.publicId,
+        visitorType,
+        scheduledStartTime: visitorType === 'ONE_TIME' ? new Date(scheduledStart).toISOString() : null,
+        expectedDurationMinutes: visitorType === 'ONE_TIME' ? Number(durationMinutes) : null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+      const visitor = await createVisitorMutation.mutateAsync(payload);
+      showSnackbar({
+        message: visitor.status === 'APPROVED' ? 'Visitor registered successfully. Badge ready' : 'Visitor registered successfully',
+        tone: 'success',
+      });
+      resetForm();
+      await refreshWorkspace();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to register visitor'), tone: 'danger' });
+    }
   };
 
   const executeAction = async (reason: string) => {
@@ -204,31 +200,35 @@ export function VisitorsScreen() {
       return;
     }
 
-    switch (actionState.type) {
-      case 'override': {
-        const visitor = await overrideMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
-        setActionMessage(`Manual override recorded for ${visitor.fullName}.`);
-        break;
+    try {
+      switch (actionState.type) {
+        case 'override': {
+          const visitor = await overrideMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
+          showSnackbar({ message: `Manual override recorded for ${visitor.fullName}`, tone: 'success' });
+          break;
+        }
+        case 'deny': {
+          const visitor = await denyMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
+          showSnackbar({ message: `Entry denied for ${visitor.fullName}`, tone: 'success' });
+          break;
+        }
+        case 'escalate': {
+          const visitor = await escalateMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
+          showSnackbar({ message: `Issue escalated for ${visitor.fullName}`, tone: 'success' });
+          break;
+        }
+        case 'mismatch': {
+          const visitor = await mismatchMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
+          showSnackbar({ message: `Mismatch recorded for ${visitor.fullName}`, tone: 'success' });
+          break;
+        }
       }
-      case 'deny': {
-        const visitor = await denyMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
-        setActionMessage(`Entry denied for ${visitor.fullName}.`);
-        break;
-      }
-      case 'escalate': {
-        const visitor = await escalateMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
-        setActionMessage(`Issue escalated for ${visitor.fullName}.`);
-        break;
-      }
-      case 'mismatch': {
-        const visitor = await mismatchMutation.mutateAsync({ visitorId: actionState.visitor.id, reason });
-        setActionMessage(`Mismatch recorded for ${visitor.fullName}.`);
-        break;
-      }
-    }
 
-    setActionState(null);
-    await refreshWorkspace();
+      setActionState(null);
+      await refreshWorkspace();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to complete action'), tone: 'danger' });
+    }
   };
 
   const actionConfig = actionState
@@ -375,110 +375,74 @@ export function VisitorsScreen() {
           </View>
         </SurfaceCard>
 
-        {queueSections.map((section) => (
-          <SurfaceCard key={section.title} title={section.title} subtitle={section.subtitle}>
-            {section.records.length ? (
-              section.records.slice(0, 5).map((visitor) => (
-                <View key={`${section.title}-${visitor.id}`} style={styles.queueCard}>
-                  <View style={styles.identityStrip}>
-                    {visitor.photoUrl ? (
-                      <Image source={{ uri: visitor.photoUrl }} style={styles.identityPhoto} />
-                    ) : (
-                      <View style={styles.identityPhotoMissing}>
-                        <Text style={styles.identityPhotoMissingText}>Photo missing</Text>
-                      </View>
-                    )}
-                    <View style={styles.identityCopy}>
-                      <Text style={styles.identityTitle}>{visitor.fullName}</Text>
-                      <Text style={styles.helperText}>Verify this photo before any checkpoint action.</Text>
-                    </View>
-                  </View>
-                  <RecordCard
-                    title={visitor.fullName}
-                    subtitle={[visitor.companyName, visitor.hostEmployee].filter(Boolean).join(' · ')}
-                    meta={[
-                      visitor.badgeId ? `Badge ${visitor.badgeId}` : null,
-                      visitor.accessWindowStartTime || visitor.scheduledStartTime ? formatVisitorWindow(visitor) : null,
-                    ].filter(Boolean).join(' · ')}
-                    status={visitorStatusLabel(visitor.status)}
-                    tone={statusTone(visitor.status)}
-                  />
-                  <OperationalFieldList
-                    items={[
-                      { label: 'Visit type', value: visitorTypeLabel(visitor.visitorType) },
-                      { label: 'Access window', value: formatVisitorWindow(visitor) },
-                      { label: 'Host', value: visitor.hostEmployee || 'Unassigned' },
-                      { label: 'Status', value: visitorStatusLabel(visitor.status) },
-                    ]}
-                  />
-                  <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-                    {visitor.status === 'APPROVED' ? (
-                      <PrimaryButton
-                        label="Check in"
-                        onPress={async () => {
+        <SurfaceCard title="Operational highlights" subtitle="Only the top three priority visitors are expanded for fast guard action.">
+          {operationalHighlights.length ? (
+            operationalHighlights.map((visitor) => (
+              <View key={`highlight-${visitor.id}`} style={styles.queueCard}>
+                <OperationalHighlightCard
+                  visitor={visitor}
+                  onPress={() => openVisitorRecord(visitor)}
+                  onLongPress={() => showSnackbar({ message: 'Open Record for full history and badge actions', tone: 'info' })}
+                />
+                <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
+                  {visitor.status === 'APPROVED' ? (
+                    <PrimaryButton
+                      label="Check in"
+                      onPress={async () => {
+                        try {
                           const nextVisitor = await checkInMutation.mutateAsync(visitor.id);
-                          setActionMessage(`${nextVisitor.fullName} checked in.`);
+                          showSnackbar({ message: `${nextVisitor.fullName} checked in`, tone: 'success' });
                           await refreshWorkspace();
-                        }}
-                        loading={checkInMutation.isPending}
-                      />
-                    ) : null}
-                    {visitor.status === 'CHECKED_IN' ? (
-                      <PrimaryButton
-                        label="Check out"
-                        onPress={async () => {
+                        } catch (error) {
+                          showSnackbar({ message: getErrorMessage(error, 'Unable to check in visitor'), tone: 'danger' });
+                        }
+                      }}
+                      loading={checkInMutation.isPending}
+                    />
+                  ) : null}
+                  {visitor.status === 'CHECKED_IN' ? (
+                    <PrimaryButton
+                      label="Check out"
+                      onPress={async () => {
+                        try {
                           const nextVisitor = await checkOutMutation.mutateAsync(visitor.id);
-                          setActionMessage(`${nextVisitor.fullName} checked out.`);
+                          showSnackbar({ message: `${nextVisitor.fullName} checked out`, tone: 'success' });
                           await refreshWorkspace();
-                        }}
-                        loading={checkOutMutation.isPending}
-                        tone="secondary"
-                      />
-                    ) : null}
-                    <PrimaryButton label="Override" onPress={() => setActionState({ type: 'override', visitor })} tone="secondary" />
-                    <PrimaryButton label="Deny entry" onPress={() => setActionState({ type: 'deny', visitor })} tone="danger" />
-                    <PrimaryButton label="Escalate" onPress={() => setActionState({ type: 'escalate', visitor })} tone="secondary" />
-                    <PrimaryButton label="Mismatch" onPress={() => setActionState({ type: 'mismatch', visitor })} tone="secondary" />
-                  </View>
-                </View>
-              ))
-            ) : (
-              <EmptyState title={`No ${section.title.toLowerCase()}`} body="The queue will populate as scans, approvals, and checkpoint decisions flow in from the backend." />
-            )}
-          </SurfaceCard>
-        ))}
-
-        <SurfaceCard title="Recent records" subtitle="Backend-backed visitor records for quick desk visibility.">
-          {visitors.data?.items.length ? (
-            visitors.data.items.slice(0, 8).map((visitor) => (
-              <View key={visitor.id} style={styles.recentRecordRow}>
-                {visitor.photoUrl ? <Image source={{ uri: visitor.photoUrl }} style={styles.recentPhoto} /> : <View style={styles.recentPhotoMissing} />}
-                <View style={styles.recentRecord}>
-                  <RecordCard
-                    title={visitor.fullName}
-                    subtitle={[visitor.companyName, visitor.organizationName].filter(Boolean).join(' · ')}
-                    meta={[
-                      visitor.hostEmployee ? `Host: ${visitor.hostEmployee}` : null,
-                      visitor.badgeId ? `Badge: ${visitor.badgeId}` : null,
-                      visitor.createdAt ? `Created: ${formatDateTime(visitor.createdAt)}` : null,
-                    ].filter(Boolean).join(' · ')}
-                    status={visitorStatusLabel(visitor.status)}
-                    tone={statusTone(visitor.status)}
-                  />
+                        } catch (error) {
+                          showSnackbar({ message: getErrorMessage(error, 'Unable to check out visitor'), tone: 'danger' });
+                        }
+                      }}
+                      loading={checkOutMutation.isPending}
+                      tone="secondary"
+                    />
+                  ) : null}
+                  <PrimaryButton label="Override" onPress={() => setActionState({ type: 'override', visitor })} tone="secondary" />
+                  <PrimaryButton label="Deny entry" onPress={() => setActionState({ type: 'deny', visitor })} tone="danger" />
+                  <PrimaryButton label="Escalate" onPress={() => setActionState({ type: 'escalate', visitor })} tone="secondary" />
                 </View>
               </View>
             ))
           ) : (
-            <EmptyState title="No visitor activity yet" body="Registered visitors, approvals, and check-ins will appear here." />
+            <EmptyState title="No priority visitors" body="Inside visitors, latest check-ins, latest check-outs, denials, and suspended records appear here." />
           )}
         </SurfaceCard>
 
-        {actionMessage ? (
-          <SurfaceCard title="Operational update">
-            <StatusPill label="Recorded" tone="success" />
-            <Text style={styles.bodyText}>{actionMessage}</Text>
-          </SurfaceCard>
-        ) : null}
+        <SurfaceCard title="Recent records" subtitle="Compact visitor history for fast scanning. Tap a row to open the full operational record.">
+          {visitors.data?.items.length ? (
+            <View style={styles.compactList}>
+              {visitors.data.items.slice(0, 12).map((visitor) => (
+                <VisitorCompactRow
+                  key={visitor.id}
+                  visitor={visitor}
+                  onPress={() => openVisitorRecord(visitor)}
+                  onLongPress={() => showSnackbar({ message: 'Operational menu is available in Open Record', tone: 'info' })}
+                />
+              ))}
+            </View>
+          ) : (
+            <EmptyState title="No visitor activity yet" body="Registered visitors, approvals, and check-ins will appear here." />
+          )}
+        </SurfaceCard>
       </AppScreen>
 
       <PhotoCaptureModal
@@ -509,6 +473,123 @@ export function VisitorsScreen() {
       ) : null}
     </>
   );
+}
+
+function OperationalHighlightCard({
+  visitor,
+  onPress,
+  onLongPress,
+}: {
+  visitor: VisitorRecord;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.highlightCard, pressed ? styles.pressed : null]}
+    >
+      {visitor.photoUrl ? (
+        <Image source={{ uri: visitor.photoUrl }} style={styles.highlightPhoto} />
+      ) : (
+        <View style={styles.highlightPhotoMissing}>
+          <Text style={styles.photoMissingText}>No photo</Text>
+        </View>
+      )}
+      <View style={styles.highlightCopy}>
+        <View style={styles.rowTitleLine}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.rowName}>{visitor.fullName}</Text>
+          <StatusPill label={visitorStatusLabel(visitor.status)} tone={statusTone(visitor.status)} />
+        </View>
+        <Text maxFontSizeMultiplier={1.06} numberOfLines={1} style={styles.rowMeta}>
+          {[visitor.companyName || visitor.organizationName, visitor.hostEmployee ? `Host ${visitor.hostEmployee}` : null].filter(Boolean).join(' - ') || 'Visitor record'}
+        </Text>
+        <Text maxFontSizeMultiplier={1.06} numberOfLines={1} style={styles.rowMeta}>
+          {highlightReason(visitor)} - {latestTimestamp(visitor)}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function VisitorCompactRow({
+  visitor,
+  onPress,
+  onLongPress,
+}: {
+  visitor: VisitorRecord;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: theme.colors.primarySoft }}
+      style={({ pressed }) => [styles.compactRow, pressed ? styles.pressed : null]}
+    >
+      {visitor.photoUrl ? <Image source={{ uri: visitor.photoUrl }} style={styles.rowPhoto} /> : <View style={styles.rowPhotoMissing} />}
+      <View style={styles.compactCopy}>
+        <View style={styles.rowTitleLine}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.rowName}>{visitor.fullName}</Text>
+          <StatusPill label={visitorStatusLabel(visitor.status)} tone={statusTone(visitor.status)} />
+        </View>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {[visitor.companyName || visitor.organizationName || 'Organization not recorded', visitor.hostEmployee || 'Host unassigned'].join(' - ')}
+        </Text>
+        <Text maxFontSizeMultiplier={1.04} numberOfLines={1} style={styles.rowMeta}>
+          {visitorStatusLabel(visitor.status)} - {latestTimestamp(visitor)}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function buildOperationalHighlights(monitoring?: SecurityMonitoring, visitorItems: VisitorRecord[] = []) {
+  const ordered = [
+    ...(monitoring?.suspendedVisitors ?? []),
+    ...(monitoring?.rejectedVisitors ?? []),
+    ...(monitoring?.overdueVisitors ?? []),
+    ...(monitoring?.currentlyInside ?? []),
+    ...(monitoring?.checkedOutVisitors ?? []),
+    ...(monitoring?.approvedVisitors ?? []),
+    ...visitorItems.filter((visitor) => ['CHECKED_IN', 'CHECKED_OUT', 'APPROVED'].includes(String(visitor.status || ''))),
+  ];
+  const seen = new Set<string>();
+  return ordered.filter((visitor) => {
+    if (!visitor.id || seen.has(visitor.id)) {
+      return false;
+    }
+    seen.add(visitor.id);
+    return true;
+  }).slice(0, 3);
+}
+
+function highlightReason(visitor: VisitorRecord) {
+  if (visitor.status === 'SUSPENDED') {
+    return 'Suspension flag';
+  }
+  if (visitor.status === 'REJECTED') {
+    return 'Denied entry';
+  }
+  if (visitor.status === 'CHECKED_IN') {
+    return 'Currently inside';
+  }
+  if (visitor.status === 'CHECKED_OUT') {
+    return 'Latest check-out';
+  }
+  if (visitor.status === 'APPROVED') {
+    return 'Ready arrival';
+  }
+  return visitorStatusLabel(visitor.status);
+}
+
+function latestTimestamp(visitor: VisitorRecord) {
+  return formatDateTime(visitor.checkOutTime || visitor.checkInTime || visitor.approvedAt || visitor.updatedAt || visitor.createdAt);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -660,6 +741,100 @@ const styles = StyleSheet.create({
   },
   queueCard: {
     gap: theme.spacing.md,
+  },
+  highlightCard: {
+    minHeight: 96,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  highlightPhoto: {
+    width: 66,
+    height: 66,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  highlightPhotoMissing: {
+    width: 66,
+    height: 66,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    backgroundColor: theme.colors.dangerSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xs,
+  },
+  photoMissingText: {
+    color: theme.colors.danger,
+    textAlign: 'center',
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+  },
+  highlightCopy: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  compactList: {
+    gap: 1,
+    borderRadius: theme.radii.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  compactRow: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surfaceMuted,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  pressed: {
+    opacity: 0.82,
+  },
+  rowPhoto: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  rowPhotoMissing: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+  },
+  compactCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  rowTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  rowName: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  rowMeta: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.body.fontWeight,
   },
   identityStrip: {
     flexDirection: 'row',

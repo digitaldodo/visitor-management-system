@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
+import { OperationalSnackbarProvider } from '../components/feedback/OperationalSnackbar';
 import { RootNavigator } from '../navigation/RootNavigator';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
 import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
@@ -68,7 +69,9 @@ export default function AccessFlowApp() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <OperationalRuntimeProvider>
-              <AppBoundaryHost />
+              <OperationalSnackbarProvider>
+                <AppBoundaryHost />
+              </OperationalSnackbarProvider>
             </OperationalRuntimeProvider>
           </AuthProvider>
         </QueryClientProvider>
