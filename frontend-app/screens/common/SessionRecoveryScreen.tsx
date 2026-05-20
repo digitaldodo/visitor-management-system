@@ -48,29 +48,29 @@ function recoveryCopy(reason?: string, message?: string | null) {
   if (normalizedReason.includes('network')) {
     return {
       title: 'Connection recovery',
-      subtitle: 'AccessFlow preserved the saved session, but the backend could not be reached.',
+      subtitle: 'AccessFlow kept your saved session protected while the service connection is restored.',
       message: fallbackMessage,
       primaryAction: 'Retry connection',
       helpTitle: 'What to check',
-      helpBody: 'Confirm the device network or VPN, then retry. Signing out clears the remembered session from secure storage.',
+      helpBody: 'Confirm the device network or VPN, then retry. Signing out removes the remembered session from this device.',
     };
   }
 
   if (normalizedReason.includes('version')) {
     return {
       title: 'App update required',
-      subtitle: 'This build is no longer compatible with the backend runtime policy.',
+      subtitle: 'Your organization requires a newer AccessFlow build before this workspace can resume.',
       message: fallbackMessage,
       primaryAction: 'Check again',
       helpTitle: 'Why this appears',
-      helpBody: 'Version recovery prevents a mismatched app and backend from entering a broken authenticated state.',
+      helpBody: 'This protects operational data when mobile and backend security policies no longer match.',
     };
   }
 
   if (normalizedReason.includes('config')) {
     return {
       title: 'Configuration required',
-      subtitle: 'The mobile runtime is missing a valid backend URL.',
+      subtitle: 'This AccessFlow build needs a valid service configuration before sign-in.',
       message: fallbackMessage,
       primaryAction: 'Retry configuration',
       helpTitle: 'Deployment note',
@@ -79,12 +79,12 @@ function recoveryCopy(reason?: string, message?: string | null) {
   }
 
   return {
-    title: 'Session recovery required',
-    subtitle: 'The app avoided restoring a stale or incomplete session state. Use the safe recovery options below.',
+    title: 'Secure session recovery',
+    subtitle: 'AccessFlow paused workspace restoration until the saved session can be safely verified.',
     message: fallbackMessage,
     primaryAction: 'Retry recovery',
-    helpTitle: 'What this protects against',
-    helpBody: 'Stale tokens, broken refresh loops, runtime upgrades, and partially written session data are isolated here instead of freezing the workspace.',
+    helpTitle: 'What this protects',
+    helpBody: 'This keeps expired, revoked, or incomplete session data from reopening an operational workspace.',
   };
 }
 

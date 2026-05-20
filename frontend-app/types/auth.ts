@@ -82,6 +82,17 @@ export type AuthBootstrapState =
       lastError: null;
     }
   | {
+      status: 'auth-interrupted';
+      session: AuthSession | null;
+      recovery: null;
+      interruption: {
+        reason: string;
+        message: string;
+        canUsePassword: boolean;
+      };
+      lastError: string | null;
+    }
+  | {
       status: 'signed-out';
       session: null;
       recovery: null;

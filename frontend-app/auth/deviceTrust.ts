@@ -30,6 +30,10 @@ export type LocalDeviceTrustProfile = {
   lastUnlockedAt?: string | null;
 };
 
+export type DeviceUnlockResult =
+  | { success: true }
+  | { success: false; reason: string; interrupted: boolean };
+
 export async function readLocalDeviceTrustProfile() {
   return readSecureJson<LocalDeviceTrustProfile>(TRUST_PROFILE_KEY);
 }
@@ -131,15 +135,15 @@ export async function promptForDeviceTrust(session: AuthSession) {
   });
 }
 
-export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 'enable' | 'manual') {
+export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 'enable' | 'manual'): Promise<DeviceUnlockResult> {
   const ready = await isBiometricOrDeviceCredentialReady();
   if (!ready) {
-    return { success: false, reason: 'device-unlock-unavailable' };
+    return { success: false, reason: 'device-unlock-unavailable', interrupted: true };
   }
 
   const accepted = await showPermissionEducation('biometric');
   if (!accepted) {
-    return { success: false, reason: 'device-unlock-cancelled' };
+    return { success: false, reason: 'device-unlock-cancelled', interrupted: true };
   }
 
   const result = await LocalAuthentication.authenticateAsync({
@@ -164,9 +168,16 @@ export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 
     });
   }
 
-  return result.success
-    ? { success: true as const }
-    : { success: false as const, reason: 'error' in result ? result.error : 'cancelled' };
+  if (result.success) {
+    return { success: true };
+  }
+
+  const failureReason = 'error' in result ? result.error : 'cancelled';
+  return {
+    success: false,
+    reason: failureReason,
+    interrupted: isSoftDeviceUnlockInterruption(failureReason),
+  };
 }
 
 export async function bindTrustedDeviceLocally(session: AuthSession, biometricEnabled: boolean) {
@@ -237,6 +248,23 @@ function promptForReason(reason: 'bootstrap' | 'resume' | 'enable' | 'manual') {
     default:
       return 'Confirm device unlock';
   }
+}
+
+export function isSoftDeviceUnlockInterruption(reason?: string | null) {
+  const normalized = String(reason || '').toLowerCase();
+  return (
+    !normalized
+    || normalized.includes('cancel')
+    || normalized.includes('user_cancel')
+    || normalized.includes('system_cancel')
+    || normalized.includes('app_cancel')
+    || normalized.includes('authentication_failed')
+    || normalized.includes('lockout')
+    || normalized.includes('not_available')
+    || normalized.includes('not_enrolled')
+    || normalized.includes('passcode_not_set')
+    || normalized.includes('device-unlock')
+  );
 }
 
 async function detectRootOrJailbreakSignals() {

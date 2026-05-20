@@ -57,8 +57,8 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
         skipProcessing: true,
       });
       setPreview(nextPreview);
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : 'Photo capture failed. Try again or upload an image.');
+    } catch {
+      setCaptureError('Photo capture could not be completed. Try again or upload an image.');
     } finally {
       setIsTakingPhoto(false);
     }
@@ -96,8 +96,8 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
         type: asset.mimeType || 'image/jpeg',
       });
       onCancel();
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : 'Photo upload failed. Try again.');
+    } catch {
+      setCaptureError('Photo upload could not be completed. Try again.');
     } finally {
       setIsPickingPhoto(false);
     }

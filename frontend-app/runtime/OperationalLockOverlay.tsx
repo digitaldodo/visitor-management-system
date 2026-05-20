@@ -6,7 +6,7 @@ import { useOperationalRuntime } from './OperationalRuntimeProvider';
 import { theme } from '../theme';
 
 export function OperationalLockOverlay() {
-  const { sessionLock, runtimeHealth, unlockSession, isUnlocking, otaUpdate, applyPendingUpdate, devicePosture } = useOperationalRuntime();
+  const { sessionLock, runtimeHealth, unlockSession, isUnlocking, authInterruptionMessage, otaUpdate, applyPendingUpdate, devicePosture } = useOperationalRuntime();
 
   if (!sessionLock.isLocked) {
     return null;
@@ -34,6 +34,12 @@ export function OperationalLockOverlay() {
             <Text style={styles.context}>Managed mode: {devicePosture.managedMode}</Text>
             {otaUpdate.updateDownloaded ? <Text style={styles.context}>OTA update: downloaded and ready</Text> : null}
           </View>
+          {authInterruptionMessage ? (
+            <View style={styles.softInterruption}>
+              <Text style={styles.softTitle}>Authentication cancelled</Text>
+              <Text style={styles.softBody}>{authInterruptionMessage}</Text>
+            </View>
+          ) : null}
           <View style={styles.actions}>
             {runtimeHealth === 'update-required' && otaUpdate.updateDownloaded ? (
               <PrimaryButton
@@ -76,5 +82,23 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: theme.spacing.sm,
+  },
+  softInterruption: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.infoSoft,
+    padding: theme.spacing.md,
+  },
+  softTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  softBody: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
   },
 });

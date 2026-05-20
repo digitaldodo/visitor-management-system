@@ -87,6 +87,30 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
   }
 
   if (
+    lower.includes('authentication operation cancelled')
+    || lower.includes('authentication canceled')
+    || lower.includes('authentication cancelled')
+    || lower.includes('user_cancel')
+    || lower.includes('system_cancel')
+    || lower.includes('app_cancel')
+  ) {
+    return 'Authentication interrupted. Please retry securely.';
+  }
+
+  if (
+    lower.includes('securestore')
+    || lower.includes('setvaluewithkeyasync')
+    || lower.includes('getvaluewithkeyasync')
+    || lower.includes('rejected')
+    || lower.includes('promise')
+    || lower.includes('stack trace')
+    || lower.includes('exception')
+    || lower.includes('native module')
+  ) {
+    return 'Unable to verify identity. Please retry securely.';
+  }
+
+  if (
     !normalized
     || lower.includes('handshake')
     || lower.includes('socket')

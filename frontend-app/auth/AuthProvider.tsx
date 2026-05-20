@@ -10,6 +10,7 @@ import {
   collectDeviceIntegritySignals,
   getCurrentDeviceDescriptor,
   isEnterpriseTrustAudience,
+  isSoftDeviceUnlockInterruption,
   markDeviceUnlocked,
   promptForDeviceTrust,
   readLocalDeviceTrustProfile,
@@ -24,6 +25,8 @@ import {
   clearPersistedSession,
   clearRuntimeSnapshot,
   clearSessionLockState,
+  isSecureSessionAuthInterruption,
+  isSecureSessionCorruption,
   readPersistedSession,
   readRuntimeSnapshot,
   writePersistedSession,
@@ -41,6 +44,7 @@ type AuthContextValue = AuthBootstrapState & {
   refreshSession: () => Promise<void>;
   recoverRuntimeSession: (options?: RuntimeRecoveryOptions) => Promise<boolean>;
   recoverAppShell: () => Promise<void>;
+  continueWithPasswordSignIn: () => void;
 };
 
 type RuntimeRecoveryOptions = {
@@ -167,6 +171,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setStateSafely],
   );
 
+  const showAuthInterruptedState = useCallback(
+    async (input: { session?: AuthSession | null; reason: string; diagnosticCode: string }) => {
+      await recordDiagnosticEvent({
+        level: 'info',
+        scope: 'auth',
+        code: input.diagnosticCode,
+        message: 'Secure device verification was interrupted by the operator.',
+        context: {
+          hasSession: Boolean(input.session ?? sessionRef.current),
+          reason: input.reason,
+        },
+      });
+
+      setStateSafely({
+        status: 'auth-interrupted',
+        session: input.session ?? sessionRef.current,
+        recovery: null,
+        interruption: {
+          reason: input.reason,
+          message: authInterruptionCopy(input.reason),
+          canUsePassword: true,
+        },
+        lastError: null,
+      });
+    },
+    [setStateSafely],
+  );
+
   const restoreRuntimeSessionSnapshot = useCallback(
     async (persistedSession: AuthSession, options?: { forceRefresh?: boolean }) => {
       sessionRef.current = persistedSession;
@@ -210,9 +242,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       runtimeRecoveryPromiseRef.current = (async () => {
         const trustProfile = await readLocalDeviceTrustProfile();
-        const persistedSession = sessionRef.current ?? (await readPersistedSession({
-          requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
-        }));
+        let persistedSession: AuthSession | null = null;
+        try {
+          persistedSession = sessionRef.current ?? (await readPersistedSession({
+            requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
+          }));
+        } catch (error) {
+          if (isSecureSessionAuthInterruption(error)) {
+            await showAuthInterruptedState({
+              session: sessionRef.current,
+              reason: 'secure-session-auth-interrupted',
+              diagnosticCode: 'SECURE_SESSION_AUTH_INTERRUPTED',
+            });
+            return false;
+          }
+          if (isSecureSessionCorruption(error)) {
+            await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
+            await showRecoveryState({
+              session: null,
+              reason: 'corrupted-session',
+              message: 'AccessFlow could not validate the saved secure session. Sign in again to re-establish trust on this device.',
+              diagnosticCode: 'CORRUPTED_SESSION_SNAPSHOT',
+            });
+            return false;
+          }
+          await showRecoveryState({
+            session: sessionRef.current,
+            reason: 'secure-storage',
+            message: 'AccessFlow could not validate secure session storage. Retry, or sign in again if this continues.',
+            diagnosticCode: 'SECURE_SESSION_STORAGE_READ_FAILED',
+          });
+          return false;
+        }
         const trigger = options?.trigger ?? 'manual';
 
         if (!persistedSession || !isValidSessionSnapshot(persistedSession)) {
@@ -255,7 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
           });
 
-          if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403 || options?.failClosed) {
+          if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
             await logoutRequest(persistedSession).catch(() => undefined);
             await clearSessionState('Session expired. Please sign in again.');
             resetNavigationToAuth();
@@ -276,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return runtimeRecoveryPromiseRef.current;
     },
-    [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, showRecoveryState],
+    [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, showAuthInterruptedState, showRecoveryState],
   );
 
   const bootstrap = useCallback(async () => {
@@ -297,20 +358,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (trustProfile?.trusted && trustProfile.biometricEnabled) {
       const unlock = await authenticateDeviceUnlock('bootstrap');
       if (!unlock.success) {
-        setStateSafely({
-          status: 'signed-out',
-          session: null,
-          recovery: null,
-          lastError: 'Use password sign-in to recover this device session.',
+        await showAuthInterruptedState({
+          session: sessionRef.current,
+          reason: unlock.interrupted ? unlock.reason : 'device-unlock-unavailable',
+          diagnosticCode: 'BOOTSTRAP_DEVICE_UNLOCK_INTERRUPTED',
         });
         return;
       }
       await markDeviceUnlocked(trustProfile);
     }
 
-    const persistedSession = await readPersistedSession({
-      requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
-    });
+    let persistedSession: AuthSession | null = null;
+    try {
+      persistedSession = await readPersistedSession({
+        requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
+      });
+    } catch (error) {
+      if (isSecureSessionAuthInterruption(error)) {
+        await showAuthInterruptedState({
+          session: sessionRef.current,
+          reason: 'secure-session-auth-interrupted',
+          diagnosticCode: 'BOOTSTRAP_SECURE_SESSION_AUTH_INTERRUPTED',
+        });
+        return;
+      }
+
+      if (isSecureSessionCorruption(error)) {
+        await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
+        await showRecoveryState({
+          session: null,
+          reason: 'corrupted-session',
+          message: 'AccessFlow could not validate the saved secure session. Sign in again to re-establish trust on this device.',
+          diagnosticCode: 'CORRUPTED_SESSION_SNAPSHOT',
+        });
+        return;
+      }
+
+      await showRecoveryState({
+        session: sessionRef.current,
+        reason: 'secure-storage',
+        message: 'AccessFlow could not validate secure session storage. Retry, or sign in again if this continues.',
+        diagnosticCode: 'SECURE_SESSION_STORAGE_READ_FAILED',
+      });
+      return;
+    }
     if (!persistedSession) {
       await clearSessionLockState();
       await writeRuntimeSnapshot({
@@ -360,7 +451,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         diagnosticCode: 'SESSION_BOOTSTRAP_FAILED',
       });
     }
-  }, [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, setStateSafely, showRecoveryState]);
+  }, [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, setStateSafely, showAuthInterruptedState, showRecoveryState]);
 
   useEffect(() => {
     configureApiClient({
@@ -485,6 +576,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await bootstrap();
   }, [bootstrap]);
 
+  const continueWithPasswordSignIn = useCallback(() => {
+    setStateSafely({
+      status: 'signed-out',
+      session: null,
+      recovery: null,
+      lastError: null,
+    });
+  }, [setStateSafely]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
@@ -495,8 +595,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshSession: refreshSessionState,
       recoverRuntimeSession,
       recoverAppShell,
+      continueWithPasswordSignIn,
     }),
-    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverRuntimeSession, recoverAppShell],
+    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverRuntimeSession, recoverAppShell, continueWithPasswordSignIn],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -549,6 +650,20 @@ function ensureVersionSupport(versions: VersionHandshakePayload) {
       recoverable: false,
     });
   }
+}
+
+function authInterruptionCopy(reason?: string | null) {
+  const normalized = String(reason || '').toLowerCase();
+  if (normalized.includes('not_enrolled') || normalized.includes('passcode') || normalized.includes('unavailable')) {
+    return 'Device unlock is not ready on this Android device. Use password sign-in or enable device security, then try again.';
+  }
+  if (normalized.includes('lockout')) {
+    return 'Biometric verification is temporarily paused by Android. Use device PIN when prompted, or try again shortly.';
+  }
+  if (isSoftDeviceUnlockInterruption(normalized) || normalized.includes('secure-session-auth')) {
+    return 'Authentication cancelled. Your session remains protected; continue securely to retry.';
+  }
+  return 'Unable to verify identity. Please retry securely.';
 }
 
 function compareVersionStrings(left: string, right: string) {

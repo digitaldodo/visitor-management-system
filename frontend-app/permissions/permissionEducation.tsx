@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '../components/buttons/PrimaryButton';
 import { theme } from '../theme';
@@ -16,29 +18,32 @@ type PermissionCopy = {
 };
 
 const STORAGE_PREFIX = 'accessflow.mobile.permission-education.v1.';
+const PermissionEducationContext = createContext<null>(null);
+
+let presentPermissionEducation: ((kind: PermissionEducationKind) => Promise<boolean>) | null = null;
 
 const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
   camera: {
-    title: 'Camera access for QR verification',
-    body: 'AccessFlow uses the camera only when you scan badges or capture verification photos.',
+    title: 'Camera for secure verification',
+    body: 'AccessFlow uses camera access for secure QR badge scanning and checkpoint verification.',
     bullets: [
       'Scan visitor and workforce QR badges at checkpoints.',
       'Capture identity photos when your workflow requires verification.',
       'No audio recording permission is requested.',
     ],
     icon: 'qr-code-outline',
-    actionLabel: 'Continue to camera permission',
+    actionLabel: 'Continue',
   },
   notifications: {
-    title: 'Notifications for operational updates',
-    body: 'Push notifications keep security and workforce teams aware of approvals, incidents, and sync status.',
+    title: 'Operational notifications',
+    body: 'Receive real-time operational alerts, approvals, and security updates.',
     bullets: [
       'Receive approval and incident alerts without keeping the screen open.',
       'Keep private details protected through Android notification controls.',
       'You can continue with in-app alerts if you decline.',
     ],
     icon: 'notifications-outline',
-    actionLabel: 'Continue to notification permission',
+    actionLabel: 'Continue',
   },
   files: {
     title: 'Files access for trusted uploads',
@@ -49,18 +54,18 @@ const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
       'AccessFlow does not browse unrelated files in the background.',
     ],
     icon: 'images-outline',
-    actionLabel: 'Continue to files permission',
+    actionLabel: 'Continue',
   },
   biometric: {
-    title: 'Biometric unlock for trusted sessions',
-    body: 'Fingerprint, face unlock, or device PIN helps protect trusted devices after app restarts or inactivity.',
+    title: 'Faster secure access',
+    body: 'Use fingerprint authentication for faster and more secure access.',
     bullets: [
       'Unlock the saved session without exposing credentials.',
       'Use Android device security; biometric data stays on the device.',
       'Password sign-in remains available if you decline.',
     ],
     icon: 'finger-print-outline',
-    actionLabel: 'Continue to device unlock',
+    actionLabel: 'Continue',
   },
 };
 
@@ -72,10 +77,18 @@ export async function showPermissionEducation(kind: PermissionEducationKind) {
   }
 
   const copy = permissionCopy[kind];
+  if (presentPermissionEducation) {
+    const accepted = await presentPermissionEducation(kind);
+    if (accepted) {
+      await AsyncStorage.setItem(key, 'true').catch(() => undefined);
+    }
+    return accepted;
+  }
+
   const accepted = await new Promise<boolean>((resolve) => {
     Alert.alert(
       copy.title,
-      `${copy.body}\n\n${copy.bullets.map((bullet) => `- ${bullet}`).join('\n')}`,
+      copy.body,
       [
         { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
         { text: copy.actionLabel, onPress: () => resolve(true) },
@@ -88,6 +101,83 @@ export async function showPermissionEducation(kind: PermissionEducationKind) {
   }
 
   return accepted;
+}
+
+export function PermissionEducationProvider({ children }: { children: ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const resolverRef = useRef<((accepted: boolean) => void) | null>(null);
+  const [activeKind, setActiveKind] = useState<PermissionEducationKind | null>(null);
+
+  const present = useCallback((kind: PermissionEducationKind) => {
+    if (resolverRef.current) {
+      resolverRef.current(false);
+    }
+
+    setActiveKind(kind);
+    return new Promise<boolean>((resolve) => {
+      resolverRef.current = resolve;
+    });
+  }, []);
+
+  const complete = useCallback((accepted: boolean) => {
+    const resolve = resolverRef.current;
+    resolverRef.current = null;
+    setActiveKind(null);
+    resolve?.(accepted);
+  }, []);
+
+  useEffect(() => {
+    presentPermissionEducation = present;
+    return () => {
+      if (presentPermissionEducation === present) {
+        presentPermissionEducation = null;
+      }
+      resolverRef.current?.(false);
+      resolverRef.current = null;
+    };
+  }, [present]);
+
+  const copy = activeKind ? permissionCopy[activeKind] : null;
+  const contextValue = useMemo(() => null, []);
+
+  return (
+    <PermissionEducationContext.Provider value={contextValue}>
+      {children}
+      {copy ? (
+        <Modal animationType="fade" transparent visible onRequestClose={() => complete(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetIconWrap}>
+                <Ionicons name={copy.icon} size={30} color={theme.colors.info} />
+              </View>
+              <Text style={styles.sheetTitle}>{copy.title}</Text>
+              <Text style={styles.sheetBody}>{copy.body}</Text>
+              <View style={styles.bulletList}>
+                {copy.bullets.map((bullet) => (
+                  <View key={bullet} style={styles.bulletRow}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.accent} />
+                    <Text style={styles.bulletText}>{bullet}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.sheetActions}>
+                <PrimaryButton label={copy.actionLabel} onPress={() => complete(true)} />
+                <Pressable
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => complete(false)}
+                  style={styles.declineButton}
+                >
+                  <Text style={styles.declineText}>Not now</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </PermissionEducationContext.Provider>
+  );
 }
 
 export function PermissionEducationPanel({
@@ -132,6 +222,63 @@ export function PermissionEducationPanel({
 }
 
 const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: theme.colors.overlay,
+  },
+  sheet: {
+    width: '100%',
+    gap: theme.spacing.md,
+    borderTopLeftRadius: theme.radii.xl,
+    borderTopRightRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  sheetHandle: {
+    width: 48,
+    height: 4,
+    borderRadius: theme.radii.pill,
+    alignSelf: 'center',
+    backgroundColor: theme.colors.borderStrong,
+  },
+  sheetIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: theme.radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.infoSoft,
+  },
+  sheetTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+  },
+  sheetBody: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
+  },
+  sheetActions: {
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+  },
+  declineButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
   panel: {
     gap: theme.spacing.md,
     borderRadius: theme.radii.lg,

@@ -87,6 +87,7 @@ type OperationalRuntimeContextValue = {
   runtimeHealth: 'healthy' | 'degraded' | 'locked' | 'update-required';
   sessionLock: SessionLockState;
   isUnlocking: boolean;
+  authInterruptionMessage: string | null;
   markLocalNotificationRead: (notificationId: string) => void;
   requestPushRegistration: () => Promise<void>;
   syncNow: () => Promise<void>;
@@ -202,6 +203,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [syncConnection, setSyncConnection] = useState<OperationalSyncConnectionState>(initialSyncConnection);
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [authInterruptionMessage, setAuthInterruptionMessage] = useState<string | null>(null);
 
   const persistLockState = useCallback(async (nextState: SessionLockState) => {
     setSessionLock(nextState);
@@ -209,6 +211,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, []);
 
   const releaseSessionLock = useCallback(async () => {
+    setAuthInterruptionMessage(null);
     const nextState = {
       ...sessionLock,
       isLocked: false,
@@ -1055,6 +1058,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     setIsUnlocking(true);
+    setAuthInterruptionMessage(null);
     try {
       if (sessionLock.biometricEnabled && sessionLock.biometricAvailable) {
         const biometricResult = await LocalAuthentication.authenticateAsync({
@@ -1064,6 +1068,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         });
 
         if (!biometricResult.success) {
+          setAuthInterruptionMessage('Biometric verification interrupted. Continue securely to retry, or use device PIN from the Android prompt.');
           await recordDiagnosticEvent({
             level: 'warn',
             scope: 'security',
@@ -1480,6 +1485,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       runtimeHealth,
       sessionLock,
       isUnlocking,
+      authInterruptionMessage,
       markLocalNotificationRead,
       requestPushRegistration: registerCurrentDevice,
       syncNow,
@@ -1505,6 +1511,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       runtimeHealth,
       sessionLock,
       isUnlocking,
+      authInterruptionMessage,
       markLocalNotificationRead,
       registerCurrentDevice,
       syncNow,

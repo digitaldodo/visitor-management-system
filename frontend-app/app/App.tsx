@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { OperationalSnackbarProvider } from '../components/feedback/OperationalSnackbar';
 import { LocalizationProvider } from '../localization/LocalizationProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
+import { PermissionEducationProvider } from '../permissions/permissionEducation';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
 import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
 import { MobileSecurityProvider } from '../security/MobileSecurityProvider';
@@ -70,15 +71,17 @@ export default function AccessFlowApp() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <LocalizationProvider>
-            <AuthProvider>
-              <MobileSecurityProvider>
-                <OperationalRuntimeProvider>
-                  <OperationalSnackbarProvider>
-                    <AppBoundaryHost />
-                  </OperationalSnackbarProvider>
-                </OperationalRuntimeProvider>
-              </MobileSecurityProvider>
-            </AuthProvider>
+            <PermissionEducationProvider>
+              <AuthProvider>
+                <MobileSecurityProvider>
+                  <OperationalRuntimeProvider>
+                    <OperationalSnackbarProvider>
+                      <AppBoundaryHost />
+                    </OperationalSnackbarProvider>
+                  </OperationalRuntimeProvider>
+                </MobileSecurityProvider>
+              </AuthProvider>
+            </PermissionEducationProvider>
           </LocalizationProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

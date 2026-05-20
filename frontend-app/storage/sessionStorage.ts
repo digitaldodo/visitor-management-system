@@ -4,7 +4,7 @@ import * as Crypto from 'expo-crypto';
 
 import type { AuthSession } from '../types/auth';
 import type { RuntimeSnapshot, SessionLockState } from '../types/runtime';
-import { readSecureJson, readSecureValue, removeSecureValue, writeSecureJson, writeSecureValue } from './secureStore';
+import { readSecureValue, removeSecureValue, writeSecureJson, writeSecureValue } from './secureStore';
 
 const SESSION_KEY = 'accessflow.mobile.session';
 const RUNTIME_KEY = 'accessflow.mobile.runtime';
@@ -13,11 +13,51 @@ const INSTALLATION_ID_KEY = 'accessflow.mobile.installation-id';
 const LEGACY_DEVICE_ID_KEY = 'accessflow.mobile.device-id';
 const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
+export class SecureSessionAuthInterruptedError extends Error {
+  constructor(message = 'Secure session authentication was interrupted.') {
+    super(message);
+    this.name = 'SecureSessionAuthInterruptedError';
+  }
+}
+
+export class SecureSessionStorageError extends Error {
+  constructor(message = 'Secure session storage could not be read.') {
+    super(message);
+    this.name = 'SecureSessionStorageError';
+  }
+}
+
+export class SecureSessionCorruptionError extends Error {
+  constructor(message = 'Secure session payload is invalid.') {
+    super(message);
+    this.name = 'SecureSessionCorruptionError';
+  }
+}
+
 export async function readPersistedSession(options?: { requireAuthentication?: boolean }) {
-  return readSecureJson<AuthSession>(SESSION_KEY, options?.requireAuthentication ? {
-    requireAuthentication: true,
-    authenticationPrompt: 'Unlock AccessFlow secure session',
-  } : undefined);
+  try {
+    const rawValue = await readSecureValue(SESSION_KEY, options?.requireAuthentication ? {
+      requireAuthentication: true,
+      authenticationPrompt: 'Unlock AccessFlow secure session',
+    } : undefined);
+    if (!rawValue) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(rawValue) as AuthSession;
+    } catch {
+      throw new SecureSessionCorruptionError();
+    }
+  } catch (error) {
+    if (error instanceof SecureSessionCorruptionError) {
+      throw error;
+    }
+    if (isSecureSessionAuthInterruption(error)) {
+      throw new SecureSessionAuthInterruptedError();
+    }
+    throw new SecureSessionStorageError(error instanceof Error ? error.message : undefined);
+  }
 }
 
 export async function writePersistedSession(session: AuthSession, options?: { requireAuthentication?: boolean }) {
@@ -120,4 +160,26 @@ function normalizeDevicePart(value?: string | null) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 32);
+}
+
+export function isSecureSessionAuthInterruption(error: unknown) {
+  if (error instanceof SecureSessionAuthInterruptedError) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('cancel')
+    || lower.includes('canceled')
+    || lower.includes('cancelled')
+    || lower.includes('user interaction')
+    || lower.includes('authentication failed')
+    || lower.includes('authentication was not completed')
+    || lower.includes('authenticat') && lower.includes('interrupt')
+  );
+}
+
+export function isSecureSessionCorruption(error: unknown) {
+  return error instanceof SecureSessionCorruptionError;
 }

@@ -397,8 +397,8 @@ export function AccountProfileScreen({
         return;
       }
       setPendingPhoto({ ...asset, previewUri: asset.uri });
-    } catch (error) {
-      Alert.alert('Photo unavailable', error instanceof Error ? error.message : 'The photo picker could not be opened.');
+    } catch {
+      Alert.alert('Photo unavailable', 'The photo picker could not be opened. Check permission settings and try again.');
     }
   };
 
