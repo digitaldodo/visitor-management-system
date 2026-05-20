@@ -112,7 +112,7 @@ export function AccountProfileScreen({
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
   const canManageTrustedDevices = Boolean(session?.user.roles?.some((nextRole) => nextRole === 'ADMIN'));
-  const canViewDiagnostics = role === 'ADMIN';
+  const canViewDiagnostics = role === 'ADMIN' && (apiConfig.release.internalTesting || apiConfig.environment !== 'production');
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -644,7 +644,7 @@ export function AccountProfileScreen({
             <View style={styles.securityGrid}>
               <SecurityStatusTile label="Current device" value={localTrustProfile?.trusted ? 'Trusted' : 'Not trusted'} tone={localTrustProfile?.trusted ? 'success' : 'warning'} />
               <SecurityStatusTile label="Biometric unlock" value={localTrustProfile?.biometricEnabled ? 'Enabled' : 'Disabled'} tone={localTrustProfile?.biometricEnabled ? 'success' : 'default'} />
-              <SecurityStatusTile label="Session timeout" value={`${Math.round(runtime.sessionLock.inactivityTimeoutMs / 60000)} min`} tone="info" />
+              <SecurityStatusTile label="Protected resume" value={`${Math.max(5, Math.round(runtime.sessionLock.inactivityTimeoutMs / 60000))} min`} tone="info" />
               <SecurityStatusTile label="Active devices" value={String(trustedDevices.filter((device) => device.active).length)} tone="info" />
             </View>
             <PreferenceSwitchRow
@@ -655,7 +655,7 @@ export function AccountProfileScreen({
             />
             <View style={styles.securityActions}>
               <PrimaryButton label="Refresh security status" tone="secondary" onPress={() => void loadSecurityCenter()} loading={securityCenterBusy} />
-              <PrimaryButton label="Quick secure logout" tone="danger" onPress={() => void logout()} disabled={isBusy || securityCenterBusy} />
+              <PrimaryButton label="Sign out safely" tone="danger" onPress={() => void logout()} disabled={isBusy || securityCenterBusy} />
             </View>
             <View style={styles.deviceList}>
               {trustedDevices.length ? trustedDevices.map((device) => (

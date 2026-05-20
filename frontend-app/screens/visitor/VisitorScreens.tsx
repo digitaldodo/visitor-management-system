@@ -406,7 +406,7 @@ export function VisitorNotificationsScreen() {
   return (
     <AppScreen
       title="Notifications"
-      subtitle="Visitor approvals, QR state, schedule changes, and runtime notices."
+      subtitle="Visitor approvals, pass changes, schedule updates, and account notices."
       refreshing={notifications.isRefetching}
       onRefresh={() => notifications.refetch()}
     >

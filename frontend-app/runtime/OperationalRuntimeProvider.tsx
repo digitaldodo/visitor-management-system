@@ -148,7 +148,7 @@ const defaultDevicePosture: DevicePostureState = {
 
 const RESUME_RECOVERY_THROTTLE_MS = 12_000;
 const SESSION_DIRECT_RESTORE_MS = 5 * 60_000;
-const BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS = 30 * 60_000;
+const FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS = 30 * 60_000;
 const initialNetworkState: NetworkReachabilityState = {
   isConnected: null,
   isInternetReachable: null,
@@ -300,15 +300,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     const rolePrefix = getWorkspaceConfig(auth.session.user.activeRole).audience;
 
-    await Promise.all([
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const firstKey = Array.isArray(query.queryKey) ? query.queryKey[0] : '';
-          return firstKey === rolePrefix || firstKey === 'notifications';
-        },
-      }),
-      auth.refreshSession().catch(() => undefined),
-    ]);
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const firstKey = Array.isArray(query.queryKey) ? query.queryKey[0] : '';
+        return firstKey === rolePrefix || firstKey === 'notifications';
+      },
+    });
   }, [auth, queryClient]);
 
   const reconcileOperationalQueries = useCallback(async () => {
@@ -846,10 +843,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           type: 'SYSTEM_RUNTIME_UPDATE_AVAILABLE',
           category: 'SYSTEM',
           priority: forcedRolloutUpdate || rollbackRequired ? 'CRITICAL' : 'HIGH',
-          title: rollbackRequired ? 'Rollback required' : 'Runtime update available',
+          title: rollbackRequired ? 'Mobile update required' : 'Mobile update available',
           message: rollbackRequired
-            ? 'The backend marked the current mobile release for rollback. AccessFlow will use the safest compatible update path.'
-            : `A newer backend runtime (${versions.current}) is available. Resync the device or update the app when your operations window allows.`,
+            ? 'Your organization requires a safer mobile release before this workspace can continue.'
+            : 'A compatible AccessFlow mobile update is available when your operations window allows.',
           read: false,
           createdAt: new Date().toISOString(),
           source: 'local',
@@ -898,8 +895,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           type: 'SYSTEM_BACKEND_CONNECTIVITY_RESTORED',
           category: 'SYSTEM',
           priority: 'MEDIUM',
-          title: 'Offline actions synced',
-          message: `${summary.synced} queued operation${summary.synced === 1 ? '' : 's'} recovered after reconnect.`,
+          title: 'Saved actions completed',
+          message: `${summary.synced} pending action${summary.synced === 1 ? '' : 's'} finished after the connection returned.`,
           read: false,
           createdAt: new Date().toISOString(),
           source: 'local',
@@ -969,7 +966,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
       lastLifecycleRecoveryAtRef.current = now;
       lifecycleRecoveryPromiseRef.current = (async () => {
-        const lockThresholdMs = getSessionLockThresholdMs(devicePosture.inactivityTimeoutSeconds);
         try {
           setDegradedMessage(null);
           await recordOperationalMetric({
@@ -981,16 +977,25 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             },
           });
 
-          if (elapsedMs >= lockThresholdMs && elapsedMs < BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS) {
+          if (elapsedMs < SESSION_DIRECT_RESTORE_MS) {
+            await Promise.all([
+              queryClient.resumePausedMutations().catch(() => undefined),
+              refreshOfflineQueueSize(),
+            ]);
+            return;
+          }
+
+          if (elapsedMs >= SESSION_DIRECT_RESTORE_MS && elapsedMs < FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS) {
             await applySessionLock('inactive');
             return;
           }
 
-          if (elapsedMs >= BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS) {
+          if (elapsedMs >= FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS) {
             const recovered = await auth.recoverRuntimeSession({
               trigger: 'resume',
               forceRefresh: true,
               failClosed: false,
+              silent: true,
             });
 
             if (!recovered) {

@@ -73,7 +73,7 @@ export function OperationalFeedScreen() {
         subtitle="Your workspace is focused on role-specific tasks and notifications."
         contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
       >
-        <EmptyState icon="notifications-outline" title="Activity feed unavailable" body="Organization activity feeds are available to administrators only." />
+        <EmptyState icon="notifications-outline" title="Activity is admin-only" body="Your mobile workspace shows the tasks and notifications for your role." />
       </AppScreen>
     );
   }
@@ -223,13 +223,12 @@ function FeedRow({
 
         <View style={styles.feedFooter}>
           <View style={styles.sourcePill}>
-            <Ionicons name="radio-outline" size={14} color={theme.colors.textSecondary} />
+            <Ionicons name="business-outline" size={14} color={theme.colors.textSecondary} />
             <Text numberOfLines={1} style={styles.sourceText}>{item.source}</Text>
           </View>
           {item.groupCount && item.groupCount > 1 ? <MiniPill label={t('feed.grouped', { count: item.groupCount })} /> : null}
-          {item.pendingSync ? <MiniPill label={t('feed.pendingSync')} warning /> : null}
-          {item.offlineGenerated ? <MiniPill label={t('feed.generatedOffline')} warning /> : null}
-          {item.stale ? <MiniPill label={t('feed.detailStale')} /> : null}
+          {item.pendingSync ? <MiniPill label="Pending confirmation" warning /> : null}
+          {item.offlineGenerated ? <MiniPill label="Needs review" warning /> : null}
         </View>
       </View>
     </Pressable>

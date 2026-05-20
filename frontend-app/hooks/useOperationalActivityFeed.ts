@@ -59,11 +59,11 @@ export function useOperationalActivityFeed() {
   const role = auth.status === 'authenticated' ? auth.session.user.activeRole : null;
   const user = auth.status === 'authenticated' ? auth.session.user : null;
 
-  const securityEnabled = role === 'SECURITY_GUARD';
+  const securityEnabled = false;
   const adminEnabled = role === 'ADMIN';
-  const employeeEnabled = role === 'EMPLOYEE';
-  const visitorEnabled = role === 'VISITOR';
-  const opsEnabled = Boolean(role);
+  const employeeEnabled = false;
+  const visitorEnabled = false;
+  const opsEnabled = adminEnabled;
   const adminFeedEnabled = role === 'ADMIN';
 
   const securityMonitoring = useQuery({
@@ -253,7 +253,7 @@ export function useOperationalActivityFeed() {
         occurredAt: emergencyState.data.updatedAt || emergencyState.data.latestBroadcastAt || emergencyState.data.lockdownStartedAt || new Date().toISOString(),
         organization: emergencyState.data.organizationName ?? organization,
         checkpoint: emergencyState.data.lockdownScope ?? emergencyState.data.evacuationScope ?? null,
-        source: t('feed.sourceRuntime'),
+        source: t('feed.sourcePlatform'),
         targetType: 'incident',
         targetId: null,
         groupKey: 'emergency-state-active',
@@ -507,7 +507,7 @@ function buildLiveOperationalItems(records: ReturnType<typeof useOperationalRunt
       detail: record.detail,
       occurredAt: record.occurredAt || new Date().toISOString(),
       organization: record.organizationName ?? null,
-      source: t('feed.sourceRuntime'),
+      source: t('feed.sourcePlatform'),
       targetType: normalizeTargetType(record.targetType, category),
       targetId: record.targetId ?? null,
       stale: false,
@@ -566,7 +566,7 @@ function buildEmergencyItems(records: EmergencyIncident[], t: ReturnType<typeof 
     detail: record.message || record.notes || null,
     occurredAt: record.createdAt || new Date().toISOString(),
     checkpoint: record.checkpoint,
-    source: t('feed.sourceRuntime'),
+    source: t('feed.sourcePlatform'),
     targetType: 'incident',
     targetId: record.id,
     stale: isStale(record.createdAt),

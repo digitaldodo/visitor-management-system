@@ -51,6 +51,7 @@ type RuntimeRecoveryOptions = {
   trigger?: 'bootstrap' | 'manual' | 'resume' | 'shell';
   forceRefresh?: boolean;
   failClosed?: boolean;
+  silent?: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -325,6 +326,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           if (isTransientRecoveryFailure(normalizedError)) {
+            sessionRef.current = persistedSession;
+            setStateSafely({
+              status: 'authenticated',
+              session: persistedSession,
+              recovery: null,
+              lastError: null,
+            });
+            resetNavigationToRoleHome(persistedSession.user.activeRole);
+            return true;
+          }
+
+          if (options?.silent) {
             sessionRef.current = persistedSession;
             setStateSafely({
               status: 'authenticated',

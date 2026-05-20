@@ -14,7 +14,7 @@ import type { AuthSession, WorkspaceAudience } from '../types/auth';
 import type { DeviceIntegritySignals, TrustedDeviceRecord } from '../types/runtime';
 
 const TRUST_PROFILE_KEY = 'accessflow.mobile.device-trust.profile';
-const DEVICE_UNLOCK_PROMPT_DEBOUNCE_MS = 1_500;
+const DEVICE_UNLOCK_PROMPT_DEBOUNCE_MS = 10_000;
 
 let deviceUnlockPromise: Promise<DeviceUnlockResult> | null = null;
 let lastDeviceUnlockPromptAt = 0;

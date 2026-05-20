@@ -137,7 +137,7 @@ function AdminAccountSettingsScreen() {
   return (
     <AccountProfileScreen
       title="Profile"
-      subtitle="Admin identity, organization oversight, secure account settings, and diagnostics for mobile operations."
+      subtitle="Admin identity, organization oversight, trusted devices, and secure account settings."
       refreshing={overview.isRefetching || reports.isRefetching || users.isRefetching || workforceOnboarding.isRefetching || notifications.isRefetching}
       onRefresh={() => Promise.all([
         overview.refetch(),
@@ -147,7 +147,7 @@ function AdminAccountSettingsScreen() {
         notifications.refetch(),
       ])}
       roleSummary={(
-        <SurfaceCard title="Admin oversight" subtitle="Mobile admin controls expose operational visibility while role, organization, and permission authority remain backend-managed.">
+        <SurfaceCard title="Admin oversight" subtitle="Mobile admin controls stay scoped to this organization and role.">
           <View style={styles.metricsGrid}>
             <MetricCard label="Users" value={users.data?.length ?? 0} tone="info" />
             <MetricCard label="Pending workforce" value={pendingWorkforce} tone={pendingWorkforce ? 'warning' : 'default'} />
@@ -413,7 +413,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   };
 
   const screenCopy = {
-    dashboard: ['Admin Command', 'Approvals, visitors, alerts, workforce, and access operations.'],
+    dashboard: ['Admin Dashboard', 'Approvals, visitors, alerts, workforce, and access operations.'],
     approvals: ['Approval Queue', 'Photo-backed workforce and visitor approvals with auditable decisions.'],
     visitors: ['Visitor Control', 'Inspect pending, active, denied, recurring, and high-priority visitor access.'],
     workforce: ['Workforce Control', 'Approve onboarding, verify worker details, and monitor employee presence.'],
@@ -584,7 +584,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
               />
             </SurfaceCard>
             <NotificationCenter
-              title="Live alert inbox"
+              title="Alert inbox"
               subtitle="Acknowledge by marking read. Visitor-linked escalations remain available from the event cards above."
               inbox={{ unreadCount: securityNotifications.filter((item) => !item.read).length, items: securityNotifications }}
               localNotifications={localSecurityNotifications}
@@ -608,7 +608,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
                 <AdminShortcut title="Organization activity" subtitle="Scoped visitor, workforce, approval, and incident updates" tone="info" onPress={() => navigation.navigate('Live')} />
                 <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
-                <AdminShortcut title="Profile" subtitle="Trusted devices, account security, and diagnostics" tone="default" onPress={() => navigation.navigate('Profile')} />
+                <AdminShortcut title="Profile" subtitle="Trusted devices and account security" tone="default" onPress={() => navigation.navigate('Profile')} />
               </View>
             </SurfaceCard>
             <SurfaceCard title="Admin workspace focus" subtitle="Mobile admin prioritizes approvals, workforce, alerts, and quick intervention over desktop parity.">
@@ -784,7 +784,7 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
   return (
     <>
       {widgets.length ? (
-        <SurfaceCard title="Operational intelligence" subtitle={`Live organization analytics${data?.timezone ? ` in ${data.timezone}` : ''}.`}>
+        <SurfaceCard title="Operational intelligence" subtitle={`Organization analytics${data?.timezone ? ` in ${data.timezone}` : ''}.`}>
           <View style={styles.metricsGrid}>
             {widgets.slice(0, 6).map((item) => (
               <MetricCard key={item.label} label={item.label} value={formatMetricValue(item.value)} tone={metricTone(item)} />
@@ -794,7 +794,7 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
       ) : null}
 
       <SplitPane>
-        <SurfaceCard title="Live access state" subtitle="Current visitor, workforce, checkpoint, and expiration posture.">
+        <SurfaceCard title="Access state" subtitle="Current visitor, workforce, checkpoint, and expiration posture.">
           <AnalyticsTileGrid items={liveOperations} />
         </SurfaceCard>
         <SurfaceCard title="Actionable insights" subtitle="Generated from traffic, denial, incident, and workforce anomaly signals.">

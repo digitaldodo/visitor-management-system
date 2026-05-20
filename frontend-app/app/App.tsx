@@ -73,6 +73,7 @@ function RuntimeFeedbackBridge() {
   const lastModeRef = useRef(runtime.offlineOperationalMode);
   const lastSyncingRef = useRef(runtime.isSyncingOfflineOperations);
   const lastCertificateWarningRef = useRef<string | null>(null);
+  const lastCertificateWarningAtRef = useRef(0);
 
   useEffect(() => {
     if (lastModeRef.current !== runtime.offlineOperationalMode) {
@@ -93,10 +94,14 @@ function RuntimeFeedbackBridge() {
 
     if (
       mobileSecurity.certificatePinningWarning
-      && mobileSecurity.certificatePinningWarning !== lastCertificateWarningRef.current
+      && (
+        mobileSecurity.certificatePinningWarning !== lastCertificateWarningRef.current
+        || Date.now() - lastCertificateWarningAtRef.current > 30 * 60_000
+      )
     ) {
       lastCertificateWarningRef.current = mobileSecurity.certificatePinningWarning;
-      showSnackbar({ message: mobileSecurity.certificatePinningWarning, tone: 'danger', durationMs: 4200 });
+      lastCertificateWarningAtRef.current = Date.now();
+      showSnackbar({ message: mobileSecurity.certificatePinningWarning, tone: 'danger', durationMs: 5200 });
     }
   }, [
     mobileSecurity.certificatePinningWarning,

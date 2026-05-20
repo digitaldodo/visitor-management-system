@@ -25,8 +25,8 @@ type MobileSecurityState = {
 const MobileSecurityContext = createContext<MobileSecurityState | null>(null);
 
 let pinningInitialized = false;
-const TLS_WARNING_THROTTLE_MS = 5 * 60_000;
-const TLS_FAILURES_BEFORE_USER_NOTICE = 3;
+const TLS_WARNING_THROTTLE_MS = 30 * 60_000;
+const TLS_FAILURES_BEFORE_USER_NOTICE = 5;
 
 export function MobileSecurityProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
@@ -112,7 +112,7 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
     }
 
     certificateFailuresRef.current[host] = { ...next, lastWarnedAt: now };
-    setCertificatePinningWarning('Secure connection could not be verified. Some actions may be paused while AccessFlow checks again.');
+    setCertificatePinningWarning('Secure connection verification is taking longer than expected. AccessFlow is retrying protected actions.');
   }, []);
 
   useEffect(() => {
@@ -185,7 +185,7 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
       return 'Untrusted environment detected. Sign in from an approved AccessFlow build.';
     }
     if (integrity.emulator || integrity.debugBuild) {
-      return 'Development runtime detected. Production controls remain enforced for sensitive screens.';
+      return 'This device needs organization review before sensitive actions are available.';
     }
     return 'Untrusted environment detected.';
   }, [integrity]);
