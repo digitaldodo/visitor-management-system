@@ -29,14 +29,17 @@ export function createPayloadError(message = 'AccessFlow received an invalid res
 
 export function normalizeApiError(error: unknown): AppError {
   if (isAppError(error)) {
-    return error;
+    return {
+      ...error,
+      message: sanitizeUserFacingErrorMessage(error.message, error.kind),
+    };
   }
 
   if (axios.isAxiosError(error)) {
     if (!error.response) {
       return createAppError({
         kind: 'network',
-        message: 'AccessFlow could not reach the backend. Check the network and retry.',
+        message: sanitizeUserFacingErrorMessage(error.message, 'network'),
         code: error.code,
         recoverable: true,
       });
@@ -49,7 +52,10 @@ export function normalizeApiError(error: unknown): AppError {
     return createAppError({
       kind: isAuthFailure ? 'auth' : 'http',
       status: error.response.status,
-      message: payload?.message || payload?.error || 'The backend rejected this request.',
+      message: sanitizeUserFacingErrorMessage(
+        payload?.message || payload?.error || 'The backend rejected this request.',
+        isAuthFailure ? 'auth' : 'http',
+      ),
       details: payload?.errors,
       code: error.code,
       recoverable: error.response.status >= 500 || error.response.status === 429 || error.response.status === 408,
@@ -60,7 +66,7 @@ export function normalizeApiError(error: unknown): AppError {
   if (error instanceof Error) {
     return createAppError({
       kind: 'runtime',
-      message: error.message,
+      message: sanitizeUserFacingErrorMessage(error.message, 'runtime'),
       recoverable: true,
     });
   }
@@ -70,4 +76,34 @@ export function normalizeApiError(error: unknown): AppError {
     message: 'An unexpected runtime error occurred.',
     recoverable: true,
   });
+}
+
+export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: AppError['kind']) {
+  const normalized = String(message || '').trim();
+  const lower = normalized.toLowerCase();
+
+  if (kind === 'auth' || lower.includes('refresh token') || lower.includes('session expired')) {
+    return 'Session expired. Please sign in again.';
+  }
+
+  if (
+    !normalized
+    || lower.includes('handshake')
+    || lower.includes('socket')
+    || lower.includes('websocket')
+    || lower.includes('transport')
+    || lower.includes('network error')
+    || lower.includes('timeout')
+    || lower.includes('timed out')
+    || lower.includes('connection reset')
+    || lower.includes('connection aborted')
+    || lower.includes('failed to fetch')
+  ) {
+    if (kind === 'network') {
+      return 'AccessFlow could not reach the backend. Check the network and retry.';
+    }
+    return 'AccessFlow could not complete secure session recovery. Check the network and try again.';
+  }
+
+  return normalized;
 }

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { apiConfig } from '../api/apiConfig';
 import { configureApiClient } from '../api/apiClient';
-import { createAppError, normalizeApiError } from '../api/error';
+import { createAppError, normalizeApiError, sanitizeUserFacingErrorMessage } from '../api/error';
 import { resetNavigationToAuth, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { login as loginRequest, logout as logoutRequest, restoreSession } from '../services/authService';
@@ -26,7 +26,14 @@ type AuthContextValue = AuthBootstrapState & {
   logout: () => Promise<void>;
   retryBootstrap: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  recoverRuntimeSession: (options?: RuntimeRecoveryOptions) => Promise<boolean>;
   recoverAppShell: () => Promise<void>;
+};
+
+type RuntimeRecoveryOptions = {
+  trigger?: 'bootstrap' | 'manual' | 'resume' | 'shell';
+  forceRefresh?: boolean;
+  failClosed?: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isMountedRef = useRef(true);
   const sessionRef = useRef<AuthSession | null>(null);
   const rememberSessionRef = useRef(false);
+  const runtimeRecoveryPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const setStateSafely = useCallback((nextState: AuthBootstrapState) => {
     if (isMountedRef.current) {
@@ -104,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'signed-out',
         session: null,
         recovery: null,
-        lastError: reason ?? null,
+        lastError: reason ? sanitizeUserFacingErrorMessage(reason, 'auth') : null,
       });
     },
     [setStateSafely],
@@ -112,11 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const showRecoveryState = useCallback(
     async (input: { session: AuthSession | null; reason: string; message: string; diagnosticCode: string }) => {
+      const safeMessage = sanitizeUserFacingErrorMessage(input.message, input.reason === 'network' ? 'network' : undefined);
       await recordDiagnosticEvent({
         level: input.reason === 'network' ? 'warn' : 'error',
         scope: 'auth',
         code: input.diagnosticCode,
-        message: input.message,
+        message: safeMessage,
         context: {
           hasSession: Boolean(input.session),
           reason: input.reason,
@@ -128,12 +137,119 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session: input.session,
         recovery: {
           reason: input.reason,
-          message: input.message,
+          message: safeMessage,
         },
-        lastError: input.message,
+        lastError: safeMessage,
       });
     },
     [setStateSafely],
+  );
+
+  const restoreRuntimeSessionSnapshot = useCallback(
+    async (persistedSession: AuthSession, options?: { forceRefresh?: boolean }) => {
+      sessionRef.current = persistedSession;
+
+      const previousRuntime = await readRuntimeSnapshot();
+      const versions = await withTimeout(
+        getApiVersions(),
+        8_000,
+        'AccessFlow could not complete secure runtime validation.',
+      );
+      ensureVersionSupport(versions);
+
+      const runtimeChanged =
+        !previousRuntime
+        || previousRuntime.apiBaseUrl !== apiConfig.apiBaseUrl
+        || previousRuntime.appVersion !== apiConfig.appVersion
+        || previousRuntime.runtimeVersion !== apiConfig.runtimeVersion
+        || previousRuntime.buildId !== apiConfig.buildId
+        || previousRuntime.environment !== apiConfig.environment
+        || previousRuntime.releaseChannel !== apiConfig.releaseChannel
+        || previousRuntime.distributionChannel !== apiConfig.distributionChannel
+        || previousRuntime.apiVersion !== versions.current
+        || previousRuntime.backendProfile !== versions.profile;
+
+      const session = await withTimeout(
+        restoreSession(persistedSession, { forceRefresh: Boolean(options?.forceRefresh || runtimeChanged) }),
+        12_000,
+        'AccessFlow could not complete secure session recovery.',
+      );
+
+      return { session, versions };
+    },
+    [],
+  );
+
+  const recoverRuntimeSession = useCallback(
+    async (options?: RuntimeRecoveryOptions) => {
+      if (runtimeRecoveryPromiseRef.current) {
+        return runtimeRecoveryPromiseRef.current;
+      }
+
+      runtimeRecoveryPromiseRef.current = (async () => {
+        const persistedSession = sessionRef.current ?? (await readPersistedSession());
+        const trigger = options?.trigger ?? 'manual';
+
+        if (!persistedSession || !isValidSessionSnapshot(persistedSession)) {
+          await clearSessionState('Session expired. Please sign in again.');
+          resetNavigationToAuth();
+          return false;
+        }
+
+        try {
+          const { session, versions } = await restoreRuntimeSessionSnapshot(persistedSession, {
+            forceRefresh: options?.forceRefresh,
+          });
+
+          await persistAuthenticatedSession(session, versions, { rememberSession: rememberSessionRef.current || Boolean(await readPersistedSession()) });
+          await recordDiagnosticEvent({
+            level: 'info',
+            scope: 'auth',
+            code: 'SESSION_RECOVERY_SUCCEEDED',
+            message: 'Mobile session recovered successfully.',
+            context: {
+              trigger,
+              role: session.user.activeRole,
+            },
+          });
+          return true;
+        } catch (error) {
+          const normalizedError = normalizeApiError(error);
+          await recordDiagnosticEvent({
+            level: normalizedError.kind === 'network' ? 'warn' : 'error',
+            scope: 'auth',
+            code: 'SESSION_RECOVERY_FAILED',
+            message: normalizedError.message,
+            context: {
+              trigger,
+              kind: normalizedError.kind,
+              status: normalizedError.status ?? null,
+              failClosed: Boolean(options?.failClosed),
+            },
+          });
+
+          if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403 || options?.failClosed) {
+            await logoutRequest(persistedSession).catch(() => undefined);
+            await clearSessionState('Session expired. Please sign in again.');
+            resetNavigationToAuth();
+            return false;
+          }
+
+          await showRecoveryState({
+            session: persistedSession,
+            reason: normalizedError.kind,
+            message: normalizedError.message,
+            diagnosticCode: 'SESSION_RECOVERY_FAILED',
+          });
+          return false;
+        } finally {
+          runtimeRecoveryPromiseRef.current = null;
+        }
+      })();
+
+      return runtimeRecoveryPromiseRef.current;
+    },
+    [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, showRecoveryState],
   );
 
   const bootstrap = useCallback(async () => {
@@ -184,35 +300,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      sessionRef.current = persistedSession;
-      rememberSessionRef.current = true;
-      const previousRuntime = await readRuntimeSnapshot();
-      const versions = await withTimeout(getApiVersions(), 8_000, 'Version handshake timed out.');
-      ensureVersionSupport(versions);
-
-      const runtimeChanged =
-        !previousRuntime
-        || previousRuntime.apiBaseUrl !== apiConfig.apiBaseUrl
-        || previousRuntime.appVersion !== apiConfig.appVersion
-        || previousRuntime.runtimeVersion !== apiConfig.runtimeVersion
-        || previousRuntime.buildId !== apiConfig.buildId
-        || previousRuntime.environment !== apiConfig.environment
-        || previousRuntime.releaseChannel !== apiConfig.releaseChannel
-        || previousRuntime.distributionChannel !== apiConfig.distributionChannel
-        || previousRuntime.apiVersion !== versions.current
-        || previousRuntime.backendProfile !== versions.profile;
-
-      const session = await withTimeout(
-        restoreSession(persistedSession, { forceRefresh: runtimeChanged }),
-        12_000,
-        'Session restore timed out.',
-      );
-
+      const { session, versions } = await restoreRuntimeSessionSnapshot(persistedSession);
       await persistAuthenticatedSession(session, versions, { rememberSession: true });
     } catch (error) {
       const normalizedError = normalizeApiError(error);
       if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
-        await clearSessionState('Your previous session is no longer valid. Sign in again.');
+        await clearSessionState('Session expired. Please sign in again.');
         return;
       }
 
@@ -223,7 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         diagnosticCode: 'SESSION_BOOTSTRAP_FAILED',
       });
     }
-  }, [clearSessionState, persistAuthenticatedSession, setStateSafely, showRecoveryState]);
+  }, [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, setStateSafely, showRecoveryState]);
 
   useEffect(() => {
     configureApiClient({
@@ -303,39 +396,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [bootstrap]);
 
   const refreshSessionState = useCallback(async () => {
-    const persistedSession = sessionRef.current ?? (await readPersistedSession());
-    if (!persistedSession || !isValidSessionSnapshot(persistedSession)) {
-      await clearSessionState('The saved session could not be recovered.');
-      return;
-    }
-
     setIsBusy(true);
     try {
-      const versions = await getApiVersions().catch(() => null);
-      if (versions) {
-        ensureVersionSupport(versions);
-      }
-      const session = await restoreSession(persistedSession, { forceRefresh: false });
-      await persistAuthenticatedSession(session, versions);
-    } catch (error) {
-      const normalizedError = normalizeApiError(error);
-      if (normalizedError.kind === 'auth') {
-        await clearSessionState('Your session expired and must be restarted.');
-        resetNavigationToAuth();
-        return;
-      }
-
-      await showRecoveryState({
-        session: persistedSession,
-        reason: normalizedError.kind,
-        message: normalizedError.message,
-        diagnosticCode: 'SESSION_REFRESH_FAILED',
+      const recovered = await recoverRuntimeSession({
+        trigger: 'manual',
+        forceRefresh: false,
       });
-      throw normalizedError;
+      if (!recovered) {
+        throw createAppError({
+          kind: 'auth',
+          message: 'Session expired. Please sign in again.',
+          recoverable: false,
+        });
+      }
     } finally {
       setIsBusy(false);
     }
-  }, [clearSessionState, persistAuthenticatedSession, showRecoveryState]);
+  }, [recoverRuntimeSession]);
 
   const recoverAppShell = useCallback(async () => {
     const currentSession = sessionRef.current;
@@ -354,9 +431,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       retryBootstrap,
       refreshSession: refreshSessionState,
+      recoverRuntimeSession,
       recoverAppShell,
     }),
-    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverAppShell],
+    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverRuntimeSession, recoverAppShell],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

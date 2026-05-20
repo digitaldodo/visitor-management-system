@@ -224,7 +224,7 @@ async function executeRefresh() {
     await handleSessionUpdate(nextSession);
     return nextSession;
   } catch (error) {
-    await handleSessionExpiry('Your session expired and could not be refreshed.');
+    await handleSessionExpiry('Session expired. Please sign in again.');
     throw error;
   }
 }

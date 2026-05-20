@@ -92,6 +92,9 @@ const defaultDevicePosture: DevicePostureState = {
   lastPolicySyncAt: null,
 };
 
+const RESUME_RECOVERY_THROTTLE_MS = 12_000;
+const FORCE_REFRESH_AFTER_BACKGROUND_MS = 30_000;
+
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -102,6 +105,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const backgroundedAtRef = useRef<number | null>(null);
   const lastOtaCheckAtRef = useRef(0);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
+  const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
+  const lastLifecycleRecoveryAtRef = useRef(0);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null }>({
     deviceId: null,
     expoPushToken: null,
@@ -243,6 +248,35 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           return role === 'ADMIN';
         }
         return true;
+      },
+    });
+  }, [auth, queryClient]);
+
+  const invalidateOperationalQueries = useCallback(async () => {
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    const role = auth.session.user.activeRole;
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const firstKey = String(Array.isArray(query.queryKey) ? query.queryKey[0] : '');
+        if (firstKey === 'notifications') {
+          return true;
+        }
+        if (firstKey === 'security') {
+          return role === 'SECURITY_GUARD';
+        }
+        if (firstKey === 'employee') {
+          return role === 'EMPLOYEE';
+        }
+        if (firstKey === 'visitor') {
+          return role === 'VISITOR';
+        }
+        if (firstKey === 'admin') {
+          return role === 'ADMIN';
+        }
+        return false;
       },
     });
   }, [auth, queryClient]);
@@ -611,6 +645,98 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     await syncPromiseRef.current;
   }, [auth.status, reconcileOperationalQueries, invalidateRoleQueries, probeRuntime, syncDevicePolicy, flushTelemetry, refreshOfflineQueueSize, sessionLock.isLocked]);
 
+  const runLifecycleRecovery = useCallback(
+    async (reason: 'resume' | 'inactive', elapsedMs: number) => {
+      if (auth.status !== 'authenticated') {
+        return;
+      }
+
+      if (lifecycleRecoveryPromiseRef.current) {
+        await lifecycleRecoveryPromiseRef.current;
+        return;
+      }
+
+      const now = Date.now();
+      const shouldThrottle =
+        now - lastLifecycleRecoveryAtRef.current < RESUME_RECOVERY_THROTTLE_MS
+        && elapsedMs < FORCE_REFRESH_AFTER_BACKGROUND_MS;
+
+      if (shouldThrottle) {
+        return;
+      }
+
+      lastLifecycleRecoveryAtRef.current = now;
+      lifecycleRecoveryPromiseRef.current = (async () => {
+        try {
+          setDegradedMessage(null);
+          await recordOperationalMetric({
+            name: 'runtime_recovery',
+            tags: {
+              reason,
+              elapsedMs,
+              role: auth.session.user.activeRole,
+            },
+          });
+
+          const recovered = await auth.recoverRuntimeSession({
+            trigger: 'resume',
+            forceRefresh: elapsedMs >= FORCE_REFRESH_AFTER_BACKGROUND_MS,
+            failClosed: true,
+          });
+
+          if (!recovered) {
+            queryClient.clear();
+            return;
+          }
+
+          await Promise.all([
+            queryClient.resumePausedMutations().catch(() => undefined),
+            invalidateOperationalQueries(),
+            reconcileOperationalQueries(),
+            probeRuntime(),
+            syncDevicePolicy(),
+            flushTelemetry(),
+            refreshOfflineQueueSize(),
+            runOtaCheck(false),
+          ]);
+
+          if (reason === 'inactive') {
+            await applySessionLock('inactive');
+          }
+        } catch (error) {
+          queryClient.clear();
+          await recordDiagnosticEvent({
+            level: 'error',
+            scope: 'runtime',
+            code: 'LIFECYCLE_RECOVERY_FAILED_CLOSED',
+            message: error instanceof Error ? error.message : 'Lifecycle recovery failed closed.',
+            context: {
+              reason,
+              elapsedMs,
+            },
+          });
+          await auth.logout();
+        } finally {
+          lifecycleRecoveryPromiseRef.current = null;
+        }
+      })();
+
+      await lifecycleRecoveryPromiseRef.current;
+    },
+    [
+      applySessionLock,
+      auth,
+      flushTelemetry,
+      invalidateOperationalQueries,
+      probeRuntime,
+      queryClient,
+      reconcileOperationalQueries,
+      refreshOfflineQueueSize,
+      runOtaCheck,
+      syncDevicePolicy,
+    ],
+  );
+
   const unlockSession = useCallback(async () => {
     if (auth.status !== 'authenticated' || !sessionLock.isLocked) {
       return;
@@ -724,6 +850,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     setPushToken(null);
     setRuntimeUpdateAvailable(false);
     setDegradedMessage(null);
+    queryClient.clear();
+    syncPromiseRef.current = null;
+    lifecycleRecoveryPromiseRef.current = null;
+    lastLifecycleRecoveryAtRef.current = 0;
     void clearSessionLockState().catch(() => undefined);
     setSessionLock((current) => ({
       ...current,
@@ -731,7 +861,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       reason: null,
       lockedAt: null,
     }));
-  }, [auth.status, probeRuntime, registerCurrentDevice, syncDevicePolicy, flushTelemetry]);
+  }, [auth.status, probeRuntime, queryClient, registerCurrentDevice, syncDevicePolicy, flushTelemetry]);
 
   useEffect(() => {
     const pushTokenApi = Notifications as typeof Notifications & {
@@ -793,22 +923,17 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         const elapsedMs = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
         backgroundedAtRef.current = null;
 
-        if (elapsedMs >= apiConfig.security.inactivityLockMs) {
-          void applySessionLock('inactive');
-          return;
-        }
-
-        if (!sessionLock.isLocked) {
-          void runOtaCheck(false);
-          void syncNow();
-        }
+        void runLifecycleRecovery(
+          elapsedMs >= apiConfig.security.inactivityLockMs ? 'inactive' : 'resume',
+          elapsedMs,
+        );
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [applySessionLock, auth.status, runOtaCheck, sessionLock.isLocked, syncNow]);
+  }, [auth.status, runLifecycleRecovery]);
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {

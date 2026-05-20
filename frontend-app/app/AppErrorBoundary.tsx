@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { theme } from '../theme';
+import { sanitizeUserFacingErrorMessage } from '../api/error';
 
 type Props = {
   children: ReactNode;
@@ -28,7 +29,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   public static getDerivedStateFromError(error: Error): State {
     return {
       hasError: true,
-      message: error.message,
+      message: sanitizeUserFacingErrorMessage(error.message, 'runtime'),
       incidentId: `AF-${Date.now().toString(36).toUpperCase()}`,
       isRecovering: false,
     };
@@ -64,7 +65,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     } catch (error) {
       this.setState((current) => ({
         ...current,
-        message: error instanceof Error ? error.message : current.message,
+        message: error instanceof Error ? sanitizeUserFacingErrorMessage(error.message, 'runtime') : current.message,
         isRecovering: false,
       }));
     }
