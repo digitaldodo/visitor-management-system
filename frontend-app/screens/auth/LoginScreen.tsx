@@ -47,7 +47,7 @@ const audienceOptions: Array<{ value: WorkspaceAudience; label: string; descript
   { value: 'visitor', label: 'Visitor', description: 'Pass status and visit requests', icon: 'ticket-outline' },
   { value: 'security', label: 'Security', description: 'Checkpoint and scan operations', icon: 'shield-checkmark-outline' },
   { value: 'employee', label: 'Employee', description: 'Badge, approvals, and presence', icon: 'card-outline' },
-  { value: 'admin', label: 'Admin', description: 'Admin and super-admin access', icon: 'settings-outline' },
+  { value: 'admin', label: 'Org Admin', description: 'Organization approvals and visibility', icon: 'settings-outline' },
 ];
 
 const registerStepFields: Array<Array<keyof VisitorRegisterFormValues>> = [
@@ -75,7 +75,6 @@ export function LoginScreen() {
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [biometricReadiness, setBiometricReadiness] = useState<BiometricReadiness | null>(null);
-  const [adminScope, setAdminScope] = useState<'organization' | 'platform'>('organization');
   const registerVisitorMutation = useRegisterVisitorAccountMutation();
 
   const {
@@ -133,9 +132,10 @@ export function LoginScreen() {
   const rememberMe = watch('rememberMe');
   const registerPhoneCountryCode = watchRegister('phoneCountryCode') || '+1';
   const registerPhone = watchRegister('phone') || '';
+  const isCompactLandscape = layout.isLandscape && layout.isCompactHeight;
   const requiresOrganizationSelector = selectedAudience === 'employee'
     || selectedAudience === 'security'
-    || (selectedAudience === 'admin' && adminScope === 'organization');
+    || selectedAudience === 'admin';
   const status = useMemo(() => buildAuthStatus(submitError, recoveryError, recoveryMessage, registerMessage), [
     recoveryError,
     recoveryMessage,
@@ -291,48 +291,65 @@ export function LoginScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.container,
+          isCompactLandscape ? styles.containerLandscape : null,
           {
             minHeight: layout.height - insets.top - insets.bottom,
             paddingHorizontal: layout.contentPadding,
-            paddingTop: layout.isCompactHeight ? theme.spacing.md : theme.spacing.xl,
-            paddingBottom: insets.bottom + theme.spacing.xxl,
+            paddingTop: isCompactLandscape ? theme.spacing.sm : layout.isCompactHeight ? theme.spacing.md : theme.spacing.xl,
+            paddingBottom: insets.bottom + (isCompactLandscape ? theme.spacing.lg : theme.spacing.xxl),
           },
         ]}
       >
-        <View style={[styles.frame, layout.isTwoColumn ? styles.frameWide : null, { maxWidth: layout.isLargeTablet ? 1120 : 940 }]}>
-          <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null]}>
+        <View
+          style={[
+            styles.frame,
+            layout.isTwoColumn ? styles.frameWide : null,
+            isCompactLandscape ? styles.frameLandscape : null,
+            { maxWidth: isCompactLandscape ? 820 : layout.isLargeTablet ? 1120 : 940 },
+          ]}
+        >
+          <View style={[styles.hero, layout.isTwoColumn ? styles.heroWide : null, isCompactLandscape ? styles.heroLandscape : null]}>
             <View style={styles.brandPanel}>
-              <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
+              <Image
+                source={require('../../assets/brand-wordmark.png')}
+                style={[styles.wordmark, isCompactLandscape ? styles.wordmarkLandscape : null]}
+                resizeMode="contain"
+              />
               <View style={styles.brandBadge}>
                 <Ionicons name="lock-closed-outline" size={15} color={theme.colors.info} />
                 <Text style={styles.brandSubline}>Secure mobile workspace</Text>
               </View>
             </View>
-            <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
-              Trusted access for every role
-            </Text>
-            <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
-              Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.
-            </Text>
-            <View style={styles.proofRow}>
-              <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : 'Biometric-ready'} />
-              <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
-              <TrustChip icon="business-outline" label="Enterprise roles" />
-            </View>
+            {!isCompactLandscape ? (
+              <>
+                <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
+                  Trusted access for every role
+                </Text>
+                <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
+                  Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.
+                </Text>
+                <View style={styles.proofRow}>
+                  <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : 'Biometric-ready'} />
+                  <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
+                  <TrustChip icon="business-outline" label="Enterprise roles" />
+                </View>
+              </>
+            ) : null}
           </View>
 
-          <SurfaceCard title={titleForMode(authMode, recoveryStep)} subtitle={subtitleForMode(authMode, recoveryStep)}>
-            <View style={styles.modeRow}>
-              {(['login', 'register', 'recovery'] as const).map((mode) => (
-                <ModeButton
-                  key={mode}
-                  label={mode === 'login' ? 'Sign in' : mode === 'register' ? 'Visitor' : 'Recover'}
-                  icon={mode === 'login' ? 'log-in-outline' : mode === 'register' ? 'person-add-outline' : 'key-outline'}
-                  selected={authMode === mode}
-                  onPress={() => switchMode(mode)}
-                />
-              ))}
-            </View>
+          <View style={[styles.authCardShell, layout.isTwoColumn ? styles.authCardShellWide : null]}>
+            <SurfaceCard title={titleForMode(authMode, recoveryStep)} subtitle={subtitleForMode(authMode, recoveryStep, isCompactLandscape)}>
+              <View style={styles.modeRow}>
+                {(['login', 'register', 'recovery'] as const).map((mode) => (
+                  <ModeButton
+                    key={mode}
+                    label={mode === 'login' ? 'Sign in' : mode === 'register' ? 'Visitor' : 'Recover'}
+                    icon={mode === 'login' ? 'log-in-outline' : mode === 'register' ? 'person-add-outline' : 'key-outline'}
+                    selected={authMode === mode}
+                    onPress={() => switchMode(mode)}
+                  />
+                ))}
+              </View>
 
             {status ? <StatusPanel status={status} /> : null}
 
@@ -388,33 +405,10 @@ export function LoginScreen() {
                   )}
                 />
 
-                {selectedAudience === 'admin' ? (
-                  <View style={styles.scopePanel}>
-                    <Text style={styles.scopeTitle}>Admin scope</Text>
-                    <View style={styles.modeRow}>
-                      <ModeButton
-                        label="Organization"
-                        icon="business-outline"
-                        selected={adminScope === 'organization'}
-                        onPress={() => setAdminScope('organization')}
-                      />
-                      <ModeButton
-                        label="Super admin"
-                        icon="globe-outline"
-                        selected={adminScope === 'platform'}
-                        onPress={() => {
-                          setAdminScope('platform');
-                          setValue('companyCode', '', { shouldValidate: true });
-                        }}
-                      />
-                    </View>
-                  </View>
-                ) : null}
-
                 {requiresOrganizationSelector ? (
                   <OrganizationSelector
                     selectedCode={selectedCompanyCode}
-                    helperText="Required for employee, security, and organization-admin workspaces."
+                    helperText="Start typing to search. The organization list stays hidden until then."
                     onSelect={(organization) => setValue('companyCode', organization.companyCode, { shouldValidate: true, shouldDirty: true })}
                     onClear={() => setValue('companyCode', '', { shouldValidate: true, shouldDirty: true })}
                   />
@@ -564,7 +558,8 @@ export function LoginScreen() {
                 onReturnToLogin={() => switchMode('login')}
               />
             )}
-          </SurfaceCard>
+            </SurfaceCard>
+          </View>
         </View>
       </KeyboardAwareScreen>
     </SafeAreaView>
@@ -818,6 +813,9 @@ function classifyError(message: string) {
   if (normalized.includes('server') || normalized.includes('backend') || normalized.includes('503') || normalized.includes('502')) {
     return { tone: 'danger' as const, title: 'Service unavailable', body: `${message} Retry once the backend is reachable.` };
   }
+  if (normalized.includes('super admin')) {
+    return { tone: 'warning' as const, title: 'Mobile access unavailable', body: message };
+  }
   if (normalized.includes('credential') || normalized.includes('password') || normalized.includes('unauthorized') || normalized.includes('invalid')) {
     return { tone: 'danger' as const, title: 'Sign in was not accepted', body: `${message} You can retry or recover the account.` };
   }
@@ -844,7 +842,17 @@ function titleForMode(mode: AuthMode, recoveryStep: RecoveryStep) {
   return 'Secure sign-in';
 }
 
-function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep) {
+function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep, compact = false) {
+  if (compact) {
+    if (mode === 'register') {
+      return 'Create a verified visitor account.';
+    }
+    if (mode === 'recovery') {
+      return recoveryStep === 'done' ? 'Password reset complete.' : 'Verify and reset your password.';
+    }
+    return 'Choose a workspace and sign in.';
+  }
+
   if (mode === 'register') {
     return 'Create a verified visitor account with clear steps and less mobile form friction.';
   }
@@ -877,6 +885,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: theme.colors.canvas,
   },
+  containerLandscape: {
+    justifyContent: 'flex-start',
+  },
   frame: {
     width: '100%',
     alignSelf: 'center',
@@ -885,6 +896,17 @@ const styles = StyleSheet.create({
   frameWide: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  frameLandscape: {
+    gap: theme.spacing.md,
+  },
+  authCardShell: {
+    width: '100%',
+    alignSelf: 'center',
+  },
+  authCardShellWide: {
+    flex: 1,
+    maxWidth: 520,
   },
   hero: {
     gap: theme.spacing.md,
@@ -898,6 +920,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: theme.spacing.lg,
   },
+  heroLandscape: {
+    padding: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+  },
   brandPanel: {
     gap: theme.spacing.sm,
   },
@@ -906,6 +932,10 @@ const styles = StyleSheet.create({
     height: 74,
     maxWidth: 360,
     alignSelf: 'flex-start',
+  },
+  wordmarkLandscape: {
+    height: 46,
+    maxWidth: 220,
   },
   brandBadge: {
     alignSelf: 'flex-start',
@@ -1038,16 +1068,6 @@ const styles = StyleSheet.create({
   authOptionsStacked: {
     alignItems: 'stretch',
     flexDirection: 'column',
-  },
-  scopePanel: {
-    gap: theme.spacing.sm,
-  },
-  scopeTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.caption.fontSize,
-    fontWeight: theme.typography.caption.fontWeight,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   rememberRow: {
     flex: 1,

@@ -2,7 +2,7 @@ export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD
 
 export type WorkspaceAudience = 'admin' | 'employee' | 'security' | 'visitor';
 
-export type ActiveWorkspaceRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'VISITOR';
+export type ActiveWorkspaceRole = 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'VISITOR';
 
 export type LoginPayload = {
   identifier: string;

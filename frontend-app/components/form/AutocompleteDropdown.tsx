@@ -71,7 +71,7 @@ export function AutocompleteDropdown<T>({
 }: AutocompleteDropdownProps<T>) {
   const hasSelection = Boolean(selectedTitle);
   const queryReady = value.trim().length >= minQueryLength;
-  const showResults = !hasSelection && (queryReady || loading || Boolean(errorText));
+  const showResults = !hasSelection && queryReady;
 
   const animate = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   selectedPanel: {
-    minHeight: 58,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
@@ -219,12 +219,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
   selectedIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.successSoft,
@@ -244,15 +245,15 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   clearButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.surfaceMuted,
   },
   resultsPanel: {
-    maxHeight: 360,
+    maxHeight: 292,
     overflow: 'hidden',
     borderRadius: theme.radii.md,
     borderWidth: 1,
@@ -260,10 +261,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceRaised,
   },
   resultsScroll: {
-    maxHeight: 360,
+    maxHeight: 292,
   },
   resultRow: {
-    minHeight: 60,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,

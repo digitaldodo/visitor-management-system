@@ -15,18 +15,24 @@ type OrganizationSelectorProps = {
   onClear?: () => void;
 };
 
+const MIN_ORGANIZATION_QUERY_LENGTH = 2;
+const MAX_ORGANIZATION_RESULTS = 8;
+
 export function OrganizationSelector({
   label = 'Organization',
   selectedCode,
   selectedName,
-  helperText = 'Search by organization name.',
+  helperText = 'Type at least 2 characters to find your organization.',
   placeholder = 'Search by organization name',
   onSelect,
   onClear,
 }: OrganizationSelectorProps) {
-  const organizations = usePublicOrganizations();
   const [query, setQuery] = useState(selectedName || selectedCode || '');
-  const debouncedQuery = useDebouncedValue(query.trim(), 180);
+  const trimmedQuery = query.trim();
+  const debouncedQuery = useDebouncedValue(trimmedQuery, 220);
+  const queryReady = trimmedQuery.length >= MIN_ORGANIZATION_QUERY_LENGTH;
+  const searchPending = queryReady && trimmedQuery !== debouncedQuery;
+  const organizations = usePublicOrganizations({ enabled: queryReady || Boolean(selectedCode) });
   const activeOrganizations = useMemo(() => (organizations.data ?? []).filter((item) => item.activeStatus !== false), [organizations.data]);
   const selectedOrganization = useMemo(
     () => activeOrganizations.find((organization) => organization.companyCode === selectedCode) ?? null,
@@ -46,9 +52,9 @@ export function OrganizationSelector({
   }, [selectedDisplayName, selectedName, selectedOrganization?.companyName]);
 
   const results = useMemo(() => {
-    const normalized = debouncedQuery.toLowerCase();
-    if (!normalized) {
-      return activeOrganizations.slice(0, 8);
+    const normalized = debouncedQuery.toLowerCase().trim();
+    if (normalized.length < MIN_ORGANIZATION_QUERY_LENGTH) {
+      return [];
     }
     return activeOrganizations
       .filter((item) => [
@@ -57,7 +63,7 @@ export function OrganizationSelector({
         item.regionCountry,
         item.timezone,
       ].filter(Boolean).join(' ').toLowerCase().includes(normalized))
-      .slice(0, 8);
+      .slice(0, MAX_ORGANIZATION_RESULTS);
   }, [activeOrganizations, debouncedQuery]);
 
   return (
@@ -72,14 +78,15 @@ export function OrganizationSelector({
       }}
       placeholder={placeholder}
       helperText={helperText}
-      minQueryLength={0}
-      results={results}
-      loading={organizations.isLoading || organizations.isFetching}
-      errorText={organizations.isError ? errorMessage(organizations.error, 'Organizations could not be loaded.') : null}
+      minQueryLength={MIN_ORGANIZATION_QUERY_LENGTH}
+      results={searchPending ? [] : results}
+      loading={queryReady && (searchPending || organizations.isLoading || organizations.isFetching)}
+      errorText={queryReady && organizations.isError ? errorMessage(organizations.error, 'Organizations could not be loaded.') : null}
       emptyText="No organizations found"
       emptyBody="Try a different organization or facility name."
       selectedTitle={selectedDisplayName}
       selectedMeta={selectedDisplayMeta}
+      selectedAvatarText={selectedOrganization?.companyCode ?? selectedCode ?? undefined}
       resultIconName="business-outline"
       onSelect={(organization) => {
         setQuery(organization.companyName);

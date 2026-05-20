@@ -240,7 +240,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           return role === 'VISITOR';
         }
         if (firstKey === 'admin') {
-          return role === 'ADMIN' || role === 'SUPER_ADMIN';
+          return role === 'ADMIN';
         }
         return true;
       },

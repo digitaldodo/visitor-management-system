@@ -43,12 +43,6 @@ const workspaceConfigMap: Record<ActiveWorkspaceRole, WorkspaceConfig> = {
     homeTarget: 'admin-operations',
     notificationTarget: 'admin-operations',
   },
-  SUPER_ADMIN: {
-    audience: 'admin',
-    navigator: 'AdminStack',
-    homeTarget: 'admin-operations',
-    notificationTarget: 'admin-operations',
-  },
 };
 
 export function getWorkspaceConfig(role: ActiveWorkspaceRole) {
@@ -56,7 +50,7 @@ export function getWorkspaceConfig(role: ActiveWorkspaceRole) {
 }
 
 export function isAdminRole(role: ActiveWorkspaceRole) {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN';
+  return role === 'ADMIN';
 }
 
 export function isNotificationAllowedForRole(role: ActiveWorkspaceRole, type?: string | null) {

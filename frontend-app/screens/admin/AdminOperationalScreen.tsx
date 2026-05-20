@@ -61,7 +61,7 @@ export function AdminOperationalScreen() {
       <View style={styles.summarySection}>
         <RecordCard
           title={session?.user.fullName || 'Admin operator'}
-          subtitle={[session?.user.organizationCode || 'Platform scope', session?.user.email].filter(Boolean).join(' · ')}
+          subtitle={[session?.user.organizationCode || 'Organization scope', session?.user.email].filter(Boolean).join(' · ')}
           meta="Mobile admin is intentionally summary-focused in this phase."
           status={session?.user.activeRole || 'ADMIN'}
           tone="info"
