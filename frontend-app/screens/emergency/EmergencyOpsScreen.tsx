@@ -142,6 +142,8 @@ export function EmergencyOpsScreen() {
       <AppScreen
         title="Emergency Ops"
         subtitle="Panic response, lockdown coordination, broadcasts, suspicious activity, evacuation register, and live incident feed."
+        sensitive
+        sensitiveReason="emergency-operations"
         contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
         refreshing={emergencyState.isRefetching || feed.isRefetching || evacuation.isRefetching}
         onRefresh={refreshWorkspace}

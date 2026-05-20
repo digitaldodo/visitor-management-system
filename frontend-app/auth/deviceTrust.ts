@@ -1,6 +1,7 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
+import * as FileSystem from 'expo-file-system';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Alert, Platform } from 'react-native';
 
@@ -72,6 +73,8 @@ export async function collectDeviceIntegritySignals(): Promise<DeviceIntegritySi
   const reasons: string[] = [];
   const debugBuild = Boolean(__DEV__);
   const emulator = !Device.isDevice;
+  const rootedOrJailbroken = await detectRootOrJailbreakSignals();
+  const tamperedRuntime = detectTamperedRuntime();
 
   if (debugBuild) {
     reasons.push('debug-build');
@@ -79,12 +82,19 @@ export async function collectDeviceIntegritySignals(): Promise<DeviceIntegritySi
   if (emulator) {
     reasons.push('emulator');
   }
+  if (rootedOrJailbroken) {
+    reasons.push(Platform.OS === 'ios' ? 'jailbreak-indicators' : 'root-indicators');
+  }
+  if (tamperedRuntime) {
+    reasons.push('runtime-tampering-indicators');
+  }
 
   return {
-    rootedOrJailbroken: false,
+    rootedOrJailbroken,
     emulator,
     debugBuild,
-    suspicious: emulator || debugBuild,
+    tamperedRuntime,
+    suspicious: rootedOrJailbroken || tamperedRuntime || (apiConfig.environment === 'production' && (emulator || debugBuild)),
     reasons,
   };
 }
@@ -217,4 +227,50 @@ function promptForReason(reason: 'bootstrap' | 'resume' | 'enable' | 'manual') {
     default:
       return 'Confirm device unlock';
   }
+}
+
+async function detectRootOrJailbreakSignals() {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  const suspiciousPaths = Platform.select({
+    android: [
+      'file:///system/app/Superuser.apk',
+      'file:///system/bin/su',
+      'file:///system/xbin/su',
+      'file:///sbin/su',
+      'file:///vendor/bin/su',
+      'file:///su/bin/su',
+      'file:///system/bin/magisk',
+      'file:///system/xbin/daemonsu',
+    ],
+    ios: [
+      'file:///Applications/Cydia.app',
+      'file:///Library/MobileSubstrate/MobileSubstrate.dylib',
+      'file:///bin/bash',
+      'file:///usr/sbin/sshd',
+      'file:///etc/apt',
+    ],
+    default: [],
+  }) ?? [];
+
+  const checks = await Promise.all(
+    suspiciousPaths.map((path) => FileSystem.getInfoAsync(path).then((info) => info.exists).catch(() => false)),
+  );
+
+  return checks.some(Boolean);
+}
+
+function detectTamperedRuntime() {
+  const ownership = Constants.executionEnvironment;
+  const appOwnership = Constants.appOwnership;
+  const applicationId = String(Application.applicationId || '').toLowerCase();
+  const expectedId = String(Constants.expoConfig?.android?.package || Constants.expoConfig?.ios?.bundleIdentifier || '').toLowerCase();
+
+  if (apiConfig.environment === 'production' && (appOwnership === 'expo' || ownership === 'storeClient')) {
+    return true;
+  }
+
+  return Boolean(expectedId && applicationId && expectedId !== applicationId);
 }

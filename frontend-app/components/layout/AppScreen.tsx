@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
+import { useSensitiveScreenProtection } from '../../security/MobileSecurityProvider';
 import { EmergencyBanner } from '../feedback/EmergencyBanner';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { theme } from '../../theme';
@@ -16,17 +17,21 @@ type Props = {
   refreshing?: boolean;
   onRefresh?: () => Promise<unknown> | unknown;
   contentMaxWidth?: number;
+  sensitive?: boolean;
+  sensitiveReason?: string;
 };
 
 const MIN_PULL_REFRESH_MS = 450;
 
-export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth }: Props) {
+export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth, sensitive, sensitiveReason }: Props) {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { t } = useLocalization();
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  useSensitiveScreenProtection(sensitiveReason ?? title, Boolean(sensitive));
 
   useEffect(() => () => {
     mountedRef.current = false;

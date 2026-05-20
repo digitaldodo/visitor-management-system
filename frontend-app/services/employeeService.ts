@@ -9,6 +9,7 @@ import type {
   SecurityPhotoUpload,
   SecurityOverview,
   UserProfile,
+  VisitorInviteRecord,
   VisitorRecord,
 } from '../types/domain';
 
@@ -45,6 +46,23 @@ export type VisitorReschedulePayload = {
   note?: string | null;
 };
 
+export type VisitorInviteCreatePayload = {
+  visitorName: string;
+  visitorEmail?: string | null;
+  phoneCountryCode?: string | null;
+  visitorPhone?: string | null;
+  companyName?: string | null;
+  purposeOfVisit: string;
+  visitorType?: string | null;
+  scheduledStartTime: string;
+  scheduledEndTime?: string | null;
+  expectedDurationMinutes?: number | null;
+  timezone?: string | null;
+  approvalRequired?: boolean;
+  expiresInHours?: number | null;
+  note?: string | null;
+};
+
 export async function getEmployeeOverview() {
   return request<SecurityOverview>({
     url: '/employee/overview',
@@ -71,6 +89,33 @@ export async function getEmployeePreApprovals() {
     url: '/employee/pre-approvals',
     method: 'GET',
   });
+}
+
+export async function getEmployeeVisitorInvites() {
+  return request<VisitorInviteRecord[]>({
+    url: '/employee/visitor-invites',
+    method: 'GET',
+  });
+}
+
+export async function createEmployeeVisitorInvite(payload: VisitorInviteCreatePayload) {
+  const response = await request<VisitorInviteRecord>({
+    url: '/employee/visitor-invites',
+    method: 'POST',
+    data: payload,
+  });
+  await trackFirebaseEvent('visitor_invite_created', { actor_role: 'EMPLOYEE', approval_required: Boolean(payload.approvalRequired) });
+  return response;
+}
+
+export async function revokeEmployeeVisitorInvite(inviteId: string, reason: string) {
+  const response = await request<VisitorInviteRecord>({
+    url: `/employee/visitor-invites/${encodeURIComponent(inviteId)}/revoke`,
+    method: 'PATCH',
+    data: { reason },
+  });
+  await trackFirebaseEvent('visitor_invite_revoked', { actor_role: 'EMPLOYEE' });
+  return response;
 }
 
 export async function getEmployeeAttendance() {

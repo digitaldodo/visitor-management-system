@@ -4,6 +4,7 @@ import type { VersionHandshakePayload } from './runtime';
 export type VisitorType = 'ONE_TIME' | 'WALK_IN' | 'EMERGENCY' | 'RECURRING' | 'CONTRACTOR_VENDOR';
 
 export type VisitorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'EXPIRED' | 'SUSPENDED';
+export type VisitorInviteStatus = 'SENT' | 'VIEWED' | 'REGISTRATION_COMPLETED' | 'QR_ISSUED' | 'ARRIVED' | 'EXPIRED' | 'REVOKED';
 
 export type EmployeePresenceAction = 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -101,6 +102,41 @@ export type VisitorRecord = {
   revokedBy?: string | null;
   revocationReason?: string | null;
   statusHistory?: VisitorStatusHistoryRecord[] | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type VisitorInviteRecord = {
+  id: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  organizationCode?: string | null;
+  organizationTimezone?: string | null;
+  hostEmployeeId?: string | null;
+  hostEmployeeName?: string | null;
+  visitorName: string;
+  visitorEmail?: string | null;
+  visitorPhone?: string | null;
+  phoneCountryCode?: string | null;
+  companyName?: string | null;
+  purposeOfVisit?: string | null;
+  visitorType?: VisitorType | null;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  expectedDurationMinutes?: number | null;
+  timezone?: string | null;
+  approvalRequired?: boolean;
+  status: VisitorInviteStatus;
+  inviteUrl?: string | null;
+  expiresAt?: string | null;
+  viewedAt?: string | null;
+  registrationCompletedAt?: string | null;
+  qrIssuedAt?: string | null;
+  arrivedAt?: string | null;
+  revokedAt?: string | null;
+  revocationReason?: string | null;
+  visitorId?: string | null;
+  pass?: import('../services/visitorService').VisitorPass | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 };

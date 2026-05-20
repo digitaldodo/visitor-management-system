@@ -148,6 +148,8 @@ export function BadgeScreen() {
       <AppScreen
         title="Badge"
         subtitle="Your live workforce credential for secure checkpoint presentation on Android."
+        sensitive
+        sensitiveReason="employee-badge"
         refreshing={badge.isRefetching}
         onRefresh={() => badge.refetch()}
       >

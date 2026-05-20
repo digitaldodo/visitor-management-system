@@ -11,6 +11,7 @@ import { LocalizationProvider } from '../localization/LocalizationProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
 import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
+import { MobileSecurityProvider } from '../security/MobileSecurityProvider';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { theme } from '../theme';
 import type { AppError } from '../types/api';
@@ -70,11 +71,13 @@ export default function AccessFlowApp() {
         <QueryClientProvider client={queryClient}>
           <LocalizationProvider>
             <AuthProvider>
-              <OperationalRuntimeProvider>
-                <OperationalSnackbarProvider>
-                  <AppBoundaryHost />
-                </OperationalSnackbarProvider>
-              </OperationalRuntimeProvider>
+              <MobileSecurityProvider>
+                <OperationalRuntimeProvider>
+                  <OperationalSnackbarProvider>
+                    <AppBoundaryHost />
+                  </OperationalSnackbarProvider>
+                </OperationalRuntimeProvider>
+              </MobileSecurityProvider>
             </AuthProvider>
           </LocalizationProvider>
         </QueryClientProvider>

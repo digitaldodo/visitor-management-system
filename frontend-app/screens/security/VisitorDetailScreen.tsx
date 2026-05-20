@@ -123,6 +123,8 @@ export function VisitorDetailScreen() {
       <AppScreen
         title="Visitor Record"
         subtitle="Open record, badge, repeat-visit intelligence, approvals, and immutable audit trail."
+        sensitive
+        sensitiveReason="visitor-detail"
         refreshing={visitorQuery.isRefetching || passQuery.isRefetching}
         onRefresh={refreshWorkspace}
       >

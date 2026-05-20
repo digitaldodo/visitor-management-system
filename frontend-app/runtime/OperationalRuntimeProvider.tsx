@@ -1,6 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
-import * as ScreenCapture from 'expo-screen-capture';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import NetInfo from '@react-native-community/netinfo';
@@ -111,12 +110,17 @@ const defaultLockState: SessionLockState = {
   screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
 };
 
-const defaultDevicePosture: DevicePostureState = {
+  const defaultDevicePosture: DevicePostureState = {
   deviceId: null,
   managedMode: apiConfig.deviceManagement.managedMode,
   kioskModeReady: apiConfig.deviceManagement.kioskModeReady,
   remoteLogoutSupported: true,
   suspicious: false,
+  rootedOrJailbroken: false,
+  emulator: false,
+  debugBuild: false,
+  integrityReasons: [],
+  sensitiveOperationsRestricted: false,
   concurrentSessionCount: 0,
   lastPolicySyncAt: null,
 };
@@ -1006,19 +1010,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   useEffect(() => {
     void runOtaCheck(false);
   }, [runOtaCheck]);
-
-  useEffect(() => {
-    if (!apiConfig.security.screenshotProtectionEnabled) {
-      return;
-    }
-
-    if (auth.status === 'authenticated') {
-      void ScreenCapture.preventScreenCaptureAsync().catch(() => undefined);
-      return;
-    }
-
-    void ScreenCapture.allowScreenCaptureAsync().catch(() => undefined);
-  }, [auth.status]);
 
   useEffect(() => {
     void (async () => {

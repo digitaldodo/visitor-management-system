@@ -321,6 +321,8 @@ export function VisitorPassScreen() {
     <AppScreen
       title="Pass"
       subtitle="Your approved badge and QR stay isolated to the visitor workspace."
+      sensitive
+      sensitiveReason="visitor-pass"
       refreshing={visits.isRefetching || pass.isRefetching}
       onRefresh={() => Promise.all([visits.refetch(), pass.refetch()])}
     >

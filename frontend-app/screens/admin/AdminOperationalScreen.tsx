@@ -412,6 +412,8 @@ export function AdminOperationalScreen({ section }: SectionProps) {
       <AppScreen
         title={screenCopy[0]}
         subtitle={screenCopy[1]}
+        sensitive={section === 'dashboard' || section === 'visitors' || section === 'alerts'}
+        sensitiveReason={`admin-${section}`}
         contentMaxWidth={layout.isLargeTablet ? 1220 : undefined}
         refreshing={isRefreshing}
         onRefresh={refreshWorkspace}

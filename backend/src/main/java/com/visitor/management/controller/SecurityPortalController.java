@@ -14,6 +14,8 @@ import com.visitor.management.dto.QrVerificationResponse;
 import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.SecurityMonitoringResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorInviteResponse;
+import com.visitor.management.dto.VisitorInviteRevokeRequest;
 import com.visitor.management.dto.VisitorHistorySummaryResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
@@ -27,6 +29,7 @@ import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.WorkforceOnboardingService;
 import com.visitor.management.service.VisitorService;
+import com.visitor.management.service.VisitorInviteService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -57,19 +60,22 @@ public class SecurityPortalController {
     private final EmployeeAttendanceService employeeAttendanceService;
     private final WorkforceOnboardingService workforceOnboardingService;
     private final AppProperties appProperties;
+    private final VisitorInviteService visitorInviteService;
 
     public SecurityPortalController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             EmployeeAttendanceService employeeAttendanceService,
             WorkforceOnboardingService workforceOnboardingService,
-            AppProperties appProperties
+            AppProperties appProperties,
+            VisitorInviteService visitorInviteService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.employeeAttendanceService = employeeAttendanceService;
         this.workforceOnboardingService = workforceOnboardingService;
         this.appProperties = appProperties;
+        this.visitorInviteService = visitorInviteService;
     }
 
     @GetMapping("/overview")
@@ -151,6 +157,20 @@ public class SecurityPortalController {
     @GetMapping("/visitors")
     public ApiResponse<PageResponse<VisitorResponse>> visitors(@Valid @ModelAttribute SearchRequest request, Authentication authentication) {
         return ApiResponse.ok("Security visitor records loaded.", visitorService.search(request, authentication.getName()));
+    }
+
+    @GetMapping("/visitor-invites")
+    public ApiResponse<List<VisitorInviteResponse>> visitorInvites(Authentication authentication) {
+        return ApiResponse.ok("Visitor invite lifecycle loaded.", visitorInviteService.listForOrganization(authentication.getName()));
+    }
+
+    @PatchMapping("/visitor-invites/{id}/revoke")
+    public ApiResponse<VisitorInviteResponse> revokeVisitorInvite(
+            @PathVariable String id,
+            @Valid @RequestBody VisitorInviteRevokeRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor invite revoked.", visitorInviteService.revoke(id, authentication.getName(), request.reason()));
     }
 
     @GetMapping("/monitoring")

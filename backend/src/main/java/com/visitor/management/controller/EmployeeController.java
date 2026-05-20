@@ -15,6 +15,9 @@ import com.visitor.management.dto.SearchRequest;
 import com.visitor.management.dto.NotificationResponse;
 import com.visitor.management.dto.UserProfileResponse;
 import com.visitor.management.dto.VisitorCreateRequest;
+import com.visitor.management.dto.VisitorInviteCreateRequest;
+import com.visitor.management.dto.VisitorInviteResponse;
+import com.visitor.management.dto.VisitorInviteRevokeRequest;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
@@ -22,6 +25,7 @@ import com.visitor.management.service.CloudinaryUploadService;
 import com.visitor.management.service.EmployeeAttendanceService;
 import com.visitor.management.service.EmployeeProfileService;
 import com.visitor.management.service.NotificationService;
+import com.visitor.management.service.VisitorInviteService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -52,19 +56,22 @@ public class EmployeeController {
     private final NotificationService notificationService;
     private final EmployeeAttendanceService employeeAttendanceService;
     private final EmployeeProfileService employeeProfileService;
+    private final VisitorInviteService visitorInviteService;
 
     public EmployeeController(
             VisitorService visitorService,
             CloudinaryUploadService cloudinaryUploadService,
             NotificationService notificationService,
             EmployeeAttendanceService employeeAttendanceService,
-            EmployeeProfileService employeeProfileService
+            EmployeeProfileService employeeProfileService,
+            VisitorInviteService visitorInviteService
     ) {
         this.visitorService = visitorService;
         this.cloudinaryUploadService = cloudinaryUploadService;
         this.notificationService = notificationService;
         this.employeeAttendanceService = employeeAttendanceService;
         this.employeeProfileService = employeeProfileService;
+        this.visitorInviteService = visitorInviteService;
     }
 
     @GetMapping("/overview")
@@ -91,6 +98,28 @@ public class EmployeeController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Visitor pre-approved.", visitorService.preApprove(request, authentication.getName()));
+    }
+
+    @GetMapping("/visitor-invites")
+    public ApiResponse<List<VisitorInviteResponse>> visitorInvites(Authentication authentication) {
+        return ApiResponse.ok("Visitor invites loaded.", visitorInviteService.listForHost(authentication.getName()));
+    }
+
+    @PostMapping("/visitor-invites")
+    public ApiResponse<VisitorInviteResponse> createVisitorInvite(
+            @Valid @RequestBody VisitorInviteCreateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor invite created.", visitorInviteService.create(request, authentication.getName()));
+    }
+
+    @PatchMapping("/visitor-invites/{id}/revoke")
+    public ApiResponse<VisitorInviteResponse> revokeVisitorInvite(
+            @PathVariable String id,
+            @Valid @RequestBody VisitorInviteRevokeRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor invite revoked.", visitorInviteService.revoke(id, authentication.getName(), request.reason()));
     }
 
     @GetMapping("/notifications")

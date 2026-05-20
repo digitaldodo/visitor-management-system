@@ -40,6 +40,7 @@ final class PublicEndpointRequestMatchers {
             "/api/v1/organizations/public",
             "/organizations/public",
             "/api/v1/public/passes/**",
+            "/api/v1/public/visitor-invites/**",
             "/public/passes/**",
             "/api/v1/homepage",
             "/api/v1/auth/verify-email",

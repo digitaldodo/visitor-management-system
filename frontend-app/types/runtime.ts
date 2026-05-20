@@ -81,6 +81,11 @@ export type DevicePostureState = {
   kioskModeReady: boolean;
   remoteLogoutSupported: boolean;
   suspicious: boolean;
+  rootedOrJailbroken: boolean;
+  emulator: boolean;
+  debugBuild: boolean;
+  integrityReasons: string[];
+  sensitiveOperationsRestricted: boolean;
   concurrentSessionCount: number;
   lastPolicySyncAt: string | null;
 };
@@ -209,7 +214,8 @@ export type OperationalMetricName =
   | 'offline_operation_synced'
   | 'offline_operation_failed'
   | 'runtime_recovery'
-  | 'session_invalidated';
+  | 'session_invalidated'
+  | 'mobile_security_event';
 
 export type OperationalMetric = {
   id: string;
@@ -239,6 +245,7 @@ export type DeviceIntegritySignals = {
   rootedOrJailbroken: boolean;
   emulator: boolean;
   debugBuild: boolean;
+  tamperedRuntime: boolean;
   suspicious: boolean;
   reasons: string[];
 };

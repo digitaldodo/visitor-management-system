@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
+import { useMobileSecurity } from '../../security/MobileSecurityProvider';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
@@ -17,6 +18,7 @@ export function RuntimeBanner() {
     offlineLastSyncAt,
     isSyncingOfflineOperations,
   } = useOperationalRuntime();
+  const mobileSecurity = useMobileSecurity();
 
   if (runtimeHealth === 'locked') {
     return (
@@ -40,6 +42,8 @@ export function RuntimeBanner() {
     !degradedMessage
     && pushPermissionStatus !== 'DENIED'
     && !devicePosture.suspicious
+    && !mobileSecurity.warning
+    && !mobileSecurity.certificatePinningWarning
     && offlineOperationalQueueSize === 0
     && offlineOperationalMode === 'online'
     && !isSyncingOfflineOperations
@@ -47,7 +51,7 @@ export function RuntimeBanner() {
     return null;
   }
 
-  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious
+  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious || mobileSecurity.sensitiveOperationsRestricted || mobileSecurity.certificatePinningWarning
     ? styles.danger
     : offlineOperationalQueueSize > 0
       ? styles.warning
@@ -58,23 +62,29 @@ export function RuntimeBanner() {
       ? t('runtime.syncing')
       : degradedMessage
         ? t('runtime.degradedSync')
-    : devicePosture.suspicious
-      ? t('runtime.deviceReview')
-      : offlineOperationalQueueSize > 0
-        ? t('runtime.queuedActions')
-        : t('runtime.notificationsLimited');
+        : mobileSecurity.warning
+          ? 'Device security warning'
+          : mobileSecurity.certificatePinningWarning
+            ? 'Certificate validation warning'
+            : devicePosture.suspicious
+              ? t('runtime.deviceReview')
+              : offlineOperationalQueueSize > 0
+                ? t('runtime.queuedActions')
+                : t('runtime.notificationsLimited');
   const message = offlineOperationalMode === 'offline'
     ? offlineOperationalQueueSize
       ? t('runtime.offlineBody', { count: offlineOperationalQueueSize })
       : t('runtime.offlineBodyNoQueue', { lastSync: lastSyncCopy(offlineLastSyncAt, t) })
     : isSyncingOfflineOperations
       ? t('runtime.syncingBody')
-      : degradedMessage
-    ?? (devicePosture.suspicious
-      ? t('runtime.suspiciousBody')
-      : offlineOperationalQueueSize > 0
-        ? t('runtime.queuedBody', { count: offlineOperationalQueueSize, scanCount: offlineScanQueueSize })
-        : t('runtime.pushDeniedBody'));
+      : (degradedMessage
+        ?? mobileSecurity.warning
+        ?? mobileSecurity.certificatePinningWarning
+        ?? (devicePosture.suspicious
+          ? t('runtime.suspiciousBody')
+          : offlineOperationalQueueSize > 0
+            ? t('runtime.queuedBody', { count: offlineOperationalQueueSize, scanCount: offlineScanQueueSize })
+            : t('runtime.pushDeniedBody')));
 
   return (
     <View style={[styles.banner, tone]}>

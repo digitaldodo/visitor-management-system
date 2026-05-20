@@ -49,7 +49,14 @@ type RuntimeConfig = {
     requireBiometricUnlock: boolean;
     screenshotProtectionEnabled: boolean;
     rootDetectionPrepared: boolean;
+    certificatePinningEnabled: boolean;
+    certificatePinningEnforced: boolean;
     certificatePinningPrepared: boolean;
+    certificatePins: Record<string, {
+      includeSubdomains: boolean;
+      publicKeyHashes: string[];
+      backupPublicKeyHashes: string[];
+    }>;
     deviceAttestationPrepared: boolean;
   };
 };
@@ -145,6 +152,38 @@ function readPositiveNumber(value: string | undefined, fallbackValue: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackValue;
 }
 
+function readList(value: string | undefined) {
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function readCertificatePins(apiBaseUrl: string) {
+  if (!apiBaseUrl) {
+    return {};
+  }
+
+  const publicKeyHashes = readList(process.env.EXPO_PUBLIC_ACCESSFLOW_TLS_PUBLIC_KEY_PINS);
+  const backupPublicKeyHashes = readList(process.env.EXPO_PUBLIC_ACCESSFLOW_TLS_BACKUP_PUBLIC_KEY_PINS);
+  if (!publicKeyHashes.length && !backupPublicKeyHashes.length) {
+    return {};
+  }
+
+  try {
+    const host = new URL(apiBaseUrl).hostname;
+    return {
+      [host]: {
+        includeSubdomains: readBoolean(process.env.EXPO_PUBLIC_ACCESSFLOW_TLS_INCLUDE_SUBDOMAINS, true),
+        publicKeyHashes,
+        backupPublicKeyHashes,
+      },
+    };
+  } catch {
+    return {};
+  }
+}
+
 const apiBaseUrl = normalizeUrl(
   process.env.EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL
   ?? Constants.expoConfig?.extra?.accessflowApiBaseUrl
@@ -170,6 +209,7 @@ const buildId = String(
   ?? Constants.expoConfig?.extra?.accessflowBuildId
   ?? `${appVersion}+${runtimeVersion}`,
 ).trim();
+const certificatePins = readCertificatePins(apiBaseUrl);
 
 export const apiConfig: RuntimeConfig = {
   apiBaseUrl,
@@ -242,7 +282,16 @@ export const apiConfig: RuntimeConfig = {
     screenshotProtectionEnabled:
       String(process.env.EXPO_PUBLIC_ACCESSFLOW_SCREENSHOT_PROTECTION ?? 'true').trim().toLowerCase() !== 'false',
     rootDetectionPrepared: true,
-    certificatePinningPrepared: false,
+    certificatePinningEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_TLS_PINNING_ENABLED,
+      environment === 'production' || environment === 'staging',
+    ),
+    certificatePinningEnforced: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_TLS_PINNING_ENFORCED,
+      environment === 'production',
+    ),
+    certificatePinningPrepared: Object.keys(certificatePins).length > 0,
+    certificatePins,
     deviceAttestationPrepared: false,
   },
 };

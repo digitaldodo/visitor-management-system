@@ -229,7 +229,8 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
         applyVisitorTypeProfile(visitor, request, actor);
-        if (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor)) {
+        boolean preApprovedInvite = Boolean.TRUE.equals(request.preApprovedInvite()) && actor != null;
+        if (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor) || preApprovedInvite) {
             requireNoEmergencyLockdown(organization.getId(), "Visitor approvals are suspended during emergency lockdown.");
         }
         applyOneTimeSchedule(
@@ -249,8 +250,8 @@ public class VisitorService {
             visitor.setApprovedAt(now);
             visitor.setApprovedBy(actorId);
             issuePassCredentials(visitor, now);
-        } else if (isImmediateAccessVisitor(visitor)) {
-            visitor.setPreApproved(false);
+        } else if (isImmediateAccessVisitor(visitor) || preApprovedInvite) {
+            visitor.setPreApproved(preApprovedInvite);
             visitor.setStatus(VisitorStatus.APPROVED);
             visitor.setApprovedAt(now);
             visitor.setApprovedBy(actorId);
@@ -262,12 +263,12 @@ public class VisitorService {
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
         enforceActiveVisitorRules(visitor);
-        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : isImmediateAccessVisitor(visitor) ? "IMMEDIATE_ACCESS_REGISTERED" : "REGISTERED";
-        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : isImmediateAccessVisitor(visitor) ? "Walk-in or emergency access approved at registration." : "Approval requested.";
+        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : preApprovedInvite ? "INVITE_PRE_REGISTERED" : isImmediateAccessVisitor(visitor) ? "IMMEDIATE_ACCESS_REGISTERED" : "REGISTERED";
+        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : preApprovedInvite ? "Visitor completed a pre-registration invite and a temporary pass was issued." : isImmediateAccessVisitor(visitor) ? "Walk-in or emergency access approved at registration." : "Approval requested.";
         addHistory(visitor, visitor.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), null, saved.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
-        if (isRecurringVisitor(saved)) {
+        if (isRecurringVisitor(saved) || preApprovedInvite) {
             visitorNotificationService.visitorApproved(saved);
         } else {
             visitorNotificationService.visitorApprovalRequested(saved);

@@ -2,16 +2,19 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import {
   approveEmployeeVisitor,
+  createEmployeeVisitorInvite,
   getEmployeeApprovals,
   getEmployeeAttendance,
   getEmployeeBadge,
   getEmployeeNotifications,
   getEmployeeOverview,
   getEmployeePreApprovals,
+  getEmployeeVisitorInvites,
   getEmployeeProfile,
   markAllEmployeeNotificationsRead,
   markEmployeeNotificationRead,
   rejectEmployeeVisitor,
+  revokeEmployeeVisitorInvite,
   rescheduleEmployeeVisitor,
   updateEmployeePassword,
   updateEmployeeProfile,
@@ -53,6 +56,27 @@ export function useEmployeePreApprovals() {
     queryKey: ['employee', 'pre-approvals'],
     queryFn: getEmployeePreApprovals,
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useEmployeeVisitorInvites() {
+  return useQuery({
+    queryKey: ['employee', 'visitor-invites'],
+    queryFn: getEmployeeVisitorInvites,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useCreateEmployeeVisitorInviteMutation() {
+  return useMutation({
+    mutationFn: createEmployeeVisitorInvite,
+  });
+}
+
+export function useRevokeEmployeeVisitorInviteMutation() {
+  return useMutation({
+    mutationFn: ({ inviteId, reason }: { inviteId: string; reason: string }) =>
+      revokeEmployeeVisitorInvite(inviteId, reason),
   });
 }
 

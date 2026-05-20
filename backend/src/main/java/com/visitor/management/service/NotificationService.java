@@ -287,6 +287,10 @@ public class NotificationService {
                     VISITOR_REJECTED,
                     VISITOR_RESCHEDULED,
                     VISITOR_ACCESS_WINDOW_EXPIRING,
+                    VISITOR_INVITE_SENT,
+                    VISITOR_INVITE_VIEWED,
+                    VISITOR_PRE_REGISTRATION_COMPLETED,
+                    VISITOR_INVITE_REVOKED,
                     VISITOR_CHECKED_IN,
                     VISITOR_EXPIRED -> NotificationCategory.VISITOR;
             case SECURITY_INVALID_QR_SCAN,
@@ -315,6 +319,8 @@ public class NotificationService {
                     VISITOR_ARRIVED,
                     VISITOR_RESCHEDULED,
                     VISITOR_ACCESS_WINDOW_EXPIRING,
+                    VISITOR_PRE_REGISTRATION_COMPLETED,
+                    VISITOR_INVITE_REVOKED,
                     WORKFORCE_ONBOARDING_REQUESTED,
                     WORKFORCE_ONBOARDING_REJECTED,
                     WORKFORCE_ACCESS_REVOKED,
@@ -333,6 +339,8 @@ public class NotificationService {
                     SYSTEM_BACKEND_CONNECTIVITY_ISSUE -> NotificationPriority.CRITICAL;
             case VISITOR_APPROVED,
                     VISITOR_REJECTED,
+                    VISITOR_INVITE_SENT,
+                    VISITOR_INVITE_VIEWED,
                     VISITOR_CHECKED_IN,
                     VISITOR_EXPIRED,
                     WORKFORCE_ONBOARDING_APPROVED -> NotificationPriority.MEDIUM;

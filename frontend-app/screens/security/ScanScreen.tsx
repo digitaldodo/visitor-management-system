@@ -16,6 +16,7 @@ import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
+import { useMobileSecurity } from '../../security/MobileSecurityProvider';
 import { recordDiagnosticEvent } from '../../runtime/diagnostics';
 import { recordOperationalMetric } from '../../runtime/telemetry';
 import {
@@ -70,6 +71,7 @@ export function ScanScreen() {
   const isFocused = useIsFocused();
   const layout = useResponsiveLayout();
   const runtime = useOperationalRuntime();
+  const mobileSecurity = useMobileSecurity();
   const emergencyState = useEmergencyState();
   const { showSnackbar } = useOperationalSnackbar();
   const cameraRef = useRef<CameraView | null>(null);
@@ -129,7 +131,7 @@ export function ScanScreen() {
   );
   const liveActionsAvailable = runtime.offlineOperationalMode === 'online';
   const emergencyCheckInsBlocked = Boolean(emergencyState.data?.lockdownActive);
-  const checkInActionsAvailable = liveActionsAvailable && !emergencyCheckInsBlocked;
+  const checkInActionsAvailable = liveActionsAvailable && !emergencyCheckInsBlocked && !mobileSecurity.sensitiveOperationsRestricted;
 
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
@@ -589,6 +591,8 @@ export function ScanScreen() {
       <AppScreen
         title="Security Scan"
         subtitle="Fast QR verification for visitors, employees, recurring badges, and manual checkpoint recovery."
+        sensitive
+        sensitiveReason="security-scanner"
         contentMaxWidth={layout.isLargeTablet ? 1280 : undefined}
       >
         <View style={[styles.workspaceGrid, layout.isTwoColumn ? styles.workspaceGridWide : null]}>

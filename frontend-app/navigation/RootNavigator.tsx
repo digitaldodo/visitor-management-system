@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -44,6 +45,7 @@ import {
   VisitorProfileScreen,
   VisitorRequestScreen,
 } from '../screens/visitor/VisitorScreens';
+import { VisitorInviteRegistrationScreen } from '../screens/visitor/VisitorInviteRegistrationScreen';
 
 const RootStack = createNativeStackNavigator();
 const SecurityStack = createNativeStackNavigator();
@@ -60,7 +62,7 @@ export function RootNavigator() {
     : null;
 
   return (
-    <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+    <NavigationContainer ref={navigationRef} theme={navigationTheme} linking={linkingConfig}>
       {auth.status === 'bootstrapping' ? (
         <BootScreen />
       ) : auth.status === 'recovery' ? (
@@ -93,9 +95,19 @@ function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="VisitorInviteRegistration" component={VisitorInviteRegistrationScreen} />
     </AuthStack.Navigator>
   );
 }
+
+const linkingConfig = {
+  prefixes: [Linking.createURL('/'), 'accessflow://'],
+  config: {
+    screens: {
+      VisitorInviteRegistration: 'visitor-invite/:token',
+    },
+  },
+};
 
 function SecurityStackNavigator() {
   return (

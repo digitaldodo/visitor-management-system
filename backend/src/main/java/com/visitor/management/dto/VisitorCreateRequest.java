@@ -35,6 +35,8 @@ public record VisitorCreateRequest(
         @Size(max = 8) String allowedEntryStartTime,
         @Size(max = 8) String allowedEntryEndTime,
         @Size(max = 160) String emergencyContact,
-        @Size(max = 1000) String notes
+        @Size(max = 1000) String notes,
+        Boolean preApprovedInvite,
+        @Size(max = 120) String inviteId
 ) {
 }

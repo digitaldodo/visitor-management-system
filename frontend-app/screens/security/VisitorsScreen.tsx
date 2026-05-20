@@ -290,6 +290,8 @@ export function VisitorsScreen() {
       <AppScreen
         title="Visitor Operations"
         subtitle="Fast registration, photo-backed verification, and checkpoint actions for reception and gate teams."
+        sensitive
+        sensitiveReason="visitor-operations"
         refreshing={monitoring.isRefetching || visitors.isRefetching}
         onRefresh={() => Promise.all([monitoring.refetch(), visitors.refetch()])}
       >
