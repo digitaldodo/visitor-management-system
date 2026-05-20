@@ -324,6 +324,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return false;
           }
 
+          if (isTransientRecoveryFailure(normalizedError)) {
+            sessionRef.current = persistedSession;
+            setStateSafely({
+              status: 'authenticated',
+              session: persistedSession,
+              recovery: null,
+              lastError: null,
+            });
+            resetNavigationToRoleHome(persistedSession.user.activeRole);
+            return true;
+          }
+
           await showRecoveryState({
             session: persistedSession,
             reason: normalizedError.kind,
@@ -433,6 +445,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedError = normalizeApiError(error);
       if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
         await clearSessionState('Session expired. Please sign in again.');
+        return;
+      }
+
+      if (isTransientRecoveryFailure(normalizedError)) {
+        sessionRef.current = persistedSession;
+        rememberSessionRef.current = true;
+        await recordDiagnosticEvent({
+          level: 'warn',
+          scope: 'auth',
+          code: 'SESSION_BOOTSTRAP_DEFERRED',
+          message: normalizedError.message,
+          context: {
+            kind: normalizedError.kind,
+            status: normalizedError.status ?? null,
+          },
+        });
+        setStateSafely({
+          status: 'authenticated',
+          session: persistedSession,
+          recovery: null,
+          lastError: null,
+        });
+        resetNavigationToRoleHome(persistedSession.user.activeRole);
         return;
       }
 
@@ -684,6 +719,14 @@ function compareVersionStrings(left: string, right: string) {
   }
 
   return 0;
+}
+
+function isTransientRecoveryFailure(error: AppError) {
+  return error.kind === 'network'
+    || error.status === 408
+    || error.status === 429
+    || Boolean(error.status && error.status >= 500)
+    || (error.kind === 'http' && error.recoverable);
 }
 
 async function establishTrustedDevice(session: AuthSession, rememberRequested: boolean) {

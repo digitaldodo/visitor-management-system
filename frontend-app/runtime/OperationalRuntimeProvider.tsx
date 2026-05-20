@@ -169,6 +169,10 @@ const initialSyncConnection: OperationalSyncConnectionState = {
   pendingEventCount: 0,
 };
 
+function canAccessOperationalFeed(role?: string | null) {
+  return role === 'ADMIN';
+}
+
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -373,7 +377,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [auth, queryClient]);
 
   const handleOperationalEvents = useCallback((events: OperationalEvent[]) => {
-    if (auth.status !== 'authenticated' || !events.length) {
+    if (auth.status !== 'authenticated' || !canAccessOperationalFeed(auth.session.user.activeRole) || !events.length) {
       return;
     }
 
@@ -861,24 +865,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         throw new Error('The backend health check reported a degraded state.');
       }
     } catch (error) {
-      setDegradedMessage('Operational sync is running in degraded mode. Data may be briefly stale while the app retries.');
+      setDegradedMessage('Restoring connection. Recent workspace data may be briefly stale.');
       setNetworkState((current) => ({
         ...current,
         isApiReachable: false,
         consecutiveFailures: current.consecutiveFailures + 1,
         lastOfflineAt: new Date().toISOString(),
       }));
-      upsertSystemNotification({
-        id: 'system-connectivity',
-        type: 'SYSTEM_BACKEND_CONNECTIVITY_ISSUE',
-        category: 'SYSTEM',
-        priority: 'CRITICAL',
-        title: 'Backend connectivity issue',
-        message: 'AccessFlow could not complete a runtime sync. The app will retry and recover automatically.',
-        read: false,
-        createdAt: new Date().toISOString(),
-        source: 'local',
-      });
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'runtime',
@@ -1017,7 +1010,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           ]);
         } catch (error) {
           if (isOfflineNetworkState(networkState)) {
-            setDegradedMessage('Offline Operational Mode is active. Cached guard workflows remain available and queued actions will sync when connectivity returns.');
+            setDegradedMessage('Restoring connection. Cached workspace data remains available where policy allows.');
             await refreshOfflineQueueSize();
             await recordDiagnosticEvent({
               level: 'warn',
@@ -1041,7 +1034,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
               elapsedMs,
             },
           });
-          setDegradedMessage('Trying to restore secure session. Cached workspace data remains available where policy allows.');
+          setDegradedMessage('Restoring connection. Cached workspace data remains available where policy allows.');
         } finally {
           lifecycleRecoveryPromiseRef.current = null;
         }
@@ -1137,12 +1130,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [handleOperationalEvents]);
 
   useEffect(() => {
-    if (auth.status === 'authenticated' && !sessionLock.isLocked) {
+    if (auth.status === 'authenticated' && !sessionLock.isLocked && canAccessOperationalFeed(auth.session.user.activeRole)) {
       operationalSyncRuntime.start(syncConnection.cursor);
       return;
     }
     operationalSyncRuntime.stop();
-  }, [auth.status, sessionLock.isLocked]);
+  }, [auth.status, auth.session, sessionLock.isLocked]);
+
+  useEffect(() => {
+    if (auth.status !== 'authenticated' || !canAccessOperationalFeed(auth.session.user.activeRole)) {
+      setLiveOperationalEvents([]);
+    }
+  }, [auth.status, auth.session]);
 
   useEffect(() => {
     void (async () => {

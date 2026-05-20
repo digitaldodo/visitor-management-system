@@ -413,7 +413,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   };
 
   const screenCopy = {
-    dashboard: ['Admin Command', 'Live control for approvals, visitors, alerts, workforce, and access operations.'],
+    dashboard: ['Admin Command', 'Approvals, visitors, alerts, workforce, and access operations.'],
     approvals: ['Approval Queue', 'Photo-backed workforce and visitor approvals with auditable decisions.'],
     visitors: ['Visitor Control', 'Inspect pending, active, denied, recurring, and high-priority visitor access.'],
     workforce: ['Workforce Control', 'Approve onboarding, verify worker details, and monitor employee presence.'],
@@ -606,7 +606,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 <AdminShortcut title="Visitor control" subtitle="Pending, active, denied, and recurring access" tone="info" onPress={() => navigation.navigate('Visitors')} />
                 <AdminShortcut title="Register" subtitle="History, audit lookup, and paged operational records" tone="default" onPress={() => navigation.navigate('Register')} />
                 <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
-                <AdminShortcut title="Live feed" subtitle="Cross-role operational event stream" tone="info" onPress={() => navigation.navigate('Live')} />
+                <AdminShortcut title="Organization activity" subtitle="Scoped visitor, workforce, approval, and incident updates" tone="info" onPress={() => navigation.navigate('Live')} />
                 <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
                 <AdminShortcut title="Profile" subtitle="Trusted devices, account security, and diagnostics" tone="default" onPress={() => navigation.navigate('Profile')} />
               </View>

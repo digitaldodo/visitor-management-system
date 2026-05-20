@@ -643,7 +643,7 @@ export function ScanScreen() {
               {runtime.offlineScanQueueSize > 0 || runtime.runtimeHealth === 'degraded' ? (
                 <View style={styles.degradedState}>
                   <StatusPill
-                    label={runtime.offlineScanQueueSize > 0 ? `${runtime.offlineScanQueueSize} queued` : 'Degraded sync'}
+                    label={runtime.offlineScanQueueSize > 0 ? `${runtime.offlineScanQueueSize} queued` : 'Reconnecting'}
                     tone="warning"
                   />
                   <Text style={styles.helperText}>

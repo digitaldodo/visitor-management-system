@@ -37,7 +37,7 @@ const slides = [
     title: 'Stay useful when connectivity is degraded',
     body: 'Known operational records can remain available offline, while queued actions sync back for backend confirmation.',
     icon: 'cloud-offline-outline',
-    signals: ['Cached records', 'Queued sync', 'Provisional access'],
+    signals: ['Cached records', 'Queued actions', 'Provisional access'],
   },
 ] as const;
 
@@ -53,7 +53,7 @@ export function OnboardingScreen() {
 
   const permissionHighlights = useMemo(() => [
     { icon: 'camera-outline' as const, label: 'Camera', body: 'QR verification and identity photos' },
-    { icon: 'notifications-outline' as const, label: 'Notifications', body: 'Approvals, incidents, and sync updates' },
+    { icon: 'notifications-outline' as const, label: 'Notifications', body: 'Approvals, incidents, and account updates' },
     { icon: 'images-outline' as const, label: 'Files', body: 'Selected credential and profile images' },
     { icon: 'finger-print-outline' as const, label: 'Biometric', body: 'Trusted-session unlock on supported devices' },
   ], []);

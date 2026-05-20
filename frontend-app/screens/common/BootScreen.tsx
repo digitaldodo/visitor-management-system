@@ -50,7 +50,7 @@ export function BootScreen() {
       </Animated.View>
       <Text style={styles.title}>Restoring your operational workspace</Text>
       <Text style={styles.subtitle}>
-        Verifying the runtime, recovering the secure session, and reconnecting to the backend.
+        Preparing your secure workspace and reconnecting to AccessFlow.
       </Text>
       <View style={styles.loadingBlock}>
         <ShimmerSkeleton rows={3} compact />

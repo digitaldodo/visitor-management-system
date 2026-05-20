@@ -8,6 +8,7 @@ import com.visitor.management.entity.User;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.UserRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -31,6 +32,9 @@ public class OperationalEventStreamService {
     public OperationalEventBatchResponse events(String actorId, String cursor, int requestedLimit) {
         User actor = userRepository.findById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
+        if (!isOrganizationAdmin(actor)) {
+            throw new AccessDeniedException("Operational activity feeds are available to organization administrators only.");
+        }
         int limit = Math.max(1, Math.min(requestedLimit <= 0 ? 80 : requestedLimit, 100));
         Instant since = parseCursor(cursor);
         List<AccessAuditLog> logs = scopedLogs(actor, since).stream()
@@ -45,18 +49,20 @@ public class OperationalEventStreamService {
     }
 
     private List<AccessAuditLog> scopedLogs(User actor, Instant since) {
-        boolean superAdmin = actor.getRoles() != null && actor.getRoles().contains(Role.SUPER_ADMIN);
         if (since == null) {
-            List<AccessAuditLog> latest = superAdmin
-                    ? accessAuditLogRepository.findTop100ByOrderByCreatedAtDesc()
-                    : accessAuditLogRepository.findTop100ByOrganizationIdOrderByCreatedAtDesc(actor.getOrganizationId());
+            List<AccessAuditLog> latest = accessAuditLogRepository.findTop100ByOrganizationIdOrderByCreatedAtDesc(actor.getOrganizationId());
             return latest.stream()
                     .sorted(Comparator.comparing(AccessAuditLog::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                     .toList();
         }
-        return superAdmin
-                ? accessAuditLogRepository.findTop100ByCreatedAtAfterOrderByCreatedAtAsc(since)
-                : accessAuditLogRepository.findTop100ByOrganizationIdAndCreatedAtAfterOrderByCreatedAtAsc(actor.getOrganizationId(), since);
+        return accessAuditLogRepository.findTop100ByOrganizationIdAndCreatedAtAfterOrderByCreatedAtAsc(actor.getOrganizationId(), since);
+    }
+
+    private boolean isOrganizationAdmin(User actor) {
+        return actor.getOrganizationId() != null
+                && !actor.getOrganizationId().isBlank()
+                && actor.getRoles() != null
+                && actor.getRoles().contains(Role.ADMIN);
     }
 
     private OperationalEventResponse toEvent(AccessAuditLog log) {

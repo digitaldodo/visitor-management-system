@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig } from '../auth/workspaceConfig';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { useLocalization } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
 import { recordObservedError, trackScreenContext } from '../runtime/observability';
 import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
@@ -189,17 +188,15 @@ function SecurityStackNavigator() {
 
 function SecurityNavigator() {
   const screenOptions = useMobileTabOptions();
-  const { t } = useLocalization();
   const { devicePosture } = useOperationalRuntime();
   const restrictedOperationalMode = devicePosture.operationalModeEnabled && devicePosture.restrictedNavigation;
 
   return (
     <SecurityTabs.Navigator
       backBehavior="history"
-      initialRouteName={devicePosture.scannerFirst ? 'Scan' : 'Live'}
+      initialRouteName="Scan"
       screenOptions={screenOptions}
     >
-      <SecurityTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
       {restrictedOperationalMode ? null : <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />}
@@ -213,11 +210,9 @@ function SecurityNavigator() {
 
 function EmployeeNavigator() {
   const screenOptions = useMobileTabOptions();
-  const { t } = useLocalization();
 
   return (
-    <EmployeeTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
-      <EmployeeTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
+    <EmployeeTabs.Navigator backBehavior="history" initialRouteName="Requests" screenOptions={screenOptions}>
       <EmployeeTabs.Screen name="Badge" component={BadgeScreen} />
       <EmployeeTabs.Screen name="Requests" component={RequestsScreen} />
       <EmployeeTabs.Screen name="Presence" component={PresenceScreen} />
@@ -229,11 +224,9 @@ function EmployeeNavigator() {
 
 function VisitorNavigator() {
   const screenOptions = useMobileTabOptions();
-  const { t } = useLocalization();
 
   return (
-    <VisitorTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
-      <VisitorTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
+    <VisitorTabs.Navigator backBehavior="history" initialRouteName="Home" screenOptions={screenOptions}>
       <VisitorTabs.Screen name="Home" component={VisitorHomeScreen} />
       <VisitorTabs.Screen name="Request" component={VisitorRequestScreen} />
       <VisitorTabs.Screen name="Pass" component={VisitorPassScreen} />

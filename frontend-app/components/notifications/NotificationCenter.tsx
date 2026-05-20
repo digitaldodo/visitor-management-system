@@ -112,7 +112,7 @@ export function NotificationCenter({
       ) : (
         <EmptyState
           title="No operational notifications"
-          body="Approvals, arrivals, access revocations, security alerts, and runtime recovery notices will appear here."
+          body="Approvals, arrivals, access revocations, security alerts, and account updates will appear here."
         />
       )}
     </SurfaceCard>

@@ -23,11 +23,11 @@ export function AlertsScreen() {
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
 
   const securityItems = useMemo(
-    () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'WORKFORCE', 'SYSTEM'].includes(String(item.category || '').toUpperCase())),
+    () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
     [notifications.data?.items],
   );
   const localSecurityItems = useMemo(
-    () => localNotifications.filter((item) => ['SECURITY', 'SYSTEM', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
+    () => localNotifications.filter((item) => ['SECURITY', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
     [localNotifications],
   );
 
@@ -53,7 +53,7 @@ export function AlertsScreen() {
   return (
     <AppScreen
       title="Alert Center"
-      subtitle="Security-focused operational awareness for denied entries, suspicious activity, invalid credentials, escalation events, and runtime issues."
+      subtitle="Security-focused awareness for denied entries, suspicious activity, invalid credentials, and escalation events."
       refreshing={monitoring.isRefetching || notifications.isRefetching}
       onRefresh={() => Promise.all([monitoring.refetch(), notifications.refetch()])}
     >

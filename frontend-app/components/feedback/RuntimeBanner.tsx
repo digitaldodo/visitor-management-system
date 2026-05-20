@@ -8,15 +8,8 @@ import { theme } from '../../theme';
 export function RuntimeBanner() {
   const { t } = useLocalization();
   const {
-    degradedMessage,
-    pushPermissionStatus,
     runtimeHealth,
     devicePosture,
-    offlineScanQueueSize,
-    offlineOperationalMode,
-    offlineOperationalQueueSize,
-    offlineLastSyncAt,
-    isSyncingOfflineOperations,
   } = useOperationalRuntime();
   const mobileSecurity = useMobileSecurity();
 
@@ -38,58 +31,14 @@ export function RuntimeBanner() {
     );
   }
 
-  if (
-    !degradedMessage
-    && pushPermissionStatus !== 'DENIED'
-    && !devicePosture.suspicious
-    && !mobileSecurity.warning
-    && !mobileSecurity.certificatePinningWarning
-    && offlineOperationalQueueSize === 0
-    && offlineOperationalMode === 'online'
-    && !isSyncingOfflineOperations
-  ) {
+  if (!devicePosture.suspicious && !mobileSecurity.sensitiveOperationsRestricted) {
     return null;
   }
 
-  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious || mobileSecurity.sensitiveOperationsRestricted
-    ? styles.danger
-    : offlineOperationalQueueSize > 0 || mobileSecurity.certificatePinningWarning
-      ? styles.warning
-      : styles.info;
-  const title = offlineOperationalMode === 'offline'
-    ? t('runtime.offlineMode')
-    : isSyncingOfflineOperations
-      ? t('runtime.syncing')
-      : degradedMessage
-        ? t('runtime.degradedSync')
-        : mobileSecurity.warning
-          ? 'Device security warning'
-          : mobileSecurity.certificatePinningWarning
-            ? 'Secure connection unavailable'
-            : devicePosture.suspicious
-              ? t('runtime.deviceReview')
-              : offlineOperationalQueueSize > 0
-                ? t('runtime.queuedActions')
-                : t('runtime.notificationsLimited');
-  const message = offlineOperationalMode === 'offline'
-    ? offlineOperationalQueueSize
-      ? t('runtime.offlineBody', { count: offlineOperationalQueueSize })
-      : t('runtime.offlineBodyNoQueue', { lastSync: lastSyncCopy(offlineLastSyncAt, t) })
-    : isSyncingOfflineOperations
-      ? t('runtime.syncingBody')
-      : (degradedMessage
-        ?? mobileSecurity.warning
-        ?? mobileSecurity.certificatePinningWarning
-        ?? (devicePosture.suspicious
-          ? t('runtime.suspiciousBody')
-          : offlineOperationalQueueSize > 0
-            ? t('runtime.queuedBody', { count: offlineOperationalQueueSize, scanCount: offlineScanQueueSize })
-            : t('runtime.pushDeniedBody')));
-
   return (
-    <View style={[styles.banner, tone]}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.body}>{message}</Text>
+    <View style={[styles.banner, styles.danger]}>
+      <Text style={styles.title}>{t('runtime.deviceReview')}</Text>
+      <Text style={styles.body}>{mobileSecurity.warning ?? t('runtime.suspiciousBody')}</Text>
     </View>
   );
 }
@@ -124,11 +73,3 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
-
-function lastSyncCopy(lastSyncAt: string | null, t: ReturnType<typeof useLocalization>['t']) {
-  if (!lastSyncAt) {
-    return t('runtime.noSyncTime');
-  }
-
-  return t('runtime.lastSync', { time: new Date(lastSyncAt).toLocaleString() });
-}

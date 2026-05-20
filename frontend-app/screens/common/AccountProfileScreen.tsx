@@ -111,7 +111,8 @@ export function AccountProfileScreen({
   const status = identity?.accountStatus || session?.user.accountStatus || (identity?.active === false ? 'INACTIVE' : 'ACTIVE');
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
-  const canManageTrustedDevices = Boolean(session?.user.roles?.some((nextRole) => nextRole === 'ADMIN' || nextRole === 'SUPER_ADMIN'));
+  const canManageTrustedDevices = Boolean(session?.user.roles?.some((nextRole) => nextRole === 'ADMIN'));
+  const canViewDiagnostics = role === 'ADMIN';
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -505,7 +506,6 @@ export function AccountProfileScreen({
               <StatusPill label={identity?.employeePhotoUrl ? 'Photo on file' : 'Photo pending'} tone={identity?.employeePhotoUrl ? 'success' : 'warning'} />
             </View>
             <Text style={styles.helperText}>{identity?.email || session?.user.email || 'Verified email pending'}</Text>
-            <Text style={styles.helperText}>Last sync: {session?.lastSyncedAt ? formatDateTime(session.lastSyncedAt) : 'Unknown'}</Text>
           </View>
         </View>
       </SurfaceCard>
@@ -683,42 +683,44 @@ export function AccountProfileScreen({
         ) : null}
       </SurfaceCard>
 
-      <SurfaceCard>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Toggle app diagnostics"
-          onPress={() => setAdvancedOpen((open) => !open)}
-          style={styles.advancedHeader}
-        >
-          <View style={styles.advancedTitle}>
-            <Ionicons name="construct-outline" size={20} color={theme.colors.info} />
-            <Text style={styles.panelTitle}>App diagnostics</Text>
-          </View>
-          <Ionicons name={advancedOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
-        </Pressable>
-        {advancedOpen ? (
-          <View style={styles.detailStack}>
-            <DetailRow label="Environment" value={apiConfig.environment} />
-            <DetailRow label="Distribution" value={apiConfig.distributionChannel} />
-            <DetailRow label="App version" value={apiConfig.appVersion} />
-            <DetailRow label="Runtime version" value={apiConfig.runtimeVersion} />
-            <DetailRow label="Build ID" value={apiConfig.buildId} />
-            <DetailRow label="Release channel" value={apiConfig.releaseChannel} />
-            <DetailRow label="OTA status" value={runtime.otaUpdate.updateDownloaded ? 'downloaded' : runtime.otaUpdate.updateAvailable ? 'available' : runtime.otaUpdate.enabled ? 'enabled' : 'disabled'} />
-            <DetailRow label="Crash reporting" value={observabilitySnapshot?.crashReportingAvailable ? 'enabled' : observabilitySnapshot?.crashReportingEnabled ? 'configured' : 'disabled'} />
-            <DetailRow label="Native Firebase" value={observabilitySnapshot?.crashReportingNativeAvailable ? 'available' : 'not loaded'} />
-            <DetailRow label="Previous crash" value={observabilitySnapshot?.didCrashPreviously ? 'detected' : 'none'} />
-            <DetailRow label="Unsent crash reports" value={observabilitySnapshot?.hasUnsentCrashReports ? 'pending' : 'none'} />
-            <DetailRow label="Sync health" value={`${runtime.syncConnection.status}${runtime.syncConnection.reconnectAttempt ? ` (${runtime.syncConnection.reconnectAttempt} retries)` : ''}`} />
-            <DetailRow label="API reachable" value={runtime.networkState.isApiReachable ? 'yes' : 'no'} />
-            <DetailRow label="Network" value={runtime.offlineOperationalMode} />
-            <DetailRow label="Offline queue" value={`${runtime.offlineOperationalQueueSize} operation${runtime.offlineOperationalQueueSize === 1 ? '' : 's'}`} />
-            <DetailRow label="Last offline sync" value={runtime.offlineLastSyncAt ? formatDateTime(runtime.offlineLastSyncAt) : 'Not recorded'} />
-            <DetailRow label="Push permission" value={runtime.pushPermissionStatus || 'Unknown'} />
-            <DetailRow label="Runtime health" value={runtime.runtimeHealth} />
-          </View>
-        ) : null}
-      </SurfaceCard>
+      {canViewDiagnostics ? (
+        <SurfaceCard>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Toggle internal diagnostics"
+            onPress={() => setAdvancedOpen((open) => !open)}
+            style={styles.advancedHeader}
+          >
+            <View style={styles.advancedTitle}>
+              <Ionicons name="construct-outline" size={20} color={theme.colors.info} />
+              <Text style={styles.panelTitle}>Internal diagnostics</Text>
+            </View>
+            <Ionicons name={advancedOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
+          </Pressable>
+          {advancedOpen ? (
+            <View style={styles.detailStack}>
+              <DetailRow label="Environment" value={apiConfig.environment} />
+              <DetailRow label="Distribution" value={apiConfig.distributionChannel} />
+              <DetailRow label="App version" value={apiConfig.appVersion} />
+              <DetailRow label="Runtime version" value={apiConfig.runtimeVersion} />
+              <DetailRow label="Build ID" value={apiConfig.buildId} />
+              <DetailRow label="Release channel" value={apiConfig.releaseChannel} />
+              <DetailRow label="OTA status" value={runtime.otaUpdate.updateDownloaded ? 'downloaded' : runtime.otaUpdate.updateAvailable ? 'available' : runtime.otaUpdate.enabled ? 'enabled' : 'disabled'} />
+              <DetailRow label="Crash reporting" value={observabilitySnapshot?.crashReportingAvailable ? 'enabled' : observabilitySnapshot?.crashReportingEnabled ? 'configured' : 'disabled'} />
+              <DetailRow label="Native Firebase" value={observabilitySnapshot?.crashReportingNativeAvailable ? 'available' : 'not loaded'} />
+              <DetailRow label="Previous crash" value={observabilitySnapshot?.didCrashPreviously ? 'detected' : 'none'} />
+              <DetailRow label="Unsent crash reports" value={observabilitySnapshot?.hasUnsentCrashReports ? 'pending' : 'none'} />
+              <DetailRow label="Sync health" value={`${runtime.syncConnection.status}${runtime.syncConnection.reconnectAttempt ? ` (${runtime.syncConnection.reconnectAttempt} retries)` : ''}`} />
+              <DetailRow label="API reachable" value={runtime.networkState.isApiReachable ? 'yes' : 'no'} />
+              <DetailRow label="Network" value={runtime.offlineOperationalMode} />
+              <DetailRow label="Offline queue" value={`${runtime.offlineOperationalQueueSize} operation${runtime.offlineOperationalQueueSize === 1 ? '' : 's'}`} />
+              <DetailRow label="Last offline sync" value={runtime.offlineLastSyncAt ? formatDateTime(runtime.offlineLastSyncAt) : 'Not recorded'} />
+              <DetailRow label="Push permission" value={runtime.pushPermissionStatus || 'Unknown'} />
+              <DetailRow label="Runtime health" value={runtime.runtimeHealth} />
+            </View>
+          ) : null}
+        </SurfaceCard>
+      ) : null}
 
       <SurfaceCard title="Legal and compliance" subtitle="Review the mobile policy experience from settings at any time.">
         <View style={[styles.legalActionRow, layout.fieldStacked ? styles.legalActionRowStacked : null]}>

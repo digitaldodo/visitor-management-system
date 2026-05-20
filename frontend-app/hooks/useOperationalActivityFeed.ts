@@ -23,7 +23,7 @@ import type {
 import type { OfflineOperationalCache, OfflineOperationalQueueItem } from '../types/runtime';
 
 export type OperationalFeedSeverity = 'info' | 'warning' | 'security' | 'emergency' | 'approval' | 'denied';
-export type OperationalFeedCategory = 'visitor' | 'workforce' | 'approval' | 'incident' | 'sync' | 'notification' | 'runtime';
+export type OperationalFeedCategory = 'visitor' | 'workforce' | 'approval' | 'incident' | 'sync' | 'notification' | 'audit';
 
 export type OperationalFeedItem = {
   id: string;
@@ -36,7 +36,7 @@ export type OperationalFeedItem = {
   organization?: string | null;
   checkpoint?: string | null;
   source: string;
-  targetType?: 'visitor' | 'workforce' | 'incident' | 'notification' | 'sync' | 'runtime';
+  targetType?: 'visitor' | 'workforce' | 'incident' | 'notification' | 'sync';
   targetId?: string | null;
   pendingSync?: boolean;
   offlineGenerated?: boolean;
@@ -64,6 +64,7 @@ export function useOperationalActivityFeed() {
   const employeeEnabled = role === 'EMPLOYEE';
   const visitorEnabled = role === 'VISITOR';
   const opsEnabled = Boolean(role);
+  const adminFeedEnabled = role === 'ADMIN';
 
   const securityMonitoring = useQuery({
     queryKey: ['security', 'monitoring', 'feed'],
@@ -192,7 +193,7 @@ export function useOperationalActivityFeed() {
       ]);
       return { queue, cache };
     },
-    enabled: opsEnabled,
+    enabled: adminFeedEnabled,
     refetchInterval: 12_000,
     placeholderData: (previous) => previous,
   });
@@ -236,11 +237,9 @@ export function useOperationalActivityFeed() {
     }
 
     nextItems.push(
-      ...buildLiveOperationalItems(runtime.liveOperationalEvents, t),
+      ...(adminFeedEnabled ? buildLiveOperationalItems(runtime.liveOperationalEvents, t) : []),
       ...buildNotificationItems(notifications.data?.items ?? [], role, t),
       ...buildEmergencyItems(emergencyFeed.data ?? [], t),
-      ...buildRuntimeItems(runtime, t, organization),
-      ...buildOfflineItems(offlineSnapshot.data, t, organization),
     );
 
     if (emergencyState.data?.lockdownActive || emergencyState.data?.evacuationActive) {
@@ -268,6 +267,7 @@ export function useOperationalActivityFeed() {
     adminUsers.data,
     adminVisitors.data,
     adminWorkforce.data,
+    adminFeedEnabled,
     emergencyFeed.data,
     emergencyState.data,
     employeeApprovals.data,
@@ -518,10 +518,10 @@ function buildLiveOperationalItems(records: ReturnType<typeof useOperationalRunt
 
 function normalizeFeedCategory(value?: string | null): OperationalFeedCategory {
   const normalized = String(value || '').toLowerCase();
-  if (['visitor', 'workforce', 'approval', 'incident', 'sync', 'notification', 'runtime'].includes(normalized)) {
+  if (['visitor', 'workforce', 'approval', 'incident', 'sync', 'notification', 'audit'].includes(normalized)) {
     return normalized as OperationalFeedCategory;
   }
-  return 'runtime';
+  return 'audit';
 }
 
 function normalizeFeedSeverity(value: string | null | undefined, category: OperationalFeedCategory): OperationalFeedSeverity {
@@ -553,7 +553,7 @@ function normalizeTargetType(value: string | null | undefined, category: Operati
   if (feedCategory === 'incident') {
     return 'incident';
   }
-  return 'runtime';
+  return 'notification';
 }
 
 function buildEmergencyItems(records: EmergencyIncident[], t: ReturnType<typeof useLocalization>['t']) {
@@ -572,65 +572,6 @@ function buildEmergencyItems(records: EmergencyIncident[], t: ReturnType<typeof 
     stale: isStale(record.createdAt),
     groupKey: `incident:${record.type}:${record.subjectId ?? record.id}`,
   }));
-}
-
-function buildRuntimeItems(
-  runtime: ReturnType<typeof useOperationalRuntime>,
-  t: ReturnType<typeof useLocalization>['t'],
-  organization?: string | null,
-) {
-  const now = new Date().toISOString();
-  const items: OperationalFeedItem[] = [];
-  if (runtime.offlineOperationalMode === 'offline') {
-    items.push({
-      id: `runtime-offline-${runtime.networkState.lastOfflineAt ?? 'active'}`,
-      category: 'runtime',
-      severity: 'warning',
-      actor: t('feed.actorSystem'),
-      title: t('feed.eventRuntimeOffline'),
-      detail: runtime.offlineOperationalQueueSize ? t('runtime.offlineBody', { count: runtime.offlineOperationalQueueSize }) : null,
-      occurredAt: runtime.networkState.lastOfflineAt || now,
-      organization,
-      source: t('feed.sourceRuntime'),
-      targetType: 'runtime',
-      stale: false,
-      groupKey: 'runtime:offline',
-    });
-  } else if (runtime.offlineOperationalMode === 'degraded' || runtime.networkState.consecutiveFailures > 0) {
-    items.push({
-      id: `runtime-degraded-${runtime.networkState.lastApiReachableAt ?? 'active'}`,
-      category: 'runtime',
-      severity: 'warning',
-      actor: t('feed.actorSystem'),
-      title: t('feed.eventRuntimeDegraded'),
-      detail: runtime.degradedMessage,
-      occurredAt: runtime.networkState.lastApiReachableAt || now,
-      organization,
-      source: t('feed.sourceRuntime'),
-      targetType: 'runtime',
-      stale: false,
-      groupKey: 'runtime:degraded',
-    });
-  }
-
-  if (runtime.devicePosture.suspicious) {
-    items.push({
-      id: `runtime-device-${runtime.devicePosture.lastPolicySyncAt ?? 'suspicious'}`,
-      category: 'runtime',
-      severity: 'security',
-      actor: t('feed.actorSystem'),
-      title: t('feed.eventSuspiciousDevice'),
-      detail: null,
-      occurredAt: runtime.devicePosture.lastPolicySyncAt || now,
-      organization,
-      source: t('feed.sourceRuntime'),
-      targetType: 'runtime',
-      stale: false,
-      groupKey: 'runtime:suspicious-device',
-    });
-  }
-
-  return items;
 }
 
 function buildOfflineItems(snapshot: OfflineSnapshot | undefined, t: ReturnType<typeof useLocalization>['t'], organization?: string | null) {

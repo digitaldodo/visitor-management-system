@@ -12,14 +12,12 @@ import { useAuth } from '../../auth/AuthProvider';
 import { useOperationalActivityFeed, type OperationalFeedCategory, type OperationalFeedItem, type OperationalFeedSeverity } from '../../hooks/useOperationalActivityFeed';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
-import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { theme } from '../../theme';
 
-type FeedFilter = 'all' | 'priority' | 'visitor' | 'workforce' | 'approval' | 'sync';
+type FeedFilter = 'all' | 'priority' | 'visitor' | 'workforce' | 'approval';
 
 export function OperationalFeedScreen() {
   const auth = useAuth();
-  const runtime = useOperationalRuntime();
   const navigation = useNavigation<{ navigate: (screen: string, params?: unknown) => void }>();
   const layout = useResponsiveLayout();
   const { t } = useLocalization();
@@ -32,8 +30,10 @@ export function OperationalFeedScreen() {
   );
 
   const priorityCount = feed.items.filter((item) => ['warning', 'security', 'emergency', 'denied'].includes(item.severity)).length;
-  const pendingSyncCount = feed.items.filter((item) => item.pendingSync).length;
   const role = auth.status === 'authenticated' ? auth.session.user.activeRole : null;
+  const visitorCount = feed.items.filter((item) => item.category === 'visitor').length;
+  const approvalCount = feed.items.filter((item) => item.category === 'approval').length;
+  const workforceCount = feed.items.filter((item) => item.category === 'workforce').length;
 
   const openItem = (item: OperationalFeedItem) => {
     if (!role) {
@@ -63,12 +63,20 @@ export function OperationalFeedScreen() {
       navigation.navigate(role === 'ADMIN' || role === 'SECURITY_GUARD' ? 'Emergency' : 'Notifications');
       return;
     }
-    if (item.category === 'sync') {
-      navigation.navigate(role === 'VISITOR' ? 'Profile' : 'Profile');
-      return;
-    }
     navigation.navigate(role === 'VISITOR' ? 'Notifications' : role === 'SECURITY_GUARD' ? 'Alerts' : 'Notifications');
   };
+
+  if (role !== 'ADMIN') {
+    return (
+      <AppScreen
+        title="Activity"
+        subtitle="Your workspace is focused on role-specific tasks and notifications."
+        contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
+      >
+        <EmptyState icon="notifications-outline" title="Activity feed unavailable" body="Organization activity feeds are available to administrators only." />
+      </AppScreen>
+    );
+  }
 
   return (
     <AppScreen
@@ -81,7 +89,7 @@ export function OperationalFeedScreen() {
       <View style={[styles.summaryGrid, layout.isTablet ? styles.summaryGridWide : null]}>
         <SummaryTile
           icon="pulse-outline"
-          label={t('feed.summaryLive')}
+          label="Org activity"
           value={feed.items.length}
           tone="info"
         />
@@ -92,28 +100,18 @@ export function OperationalFeedScreen() {
           tone={priorityCount ? 'warning' : 'success'}
         />
         <SummaryTile
-          icon="cloud-upload-outline"
-          label={t('feed.summaryQueued')}
-          value={pendingSyncCount || runtime.offlineOperationalQueueSize}
-          tone={pendingSyncCount || runtime.offlineOperationalQueueSize ? 'warning' : 'success'}
+          icon="people-outline"
+          label="Visitors"
+          value={visitorCount}
+          tone="info"
         />
         <SummaryTile
-          icon={runtime.offlineOperationalMode === 'online' ? 'checkmark-done-outline' : 'cloud-offline-outline'}
-          label={runtime.offlineOperationalMode === 'online' ? t('feed.summarySynced') : t('feed.summaryOffline')}
-          value={runtime.offlineOperationalMode === 'online' ? t('common.live') : runtime.offlineOperationalMode}
-          tone={runtime.offlineOperationalMode === 'online' ? 'success' : 'warning'}
+          icon={approvalCount ? 'checkmark-done-outline' : 'id-card-outline'}
+          label={approvalCount ? 'Approvals' : 'Workforce'}
+          value={approvalCount || workforceCount}
+          tone={approvalCount ? 'warning' : 'success'}
         />
       </View>
-
-      {runtime.offlineOperationalMode !== 'online' || runtime.offlineOperationalQueueSize > 0 ? (
-        <View style={styles.offlinePanel}>
-          <Ionicons name="cloud-offline-outline" size={22} color={theme.colors.warning} />
-          <View style={styles.offlineCopy}>
-            <Text style={styles.offlineTitle}>{t('feed.offlineBannerTitle')}</Text>
-            <Text style={styles.offlineBody}>{t('feed.offlineBannerBody')}</Text>
-          </View>
-        </View>
-      ) : null}
 
       <SurfaceCard title={t('feed.streamTitle')} subtitle={t('feed.streamSubtitle')}>
         <View style={styles.filterRow}>
@@ -132,8 +130,8 @@ export function OperationalFeedScreen() {
 
         {feed.isLoading ? (
           <OperationalLoadingState
-            title="Loading operational stream"
-            body="Pulling visitor, workforce, approval, notification, and sync activity into one mobile-ready feed."
+            title="Loading organization activity"
+            body="Preparing visitor, workforce, approval, notification, and incident activity."
           >
             <SkeletonCard rows={3} />
           </OperationalLoadingState>
@@ -253,9 +251,6 @@ function itemMatchesFilter(item: OperationalFeedItem, filter: FeedFilter) {
   if (filter === 'priority') {
     return ['warning', 'security', 'emergency', 'denied'].includes(item.severity);
   }
-  if (filter === 'sync') {
-    return item.category === 'sync' || item.category === 'runtime';
-  }
   return item.category === filter;
 }
 
@@ -266,7 +261,6 @@ function filterOptions(t: ReturnType<typeof useLocalization>['t']): Array<{ labe
     { label: t('feed.filtersVisitors'), value: 'visitor' },
     { label: t('feed.filtersWorkforce'), value: 'workforce' },
     { label: t('feed.filtersApprovals'), value: 'approval' },
-    { label: t('feed.filtersSync'), value: 'sync' },
   ];
 }
 
@@ -312,7 +306,7 @@ function severityIcon(severity: OperationalFeedSeverity, category: OperationalFe
   if (category === 'workforce') {
     return 'id-card-outline';
   }
-  if (category === 'sync' || category === 'runtime') {
+  if (category === 'sync') {
     return 'sync-outline';
   }
   return 'flash-outline';

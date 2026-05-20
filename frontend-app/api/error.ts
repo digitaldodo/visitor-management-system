@@ -117,7 +117,7 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('pinning')
     || lower.includes('trust anchor')
   ) {
-    return 'Unable to verify secure connection. Trying to restore secure session.';
+    return 'Secure connection could not be verified. Some actions may be paused while AccessFlow checks again.';
   }
 
   if (
@@ -134,9 +134,9 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('failed to fetch')
   ) {
     if (kind === 'network') {
-      return 'AccessFlow could not reach the backend. Check the network and retry.';
+      return 'Restoring connection. Recent workspace data remains available while AccessFlow retries.';
     }
-    return 'AccessFlow could not complete secure session recovery. Check the network and try again.';
+    return 'Restoring connection. AccessFlow will retry securely in the background.';
   }
 
   return normalized;

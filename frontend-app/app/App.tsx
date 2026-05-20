@@ -1,18 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { OperationalSnackbarProvider } from '../components/feedback/OperationalSnackbar';
+import { useOperationalSnackbar } from '../components/feedback/OperationalSnackbar';
 import { LocalizationProvider } from '../localization/LocalizationProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
 import { PermissionEducationProvider } from '../permissions/permissionEducation';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
-import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
-import { MobileSecurityProvider } from '../security/MobileSecurityProvider';
+import { OperationalRuntimeProvider, useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
+import { MobileSecurityProvider, useMobileSecurity } from '../security/MobileSecurityProvider';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { theme } from '../theme';
 import type { AppError } from '../types/api';
@@ -65,6 +66,48 @@ function AppBoundaryHost() {
   );
 }
 
+function RuntimeFeedbackBridge() {
+  const runtime = useOperationalRuntime();
+  const mobileSecurity = useMobileSecurity();
+  const { showSnackbar } = useOperationalSnackbar();
+  const lastModeRef = useRef(runtime.offlineOperationalMode);
+  const lastSyncingRef = useRef(runtime.isSyncingOfflineOperations);
+  const lastCertificateWarningRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastModeRef.current !== runtime.offlineOperationalMode) {
+      lastModeRef.current = runtime.offlineOperationalMode;
+      if (runtime.offlineOperationalMode === 'offline') {
+        showSnackbar({ message: 'Restoring connection...', tone: 'warning' });
+      } else if (runtime.offlineOperationalMode === 'degraded') {
+        showSnackbar({ message: 'Retrying request...', tone: 'info' });
+      } else {
+        showSnackbar({ message: 'Connection restored.', tone: 'success' });
+      }
+    }
+
+    if (!lastSyncingRef.current && runtime.isSyncingOfflineOperations) {
+      showSnackbar({ message: 'Syncing securely...', tone: 'info' });
+    }
+    lastSyncingRef.current = runtime.isSyncingOfflineOperations;
+
+    if (
+      mobileSecurity.certificatePinningWarning
+      && mobileSecurity.certificatePinningWarning !== lastCertificateWarningRef.current
+    ) {
+      lastCertificateWarningRef.current = mobileSecurity.certificatePinningWarning;
+      showSnackbar({ message: mobileSecurity.certificatePinningWarning, tone: 'danger', durationMs: 4200 });
+    }
+  }, [
+    mobileSecurity.certificatePinningWarning,
+    runtime.isSyncingOfflineOperations,
+    runtime.offlineOperationalMode,
+    showSnackbar,
+  ]);
+
+  return null;
+}
+
 export default function AccessFlowApp() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -76,6 +119,7 @@ export default function AccessFlowApp() {
                 <MobileSecurityProvider>
                   <OperationalRuntimeProvider>
                     <OperationalSnackbarProvider>
+                      <RuntimeFeedbackBridge />
                       <AppBoundaryHost />
                     </OperationalSnackbarProvider>
                   </OperationalRuntimeProvider>

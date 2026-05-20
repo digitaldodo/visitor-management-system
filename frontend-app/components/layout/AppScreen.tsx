@@ -29,7 +29,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { t } = useLocalization();
-  const { devicePosture, offlineOperationalMode, syncConnection } = useOperationalRuntime();
+  const { devicePosture, offlineOperationalMode } = useOperationalRuntime();
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -127,7 +127,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
                 ) : null}
                 <View style={styles.operationalIndicator}>
                   <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
-                    {offlineOperationalMode === 'online' && syncConnection.status === 'live' ? 'Synced' : offlineOperationalMode}
+                    {offlineOperationalMode === 'online' ? 'Ready' : 'Reconnecting'}
                   </Text>
                 </View>
               </View>

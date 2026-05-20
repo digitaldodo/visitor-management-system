@@ -260,8 +260,11 @@ async function executeRefresh() {
     await handleSessionUpdate(nextSession);
     return nextSession;
   } catch (error) {
-    await handleSessionExpiry('Session expired. Please sign in again.');
-    throw error;
+    const normalizedError = normalizeApiError(error);
+    if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
+      await handleSessionExpiry('Session expired. Please sign in again.');
+    }
+    throw normalizedError;
   }
 }
 

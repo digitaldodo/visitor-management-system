@@ -22,10 +22,11 @@ export function NotificationsScreen() {
   const markAllReadMutation = useMarkAllEmployeeNotificationsReadMutation();
 
   const backendItems = notifications.data?.items ?? [];
-  const unreadCount = (notifications.data?.unreadCount ?? 0) + localNotifications.filter((item) => !item.read).length;
+  const localWorkspaceNotifications = localNotifications.filter((item) => String(item.category || '').toUpperCase() !== 'SYSTEM');
+  const unreadCount = (notifications.data?.unreadCount ?? 0) + localWorkspaceNotifications.filter((item) => !item.read).length;
   const criticalCount = useMemo(
-    () => [...backendItems, ...localNotifications].filter((item) => String(item.priority || '').toUpperCase() === 'CRITICAL').length,
-    [backendItems, localNotifications],
+    () => [...backendItems, ...localWorkspaceNotifications].filter((item) => String(item.priority || '').toUpperCase() === 'CRITICAL').length,
+    [backendItems, localWorkspaceNotifications],
   );
 
   const refreshWorkspace = async () => {
@@ -48,21 +49,21 @@ export function NotificationsScreen() {
   return (
     <AppScreen
       title="Notification Center"
-      subtitle="Grouped operational notifications for approvals, arrivals, access revocations, workforce changes, and runtime recovery."
+      subtitle="Grouped notifications for approvals, arrivals, access changes, workforce updates, and account alerts."
       refreshing={notifications.isRefetching}
       onRefresh={() => notifications.refetch()}
     >
       <View style={styles.metricsGrid}>
         <MetricCard label="Unread" value={unreadCount} tone={unreadCount ? 'warning' : 'success'} />
         <MetricCard label="Critical" value={criticalCount} tone={criticalCount ? 'danger' : 'default'} />
-        <MetricCard label="Loaded" value={backendItems.length + localNotifications.length} tone="default" />
+        <MetricCard label="Loaded" value={backendItems.length + localWorkspaceNotifications.length} tone="default" />
       </View>
 
       <NotificationCenter
         title="Operational inbox"
-        subtitle="The backend remains authoritative for operational events while the app layers in local runtime recovery notices."
+        subtitle="Important account and workspace updates stay grouped so routine background recovery stays out of the way."
         inbox={notifications.data}
-        localNotifications={localNotifications}
+        localNotifications={localWorkspaceNotifications}
         onMarkRead={markRead}
         onMarkAllRead={async () => {
           await markAllReadMutation.mutateAsync();

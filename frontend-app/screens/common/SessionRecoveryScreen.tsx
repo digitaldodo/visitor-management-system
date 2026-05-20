@@ -43,7 +43,7 @@ export function SessionRecoveryScreen() {
 
 function recoveryCopy(reason?: string, message?: string | null) {
   const normalizedReason = String(reason || '').toLowerCase();
-  const fallbackMessage = message || 'The secure runtime could not finish bootstrapping.';
+  const fallbackMessage = message || 'AccessFlow could not safely reopen the saved workspace.';
 
   if (normalizedReason.includes('network')) {
     return {
@@ -79,12 +79,12 @@ function recoveryCopy(reason?: string, message?: string | null) {
   }
 
   return {
-    title: 'Restoring session',
-    subtitle: 'AccessFlow is checking the saved workspace before reopening it.',
+    title: 'Secure sign-in required',
+    subtitle: 'AccessFlow needs a fresh sign-in before reopening this workspace.',
     message: fallbackMessage,
-    primaryAction: 'Retry recovery',
+    primaryAction: 'Try again',
     helpTitle: 'What to expect',
-    helpBody: 'Most recovery issues clear after the service connection or session state refreshes. Signing out only clears this device.',
+    helpBody: 'This appears only when the saved session cannot be trusted safely. Signing out only clears this device.',
   };
 }
 

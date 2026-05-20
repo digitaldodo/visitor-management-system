@@ -118,14 +118,14 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <View style={styles.container}>
         <View style={styles.card}>
-          <Text style={styles.eyebrow}>AccessFlow Recovery</Text>
-          <Text style={styles.title}>The mobile runtime needs a clean restart.</Text>
+          <Text style={styles.eyebrow}>AccessFlow</Text>
+          <Text style={styles.title}>We need to reopen the workspace.</Text>
           <Text style={styles.body}>
             {this.state.message || 'An unexpected error interrupted the operational workspace.'}
           </Text>
           {this.state.incidentId ? <Text style={styles.incident}>Incident: {this.state.incidentId}</Text> : null}
           <Pressable disabled={this.state.isRecovering} onPress={() => void this.handleReset()} style={styles.button}>
-            <Text style={styles.buttonLabel}>{this.state.isRecovering ? 'Recovering…' : 'Retry app shell'}</Text>
+            <Text style={styles.buttonLabel}>{this.state.isRecovering ? 'Reopening...' : 'Reopen workspace'}</Text>
           </Pressable>
           <Pressable disabled={this.state.isRecovering} onPress={() => void this.handleSafeLogout()} style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonLabel}>Reset to sign-in</Text>

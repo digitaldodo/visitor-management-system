@@ -26,6 +26,7 @@ const MobileSecurityContext = createContext<MobileSecurityState | null>(null);
 
 let pinningInitialized = false;
 const TLS_WARNING_THROTTLE_MS = 5 * 60_000;
+const TLS_FAILURES_BEFORE_USER_NOTICE = 3;
 
 export function MobileSecurityProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
@@ -102,12 +103,16 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    if (!apiConfig.security.certificatePinningEnforced || now - previous.lastWarnedAt < TLS_WARNING_THROTTLE_MS) {
+    if (
+      !apiConfig.security.certificatePinningEnforced
+      || next.count < TLS_FAILURES_BEFORE_USER_NOTICE
+      || now - previous.lastWarnedAt < TLS_WARNING_THROTTLE_MS
+    ) {
       return;
     }
 
     certificateFailuresRef.current[host] = { ...next, lastWarnedAt: now };
-    setCertificatePinningWarning('Unable to verify secure connection. Trying to restore secure session.');
+    setCertificatePinningWarning('Secure connection could not be verified. Some actions may be paused while AccessFlow checks again.');
   }, []);
 
   useEffect(() => {
@@ -250,19 +255,16 @@ async function initializeCertificatePinning(
 
   const pinHosts = Object.keys(apiConfig.security.certificatePins);
   if (!pinHosts.length) {
-    const message = apiConfig.security.certificatePinningEnforced
-      ? 'Secure connection unavailable. Trying to restore secure session.'
-      : 'TLS pinning is prepared but no certificate pins are configured.';
     await recordDiagnosticEvent({
       level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
       scope: 'security',
       code: 'TLS_PINNING_NOT_CONFIGURED',
-      message,
+      message: 'TLS pinning is enabled but no certificate pins are configured.',
       context: {
         environment: apiConfig.environment,
       },
     });
-    return apiConfig.security.certificatePinningEnforced ? message : null;
+    return null;
   }
 
   try {
@@ -286,9 +288,7 @@ async function initializeCertificatePinning(
           environment: apiConfig.environment,
         },
       });
-      return apiConfig.security.certificatePinningEnforced
-        ? 'Secure connection unavailable. Trying to restore secure session.'
-        : null;
+      return null;
     }
 
     const configuration = Object.fromEntries(
@@ -329,9 +329,7 @@ async function initializeCertificatePinning(
         environment: apiConfig.environment,
       },
     });
-    return apiConfig.security.certificatePinningEnforced
-      ? 'Secure connection unavailable. Trying to restore secure session.'
-      : null;
+    return null;
   }
 }
 

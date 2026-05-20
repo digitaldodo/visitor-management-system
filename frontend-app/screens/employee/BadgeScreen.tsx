@@ -171,13 +171,13 @@ export function BadgeScreen() {
               <PrimaryButton label="Controlled share" onPress={requestControlledShare} tone="secondary" loading={isSharingBadge} />
             </View>
 
-            <SurfaceCard title="Credential operations" subtitle="Live validation, sync freshness, and fallback readiness for checkpoint review.">
+            <SurfaceCard title="Credential status" subtitle="Credential validity and fallback readiness for checkpoint review.">
               <DetailRow label="Organization" value={badge.data.organizationCode || badge.data.organizationName || 'Assigned'} />
               <DetailRow label="Department" value={badge.data.department || 'Assigned by admin'} muted={!badge.data.department} />
               <DetailRow label="Designation" value={badge.data.designation || 'Assigned by admin'} muted={!badge.data.designation} />
               <DetailRow label="Shift" value={formatShift(badge.data.shiftName, badge.data.shiftStartTime, badge.data.shiftEndTime)} muted={!badge.data.shiftName} />
               <DetailRow label="Credential" value={badge.data.statusLabel || (badge.data.active ? 'Active' : 'Revoked or inactive')} muted={!badge.data.active} />
-              <DetailRow label="Network state" value={runtime.offlineOperationalMode === 'online' ? 'Live backend validation' : runtime.offlineOperationalMode === 'offline' ? 'Offline cached credential' : 'Degraded sync'} muted={runtime.offlineOperationalMode !== 'online'} />
+              <DetailRow label="Validation mode" value={runtime.offlineOperationalMode === 'online' ? 'Online validation' : runtime.offlineOperationalMode === 'offline' ? 'Cached credential available' : 'Reconnecting'} muted={runtime.offlineOperationalMode !== 'online'} />
               <DetailRow label="QR health" value={badge.data.qrExpiresAt ? `Rotates every ${badge.data.qrRefreshIntervalSeconds ?? 60}s` : 'Dynamic QR pending'} muted={!badge.data.qrExpiresAt} />
             </SurfaceCard>
 
