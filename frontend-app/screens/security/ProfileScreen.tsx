@@ -14,7 +14,7 @@ export function ProfileScreen() {
   return (
     <AccountProfileScreen
       title="Profile"
-      subtitle="Security identity, checkpoint context, account settings, and diagnostics without exposing organization-controlled access fields."
+      subtitle="Security identity, checkpoint context, and account settings without exposing organization-controlled access fields."
       refreshing={overview.isRefetching || monitoring.isRefetching || attendance.isRefetching}
       onRefresh={() => Promise.all([
         overview.refetch(),

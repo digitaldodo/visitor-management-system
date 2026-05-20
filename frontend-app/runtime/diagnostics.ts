@@ -9,6 +9,7 @@ const MAX_EVENTS = 60;
 const REDACTED_PLACEHOLDER = '[redacted]';
 const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor|address|otp|pin|credential|photo|image)/i;
 const SENSITIVE_VALUE_PATTERN = /(bearer\s+[a-z0-9._-]+|eyj[a-z0-9._-]+|password=|token=|authorization=)/i;
+const DEV_CONSOLE_DIAGNOSTICS_ENABLED = __DEV__ && process.env.EXPO_PUBLIC_ACCESSFLOW_DEBUG_LOGS === 'true';
 
 export async function readDiagnosticEvents() {
   const rawValue = await AsyncStorage.getItem(DIAGNOSTIC_STORAGE_KEY);
@@ -86,7 +87,7 @@ function sanitizeContext(context?: DiagnosticContext) {
 }
 
 function writeConsoleEvent(event: DiagnosticEvent) {
-  if (!__DEV__) {
+  if (!DEV_CONSOLE_DIAGNOSTICS_ENABLED) {
     return;
   }
 
@@ -101,9 +102,7 @@ function writeConsoleEvent(event: DiagnosticEvent) {
     return;
   }
 
-  if (__DEV__) {
-    console.log(line, event.context);
-  }
+  console.log(line, event.context);
 }
 
 async function recordMetricForDiagnostic(event: DiagnosticEvent) {

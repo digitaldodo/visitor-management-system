@@ -8,6 +8,14 @@
       "distribution": "internal",
       "channel": "preview",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "preview",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "internal",
+        "EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE": "shared-guard",
+        "EXPO_PUBLIC_ACCESSFLOW_DIAGNOSTICS_UI_ENABLED": "false",
+        "EXPO_PUBLIC_ACCESSFLOW_DEBUG_LOGS": "false"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -15,6 +23,14 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_ACCESSFLOW_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_ACCESSFLOW_RELEASE_CHANNEL": "production",
+        "EXPO_PUBLIC_ACCESSFLOW_DISTRIBUTION_CHANNEL": "play-store",
+        "EXPO_PUBLIC_ACCESSFLOW_MANAGED_DEVICE_MODE": "organization-owned",
+        "EXPO_PUBLIC_ACCESSFLOW_DIAGNOSTICS_UI_ENABLED": "false",
+        "EXPO_PUBLIC_ACCESSFLOW_DEBUG_LOGS": "false"
+      },
       "android": {
         "buildType": "app-bundle"
       }

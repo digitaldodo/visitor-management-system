@@ -35,6 +35,7 @@ type RuntimeConfig = {
     otaEnabled: boolean;
     stagedRolloutCohort: string;
     internalTesting: boolean;
+    diagnosticsUiEnabled: boolean;
     updateCheckIntervalMs: number;
   };
   deviceManagement: {
@@ -262,6 +263,10 @@ export const apiConfig: RuntimeConfig = {
     ),
     stagedRolloutCohort: String(process.env.EXPO_PUBLIC_ACCESSFLOW_ROLLOUT_COHORT ?? 'stable').trim(),
     internalTesting: distributionChannel === 'internal' || environment === 'internal',
+    diagnosticsUiEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_DIAGNOSTICS_UI_ENABLED,
+      false,
+    ),
     updateCheckIntervalMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_UPDATE_CHECK_MS, 15 * 60_000),
   },
   deviceManagement: {

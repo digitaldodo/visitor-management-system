@@ -112,7 +112,7 @@ export function AccountProfileScreen({
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
   const canManageTrustedDevices = Boolean(session?.user.roles?.some((nextRole) => nextRole === 'ADMIN'));
-  const canViewDiagnostics = role === 'ADMIN' && (apiConfig.release.internalTesting || apiConfig.environment !== 'production');
+  const canViewDiagnostics = role === 'ADMIN' && apiConfig.release.diagnosticsUiEnabled;
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
