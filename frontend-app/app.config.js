@@ -28,6 +28,21 @@ module.exports = ({ config }) => {
   const versionCode = config.android?.versionCode || 1;
   const buildId = process.env.EXPO_PUBLIC_ACCESSFLOW_BUILD_ID || `${config.version}+${versionCode}`;
   const updatesEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_OTA_ENABLED ?? profileDefaults.otaEnabled) !== 'false';
+  const googleServicesFile = process.env.ACCESSFLOW_FIREBASE_ANDROID_GOOGLE_SERVICES_FILE
+    || process.env.GOOGLE_SERVICES_JSON
+    || config.android?.googleServicesFile;
+  const firebaseEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_ENABLED ?? 'true') !== 'false';
+  const firebaseCrashlyticsEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_CRASHLYTICS_ENABLED ?? firebaseEnabled) !== 'false';
+  const firebaseAnalyticsEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_ANALYTICS_ENABLED ?? firebaseEnabled) !== 'false';
+  const firebaseMessagingEnabled = String(process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_MESSAGING_ENABLED ?? firebaseEnabled) !== 'false';
+  const firebasePlugins = firebaseEnabled
+    ? [
+        '@react-native-firebase/app',
+        '@react-native-firebase/messaging',
+        '@react-native-firebase/crashlytics',
+      ]
+    : [];
+  const pluginNames = new Set((config.plugins || []).map((plugin) => Array.isArray(plugin) ? plugin[0] : plugin));
 
   return {
     ...config,
@@ -43,6 +58,10 @@ module.exports = ({ config }) => {
         'expo-channel-name': releaseChannel,
       },
     },
+    android: {
+      ...config.android,
+      googleServicesFile,
+    },
     extra: {
       ...config.extra,
       eas: {
@@ -56,6 +75,15 @@ module.exports = ({ config }) => {
       accessflowApiBaseUrl: apiBaseUrl,
       accessflowManagedDeviceMode: managedDeviceMode,
       accessflowOtaEnabled: updatesEnabled,
+      accessflowFirebaseEnabled: firebaseEnabled,
+      accessflowFirebaseCrashlyticsEnabled: firebaseCrashlyticsEnabled,
+      accessflowFirebaseAnalyticsEnabled: firebaseAnalyticsEnabled,
+      accessflowFirebaseMessagingEnabled: firebaseMessagingEnabled,
+      accessflowFirebaseAppCheckPrepared: true,
     },
+    plugins: [
+      ...(config.plugins || []),
+      ...firebasePlugins.filter((plugin) => !pluginNames.has(plugin)),
+    ],
   };
 };

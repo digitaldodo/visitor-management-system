@@ -17,6 +17,13 @@ type RuntimeConfig = {
   expoProjectId: string;
   observabilityEnabled: boolean;
   telemetryFlushIntervalMs: number;
+  firebase: {
+    enabled: boolean;
+    messagingEnabled: boolean;
+    crashlyticsEnabled: boolean;
+    analyticsEnabled: boolean;
+    appCheckPrepared: boolean;
+  };
   sync: {
     securityPollMs: number;
     employeePollMs: number;
@@ -181,6 +188,25 @@ export const apiConfig: RuntimeConfig = {
     process.env.EXPO_PUBLIC_ACCESSFLOW_TELEMETRY_FLUSH_MS,
     environment === 'production' ? 60_000 : 90_000,
   ),
+  firebase: {
+    enabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_ENABLED,
+      Boolean(Constants.expoConfig?.extra?.accessflowFirebaseEnabled ?? true),
+    ),
+    messagingEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_MESSAGING_ENABLED,
+      Boolean(Constants.expoConfig?.extra?.accessflowFirebaseMessagingEnabled ?? true),
+    ),
+    crashlyticsEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_CRASHLYTICS_ENABLED,
+      Boolean(Constants.expoConfig?.extra?.accessflowFirebaseCrashlyticsEnabled ?? true),
+    ),
+    analyticsEnabled: readBoolean(
+      process.env.EXPO_PUBLIC_ACCESSFLOW_FIREBASE_ANALYTICS_ENABLED,
+      Boolean(Constants.expoConfig?.extra?.accessflowFirebaseAnalyticsEnabled ?? true),
+    ),
+    appCheckPrepared: Boolean(Constants.expoConfig?.extra?.accessflowFirebaseAppCheckPrepared ?? true),
+  },
   sync: {
     securityPollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_SECURITY_POLL_MS, 20_000),
     employeePollMs: readPositiveNumber(process.env.EXPO_PUBLIC_ACCESSFLOW_EMPLOYEE_POLL_MS, 35_000),

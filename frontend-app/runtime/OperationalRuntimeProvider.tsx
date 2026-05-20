@@ -22,6 +22,17 @@ import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/worksp
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
+import {
+  getFirebaseMessagingToken,
+  getInitialFirebaseNotification,
+  initializeFirebaseRuntime,
+  onFirebaseForegroundMessage,
+  onFirebaseNotificationOpened,
+  onFirebaseTokenRefresh,
+  recordFirebaseError,
+  trackFirebaseEvent,
+  type FirebaseMessagePayload,
+} from './firebaseRuntime';
 import { applyDownloadedOtaUpdate, checkForOtaUpdate, readOtaUpdateState } from './otaUpdates';
 import { clearOperationalMetrics, readOperationalMetrics, recordOperationalMetric } from './telemetry';
 import { approveEmployeeVisitor, rejectEmployeeVisitor } from '../services/employeeService';
@@ -131,12 +142,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const previousAuthStatusRef = useRef(auth.status);
   const backgroundedAtRef = useRef<number | null>(null);
   const lastOtaCheckAtRef = useRef(0);
+  const lastOfflineModeRef = useRef<OfflineOperationalMode>('online');
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
   const lastLifecycleRecoveryAtRef = useRef(0);
-  const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null }>({
+  const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null; fcmToken: string | null }>({
     deviceId: null,
     expoPushToken: null,
+    fcmToken: null,
   });
 
   const [pushPermissionStatus, setPushPermissionStatus] = useState('UNKNOWN');
@@ -340,7 +353,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       const nextStatus = String(permissions.status || 'unknown').toUpperCase();
       setPushPermissionStatus(nextStatus);
 
-      if (nextStatus !== 'GRANTED' || !apiConfig.expoProjectId) {
+      const fcmToken = nextStatus === 'GRANTED' ? await getFirebaseMessagingToken() : null;
+      deviceRegistrationRef.current.fcmToken = fcmToken;
+
+      if (nextStatus !== 'GRANTED' || (!apiConfig.expoProjectId && !fcmToken)) {
         await registerNotificationDevice({
           deviceId,
           platform: Platform.OS,
@@ -348,19 +364,25 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           runtimeVersion: apiConfig.runtimeVersion,
           projectId: apiConfig.expoProjectId || null,
           permissionStatus: nextStatus,
+          fcmToken,
+          pushProvider: fcmToken ? 'firebase' : 'none',
         });
         return;
       }
 
-      const tokenResponse = await Notifications.getExpoPushTokenAsync({
-        projectId: apiConfig.expoProjectId,
-      });
-      const nextPushToken = tokenResponse.data;
+      const tokenResponse = apiConfig.expoProjectId
+        ? await Notifications.getExpoPushTokenAsync({
+            projectId: apiConfig.expoProjectId,
+          })
+        : null;
+      const nextPushToken = tokenResponse?.data ?? null;
       deviceRegistrationRef.current.expoPushToken = nextPushToken;
       setPushToken(nextPushToken);
 
       await registerNotificationDevice({
         expoPushToken: nextPushToken,
+        fcmToken,
+        pushProvider: fcmToken && nextPushToken ? 'firebase-expo' : fcmToken ? 'firebase' : 'expo',
         deviceId,
         deviceName: Constants.deviceName ?? Application.applicationName ?? 'Android device',
         platform: Platform.OS,
@@ -369,7 +391,17 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         projectId: apiConfig.expoProjectId,
         permissionStatus: nextStatus,
       });
+      await trackFirebaseEvent('push_device_registered', {
+        role: auth.session.user.activeRole,
+        has_fcm: Boolean(fcmToken),
+        has_expo: Boolean(nextPushToken),
+        permission: nextStatus,
+      });
     } catch (error) {
+      await recordFirebaseError(error, 'DEVICE_REGISTRATION_FAILED', {
+        scope: 'notification',
+        role: auth.session.user.activeRole,
+      });
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'notification',
@@ -585,6 +617,49 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     await invalidateRoleQueries();
     handleNotificationRoute(data.type);
+  }, [auth, handleNotificationRoute, invalidateRoleQueries]);
+
+  const handleFirebaseNotificationResponse = useCallback(async (message: FirebaseMessagePayload, source: 'foreground' | 'opened' | 'initial') => {
+    const data = message.data ?? {};
+    const responseKey = `${message.messageId ?? data.notificationId ?? data.type ?? 'firebase'}:${source}`;
+    if (handledResponsesRef.current.has(responseKey)) {
+      return;
+    }
+    handledResponsesRef.current.add(responseKey);
+
+    await trackFirebaseEvent(source === 'foreground' ? 'notification_received' : 'notification_opened', {
+      source,
+      type: data.type ?? null,
+      category: data.category ?? null,
+      priority: data.priority ?? null,
+    });
+
+    if (data.notificationId) {
+      await markNotificationRead(data.notificationId).catch(() => undefined);
+    }
+
+    if (auth.status !== 'authenticated') {
+      return;
+    }
+
+    if (!isNotificationAllowedForRole(auth.session.user.activeRole, data.type)) {
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'notification',
+        code: 'ROLE_SCOPED_FCM_SKIPPED',
+        message: 'An FCM notification outside the active workspace scope was ignored.',
+        context: {
+          role: auth.session.user.activeRole,
+          type: data.type ?? null,
+        },
+      });
+      return;
+    }
+
+    await invalidateRoleQueries();
+    if (source !== 'foreground') {
+      handleNotificationRoute(data.type);
+    }
   }, [auth, handleNotificationRoute, invalidateRoleQueries]);
 
   const probeRuntime = useCallback(async () => {
@@ -871,6 +946,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [auth, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
 
   useEffect(() => {
+    void initializeFirebaseRuntime();
+  }, []);
+
+  useEffect(() => {
     void (async () => {
       const [hasHardware, isEnrolled, persistedLockState] = await Promise.all([
         LocalAuthentication.hasHardwareAsync().catch(() => false),
@@ -976,6 +1055,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     setPushToken(null);
+    deviceRegistrationRef.current.expoPushToken = null;
+    deviceRegistrationRef.current.fcmToken = null;
     setRuntimeUpdateAvailable(false);
     setDegradedMessage(null);
     queryClient.clear();
@@ -1002,6 +1083,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       if (auth.status === 'authenticated' && deviceRegistrationRef.current.deviceId) {
         void registerNotificationDevice({
           expoPushToken: data,
+          fcmToken: deviceRegistrationRef.current.fcmToken,
+          pushProvider: deviceRegistrationRef.current.fcmToken ? 'firebase-expo' : 'expo',
           deviceId: deviceRegistrationRef.current.deviceId,
           deviceName: Constants.deviceName ?? Application.applicationName ?? 'Android device',
           platform: Platform.OS,
@@ -1015,6 +1098,30 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     return () => {
       tokenSubscription?.remove();
+    };
+  }, [auth.status, pushPermissionStatus]);
+
+  useEffect(() => {
+    const unsubscribe = onFirebaseTokenRefresh((token) => {
+      deviceRegistrationRef.current.fcmToken = token;
+      if (auth.status === 'authenticated' && deviceRegistrationRef.current.deviceId) {
+        void registerNotificationDevice({
+          expoPushToken: deviceRegistrationRef.current.expoPushToken,
+          fcmToken: token,
+          pushProvider: deviceRegistrationRef.current.expoPushToken ? 'firebase-expo' : 'firebase',
+          deviceId: deviceRegistrationRef.current.deviceId,
+          deviceName: Constants.deviceName ?? Application.applicationName ?? 'Android device',
+          platform: Platform.OS,
+          appVersion: apiConfig.appVersion,
+          runtimeVersion: apiConfig.runtimeVersion,
+          projectId: apiConfig.expoProjectId,
+          permissionStatus: pushPermissionStatus,
+        }).catch(() => undefined);
+      }
+    });
+
+    return () => {
+      unsubscribe?.();
     };
   }, [auth.status, pushPermissionStatus]);
 
@@ -1037,6 +1144,27 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       responseSubscription.remove();
     };
   }, [handleNotificationResponse, syncNow]);
+
+  useEffect(() => {
+    const foregroundSubscription = onFirebaseForegroundMessage((message) => {
+      void handleFirebaseNotificationResponse(message, 'foreground');
+      void syncNow();
+    });
+    const openedSubscription = onFirebaseNotificationOpened((message) => {
+      void handleFirebaseNotificationResponse(message, 'opened');
+    });
+
+    void getInitialFirebaseNotification().then((message) => {
+      if (message) {
+        void handleFirebaseNotificationResponse(message, 'initial');
+      }
+    });
+
+    return () => {
+      foregroundSubscription?.();
+      openedSubscription?.();
+    };
+  }, [handleFirebaseNotificationResponse, syncNow]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -1133,6 +1261,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       if (deviceRegistrationRef.current.deviceId) {
         void unregisterNotificationDevice({
           expoPushToken: deviceRegistrationRef.current.expoPushToken,
+          fcmToken: deviceRegistrationRef.current.fcmToken,
           deviceId: deviceRegistrationRef.current.deviceId,
         }).catch(() => undefined);
       }
@@ -1153,6 +1282,20 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     : runtimeHealth === 'degraded' || networkState.consecutiveFailures > 0
       ? 'degraded'
       : 'online';
+
+  useEffect(() => {
+    if (lastOfflineModeRef.current === offlineOperationalMode) {
+      return;
+    }
+    lastOfflineModeRef.current = offlineOperationalMode;
+    if (offlineOperationalMode !== 'online') {
+      void trackFirebaseEvent('offline_mode_activation', {
+        mode: offlineOperationalMode,
+        role: auth.status === 'authenticated' ? auth.session.user.activeRole : 'signed_out',
+        api_reachable: networkState.isApiReachable,
+      });
+    }
+  }, [auth, networkState.isApiReachable, offlineOperationalMode]);
 
   const value = useMemo<OperationalRuntimeContextValue>(
     () => ({

@@ -1,4 +1,5 @@
 import { request } from '../api/apiClient';
+import { trackFirebaseEvent } from '../runtime/firebaseRuntime';
 import type { PageResponse } from '../types/api';
 import type {
   AdminOperationalReport,
@@ -91,35 +92,43 @@ export async function getAdminWorkforceAttendance() {
 }
 
 export async function approveAdminWorkforce({ id, payload }: { id: string; payload?: WorkforceApprovalPayload }) {
-  return request<WorkforceOnboardingRecord>({
+  const response = await request<WorkforceOnboardingRecord>({
     url: `/admin/workforce-onboarding/${encodeURIComponent(id)}/approve`,
     method: 'PATCH',
     data: payload ?? {},
   });
+  await trackFirebaseEvent('workforce_approval_action', { action: 'approve', actor_role: 'ADMIN' });
+  return response;
 }
 
 export async function rejectAdminWorkforce({ id, reason }: ReasonPayload) {
-  return request<WorkforceOnboardingRecord>({
+  const response = await request<WorkforceOnboardingRecord>({
     url: `/admin/workforce-onboarding/${encodeURIComponent(id)}/reject`,
     method: 'PATCH',
     data: { reason },
   });
+  await trackFirebaseEvent('workforce_approval_action', { action: 'reject', actor_role: 'ADMIN' });
+  return response;
 }
 
 export async function approveAdminVisitor({ id, note }: VisitorDecisionPayload) {
-  return request<VisitorRecord>({
+  const response = await request<VisitorRecord>({
     url: `/admin/visitors/${encodeURIComponent(id)}/approve`,
     method: 'PATCH',
     data: { note: note ?? null },
   });
+  await trackFirebaseEvent('visitor_approval_action', { action: 'approve', actor_role: 'ADMIN' });
+  return response;
 }
 
 export async function rejectAdminVisitor({ id, note }: VisitorDecisionPayload) {
-  return request<VisitorRecord>({
+  const response = await request<VisitorRecord>({
     url: `/admin/visitors/${encodeURIComponent(id)}/reject`,
     method: 'PATCH',
     data: { note: note ?? null },
   });
+  await trackFirebaseEvent('visitor_approval_action', { action: 'reject', actor_role: 'ADMIN' });
+  return response;
 }
 
 export async function checkInAdminVisitor(id: string) {

@@ -3,6 +3,8 @@ import type { NotificationInbox } from '../types/domain';
 
 export type NotificationDevicePayload = {
   expoPushToken?: string | null;
+  fcmToken?: string | null;
+  pushProvider?: 'expo' | 'firebase' | 'firebase-expo' | 'none';
   deviceId: string;
   deviceName?: string | null;
   platform: string;
@@ -44,7 +46,7 @@ export async function registerNotificationDevice(payload: NotificationDevicePayl
   });
 }
 
-export async function unregisterNotificationDevice(payload: { expoPushToken?: string | null; deviceId?: string | null }) {
+export async function unregisterNotificationDevice(payload: { expoPushToken?: string | null; fcmToken?: string | null; deviceId?: string | null }) {
   return request<{ success: boolean }>({
     url: '/notifications/devices/unregister',
     method: 'POST',

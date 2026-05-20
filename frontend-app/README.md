@@ -5,6 +5,7 @@ Android-first Expo mobile foundation for AccessFlow. This app is intentionally t
 ## Stack
 
 - Expo + React Native + TypeScript
+- React Native Firebase for FCM, Crashlytics, and Analytics
 - React Navigation
 - TanStack Query
 - Axios with JWT injection and refresh handling
@@ -51,6 +52,12 @@ npm run update:production
 Preview and internal Android builds produce APK artifacts for direct enterprise testing. Production Android builds produce Play Store-ready AAB artifacts. OTA updates are runtime-version gated with `runtimeVersion.policy = appVersion`; bump `expo.version` for native/runtime changes so incompatible updates cannot land on stale binaries. The backend `/api/versions` handshake remains the compatibility source of truth for minimum app/runtime versions, forced update windows, rollback flags, and staged rollout metadata.
 
 See [docs/android-deployment.md](docs/android-deployment.md) for the full EAS Android deployment workflow.
+
+## Firebase Infrastructure
+
+Firebase is used only for mobile operations: FCM push transport, Crashlytics, and lightweight runtime analytics. Spring Boot remains the primary auth, authorization, workflow, notification routing, and audit system.
+
+See [docs/firebase-infrastructure.md](docs/firebase-infrastructure.md) for Android Firebase setup, EAS configuration, backend FCM credentials, and validation steps.
 
 ## Operational Readiness
 

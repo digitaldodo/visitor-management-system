@@ -325,6 +325,8 @@ public class AppProperties {
         private boolean pushEnabled = true;
         private String expoPushUrl = "https://exp.host/--/api/v2/push/send";
         private String expoAccessToken;
+        @Valid
+        private Firebase firebase = new Firebase();
 
         public boolean isPushEnabled() {
             return pushEnabled;
@@ -348,6 +350,62 @@ public class AppProperties {
 
         public void setExpoAccessToken(String expoAccessToken) {
             this.expoAccessToken = expoAccessToken;
+        }
+
+        public Firebase getFirebase() {
+            return firebase;
+        }
+
+        public void setFirebase(Firebase firebase) {
+            this.firebase = firebase;
+        }
+
+        public static class Firebase {
+            private boolean enabled;
+            private String projectId;
+            private String serviceAccountPath;
+            private String serviceAccountJson;
+            private String serviceAccountBase64;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public String getProjectId() {
+                return projectId;
+            }
+
+            public void setProjectId(String projectId) {
+                this.projectId = projectId;
+            }
+
+            public String getServiceAccountPath() {
+                return serviceAccountPath;
+            }
+
+            public void setServiceAccountPath(String serviceAccountPath) {
+                this.serviceAccountPath = serviceAccountPath;
+            }
+
+            public String getServiceAccountJson() {
+                return serviceAccountJson;
+            }
+
+            public void setServiceAccountJson(String serviceAccountJson) {
+                this.serviceAccountJson = serviceAccountJson;
+            }
+
+            public String getServiceAccountBase64() {
+                return serviceAccountBase64;
+            }
+
+            public void setServiceAccountBase64(String serviceAccountBase64) {
+                this.serviceAccountBase64 = serviceAccountBase64;
+            }
         }
     }
 

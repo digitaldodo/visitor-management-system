@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { apiConfig } from '../api/apiConfig';
+import { trackFirebaseEvent } from './firebaseRuntime';
 import type { OperationalMetric, OperationalMetricName } from '../types/runtime';
 
 const METRIC_STORAGE_KEY = 'accessflow.mobile.operational-metrics';
@@ -33,6 +34,7 @@ export async function recordOperationalMetric(input: MetricInput) {
     // Metrics are best-effort and must never interrupt access operations.
   }
 
+  void mirrorMetricToFirebase(metric);
   return metric;
 }
 
@@ -72,4 +74,46 @@ function sanitizeTags(tags?: MetricInput['tags']) {
     .map(([key, value]) => [key, typeof value === 'string' && value.length > 80 ? `${value.slice(0, 77)}...` : value]);
 
   return Object.fromEntries(entries) as OperationalMetric['tags'];
+}
+
+async function mirrorMetricToFirebase(metric: OperationalMetric) {
+  const eventName = analyticsEventNameForMetric(metric.name);
+  if (!eventName) {
+    return;
+  }
+
+  await trackFirebaseEvent(eventName, {
+    value: metric.value,
+    ...(metric.tags ?? {}),
+  });
+}
+
+function analyticsEventNameForMetric(name: OperationalMetricName) {
+  switch (name) {
+    case 'scanner_success':
+      return 'qr_scan_success';
+    case 'scanner_failure':
+    case 'qr_validation_issue':
+      return 'qr_scan_failure';
+    case 'denied_access':
+      return 'visitor_denied';
+    case 'visitor_verification':
+      return 'visitor_approval_action';
+    case 'workforce_presence':
+      return 'workforce_approval_action';
+    case 'offline_operation_queued':
+      return 'offline_operation_queued';
+    case 'offline_operation_synced':
+      return 'offline_operation_synced';
+    case 'offline_operation_failed':
+      return 'offline_sync_failure';
+    case 'notification_failure':
+      return 'notification_failure';
+    case 'runtime_recovery':
+      return 'session_recovery';
+    case 'session_invalidated':
+      return 'session_invalidated';
+    default:
+      return null;
+  }
 }

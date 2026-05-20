@@ -21,6 +21,7 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.6</jjwt.version>
         <cloudinary.version>2.3.2</cloudinary.version>
+        <firebase-admin.version>9.8.0</firebase-admin.version>
         <zxing.version>3.5.3</zxing.version>
     </properties>
 
@@ -55,6 +56,12 @@
             <groupId>com.cloudinary</groupId>
             <artifactId>cloudinary-http5</artifactId>
             <version>${cloudinary.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>${firebase-admin.version}</version>
         </dependency>
 
         <dependency>

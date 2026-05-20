@@ -41,6 +41,15 @@ app:
     expiry-sweep-delay-ms: 60000
   notifications:
     email-retry-delay-ms: 120000
+    push-enabled: ${PUSH_NOTIFICATIONS_ENABLED:true}
+    expo-push-url: ${EXPO_PUSH_URL:https://exp.host/--/api/v2/push/send}
+    expo-access-token: ${EXPO_ACCESS_TOKEN:}
+    firebase:
+      enabled: ${FIREBASE_PUSH_ENABLED:false}
+      project-id: ${FIREBASE_PROJECT_ID:}
+      service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:}
+      service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
+      service-account-base64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:}
   mobile:
     minimum-app-version: ${MOBILE_MINIMUM_APP_VERSION:}
     minimum-runtime-version: ${MOBILE_MINIMUM_RUNTIME_VERSION:}

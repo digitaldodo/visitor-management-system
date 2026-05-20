@@ -10,6 +10,14 @@ npm install
 npm run eas:whoami
 ```
 
+Create or supply the Firebase Android app config before any Firebase-enabled native build:
+
+```bash
+ACCESSFLOW_FIREBASE_ANDROID_GOOGLE_SERVICES_FILE=./google-services.json
+```
+
+The Firebase Android package must match `com.accessflow.mobile`. React Native Firebase requires a dev-client/EAS/native build; Expo Go is useful for JS iteration only and will not load the native Firebase SDKs.
+
 If `npm run eas:whoami` reports that no account is authenticated, run one of these before building:
 
 ```bash
@@ -74,6 +82,8 @@ npm run update:production
 ```
 
 Runtime compatibility is guarded by `runtimeVersion.policy = appVersion`. When native dependencies, permissions, Expo SDK, plugins, or any native config changes, bump `expo.version` and build a new APK/AAB instead of relying on OTA.
+
+Firebase module or `google-services.json` changes are native/runtime changes and require a new APK/AAB.
 
 ## Versioning Rules
 

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { logFirebaseBreadcrumb, recordFirebaseError, trackFirebaseEvent } from './firebaseRuntime';
 import { recordOperationalMetric } from './telemetry';
 import type { DiagnosticContext, DiagnosticEvent, DiagnosticLevel, DiagnosticScope } from '../types/runtime';
 
@@ -47,6 +48,7 @@ export async function recordDiagnosticEvent(input: {
   }
 
   writeConsoleEvent(event);
+  void mirrorDiagnosticToFirebase(event);
   void recordMetricForDiagnostic(event);
   return event;
 }
@@ -118,5 +120,24 @@ async function recordMetricForDiagnostic(event: DiagnosticEvent) {
       if (event.scope === 'scanner' && event.level !== 'info') {
         await recordOperationalMetric({ name: 'scanner_failure', tags: { code: event.code } });
       }
+  }
+}
+
+async function mirrorDiagnosticToFirebase(event: DiagnosticEvent) {
+  const firebaseContext = {
+    scope: event.scope,
+    code: event.code,
+    level: event.level,
+  };
+
+  if (event.level === 'error') {
+    await recordFirebaseError(new Error(event.message), event.code, firebaseContext);
+    await trackFirebaseEvent('runtime_failure', firebaseContext);
+    return;
+  }
+
+  await logFirebaseBreadcrumb(`${event.scope}:${event.code}`, firebaseContext);
+  if (event.level === 'warn' && ['notification', 'sync', 'scanner', 'auth', 'runtime'].includes(event.scope)) {
+    await trackFirebaseEvent('operational_warning', firebaseContext);
   }
 }

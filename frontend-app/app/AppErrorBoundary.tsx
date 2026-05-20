@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import { recordFirebaseError } from '../runtime/firebaseRuntime';
 import { theme } from '../theme';
 import { sanitizeUserFacingErrorMessage } from '../api/error';
 
@@ -36,6 +37,10 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, info: ErrorInfo) {
+    void recordFirebaseError(error, 'UNHANDLED_RUNTIME_ERROR', {
+      scope: 'runtime',
+      incidentId: this.state.incidentId,
+    });
     void recordDiagnosticEvent({
       level: 'error',
       scope: 'runtime',

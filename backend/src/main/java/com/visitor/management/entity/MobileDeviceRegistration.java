@@ -25,6 +25,11 @@ public class MobileDeviceRegistration {
     @Indexed(unique = true, sparse = true)
     private String expoPushToken;
 
+    @Indexed(unique = true, sparse = true)
+    private String fcmToken;
+
+    private String pushProvider;
+
     @Indexed
     private String deviceId;
 
@@ -106,6 +111,22 @@ public class MobileDeviceRegistration {
 
     public void setExpoPushToken(String expoPushToken) {
         this.expoPushToken = expoPushToken;
+    }
+
+    public String getFcmToken() {
+        return fcmToken;
+    }
+
+    public void setFcmToken(String fcmToken) {
+        this.fcmToken = fcmToken;
+    }
+
+    public String getPushProvider() {
+        return pushProvider;
+    }
+
+    public void setPushProvider(String pushProvider) {
+        this.pushProvider = pushProvider;
     }
 
     public String getDeviceId() {

@@ -1,8 +1,10 @@
 # AccessFlow
 
-AccessFlow is a role-based visitor and workforce access management system for controlled facilities. It combines a static multi-entry frontend with a Spring Boot API, MongoDB persistence, JWT authentication, QR-driven check-in flows, Cloudinary-backed photo storage, and Render deployment.
+AccessFlow is a role-based visitor and workforce access management system for controlled facilities. It combines a static multi-entry frontend with a Spring Boot API, MongoDB persistence, JWT authentication, QR-driven check-in flows, Cloudinary-backed photo storage, Firebase-backed mobile observability/push infrastructure, and Render deployment.
 
 Detailed architecture, lifecycle flows, RBAC, API coverage, database design, and deployment internals live in [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md).
+
+Firebase is mobile operational infrastructure only: Android FCM, Crashlytics, and lightweight analytics. Spring Boot remains the source of truth for auth, business logic, notification targeting, and security decisions. See [frontend-app/docs/firebase-infrastructure.md](frontend-app/docs/firebase-infrastructure.md).
 
 ## Core Features
 

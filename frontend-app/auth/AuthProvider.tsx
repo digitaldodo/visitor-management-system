@@ -16,6 +16,7 @@ import {
 } from './deviceTrust';
 import { resetNavigationToAuth, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import { clearFirebaseUserContext, recordFirebaseError, setFirebaseUserContext, trackFirebaseEvent } from '../runtime/firebaseRuntime';
 import { login as loginRequest, logout as logoutRequest, restoreSession } from '../services/authService';
 import { registerTrustedDevice } from '../services/operationalService';
 import { getApiVersions } from '../services/systemService';
@@ -103,6 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkedAt: new Date().toISOString(),
       });
       await clearSessionLockState();
+      await setFirebaseUserContext({
+        userId: session.user.id,
+        role: session.user.activeRole,
+        audience: session.audience,
+      });
 
       setStateSafely({
         status: 'authenticated',
@@ -123,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearRuntimeSnapshot(),
         clearSessionLockState(),
       ]);
+      await clearFirebaseUserContext();
       setStateSafely({
         status: 'signed-out',
         session: null,
@@ -393,9 +400,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionRef.current = session;
         const trustResult = await establishTrustedDevice(session, Boolean(payload.rememberMe));
         await persistAuthenticatedSession(session, null, { rememberSession: trustResult.persistSession });
+        await trackFirebaseEvent('login_success', {
+          audience: session.audience,
+          role: session.user.activeRole,
+          remember_session: trustResult.persistSession,
+        });
         resetNavigationToRoleHome(session.user.activeRole);
       } catch (error) {
         const normalizedError = normalizeApiError(error);
+        await trackFirebaseEvent('login_failure', {
+          audience: payload.audience,
+          kind: normalizedError.kind,
+          status: normalizedError.status ?? null,
+        });
+        await recordFirebaseError(normalizedError, 'LOGIN_FAILED', {
+          scope: 'auth',
+          audience: payload.audience,
+          status: normalizedError.status ?? null,
+        });
         await recordDiagnosticEvent({
           level: normalizedError.kind === 'network' ? 'warn' : 'error',
           scope: 'auth',

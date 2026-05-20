@@ -1,4 +1,5 @@
 import { request } from '../api/apiClient';
+import { trackFirebaseEvent } from '../runtime/firebaseRuntime';
 import type { PageResponse } from '../types/api';
 import type {
   EmployeeAttendanceRecord,
@@ -125,19 +126,23 @@ export async function uploadEmployeeProfilePhoto(asset: UploadAsset) {
 }
 
 export async function approveEmployeeVisitor(visitorId: string, payload?: VisitorDecisionPayload) {
-  return request<VisitorRecord>({
+  const response = await request<VisitorRecord>({
     url: `/employee/visitors/${encodeURIComponent(visitorId)}/approve`,
     method: 'PATCH',
     data: payload ?? {},
   });
+  await trackFirebaseEvent('visitor_approval_action', { action: 'approve', actor_role: 'EMPLOYEE' });
+  return response;
 }
 
 export async function rejectEmployeeVisitor(visitorId: string, payload?: VisitorDecisionPayload) {
-  return request<VisitorRecord>({
+  const response = await request<VisitorRecord>({
     url: `/employee/visitors/${encodeURIComponent(visitorId)}/reject`,
     method: 'PATCH',
     data: payload ?? {},
   });
+  await trackFirebaseEvent('visitor_approval_action', { action: 'reject', actor_role: 'EMPLOYEE' });
+  return response;
 }
 
 export async function rescheduleEmployeeVisitor(visitorId: string, payload: VisitorReschedulePayload) {

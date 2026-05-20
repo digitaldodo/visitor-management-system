@@ -44,6 +44,7 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final NotificationEmailDispatcher notificationEmailDispatcher;
     private final MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository;
+    private final FirebaseCloudMessagingDispatcher firebaseCloudMessagingDispatcher;
     private final AppProperties appProperties;
     private final RestClient restClient;
 
@@ -52,12 +53,14 @@ public class NotificationService {
             UserRepository userRepository,
             NotificationEmailDispatcher notificationEmailDispatcher,
             MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository,
+            FirebaseCloudMessagingDispatcher firebaseCloudMessagingDispatcher,
             AppProperties appProperties
     ) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.notificationEmailDispatcher = notificationEmailDispatcher;
         this.mobileDeviceRegistrationRepository = mobileDeviceRegistrationRepository;
+        this.firebaseCloudMessagingDispatcher = firebaseCloudMessagingDispatcher;
         this.appProperties = appProperties;
         this.restClient = RestClient.create();
     }
@@ -185,7 +188,8 @@ public class NotificationService {
         String deviceId = requiredDeviceId(request.deviceId());
         String permissionStatus = normalizePermissionStatus(request.permissionStatus());
         String expoPushToken = trimToNull(request.expoPushToken());
-        MobileDeviceRegistration device = mobileDeviceRegistrationRepository.findByExpoPushToken(expoPushToken == null ? "__missing__" : expoPushToken)
+        String fcmToken = trimToNull(request.fcmToken());
+        MobileDeviceRegistration device = findExistingDevice(expoPushToken, fcmToken)
                 .orElseGet(MobileDeviceRegistration::new);
 
         if (device.getId() == null) {
@@ -211,6 +215,8 @@ public class NotificationService {
         device.setProjectId(trimToNull(request.projectId()));
         device.setPermissionStatus(permissionStatus);
         device.setExpoPushToken(expoPushToken);
+        device.setFcmToken(fcmToken);
+        device.setPushProvider(normalizePushProvider(request.pushProvider(), expoPushToken, fcmToken));
         device.setLastSeenAt(now);
         device.setLastActiveAt(now);
         device.setActive(true);
@@ -222,9 +228,10 @@ public class NotificationService {
         Instant now = Instant.now();
         String deviceId = trimToNull(request.deviceId());
         String expoPushToken = trimToNull(request.expoPushToken());
+        String fcmToken = trimToNull(request.fcmToken());
         List<MobileDeviceRegistration> devices = mobileDeviceRegistrationRepository.findAllByUserId(userId);
         devices.stream()
-                .filter(device -> matchesDevice(device, deviceId, expoPushToken))
+                .filter(device -> matchesDevice(device, deviceId, expoPushToken, fcmToken))
                 .forEach(device -> deactivateDevice(device, "Unregistered from mobile session.", now));
         if (!devices.isEmpty()) {
             mobileDeviceRegistrationRepository.saveAll(devices);
@@ -338,6 +345,25 @@ public class NotificationService {
         }
 
         for (MobileDeviceRegistration device : devices) {
+            Map<String, String> notificationData = buildNotificationData(notification);
+            if (trimToNull(device.getFcmToken()) != null) {
+                FirebaseCloudMessagingDispatcher.DeliveryResult fcmResult = firebaseCloudMessagingDispatcher.deliver(device, notification, notificationData);
+                if (fcmResult.delivered()) {
+                    device.setLastDeliveredAt(Instant.now());
+                    device.setLastDeliveryError(null);
+                    continue;
+                }
+                if (fcmResult.invalidToken()) {
+                    deactivateDevice(device, "FCM token was rejected.", Instant.now());
+                    continue;
+                }
+                if (trimToNull(device.getExpoPushToken()) == null) {
+                    device.setLastDeliveryError(trimToNull(fcmResult.errorMessage()));
+                    continue;
+                }
+                log.debug("FCM delivery skipped for notification {} and device {}; falling back to Expo push.", notification.getId(), device.getId());
+            }
+
             if (trimToNull(device.getExpoPushToken()) == null) {
                 continue;
             }
@@ -351,7 +377,7 @@ public class NotificationService {
                                 headers.setBearerAuth(accessToken);
                             }
                         })
-                        .body(buildExpoPayload(device, notification))
+                        .body(buildExpoPayload(device, notification, notificationData))
                         .retrieve()
                         .toBodilessEntity();
                 device.setLastDeliveredAt(Instant.now());
@@ -368,11 +394,11 @@ public class NotificationService {
         mobileDeviceRegistrationRepository.saveAll(devices);
     }
 
-    private Map<String, Object> buildExpoPayload(MobileDeviceRegistration device, Notification notification) {
+    private Map<String, Object> buildExpoPayload(MobileDeviceRegistration device, Notification notification, Map<String, String> data) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("to", device.getExpoPushToken());
-        payload.put("title", notification.getTitle());
-        payload.put("body", notification.getMessage());
+        payload.put("title", sanitizeNotificationText(notification.getTitle(), 80));
+        payload.put("body", sanitizeNotificationText(notification.getMessage(), 180));
         payload.put("sound", "default");
         payload.put("priority", notification.getPriority() == NotificationPriority.CRITICAL ? "high" : "default");
         payload.put("channelId", notification.getPriority() == NotificationPriority.CRITICAL ? "accessflow-critical" : "accessflow-operations");
@@ -380,15 +406,19 @@ public class NotificationService {
         if (categoryId != null) {
             payload.put("categoryId", categoryId);
         }
-        payload.put("data", Map.of(
-                "notificationId", notification.getId(),
+        payload.put("data", data);
+        return payload;
+    }
+
+    private Map<String, String> buildNotificationData(Notification notification) {
+        return Map.of(
+                "notificationId", safeData(notification.getId()),
                 "type", notification.getType().name(),
                 "category", notification.getCategory().name(),
                 "priority", notification.getPriority().name(),
-                "visitorId", notification.getVisitorId() == null ? "" : notification.getVisitorId(),
-                "actionUrl", notification.getActionUrl() == null ? "" : notification.getActionUrl()
-        ));
-        return payload;
+                "visitorId", safeData(notification.getVisitorId()),
+                "actionUrl", safeData(notification.getActionUrl())
+        );
     }
 
     private String categoryIdFor(NotificationType type) {
@@ -405,9 +435,40 @@ public class NotificationService {
         return trimToNull(recipient.getOrganizationTimezone());
     }
 
-    private boolean matchesDevice(MobileDeviceRegistration device, String deviceId, String expoPushToken) {
+    private Optional<MobileDeviceRegistration> findExistingDevice(String expoPushToken, String fcmToken) {
+        if (fcmToken != null) {
+            Optional<MobileDeviceRegistration> device = mobileDeviceRegistrationRepository.findByFcmToken(fcmToken);
+            if (device.isPresent()) {
+                return device;
+            }
+        }
+        if (expoPushToken != null) {
+            return mobileDeviceRegistrationRepository.findByExpoPushToken(expoPushToken);
+        }
+        return Optional.empty();
+    }
+
+    private String normalizePushProvider(String pushProvider, String expoPushToken, String fcmToken) {
+        String normalized = trimToNull(pushProvider);
+        if (normalized != null) {
+            return normalized.toLowerCase(Locale.ROOT);
+        }
+        if (fcmToken != null && expoPushToken != null) {
+            return "firebase-expo";
+        }
+        if (fcmToken != null) {
+            return "firebase";
+        }
+        if (expoPushToken != null) {
+            return "expo";
+        }
+        return "none";
+    }
+
+    private boolean matchesDevice(MobileDeviceRegistration device, String deviceId, String expoPushToken, String fcmToken) {
         return (deviceId != null && deviceId.equals(device.getDeviceId()))
-                || (expoPushToken != null && expoPushToken.equals(device.getExpoPushToken()));
+                || (expoPushToken != null && expoPushToken.equals(device.getExpoPushToken()))
+                || (fcmToken != null && fcmToken.equals(device.getFcmToken()));
     }
 
     private void deactivateDevice(MobileDeviceRegistration device, String reason, Instant at) {
@@ -439,6 +500,26 @@ public class NotificationService {
         }
         String lower = normalized.toLowerCase(Locale.ROOT);
         return lower.contains("device not registered") || lower.contains("push token") || lower.contains("invalid");
+    }
+
+    private String safeData(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return "";
+        }
+        return normalized.replaceAll("[\\r\\n\\t]+", " ").trim();
+    }
+
+    private String sanitizeNotificationText(String value, int maxLength) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return "AccessFlow update";
+        }
+        String sanitized = normalized
+                .replaceAll("[\\r\\n\\t]+", " ")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+        return sanitized.substring(0, Math.min(maxLength, sanitized.length()));
     }
 
     private String trimToNull(String value) {

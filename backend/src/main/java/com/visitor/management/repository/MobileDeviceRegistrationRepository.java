@@ -9,6 +9,8 @@ import java.util.Optional;
 public interface MobileDeviceRegistrationRepository extends MongoRepository<MobileDeviceRegistration, String> {
     Optional<MobileDeviceRegistration> findByExpoPushToken(String expoPushToken);
 
+    Optional<MobileDeviceRegistration> findByFcmToken(String fcmToken);
+
     List<MobileDeviceRegistration> findAllByUserId(String userId);
 
     List<MobileDeviceRegistration> findAllByUserIdAndActiveTrue(String userId);
