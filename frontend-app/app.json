@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.accessflow.mobile",
-      "versionCode": 25,
+      "versionCode": 26,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.POST_NOTIFICATIONS",
