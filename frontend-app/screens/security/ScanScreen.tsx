@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsFocused } from '@react-navigation/native';
@@ -80,6 +80,9 @@ export function ScanScreen() {
   const lastScanAtRef = useRef(0);
   const lastScannedPayloadRef = useRef('');
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scannerModeRef = useRef<ScannerMode>('idle');
+  const reasonActionRef = useRef<ReasonAction | null>(null);
+  const autoRestoreScannerRef = useRef(false);
   const guidePulse = useRef(new Animated.Value(0)).current;
   const [permission, requestPermission] = useCameraPermissions();
   const [manualPayload, setManualPayload] = useState('');
@@ -136,6 +139,18 @@ export function ScanScreen() {
   const operationalDevice = runtime.devicePosture.operationalModeEnabled;
   const autoRestoreDelayMs = operationalDevice && runtime.devicePosture.autoRestoreScanner ? 950 : 1700;
 
+  useEffect(() => {
+    scannerModeRef.current = scannerMode;
+  }, [scannerMode]);
+
+  useEffect(() => {
+    reasonActionRef.current = reasonAction;
+  }, [reasonAction]);
+
+  useEffect(() => {
+    autoRestoreScannerRef.current = runtime.devicePosture.autoRestoreScanner;
+  }, [runtime.devicePosture.autoRestoreScanner]);
+
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
       return null;
@@ -191,6 +206,12 @@ export function ScanScreen() {
   }, []);
 
   useEffect(() => {
+    if (!cameraActive) {
+      guidePulse.stopAnimation();
+      guidePulse.setValue(0);
+      return undefined;
+    }
+
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(guidePulse, {
@@ -212,7 +233,7 @@ export function ScanScreen() {
     return () => {
       animation.stop();
     };
-  }, [guidePulse]);
+  }, [cameraActive, guidePulse]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -228,7 +249,7 @@ export function ScanScreen() {
       if (!active) {
         setTorchEnabled(false);
         setScannerMode((current) => (current === 'processing' ? 'feedback' : current));
-      } else if (runtime.devicePosture.autoRestoreScanner && scannerMode === 'feedback' && !reasonAction) {
+      } else if (autoRestoreScannerRef.current && scannerModeRef.current === 'feedback' && !reasonActionRef.current) {
         scheduleScannerReset(450);
       }
     });
@@ -236,7 +257,7 @@ export function ScanScreen() {
     return () => {
       subscription.remove();
     };
-  }, [reasonAction, runtime.devicePosture.autoRestoreScanner, scannerMode]);
+  }, []);
 
   const refreshWorkspace = async () => {
     await Promise.all([

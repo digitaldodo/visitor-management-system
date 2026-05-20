@@ -22,7 +22,7 @@ EXPO_PUBLIC_ACCESSFLOW_FIREBASE_ANALYTICS_ENABLED=true
 ACCESSFLOW_FIREBASE_ANDROID_GOOGLE_SERVICES_FILE=./google-services.json
 ```
 
-`google-services.json` must come from the Firebase Android app whose package is `com.accessflow.mobile`. Keep it out of source control unless the release/security policy explicitly permits committing Firebase client config.
+`google-services.json` must come from the Firebase Android app whose package is `com.accessflow.mobile`. It is Firebase client config, not the Admin SDK service-account JSON; keep it in the app package when using `android.googleServicesFile` for EAS builds.
 
 React Native Firebase requires a dev-client/EAS/native build. Expo Go can still start the JavaScript bundle because the Firebase runtime facade checks native module availability before requiring native modules.
 

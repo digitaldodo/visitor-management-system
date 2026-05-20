@@ -2,6 +2,7 @@ import { request } from '../api/apiClient';
 import type { NotificationInbox } from '../types/domain';
 
 export type NotificationDevicePayload = {
+  pushToken?: string | null;
   expoPushToken?: string | null;
   fcmToken?: string | null;
   pushProvider?: 'expo' | 'firebase' | 'firebase-expo' | 'none';
@@ -39,10 +40,16 @@ export async function markAllNotificationsRead() {
 }
 
 export async function registerNotificationDevice(payload: NotificationDevicePayload) {
+  const expoPushToken = payload.expoPushToken ?? payload.pushToken ?? null;
+
   return request<{ success: boolean }>({
     url: '/notifications/devices',
     method: 'POST',
-    data: payload,
+    data: {
+      ...payload,
+      pushToken: expoPushToken,
+      expoPushToken,
+    },
   });
 }
 

@@ -86,6 +86,10 @@ function sanitizeContext(context?: DiagnosticContext) {
 }
 
 function writeConsoleEvent(event: DiagnosticEvent) {
+  if (!__DEV__) {
+    return;
+  }
+
   const line = `[accessflow-mobile] ${event.scope}:${event.code} ${event.message}`;
   if (event.level === 'error') {
     console.error(line, event.context);

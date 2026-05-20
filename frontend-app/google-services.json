@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "9722614082",
+    "project_id": "accessflow-3bfe3",
+    "storage_bucket": "accessflow-3bfe3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:9722614082:android:ff2c6a08e6052ef1b6f8db",
+        "android_client_info": {
+          "package_name": "com.accessflow.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCx11E4RH3O2u4k_RuBZZ0dyxySjNGIUuM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

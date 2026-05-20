@@ -1,4 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +11,7 @@ import {
   Text,
   UIManager,
   View,
+  type ListRenderItem,
 } from 'react-native';
 
 import { theme } from '../../theme';
@@ -73,10 +75,36 @@ export function AutocompleteDropdown<T>({
   const hasSelection = Boolean(selectedTitle);
   const queryReady = value.trim().length >= minQueryLength;
   const showResults = !hasSelection && queryReady;
+  const visibleResults = useMemo(() => results.slice(0, 8), [results]);
 
-  const animate = () => {
+  const animate = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  };
+  }, []);
+
+  const renderResult = useCallback<ListRenderItem<T>>(({ item }) => {
+    const meta = getMeta?.(item);
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          animate();
+          Keyboard.dismiss();
+          onSelect(item);
+        }}
+        android_ripple={{ color: theme.colors.primarySoft }}
+        style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
+      >
+        <View style={styles.resultIcon}>
+          <Ionicons name={resultIconName} size={17} color={theme.colors.info} />
+        </View>
+        <View style={styles.resultCopy}>
+          <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.resultTitle}>{getTitle(item)}</Text>
+          {meta ? <Text maxFontSizeMultiplier={1.08} numberOfLines={2} style={styles.metaText}>{meta}</Text> : null}
+        </View>
+      </Pressable>
+    );
+  }, [animate, getMeta, getTitle, onSelect, resultIconName]);
 
   return (
     <View style={styles.container}>
@@ -143,35 +171,18 @@ export function AutocompleteDropdown<T>({
             </View>
           ) : results.length ? (
             <FlatList
-              data={results.slice(0, 8)}
+              data={visibleResults}
               keyExtractor={getKey}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
+              initialNumToRender={6}
+              maxToRenderPerBatch={6}
+              removeClippedSubviews={Platform.OS === 'android'}
+              updateCellsBatchingPeriod={40}
+              windowSize={3}
+              getItemLayout={(_, index) => ({ length: RESULT_ROW_HEIGHT, offset: RESULT_ROW_HEIGHT * index, index })}
               style={styles.resultsScroll}
-              renderItem={({ item }) => {
-                const meta = getMeta?.(item);
-
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      animate();
-                      Keyboard.dismiss();
-                      onSelect(item);
-                    }}
-                    android_ripple={{ color: theme.colors.primarySoft }}
-                    style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
-                  >
-                    <View style={styles.resultIcon}>
-                      <Ionicons name={resultIconName} size={17} color={theme.colors.info} />
-                    </View>
-                    <View style={styles.resultCopy}>
-                      <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.resultTitle}>{getTitle(item)}</Text>
-                      {meta ? <Text maxFontSizeMultiplier={1.08} numberOfLines={2} style={styles.metaText}>{meta}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              }}
+              renderItem={renderResult}
             />
           ) : (
             <StateRow icon="file-tray-outline" title={emptyText} body={emptyBody} />
@@ -181,6 +192,8 @@ export function AutocompleteDropdown<T>({
     </View>
   );
 }
+
+const RESULT_ROW_HEIGHT = 62;
 
 function StateRow({
   icon,

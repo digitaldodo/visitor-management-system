@@ -29,6 +29,10 @@ let handleSessionUpdate: SessionUpdater = async () => undefined;
 let handleSessionExpiry: SessionExpiryHandler = async () => undefined;
 let refreshPromise: Promise<AuthSession> | null = null;
 
+const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
+const RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
+const MAX_NETWORK_RETRIES = 2;
+
 function createClient(baseURL: string) {
   return axios.create({
     baseURL,
@@ -129,7 +133,7 @@ privateApi.interceptors.response.use(
 
     if (config && shouldRetryRequest(error, config)) {
       config._networkRetryCount = (config._networkRetryCount ?? 0) + 1;
-      await delay(350 * config._networkRetryCount);
+      await delay(getRetryDelayMs(error, config._networkRetryCount));
       return privateApi(config);
     }
 
@@ -192,7 +196,13 @@ function shouldRetryRequest(error: AxiosError, config?: RetryableRequestConfig) 
   }
 
   const retryCount = config._networkRetryCount ?? 0;
-  if (retryCount >= 2) {
+  if (retryCount >= MAX_NETWORK_RETRIES) {
+    return false;
+  }
+
+  const method = String(config.method || 'get').toLowerCase();
+  const canReplay = IDEMPOTENT_METHODS.has(method);
+  if (!canReplay) {
     return false;
   }
 
@@ -200,8 +210,19 @@ function shouldRetryRequest(error: AxiosError, config?: RetryableRequestConfig) 
     return true;
   }
 
-  return ['get', 'head'].includes(String(config.method || 'get').toLowerCase())
-    && [408, 429, 502, 503, 504].includes(error.response.status);
+  return RETRYABLE_STATUSES.has(error.response.status);
+}
+
+function getRetryDelayMs(error: AxiosError, retryCount: number) {
+  const retryAfterHeader = error.response?.headers?.['retry-after'];
+  const retryAfterSeconds = Number(Array.isArray(retryAfterHeader) ? retryAfterHeader[0] : retryAfterHeader);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return Math.min(5_000, retryAfterSeconds * 1_000);
+  }
+
+  const exponentialDelay = 350 * 2 ** Math.max(0, retryCount - 1);
+  const jitter = Math.floor(Math.random() * 180);
+  return Math.min(3_000, exponentialDelay + jitter);
 }
 
 async function refreshSession() {

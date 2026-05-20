@@ -188,6 +188,9 @@ public class NotificationService {
         String deviceId = requiredDeviceId(request.deviceId());
         String permissionStatus = normalizePermissionStatus(request.permissionStatus());
         String expoPushToken = trimToNull(request.expoPushToken());
+        if (expoPushToken == null) {
+            expoPushToken = trimToNull(request.pushToken());
+        }
         String fcmToken = trimToNull(request.fcmToken());
         MobileDeviceRegistration device = findExistingDevice(expoPushToken, fcmToken)
                 .orElseGet(MobileDeviceRegistration::new);

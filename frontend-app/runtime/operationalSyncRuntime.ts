@@ -31,6 +31,7 @@ class OperationalSyncRuntime {
   private eventListeners = new Set<EventListener>();
   private stateListeners = new Set<StateListener>();
   private seenEventIds: string[] = [];
+  private seenEventIdSet = new Set<string>();
   private active = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private inflight: Promise<void> | null = null;
@@ -71,6 +72,7 @@ class OperationalSyncRuntime {
     }
     this.inflight = null;
     this.seenEventIds = [];
+    this.seenEventIdSet.clear();
     this.setState(initialState);
   }
 
@@ -185,22 +187,39 @@ class OperationalSyncRuntime {
 
   private dedupe(events: OperationalEvent[]) {
     const nextEvents = events.filter((event) => {
-      if (!event.id || this.seenEventIds.includes(event.id)) {
+      if (!event.id || this.seenEventIdSet.has(event.id)) {
         return false;
       }
       this.seenEventIds.push(event.id);
+      this.seenEventIdSet.add(event.id);
       return true;
     });
     if (this.seenEventIds.length > MAX_SEEN_IDS) {
+      const retainedIds = this.seenEventIds.slice(-MAX_SEEN_IDS);
       this.seenEventIds = this.seenEventIds.slice(-MAX_SEEN_IDS);
+      this.seenEventIdSet = new Set(retainedIds);
     }
     return nextEvents.sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
   }
 
   private setState(patch: Partial<OperationalSyncConnectionState>) {
-    this.state = { ...this.state, ...patch };
+    const nextState = { ...this.state, ...patch };
+    if (isSameConnectionState(this.state, nextState)) {
+      return;
+    }
+    this.state = nextState;
     this.stateListeners.forEach((listener) => listener(this.state));
   }
 }
 
 export const operationalSyncRuntime = new OperationalSyncRuntime();
+
+function isSameConnectionState(left: OperationalSyncConnectionState, right: OperationalSyncConnectionState) {
+  return left.status === right.status
+    && left.cursor === right.cursor
+    && left.lastEventAt === right.lastEventAt
+    && left.lastConnectedAt === right.lastConnectedAt
+    && left.lastError === right.lastError
+    && left.reconnectAttempt === right.reconnectAttempt
+    && left.pendingEventCount === right.pendingEventCount;
+}
