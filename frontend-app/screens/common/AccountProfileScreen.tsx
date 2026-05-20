@@ -31,6 +31,7 @@ import {
   useUploadAccountProfilePhotoMutation,
 } from '../../hooks/useAccountProfile';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import type { UploadAsset } from '../../services/accountService';
 import {
@@ -46,9 +47,9 @@ import type { TrustedDeviceRecord } from '../../types/runtime';
 import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
-  { label: 'System', value: '' },
-  { label: 'English', value: 'en' },
-  { label: 'Hindi', value: 'hi' },
+  { labelKey: 'common.system', value: '' },
+  { labelKey: 'common.english', value: 'en' },
+  { labelKey: 'common.hindi', value: 'hi' },
 ] as const;
 
 type Props = {
@@ -72,6 +73,7 @@ export function AccountProfileScreen({
 }: Props) {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { preference, setLanguagePreference, t } = useLocalization();
   const { session, logout, isBusy, refreshSession } = useAuth();
   const runtime = useOperationalRuntime();
   const profile = useAccountProfile();
@@ -111,6 +113,15 @@ export function AccountProfileScreen({
     }
     hydrateEditableFields(identity);
   }, [identity]);
+
+  useEffect(() => {
+    if (!identity?.preferredLanguage || preference) {
+      return;
+    }
+    if (identity.preferredLanguage === 'en' || identity.preferredLanguage === 'hi') {
+      void setLanguagePreference(identity.preferredLanguage);
+    }
+  }, [identity?.preferredLanguage, preference, setLanguagePreference]);
 
   const loadSecurityCenter = useCallback(async () => {
     if (!session) {
@@ -267,8 +278,9 @@ export function AccountProfileScreen({
         notificationEmailEnabled,
         notificationInAppEnabled,
       });
+      await setLanguagePreference(preferredLanguage === 'en' || preferredLanguage === 'hi' ? preferredLanguage : '');
       await refreshAll();
-      Alert.alert('Profile saved', 'Your personal account details were updated.');
+      Alert.alert('Profile saved', t('settings.languageSavedBody'));
     } catch (error) {
       Alert.alert('Profile update failed', error instanceof Error ? error.message : 'Your account profile could not be updated.');
     }
@@ -435,15 +447,19 @@ export function AccountProfileScreen({
           placeholder="Emergency contact number or note"
         />
         <View style={styles.languageRow}>
-          <Text style={styles.sectionLabel}>Preferred language</Text>
+          <Text style={styles.sectionLabel}>{t('settings.languageTitle')}</Text>
+          <Text style={styles.helperText}>{t('settings.languageSubtitle')}</Text>
           <View style={styles.segmentRow}>
             {LANGUAGE_OPTIONS.map((option) => (
               <Pressable
-                key={option.label}
-                onPress={() => setPreferredLanguage(option.value)}
+                key={option.value || 'system'}
+                onPress={() => {
+                  setPreferredLanguage(option.value);
+                  void setLanguagePreference(option.value);
+                }}
                 style={[styles.segment, preferredLanguage === option.value ? styles.segmentActive : null]}
               >
-                <Text style={[styles.segmentLabel, preferredLanguage === option.value ? styles.segmentLabelActive : null]}>{option.label}</Text>
+                <Text style={[styles.segmentLabel, preferredLanguage === option.value ? styles.segmentLabelActive : null]}>{t(option.labelKey)}</Text>
               </Pressable>
             ))}
           </View>
@@ -592,7 +608,7 @@ export function AccountProfileScreen({
     setPhoneCountryCode(nextProfile.phoneCountryCode || '+1');
     setPhone(nextProfile.phone || '');
     setEmergencyContact(nextProfile.emergencyContact || '');
-    setPreferredLanguage(nextProfile.preferredLanguage || '');
+    setPreferredLanguage(nextProfile.preferredLanguage || preference || '');
     setNotificationEmailEnabled(nextProfile.notificationEmailEnabled ?? true);
     setNotificationInAppEnabled(nextProfile.notificationInAppEnabled ?? true);
   }

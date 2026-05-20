@@ -3,6 +3,7 @@ import { Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { EmergencyBanner } from '../feedback/EmergencyBanner';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { theme } from '../../theme';
@@ -22,6 +23,7 @@ const MIN_PULL_REFRESH_MS = 450;
 export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth }: Props) {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const { t } = useLocalization();
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -93,12 +95,12 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
                 <Image source={require('../../assets/brand-icon.png')} style={styles.brandIcon} resizeMode="contain" />
                 <View style={styles.brandCopy}>
                   <Text allowFontScaling={false} style={styles.brandName}>AccessFlow Mobile</Text>
-                  <Text allowFontScaling={false} style={styles.brandMeta}>Operational workspace</Text>
+                  <Text allowFontScaling={false} style={styles.brandMeta}>{t('app.brandMeta')}</Text>
                 </View>
               </View>
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
-                <Text allowFontScaling={false} style={styles.liveText}>Live</Text>
+                <Text allowFontScaling={false} style={styles.liveText}>{t('common.live')}</Text>
               </View>
             </View>
             <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>

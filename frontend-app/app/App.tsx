@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { OperationalSnackbarProvider } from '../components/feedback/OperationalSnackbar';
+import { LocalizationProvider } from '../localization/LocalizationProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
 import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
@@ -67,13 +68,15 @@ export default function AccessFlowApp() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <OperationalRuntimeProvider>
-              <OperationalSnackbarProvider>
-                <AppBoundaryHost />
-              </OperationalSnackbarProvider>
-            </OperationalRuntimeProvider>
-          </AuthProvider>
+          <LocalizationProvider>
+            <AuthProvider>
+              <OperationalRuntimeProvider>
+                <OperationalSnackbarProvider>
+                  <AppBoundaryHost />
+                </OperationalSnackbarProvider>
+              </OperationalRuntimeProvider>
+            </AuthProvider>
+          </LocalizationProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

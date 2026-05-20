@@ -7,10 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig } from '../auth/workspaceConfig';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { useLocalization } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { BootScreen } from '../screens/common/BootScreen';
+import { OperationalFeedScreen } from '../screens/common/OperationalFeedScreen';
 import { SessionRecoveryScreen } from '../screens/common/SessionRecoveryScreen';
 import { BadgeScreen } from '../screens/employee/BadgeScreen';
 import { NotificationsScreen } from '../screens/employee/NotificationsScreen';
@@ -111,9 +113,11 @@ function SecurityStackNavigator() {
 
 function SecurityNavigator() {
   const screenOptions = useMobileTabOptions();
+  const { t } = useLocalization();
 
   return (
     <SecurityTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <SecurityTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
       <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />
@@ -127,9 +131,11 @@ function SecurityNavigator() {
 
 function EmployeeNavigator() {
   const screenOptions = useMobileTabOptions();
+  const { t } = useLocalization();
 
   return (
     <EmployeeTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <EmployeeTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <EmployeeTabs.Screen name="Badge" component={BadgeScreen} />
       <EmployeeTabs.Screen name="Requests" component={RequestsScreen} />
       <EmployeeTabs.Screen name="Presence" component={PresenceScreen} />
@@ -141,9 +147,11 @@ function EmployeeNavigator() {
 
 function VisitorNavigator() {
   const screenOptions = useMobileTabOptions();
+  const { t } = useLocalization();
 
   return (
     <VisitorTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <VisitorTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <VisitorTabs.Screen name="Home" component={VisitorHomeScreen} />
       <VisitorTabs.Screen name="Request" component={VisitorRequestScreen} />
       <VisitorTabs.Screen name="Pass" component={VisitorPassScreen} />
@@ -155,9 +163,11 @@ function VisitorNavigator() {
 
 function AdminNavigator() {
   const screenOptions = useMobileTabOptions();
+  const { t } = useLocalization();
 
   return (
     <AdminTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+      <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
       <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
       <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
@@ -227,6 +237,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Dashboard: 'grid-outline',
     Approvals: 'checkmark-done-outline',
     Employees: 'id-card-outline',
+    Live: 'pulse-outline',
   };
 
   return iconMap[routeName] || 'ellipse-outline';

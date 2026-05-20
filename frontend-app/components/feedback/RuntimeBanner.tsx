@@ -1,9 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 export function RuntimeBanner() {
+  const { t } = useLocalization();
   const {
     degradedMessage,
     pushPermissionStatus,
@@ -19,8 +21,8 @@ export function RuntimeBanner() {
   if (runtimeHealth === 'locked') {
     return (
       <View style={[styles.banner, styles.warning]}>
-        <Text style={styles.title}>Workspace locked</Text>
-        <Text style={styles.body}>The session is paused after inactivity. Resume the workspace from the lock screen to continue.</Text>
+        <Text style={styles.title}>{t('runtime.lockedTitle')}</Text>
+        <Text style={styles.body}>{t('runtime.lockedBody')}</Text>
       </View>
     );
   }
@@ -28,8 +30,8 @@ export function RuntimeBanner() {
   if (runtimeHealth === 'update-required') {
     return (
       <View style={[styles.banner, styles.danger]}>
-        <Text style={styles.title}>Update required</Text>
-        <Text style={styles.body}>This mobile build is below the backend support floor. Update AccessFlow before continuing operations.</Text>
+        <Text style={styles.title}>{t('runtime.updateRequiredTitle')}</Text>
+        <Text style={styles.body}>{t('runtime.updateRequiredBody')}</Text>
       </View>
     );
   }
@@ -51,26 +53,28 @@ export function RuntimeBanner() {
       ? styles.warning
       : styles.info;
   const title = offlineOperationalMode === 'offline'
-    ? 'Offline Mode'
+    ? t('runtime.offlineMode')
     : isSyncingOfflineOperations
-      ? 'Syncing...'
+      ? t('runtime.syncing')
       : degradedMessage
-        ? 'Degraded sync'
+        ? t('runtime.degradedSync')
     : devicePosture.suspicious
-      ? 'Device review required'
+      ? t('runtime.deviceReview')
       : offlineOperationalQueueSize > 0
-        ? 'Queued actions pending'
-        : 'Notifications limited';
+        ? t('runtime.queuedActions')
+        : t('runtime.notificationsLimited');
   const message = offlineOperationalMode === 'offline'
-    ? `Cached records are available for known visitors and workforce only. ${offlineOperationalQueueSize ? `${offlineOperationalQueueSize} action${offlineOperationalQueueSize === 1 ? '' : 's'} pending sync.` : lastSyncCopy(offlineLastSyncAt)}`
+    ? offlineOperationalQueueSize
+      ? t('runtime.offlineBody', { count: offlineOperationalQueueSize })
+      : t('runtime.offlineBodyNoQueue', { lastSync: lastSyncCopy(offlineLastSyncAt, t) })
     : isSyncingOfflineOperations
-      ? 'Back online. AccessFlow is safely replaying queued checkpoint actions and refreshing operational records.'
+      ? t('runtime.syncingBody')
       : degradedMessage
     ?? (devicePosture.suspicious
-      ? 'This device was flagged by session policy. AccessFlow has limited operations until the session is safely resumed.'
+      ? t('runtime.suspiciousBody')
       : offlineOperationalQueueSize > 0
-        ? `${offlineOperationalQueueSize} action${offlineOperationalQueueSize === 1 ? '' : 's'} queued, including ${offlineScanQueueSize} scan${offlineScanQueueSize === 1 ? '' : 's'}. Access is marked provisional until sync confirms.`
-        : 'Push notifications are turned off on this device. In-app alerts will still appear while the app is open.');
+        ? t('runtime.queuedBody', { count: offlineOperationalQueueSize, scanCount: offlineScanQueueSize })
+        : t('runtime.pushDeniedBody'));
 
   return (
     <View style={[styles.banner, tone]}>
@@ -111,10 +115,10 @@ const styles = StyleSheet.create({
   },
 });
 
-function lastSyncCopy(lastSyncAt: string | null) {
+function lastSyncCopy(lastSyncAt: string | null, t: ReturnType<typeof useLocalization>['t']) {
   if (!lastSyncAt) {
-    return 'No local sync timestamp is available yet.';
+    return t('runtime.noSyncTime');
   }
 
-  return `Last sync ${new Date(lastSyncAt).toLocaleString()}.`;
+  return t('runtime.lastSync', { time: new Date(lastSyncAt).toLocaleString() });
 }

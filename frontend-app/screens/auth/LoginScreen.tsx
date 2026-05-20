@@ -15,6 +15,7 @@ import { InternationalPhoneInput } from '../../components/form/InternationalPhon
 import { OrganizationSelector } from '../../components/form/OrganizationSelector';
 import { KeyboardAwareScreen } from '../../components/layout/KeyboardAwareScreen';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { useRegisterVisitorAccountMutation } from '../../hooks/useVisitorWorkspace';
 import { requestPasswordReset, resetPassword, verifyPasswordResetOtp } from '../../services/authService';
 import { theme } from '../../theme';
@@ -61,6 +62,7 @@ export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const { t } = useLocalization();
   const [submitError, setSubmitError] = useState<string | null>(lastError);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [registerStep, setRegisterStep] = useState(0);
@@ -317,7 +319,7 @@ export function LoginScreen() {
               />
               <View style={styles.brandBadge}>
                 <Ionicons name="lock-closed-outline" size={15} color={theme.colors.info} />
-                <Text style={styles.brandSubline}>Secure mobile workspace</Text>
+                <Text style={styles.brandSubline}>{t('auth.secureWorkspace')}</Text>
               </View>
             </View>
             {!isCompactLandscape ? (
@@ -338,12 +340,12 @@ export function LoginScreen() {
           </View>
 
           <View style={[styles.authCardShell, layout.isTwoColumn ? styles.authCardShellWide : null]}>
-            <SurfaceCard title={titleForMode(authMode, recoveryStep)} subtitle={subtitleForMode(authMode, recoveryStep, isCompactLandscape)}>
+            <SurfaceCard title={titleForMode(authMode, recoveryStep, t)} subtitle={subtitleForMode(authMode, recoveryStep, isCompactLandscape)}>
               <View style={styles.modeRow}>
                 {(['login', 'register', 'recovery'] as const).map((mode) => (
                   <ModeButton
                     key={mode}
-                    label={mode === 'login' ? 'Sign in' : mode === 'register' ? 'Visitor' : 'Recover'}
+                    label={mode === 'login' ? t('auth.signIn') : mode === 'register' ? t('auth.visitor') : t('auth.recover')}
                     icon={mode === 'login' ? 'log-in-outline' : mode === 'register' ? 'person-add-outline' : 'key-outline'}
                     selected={authMode === mode}
                     onPress={() => switchMode(mode)}
@@ -396,7 +398,7 @@ export function LoginScreen() {
                       autoComplete="username"
                       textContentType="username"
                       keyboardType="email-address"
-                      label="Username or email"
+                      label={t('auth.usernameEmail')}
                       onChangeText={onChange}
                       value={value}
                       errorText={errors.identifier?.message}
@@ -423,7 +425,7 @@ export function LoginScreen() {
                       autoCorrect={false}
                       autoComplete="current-password"
                       textContentType="password"
-                      label="Password"
+                      label={t('auth.password')}
                       onChangeText={onChange}
                       secureTextEntry
                       value={value}
@@ -446,17 +448,17 @@ export function LoginScreen() {
                       {rememberMe ? <Ionicons name="checkmark" size={16} color={theme.colors.textInverse} /> : null}
                     </View>
                     <View style={styles.rememberCopy}>
-                      <Text style={styles.rememberLabel}>Remember this device</Text>
+                      <Text style={styles.rememberLabel}>{t('auth.rememberDevice')}</Text>
                       <Text style={styles.rememberHelp}>Stores only tokens in secure device storage.</Text>
                     </View>
                   </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('recovery')} hitSlop={8} style={styles.linkButton}>
-                    <Text style={styles.linkText}>Forgot Password?</Text>
+                    <Text style={styles.linkText}>{t('auth.forgotPassword')}</Text>
                   </Pressable>
                 </View>
 
                 <PrimaryButton
-                  label="Continue securely"
+                  label={t('auth.continue')}
                   onPress={() => void onSubmit()}
                   loading={isBusy}
                 />
@@ -832,14 +834,14 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function titleForMode(mode: AuthMode, recoveryStep: RecoveryStep) {
+function titleForMode(mode: AuthMode, recoveryStep: RecoveryStep, t: ReturnType<typeof useLocalization>['t']) {
   if (mode === 'register') {
-    return 'Visitor onboarding';
+    return t('auth.visitorOnboarding');
   }
   if (mode === 'recovery') {
-    return recoveryStep === 'done' ? 'Recovery complete' : 'Secure account recovery';
+    return recoveryStep === 'done' ? 'Recovery complete' : t('auth.recovery');
   }
-  return 'Secure sign-in';
+  return t('auth.secureSignIn');
 }
 
 function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep, compact = false) {
