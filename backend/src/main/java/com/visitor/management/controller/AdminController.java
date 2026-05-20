@@ -6,6 +6,7 @@ import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
+import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.DepartmentCreateRequest;
 import com.visitor.management.dto.DepartmentResponse;
 import com.visitor.management.dto.DepartmentUpdateRequest;
