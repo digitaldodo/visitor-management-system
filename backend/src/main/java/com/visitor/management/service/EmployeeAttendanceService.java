@@ -54,6 +54,7 @@ public class EmployeeAttendanceService {
     private final TokenService tokenService;
     private final AccessAuditService accessAuditService;
     private final NotificationService notificationService;
+    private final EmergencyOperationsService emergencyOperationsService;
 
     public EmployeeAttendanceService(
             UserRepository userRepository,
@@ -62,7 +63,8 @@ public class EmployeeAttendanceService {
             QrCodeService qrCodeService,
             TokenService tokenService,
             AccessAuditService accessAuditService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            EmergencyOperationsService emergencyOperationsService
     ) {
         this.userRepository = userRepository;
         this.attendanceRepository = attendanceRepository;
@@ -71,6 +73,7 @@ public class EmployeeAttendanceService {
         this.tokenService = tokenService;
         this.accessAuditService = accessAuditService;
         this.notificationService = notificationService;
+        this.emergencyOperationsService = emergencyOperationsService;
     }
 
     public void provisionEmployeeCredential(User user) {
@@ -194,6 +197,7 @@ public class EmployeeAttendanceService {
         User employee = requireEmployee(employeeUserId);
         requireSameOrganizationOrSuperAdmin(guard, employee);
         validateEmployeeAccess(employee);
+        requireNoEmergencyLockdown(employee.getOrganizationId());
         if (manual) {
             requireReason(reason);
         }
@@ -714,5 +718,11 @@ public class EmployeeAttendanceService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void requireNoEmergencyLockdown(String organizationId) {
+        if (emergencyOperationsService.isLockdownActiveForOrganization(organizationId)) {
+            throw new BadRequestException("New workforce check-ins are blocked while emergency lockdown is active.");
+        }
     }
 }

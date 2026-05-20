@@ -17,6 +17,7 @@ import { NotificationsScreen } from '../screens/employee/NotificationsScreen';
 import { PresenceScreen } from '../screens/employee/PresenceScreen';
 import { RequestsScreen } from '../screens/employee/RequestsScreen';
 import { SettingsScreen } from '../screens/employee/SettingsScreen';
+import { EmergencyOpsScreen } from '../screens/emergency/EmergencyOpsScreen';
 import { AlertsScreen } from '../screens/security/AlertsScreen';
 import { ProfileScreen } from '../screens/security/ProfileScreen';
 import { ScanScreen } from '../screens/security/ScanScreen';
@@ -118,6 +119,7 @@ function SecurityNavigator() {
       <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />
       <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />
       <SecurityTabs.Screen name="Alerts" component={AlertsScreen} />
+      <SecurityTabs.Screen name="Emergency" component={EmergencyOpsScreen} />
       <SecurityTabs.Screen name="Profile" component={ProfileScreen} />
     </SecurityTabs.Navigator>
   );
@@ -161,6 +163,7 @@ function AdminNavigator() {
       <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
       <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
       <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
+      <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} />
       <AdminTabs.Screen name="Register" component={AdminRegisterScreen} />
       <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} />
       <AdminTabs.Screen name="Profile" component={AdminSettingsScreen} />
@@ -211,6 +214,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Workforce: 'shield-checkmark-outline',
     Register: 'reader-outline',
     Alerts: 'alert-circle-outline',
+    Emergency: 'warning-outline',
     Profile: 'person-circle-outline',
     Badge: 'card-outline',
     Requests: 'clipboard-outline',

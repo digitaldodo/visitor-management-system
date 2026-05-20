@@ -293,7 +293,11 @@ public class NotificationService {
                     SECURITY_DENIED_ENTRY,
                     SECURITY_SUSPICIOUS_ACTIVITY,
                     SECURITY_MANUAL_OVERRIDE,
-                    SECURITY_ESCALATION -> NotificationCategory.SECURITY;
+                    SECURITY_ESCALATION,
+                    EMERGENCY_LOCKDOWN,
+                    EMERGENCY_PANIC,
+                    EMERGENCY_BROADCAST,
+                    EMERGENCY_EVACUATION -> NotificationCategory.SECURITY;
             case WORKFORCE_ONBOARDING_REQUESTED,
                     WORKFORCE_ONBOARDING_APPROVED,
                     WORKFORCE_ONBOARDING_REJECTED,
@@ -318,8 +322,12 @@ public class NotificationService {
                     SECURITY_DENIED_ENTRY,
                     SECURITY_SUSPICIOUS_ACTIVITY,
                     SECURITY_MANUAL_OVERRIDE,
-                    SECURITY_ESCALATION -> NotificationPriority.HIGH;
+                    SECURITY_ESCALATION,
+                    EMERGENCY_BROADCAST,
+                    EMERGENCY_EVACUATION -> NotificationPriority.HIGH;
             case SECURITY_INVALID_QR_SCAN,
+                    EMERGENCY_LOCKDOWN,
+                    EMERGENCY_PANIC,
                     SYSTEM_SESSION_EXPIRED,
                     SYSTEM_RUNTIME_UPDATE_AVAILABLE,
                     SYSTEM_BACKEND_CONNECTIVITY_ISSUE -> NotificationPriority.CRITICAL;

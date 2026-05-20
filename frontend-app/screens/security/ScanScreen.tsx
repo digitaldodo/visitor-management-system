@@ -11,6 +11,7 @@ import { useOperationalSnackbar } from '../../components/feedback/OperationalSna
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useEmergencyState } from '../../hooks/useEmergencyWorkspace';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
@@ -69,6 +70,7 @@ export function ScanScreen() {
   const isFocused = useIsFocused();
   const layout = useResponsiveLayout();
   const runtime = useOperationalRuntime();
+  const emergencyState = useEmergencyState();
   const { showSnackbar } = useOperationalSnackbar();
   const cameraRef = useRef<CameraView | null>(null);
   const isMountedRef = useRef(true);
@@ -126,6 +128,8 @@ export function ScanScreen() {
     [employeeScan, lastActionMessage, runtime.offlineOperationalMode, scanError, scannerMode, visitorVerification],
   );
   const liveActionsAvailable = runtime.offlineOperationalMode === 'online';
+  const emergencyCheckInsBlocked = Boolean(emergencyState.data?.lockdownActive);
+  const checkInActionsAvailable = liveActionsAvailable && !emergencyCheckInsBlocked;
 
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
@@ -736,7 +740,7 @@ export function ScanScreen() {
                 <Text style={styles.bodyText}>{visitorVerification.message || 'Visitor verification completed.'}</Text>
 
                 <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
-                  {liveActionsAvailable && visitorVerification.valid && visitorVerification.canCheckIn ? (
+                  {checkInActionsAvailable && visitorVerification.valid && visitorVerification.canCheckIn ? (
                     <PrimaryButton label="Approve check-in" onPress={() => void handleVisitorCheckIn()} loading={visitorCheckInMutation.isPending} />
                   ) : null}
                   {liveActionsAvailable && visitorVerification.canCheckOut && visitorVerification.visitorId ? (
@@ -759,8 +763,12 @@ export function ScanScreen() {
                   {liveActionsAvailable && visitorVerification.visitorId && !visitorVerification.valid && !visitorVerification.canCheckOut ? (
                     <PrimaryButton label="Manual override" onPress={() => setReasonAction({ type: 'override', visitorId: visitorVerification.visitorId as string })} tone="secondary" />
                   ) : null}
-                  {!liveActionsAvailable ? (
-                    <PrimaryButton label="Live actions require connectivity" onPress={() => showSnackbar({ message: 'Privileged actions are disabled in Offline Mode', tone: 'warning' })} tone="secondary" />
+                  {!liveActionsAvailable || (emergencyCheckInsBlocked && visitorVerification.canCheckIn) ? (
+                    <PrimaryButton
+                      label={emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Check-ins blocked by lockdown' : 'Live actions require connectivity'}
+                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Emergency lockdown is active. New check-ins are suspended.' : 'Privileged actions are disabled in Offline Mode', tone: 'warning' })}
+                      tone="secondary"
+                    />
                   ) : null}
                 </View>
               </SurfaceCard>
@@ -798,7 +806,7 @@ export function ScanScreen() {
                 <Text style={styles.bodyText}>{employeeScan.message || 'Workforce badge processed successfully.'}</Text>
 
                 <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
-                  {liveActionsAvailable && employeeScan.employee?.id ? (
+                  {liveActionsAvailable && employeeScan.employee?.id && (!emergencyCheckInsBlocked || employeeScan.currentlyIn) ? (
                     <PrimaryButton
                       label={employeeScan.currentlyIn ? 'Manual check-out' : 'Manual check-in'}
                       onPress={() => setReasonAction({
@@ -808,8 +816,12 @@ export function ScanScreen() {
                       tone="secondary"
                     />
                   ) : null}
-                  {!liveActionsAvailable ? (
-                    <PrimaryButton label="Assisted actions require connectivity" onPress={() => showSnackbar({ message: 'Manual workforce overrides are disabled in Offline Mode', tone: 'warning' })} tone="secondary" />
+                  {!liveActionsAvailable || (emergencyCheckInsBlocked && !employeeScan.currentlyIn) ? (
+                    <PrimaryButton
+                      label={emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Workforce check-ins blocked' : 'Assisted actions require connectivity'}
+                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Emergency lockdown is active. New workforce check-ins are suspended.' : 'Manual workforce overrides are disabled in Offline Mode', tone: 'warning' })}
+                      tone="secondary"
+                    />
                   ) : null}
                   <PrimaryButton label="Resume scanning" onPress={resetScanner} tone="secondary" />
                 </View>

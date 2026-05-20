@@ -26,6 +26,10 @@ public interface VisitorRepository extends MongoRepository<Visitor, String> {
 
     long countByStatus(VisitorStatus status);
 
+    List<Visitor> findAllByStatusOrderByCheckInTimeDesc(VisitorStatus status);
+
+    List<Visitor> findAllByOrganizationIdAndStatusOrderByCheckInTimeDesc(String organizationId, VisitorStatus status);
+
     long countByOrganizationId(String organizationId);
 
     long countByOrganizationIdAndStatus(String organizationId, VisitorStatus status);

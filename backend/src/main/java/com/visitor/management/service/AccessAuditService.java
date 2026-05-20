@@ -135,6 +135,10 @@ public class AccessAuditService {
                 action, "VISITOR_ACCESS", visitor.getId(), visitor.getFullName(), outcome, detail);
     }
 
+    public void recordEmergencyAction(User actor, String action, String targetId, String targetName, String outcome, String detail) {
+        record(actor, action, "EMERGENCY_OPERATION", targetId, targetName, outcome, detail);
+    }
+
     public void recordOrganizationChanged(User actor, Organization organization, String action, String detail) {
         if (organization == null) {
             return;

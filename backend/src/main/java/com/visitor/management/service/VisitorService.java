@@ -112,6 +112,7 @@ public class VisitorService {
     private final OrganizationService organizationService;
     private final PhoneNumberService phoneNumberService;
     private final AccessAuditService accessAuditService;
+    private final EmergencyOperationsService emergencyOperationsService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -127,7 +128,8 @@ public class VisitorService {
             NotificationService notificationService,
             OrganizationService organizationService,
             PhoneNumberService phoneNumberService,
-            AccessAuditService accessAuditService
+            AccessAuditService accessAuditService,
+            EmergencyOperationsService emergencyOperationsService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -143,6 +145,7 @@ public class VisitorService {
         this.organizationService = organizationService;
         this.phoneNumberService = phoneNumberService;
         this.accessAuditService = accessAuditService;
+        this.emergencyOperationsService = emergencyOperationsService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -226,6 +229,9 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
         applyVisitorTypeProfile(visitor, request, actor);
+        if (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor)) {
+            requireNoEmergencyLockdown(organization.getId(), "Visitor approvals are suspended during emergency lockdown.");
+        }
         applyOneTimeSchedule(
                 visitor,
                 request.scheduledStartTime(),
@@ -273,6 +279,7 @@ public class VisitorService {
     public VisitorResponse preApprove(PreApprovalRequest request, String hostEmployeeId) {
         User actor = currentUser(hostEmployeeId);
         Organization organization = organizationFor(actor, request.companyCode(), request.companyName());
+        requireNoEmergencyLockdown(organization.getId(), "Visitor pre-approvals are suspended during emergency lockdown.");
         Instant now = Instant.now();
         Instant start = request.scheduledStartTime();
         Instant end = request.scheduledEndTime();
@@ -369,6 +376,7 @@ public class VisitorService {
     public VisitorResponse approve(String id, ApprovalDecisionRequest request, String actorId) {
         Visitor visitor = find(id);
         requireHostAccess(visitor, actorId);
+        requireNoEmergencyLockdown(visitor.getOrganizationId(), "Visitor approvals are suspended during emergency lockdown.");
         if (visitor.getStatus() != VisitorStatus.PENDING) {
             throw new BadRequestException("Only pending visitors can be approved.");
         }
@@ -835,6 +843,7 @@ public class VisitorService {
 
     private VisitorResponse checkIn(Visitor visitor, String actorId, boolean qrValidatedOrOverride, String noteOverride) {
         Instant now = Instant.now();
+        requireNoEmergencyLockdown(visitor.getOrganizationId(), "New visitor check-ins are blocked while emergency lockdown is active.");
         if (visitor.getStatus() == VisitorStatus.CHECKED_IN) {
             throw new BadRequestException("Visitor is already checked in.");
         }
@@ -1650,6 +1659,12 @@ public class VisitorService {
             return null;
         }
         return value.trim();
+    }
+
+    private void requireNoEmergencyLockdown(String organizationId, String message) {
+        if (emergencyOperationsService.isLockdownActiveForOrganization(organizationId)) {
+            throw new BadRequestException(message);
+        }
     }
 
     private void setIfPresent(String value, java.util.function.Consumer<String> consumer) {

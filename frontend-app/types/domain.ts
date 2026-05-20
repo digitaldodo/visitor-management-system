@@ -270,6 +270,77 @@ export type NotificationInbox = {
   items: NotificationRecord[];
 };
 
+export type EmergencyIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type EmergencyIncidentStatus = 'ACTIVE' | 'MONITORING' | 'RESOLVED';
+
+export type EmergencyIncidentType =
+  | 'LOCKDOWN_STARTED'
+  | 'LOCKDOWN_CLEARED'
+  | 'PANIC_TRIGGERED'
+  | 'EMERGENCY_BROADCAST'
+  | 'EVACUATION_STARTED'
+  | 'SUSPICIOUS_VISITOR'
+  | 'SUSPICIOUS_WORKFORCE'
+  | 'OPERATIONAL_ESCALATION';
+
+export type EmergencyState = {
+  lockdownActive: boolean;
+  lockdownReason?: string | null;
+  lockdownScope?: string | null;
+  lockdownInitiatedByName?: string | null;
+  lockdownStartedAt?: string | null;
+  approvalsSuspended: boolean;
+  checkInsBlocked: boolean;
+  evacuationActive: boolean;
+  evacuationScope?: string | null;
+  evacuationStartedAt?: string | null;
+  latestBroadcastTitle?: string | null;
+  latestBroadcastMessage?: string | null;
+  latestBroadcastSeverity?: EmergencyIncidentSeverity | null;
+  latestBroadcastAt?: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  updatedAt?: string | null;
+};
+
+export type EmergencyIncident = {
+  id: string;
+  type: EmergencyIncidentType;
+  severity: EmergencyIncidentSeverity;
+  status: EmergencyIncidentStatus;
+  title: string;
+  message?: string | null;
+  checkpoint?: string | null;
+  subjectType?: string | null;
+  subjectId?: string | null;
+  subjectName?: string | null;
+  actorName?: string | null;
+  notes?: string | null;
+  repeatCount: number;
+  createdAt?: string | null;
+  resolvedAt?: string | null;
+};
+
+export type EmergencyEvacuationPerson = {
+  id: string;
+  personType: 'VISITOR' | 'WORKFORCE' | string;
+  name: string;
+  organizationName?: string | null;
+  department?: string | null;
+  lastKnownCheckpoint?: string | null;
+  evacuationStatus: string;
+  lastActivityAt?: string | null;
+};
+
+export type EmergencyEvacuationRegister = {
+  generatedAt?: string | null;
+  counts: Record<string, number>;
+  visitorsInside: EmergencyEvacuationPerson[];
+  workforceInside: EmergencyEvacuationPerson[];
+  unaccounted: EmergencyEvacuationPerson[];
+};
+
 export type AdminOperationalReport = {
   title: string;
   status: string;

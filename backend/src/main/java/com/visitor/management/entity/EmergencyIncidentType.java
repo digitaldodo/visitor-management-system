@@ -1,0 +1,12 @@
+package com.visitor.management.entity;
+
+public enum EmergencyIncidentType {
+    LOCKDOWN_STARTED,
+    LOCKDOWN_CLEARED,
+    PANIC_TRIGGERED,
+    EMERGENCY_BROADCAST,
+    EVACUATION_STARTED,
+    SUSPICIOUS_VISITOR,
+    SUSPICIOUS_WORKFORCE,
+    OPERATIONAL_ESCALATION
+}

@@ -3,6 +3,7 @@ import { Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { EmergencyBanner } from '../feedback/EmergencyBanner';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { theme } from '../../theme';
 import { KeyboardAwareScreen } from './KeyboardAwareScreen';
@@ -104,6 +105,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
             {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
           <RuntimeBanner />
+          <EmergencyBanner />
           <View style={[styles.children, { gap: layout.cardSpacing }]}>{children}</View>
         </View>
       </KeyboardAwareScreen>
