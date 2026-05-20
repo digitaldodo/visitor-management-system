@@ -39,7 +39,7 @@ type Props = {
   subtitle?: string;
   roleSummary?: ReactNode;
   refreshing?: boolean;
-  onRefresh?: () => void;
+  onRefresh?: () => Promise<unknown> | unknown;
 };
 
 type PendingPhoto = UploadAsset & {
@@ -100,7 +100,7 @@ export function AccountProfileScreen({
     ]);
     await profile.refetch();
     await refreshSession();
-    onRefresh?.();
+    await Promise.resolve(onRefresh?.());
   };
 
   const saveProfile = async () => {
@@ -218,9 +218,7 @@ export function AccountProfileScreen({
       subtitle={subtitle}
       contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
       refreshing={Boolean(refreshing || profile.isRefetching)}
-      onRefresh={() => {
-        void refreshAll();
-      }}
+      onRefresh={refreshAll}
     >
       <SurfaceCard>
         <View style={[styles.identityHeader, layout.isTwoColumn ? styles.identityHeaderWide : null]}>
@@ -395,7 +393,6 @@ export function AccountProfileScreen({
       </SurfaceCard>
 
       <View style={[styles.sessionActions, layout.isTwoColumn ? styles.sessionActionsWide : null]}>
-        <PrimaryButton label="Refresh session" onPress={() => void refreshAll()} loading={isBusy || profile.isRefetching} />
         <PrimaryButton label="Log out" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
       </View>
     </AppScreen>

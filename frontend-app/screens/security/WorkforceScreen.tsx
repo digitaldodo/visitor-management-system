@@ -181,10 +181,7 @@ export function WorkforceScreen() {
         title="Workforce Operations"
         subtitle="Security-led workforce verification, presence visibility, and assisted onboarding for support teams."
         refreshing={attendance.isRefetching || employees.isRefetching}
-        onRefresh={() => {
-          void attendance.refetch();
-          void employees.refetch();
-        }}
+        onRefresh={() => Promise.all([attendance.refetch(), employees.refetch()])}
       >
         <SurfaceCard title="Assisted onboarding" subtitle="Capture the worker identity, service type, and shift context for admin approval.">
           <AppTextField label="Worker name" value={fullName} onChangeText={setFullName} placeholder="Full name" />

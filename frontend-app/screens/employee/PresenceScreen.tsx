@@ -22,9 +22,7 @@ export function PresenceScreen() {
       title="Presence"
       subtitle="Security-focused visibility into your latest access activity, checkpoint state, and recent entry history."
       refreshing={attendance.isRefetching}
-      onRefresh={() => {
-        void attendance.refetch();
-      }}
+      onRefresh={() => attendance.refetch()}
     >
       <View style={styles.metricsGrid}>
         <MetricCard label="Presence state" value={summary.currentState} tone={latestRecord?.state === 'IN' ? 'success' : 'default'} />

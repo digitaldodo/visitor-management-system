@@ -16,11 +16,11 @@ export function ProfileScreen() {
       title="Profile"
       subtitle="Security identity, checkpoint context, account settings, and diagnostics without exposing organization-controlled access fields."
       refreshing={overview.isRefetching || monitoring.isRefetching || attendance.isRefetching}
-      onRefresh={() => {
-        void overview.refetch();
-        void monitoring.refetch();
-        void attendance.refetch();
-      }}
+      onRefresh={() => Promise.all([
+        overview.refetch(),
+        monitoring.refetch(),
+        attendance.refetch(),
+      ])}
       roleSummary={(
         <SurfaceCard title="Security operations" subtitle="Your mobile workspace stays scoped to checkpoint verification, visitor handling, and workforce presence support.">
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

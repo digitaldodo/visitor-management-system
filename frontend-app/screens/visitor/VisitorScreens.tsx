@@ -48,10 +48,7 @@ export function VisitorHomeScreen() {
       title="Visitor Home"
       subtitle="Request access, track approval status, and keep your active pass ready for the checkpoint."
       refreshing={overview.isRefetching || visits.isRefetching}
-      onRefresh={() => {
-        void overview.refetch();
-        void visits.refetch();
-      }}
+      onRefresh={() => Promise.all([overview.refetch(), visits.refetch()])}
     >
       <View style={styles.metricsGrid}>
         <MetricCard label="Pending" value={overview.data?.pending ?? 0} tone={(overview.data?.pending ?? 0) ? 'warning' : 'default'} />
@@ -311,10 +308,7 @@ export function VisitorPassScreen() {
       title="Pass"
       subtitle="Your approved badge and QR stay isolated to the visitor workspace."
       refreshing={visits.isRefetching || pass.isRefetching}
-      onRefresh={() => {
-        void visits.refetch();
-        void pass.refetch();
-      }}
+      onRefresh={() => Promise.all([visits.refetch(), pass.refetch()])}
     >
       <SurfaceCard title="Current badge" subtitle="Security can scan this QR after approval. Pending or denied requests do not expose valid entry access.">
         {pass.data?.qrImageDataUri ? (
@@ -398,9 +392,7 @@ export function VisitorNotificationsScreen() {
       title="Notifications"
       subtitle="Visitor approvals, QR state, schedule changes, and runtime notices."
       refreshing={notifications.isRefetching}
-      onRefresh={() => {
-        void notifications.refetch();
-      }}
+      onRefresh={() => notifications.refetch()}
     >
       <NotificationCenter
         title="Visitor inbox"
@@ -427,9 +419,7 @@ export function VisitorProfileScreen() {
       title="Profile"
       subtitle="Visitor identity, personal account settings, pass readiness, and visit history."
       refreshing={history.isRefetching}
-      onRefresh={() => {
-        void history.refetch();
-      }}
+      onRefresh={() => history.refetch()}
       roleSummary={(
         <SurfaceCard title="Visit history" subtitle="Visitor profile data stays scoped to your own requests and active passes.">
           <View style={styles.metricsGrid}>

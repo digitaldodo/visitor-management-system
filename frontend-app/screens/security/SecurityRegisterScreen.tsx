@@ -126,9 +126,7 @@ export function SecurityRegisterScreen() {
       title="Security Register"
       subtitle="Searchable gate register for previous visitors, workforce presence, denied entries, expired visits, and badge audit reference."
       refreshing={isRefreshing}
-      onRefresh={() => {
-        void refreshRegister();
-      }}
+      onRefresh={refreshRegister}
     >
       <SurfaceCard title="Operational lookup" subtitle="Search by person, organization, phone, badge ID, QR payload, access state, or host.">
         <AppTextField

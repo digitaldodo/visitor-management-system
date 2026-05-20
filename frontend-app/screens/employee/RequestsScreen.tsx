@@ -123,11 +123,11 @@ export function RequestsScreen() {
         title="Requests"
         subtitle="Approve, reject, or reschedule visitors without leaving the employee access workspace."
         refreshing={overview.isRefetching || approvals.isRefetching || preApprovals.isRefetching}
-        onRefresh={() => {
-          void overview.refetch();
-          void approvals.refetch();
-          void preApprovals.refetch();
-        }}
+        onRefresh={() => Promise.all([
+          overview.refetch(),
+          approvals.refetch(),
+          preApprovals.refetch(),
+        ])}
       >
         <View style={styles.metricsGrid}>
           {metricEntries.map((entry) => (

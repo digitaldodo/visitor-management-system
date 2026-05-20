@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,18 +12,53 @@ type Props = {
   subtitle?: string;
   children: ReactNode;
   refreshing?: boolean;
-  onRefresh?: () => void;
+  onRefresh?: () => Promise<unknown> | unknown;
   contentMaxWidth?: number;
 };
+
+const MIN_PULL_REFRESH_MS = 450;
 
 export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth }: Props) {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const mountedRef = useRef(true);
+  const refreshInFlightRef = useRef(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const finishPullRefresh = useCallback((startedAt: number) => {
+    const elapsedMs = Date.now() - startedAt;
+    const remainingMs = Math.max(0, MIN_PULL_REFRESH_MS - elapsedMs);
+
+    setTimeout(() => {
+      refreshInFlightRef.current = false;
+      if (mountedRef.current) {
+        setPullRefreshing(false);
+      }
+    }, remainingMs);
+  }, []);
+
+  const handlePullRefresh = useCallback(() => {
+    if (!onRefresh || refreshInFlightRef.current) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    refreshInFlightRef.current = true;
+    setPullRefreshing(true);
+
+    Promise.resolve(onRefresh())
+      .catch(() => undefined)
+      .finally(() => finishPullRefresh(startedAt));
+  }, [finishPullRefresh, onRefresh]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <KeyboardAwareScreen
-        alwaysBounceVertical={false}
+        alwaysBounceVertical={Boolean(onRefresh)}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.content,
@@ -36,7 +71,17 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
         ]}
         refreshControl={
           onRefresh ? (
-            <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+            <RefreshControl
+              colors={[theme.colors.primary]}
+              enabled={Boolean(onRefresh)}
+              progressBackgroundColor={theme.colors.surface}
+              progressViewOffset={layout.isSmallPhone ? 10 : 16}
+              refreshing={pullRefreshing && Boolean(refreshing || pullRefreshing)}
+              tintColor={theme.colors.primary}
+              title=""
+              titleColor={theme.colors.textMuted}
+              onRefresh={handlePullRefresh}
+            />
           ) : undefined
         }
       >

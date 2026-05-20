@@ -262,10 +262,7 @@ export function VisitorsScreen() {
         title="Visitor Operations"
         subtitle="Fast registration, photo-backed verification, and checkpoint actions for reception and gate teams."
         refreshing={monitoring.isRefetching || visitors.isRefetching}
-        onRefresh={() => {
-          void monitoring.refetch();
-          void visitors.refetch();
-        }}
+        onRefresh={() => Promise.all([monitoring.refetch(), visitors.refetch()])}
       >
         <SurfaceCard title="Walk-in registration" subtitle="Optimized for front-desk speed with minimal typing and immediate photo capture.">
           <View style={styles.segmentRow}>

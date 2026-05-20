@@ -6,10 +6,8 @@ import { theme } from '../../theme';
 export function RuntimeBanner() {
   const {
     degradedMessage,
-    runtimeUpdateAvailable,
     pushPermissionStatus,
     runtimeHealth,
-    otaUpdate,
     devicePosture,
     offlineScanQueueSize,
   } = useOperationalRuntime();
@@ -32,30 +30,24 @@ export function RuntimeBanner() {
     );
   }
 
-  if (!degradedMessage && !runtimeUpdateAvailable && pushPermissionStatus !== 'DENIED' && !devicePosture.suspicious && offlineScanQueueSize === 0) {
+  if (!degradedMessage && pushPermissionStatus !== 'DENIED' && !devicePosture.suspicious && offlineScanQueueSize === 0) {
     return null;
   }
 
-  const tone = degradedMessage || devicePosture.suspicious ? styles.danger : runtimeUpdateAvailable || offlineScanQueueSize > 0 ? styles.warning : styles.info;
+  const tone = degradedMessage || devicePosture.suspicious ? styles.danger : offlineScanQueueSize > 0 ? styles.warning : styles.info;
   const title = degradedMessage
     ? 'Degraded sync'
     : devicePosture.suspicious
       ? 'Device review required'
       : offlineScanQueueSize > 0
         ? 'Offline scan queue active'
-        : runtimeUpdateAvailable
-          ? 'Runtime update detected'
-          : 'Notifications limited';
+        : 'Notifications limited';
   const message = degradedMessage
     ?? (devicePosture.suspicious
       ? 'This device was flagged by session policy. AccessFlow has limited operations until the session is safely resumed.'
       : offlineScanQueueSize > 0
         ? `${offlineScanQueueSize} scan${offlineScanQueueSize === 1 ? '' : 's'} are waiting for supervised retry. Access is never granted from offline cache alone.`
-        : runtimeUpdateAvailable
-          ? otaUpdate.updateDownloaded
-            ? 'A compatible mobile update is downloaded and will apply on restart or when operations choose to reload.'
-            : 'The app detected a newer backend runtime and is refreshing operational data safely.'
-          : 'Push notifications are turned off on this device. In-app alerts will still appear while the app is open.');
+        : 'Push notifications are turned off on this device. In-app alerts will still appear while the app is open.');
 
   return (
     <View style={[styles.banner, tone]}>

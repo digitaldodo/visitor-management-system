@@ -122,13 +122,13 @@ function AdminAccountSettingsScreen() {
       title="Profile"
       subtitle="Admin identity, organization oversight, secure account settings, and diagnostics for mobile operations."
       refreshing={overview.isRefetching || reports.isRefetching || users.isRefetching || workforceOnboarding.isRefetching || notifications.isRefetching}
-      onRefresh={() => {
-        void overview.refetch();
-        void reports.refetch();
-        void users.refetch();
-        void workforceOnboarding.refetch();
-        void notifications.refetch();
-      }}
+      onRefresh={() => Promise.all([
+        overview.refetch(),
+        reports.refetch(),
+        users.refetch(),
+        workforceOnboarding.refetch(),
+        notifications.refetch(),
+      ])}
       roleSummary={(
         <SurfaceCard title="Admin oversight" subtitle="Mobile admin controls expose operational visibility while role, organization, and permission authority remain backend-managed.">
           <View style={styles.metricsGrid}>
@@ -370,9 +370,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
         subtitle={screenCopy[1]}
         contentMaxWidth={layout.isLargeTablet ? 1220 : undefined}
         refreshing={isRefreshing}
-        onRefresh={() => {
-          void refreshWorkspace();
-        }}
+        onRefresh={refreshWorkspace}
       >
         {section === 'dashboard' ? (
           <>
@@ -595,7 +593,6 @@ export function AdminOperationalScreen({ section }: SectionProps) {
               tone="info"
             />
             <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-              <PrimaryButton label="Refresh live data" onPress={() => void refreshWorkspace()} tone="secondary" />
               <PrimaryButton label="Log out" onPress={() => void logout()} tone="danger" disabled={isBusy} />
             </View>
           </SurfaceCard>

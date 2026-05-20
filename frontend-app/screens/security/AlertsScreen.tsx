@@ -55,10 +55,7 @@ export function AlertsScreen() {
       title="Alert Center"
       subtitle="Security-focused operational awareness for denied entries, suspicious activity, invalid credentials, escalation events, and runtime issues."
       refreshing={monitoring.isRefetching || notifications.isRefetching}
-      onRefresh={() => {
-        void monitoring.refetch();
-        void notifications.refetch();
-      }}
+      onRefresh={() => Promise.all([monitoring.refetch(), notifications.refetch()])}
     >
       <View style={styles.metricGrid}>
         <MetricCard label="Denied scans" value={deniedCount} tone={deniedCount ? 'danger' : 'default'} />

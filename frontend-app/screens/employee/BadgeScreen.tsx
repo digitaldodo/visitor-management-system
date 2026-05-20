@@ -116,9 +116,7 @@ export function BadgeScreen() {
         title="Badge"
         subtitle="Your reusable operational credential for quick checkpoint presentation on Android."
         refreshing={badge.isRefetching}
-        onRefresh={() => {
-          void badge.refetch();
-        }}
+        onRefresh={() => badge.refetch()}
       >
         {badge.data ? (
           <>

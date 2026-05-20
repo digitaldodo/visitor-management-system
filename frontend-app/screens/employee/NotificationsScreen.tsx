@@ -50,9 +50,7 @@ export function NotificationsScreen() {
       title="Notification Center"
       subtitle="Grouped operational notifications for approvals, arrivals, access revocations, workforce changes, and runtime recovery."
       refreshing={notifications.isRefetching}
-      onRefresh={() => {
-        void notifications.refetch();
-      }}
+      onRefresh={() => notifications.refetch()}
     >
       <View style={styles.metricsGrid}>
         <MetricCard label="Unread" value={unreadCount} tone={unreadCount ? 'warning' : 'success'} />
