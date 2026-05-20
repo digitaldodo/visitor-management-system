@@ -1,6 +1,6 @@
 # AccessFlow Android Deployment
 
-This app is linked to Expo project `@anshmrns-organization/accessflow` with project ID `f6f82d40-344d-4ae9-93bf-a58c869db1ac` through `owner`, `slug`, and `extra.eas.projectId`. Deployment defaults are centralized in `app.config.js`; `eas.json` only defines the two Android release lanes.
+This app is linked to Expo project `@digitaldodo/accessflow` with project ID `695a77a0-f60f-481f-93cd-23ebfb4c256b` through `owner`, `slug`, and `extra.eas.projectId`. Deployment defaults are centralized in `app.config.js`; `eas.json` only defines the two Android release lanes.
 
 ## One-time Setup
 

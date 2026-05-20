@@ -1,5 +1,5 @@
 module.exports = ({ config }) => {
-  const defaultProjectId = 'f6f82d40-344d-4ae9-93bf-a58c869db1ac';
+  const defaultProjectId = '695a77a0-f60f-481f-93cd-23ebfb4c256b';
   const defaultApiBaseUrl = 'https://accessflow-api-goww.onrender.com/api/v1';
   const buildProfile = process.env.EAS_BUILD_PROFILE === 'preview' ? 'preview' : 'production';
   const profileDefaults = {

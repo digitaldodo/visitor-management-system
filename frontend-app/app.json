@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "AccessFlow Mobile",
-    "owner": "anshmrns-organization",
+    "owner": "digitaldodo",
     "slug": "accessflow",
     "version": "1.5.0",
     "scheme": "accessflow",
@@ -72,7 +72,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "f6f82d40-344d-4ae9-93bf-a58c869db1ac"
+        "projectId": "695a77a0-f60f-481f-93cd-23ebfb4c256b"
       },
       "accessflowReleaseChannel": "production",
       "accessflowDistributionChannel": "play-store"
