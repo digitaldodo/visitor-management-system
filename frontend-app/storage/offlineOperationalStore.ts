@@ -256,6 +256,25 @@ export async function cacheEmployeeScan(payload: string, result: EmployeeScanRes
       cachedAt,
       lastSeenAt: cachedAt,
     };
+    employeeCredentialAliases(normalized, employee.employeeId).forEach((alias) => {
+      cache.employeeQrScans[alias] = {
+        payloadFingerprint: alias,
+        result: {
+          valid: result.valid,
+          action: result.action ?? null,
+          headline: result.headline ?? null,
+          message: result.message ?? null,
+          recommendedAction: result.recommendedAction ?? null,
+          shiftEligible: result.shiftEligible,
+          currentlyIn: result.currentlyIn,
+          employee,
+          attendance: result.attendance ?? null,
+        },
+        employeeId: employee.id,
+        cachedAt,
+        lastSeenAt: cachedAt,
+      };
+    });
     cache.metadata.lastSyncAt = cachedAt;
   });
 }
@@ -328,15 +347,43 @@ export async function findCachedQrVerification(payload: string) {
 
 export async function findCachedEmployeeScan(payload: string) {
   const cache = await readOfflineOperationalCache();
-  const cached = cache.employeeQrScans[fingerprintPayload(payload.trim())];
-  if (!cached) {
+  const normalized = payload.trim();
+  const cached = cache.employeeQrScans[fingerprintPayload(normalized)]
+    ?? employeeCredentialAliases(normalized).map((alias) => cache.employeeQrScans[alias]).find(Boolean);
+  if (cached) {
+    return {
+      ...cached,
+      cacheAgeMs: Date.now() - Date.parse(cached.cachedAt),
+      employee: cached.employeeId ? cache.employees[cached.employeeId]?.record ?? cached.result.employee ?? null : cached.result.employee ?? null,
+    };
+  }
+
+  const parsedEmployeeId = parseEmployeeIdFromCredential(normalized);
+  const employeeEntry = parsedEmployeeId
+    ? Object.values(cache.employees).find((entry) => entry.record.employeeId === parsedEmployeeId)
+    : null;
+  if (!employeeEntry) {
     return null;
   }
 
   return {
-    ...cached,
-    cacheAgeMs: Date.now() - Date.parse(cached.cachedAt),
-    employee: cached.employeeId ? cache.employees[cached.employeeId]?.record ?? cached.result.employee ?? null : cached.result.employee ?? null,
+    payloadFingerprint: `employee-credential:${parsedEmployeeId}`,
+    result: {
+      valid: true,
+      action: null,
+      headline: 'Offline workforce directory match',
+      message: 'Known worker found in the local workforce directory.',
+      recommendedAction: null,
+      shiftEligible: true,
+      currentlyIn: Boolean(employeeEntry.record.currentlyIn),
+      employee: employeeEntry.record,
+      attendance: null,
+    },
+    employeeId: employeeEntry.record.id,
+    cachedAt: employeeEntry.cachedAt,
+    lastSeenAt: employeeEntry.lastSeenAt,
+    cacheAgeMs: Date.now() - Date.parse(employeeEntry.cachedAt),
+    employee: employeeEntry.record,
   };
 }
 
@@ -530,6 +577,20 @@ export function fingerprintPayload(payload: string) {
     hash = ((hash << 5) - hash + payload.charCodeAt(index)) | 0;
   }
   return `qr-${Math.abs(hash).toString(36)}-${payload.length}`;
+}
+
+function employeeCredentialAliases(payload: string, knownEmployeeId?: string | null) {
+  const employeeId = knownEmployeeId || parseEmployeeIdFromCredential(payload);
+  return employeeId ? [`employee-credential:${employeeId}`] : [];
+}
+
+function parseEmployeeIdFromCredential(payload: string) {
+  const normalized = payload.trim();
+  if (normalized.startsWith('ACCESSFLOW_EMPLOYEE_DYNAMIC:') || normalized.startsWith('ACCESSFLOW_EMPLOYEE:')) {
+    const parts = normalized.split(':');
+    return parts.length > 2 && parts[2] ? parts[2] : null;
+  }
+  return null;
 }
 
 async function mutateCache(mutator: (cache: OfflineOperationalCache) => void) {

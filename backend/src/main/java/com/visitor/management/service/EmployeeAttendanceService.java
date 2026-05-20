@@ -22,6 +22,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +36,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Base64;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,7 +49,11 @@ public class EmployeeAttendanceService {
 
     private static final Logger log = LoggerFactory.getLogger(EmployeeAttendanceService.class);
     private static final String QR_PREFIX = "ACCESSFLOW_EMPLOYEE";
+    private static final String DYNAMIC_QR_PREFIX = "ACCESSFLOW_EMPLOYEE_DYNAMIC";
+    private static final int DYNAMIC_QR_TTL_SECONDS = 60;
+    private static final int DYNAMIC_QR_GRACE_SECONDS = 20;
     private static final String ATTENDANCE_COLLECTION = "employee_attendance_logs";
+    private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -135,7 +144,6 @@ public class EmployeeAttendanceService {
         User actor = currentUser(actorId);
         User employee = requireEmployee(employeeUserId);
         requireSameOrganizationOrSuperAdmin(actor, employee);
-        validateEmployeeAccess(employee);
         provisionAndPersistIfNeeded(employee);
         return toBadgeResponse(employee);
     }
@@ -145,7 +153,6 @@ public class EmployeeAttendanceService {
         if (!employee.getRoles().contains(Role.EMPLOYEE)) {
             throw new BadRequestException("Only employee accounts have workforce badges.");
         }
-        validateEmployeeAccess(employee);
         provisionAndPersistIfNeeded(employee);
         return toBadgeResponse(employee);
     }
@@ -179,8 +186,8 @@ public class EmployeeAttendanceService {
                     true,
                     action,
                     action.equals("CHECKED_IN") ? "Employee checked in" : "Employee checked out",
-                    "%s was %s using the static employee QR.".formatted(employee.getFullName(), action.equals("CHECKED_IN") ? "checked in" : "checked out"),
-                    "Presence updated for access operations.",
+                    "%s was %s using a validated workforce credential.".formatted(employee.getFullName(), action.equals("CHECKED_IN") ? "checked in" : "checked out"),
+                    payloadLooksDynamic(qrPayload) ? "Dynamic QR accepted. Presence updated for access operations." : "Offline fallback QR accepted. Presence updated with standard audit controls.",
                     true,
                     log.getState() == EmployeeAttendanceState.IN,
                     toDirectoryResponse(employee),
@@ -223,7 +230,7 @@ public class EmployeeAttendanceService {
         markCheckInPresence(log, employee, now, zoneId);
         EmployeeAttendanceLog saved = attendanceRepository.save(log);
         accessAuditService.recordEmployeeAttendance(guard, employee, saved.getLastAction(),
-                manual ? "Manual employee check-in override: " + reason.trim() : "Static employee QR check-in recorded.");
+                manual ? "Manual employee check-in override: " + reason.trim() : "Workforce QR check-in recorded.");
         return saved;
     }
 
@@ -251,7 +258,7 @@ public class EmployeeAttendanceService {
         markCheckOutPresence(log);
         EmployeeAttendanceLog saved = attendanceRepository.save(log);
         accessAuditService.recordEmployeeAttendance(guard, employee, saved.getLastAction(),
-                manual ? "Manual employee check-out override: " + reason.trim() : "Static employee QR check-out recorded.");
+                manual ? "Manual employee check-out override: " + reason.trim() : "Workforce QR check-out recorded.");
         return saved;
     }
 
@@ -397,7 +404,11 @@ public class EmployeeAttendanceService {
     }
 
     private EmployeeBadgeResponse toBadgeResponse(User employee) {
-        String payload = qrPayload(employee);
+        Instant now = Instant.now();
+        Instant dynamicExpiresAt = now.plusSeconds(DYNAMIC_QR_TTL_SECONDS);
+        String staticPayload = staticQrPayload(employee);
+        String dynamicPayload = dynamicQrPayload(employee, now, dynamicExpiresAt);
+        String credentialStatus = credentialStatus(employee);
         return new EmployeeBadgeResponse(
                 employee.getId(),
                 employee.getEmployeeId(),
@@ -413,10 +424,22 @@ public class EmployeeAttendanceService {
                 employee.getShiftName(),
                 employee.getShiftStartTime(),
                 employee.getShiftEndTime(),
-                payload,
-                qrCodeService.dataUri(payload),
+                dynamicPayload,
+                qrCodeService.dataUri(dynamicPayload),
                 employee.getEmployeeQrIssuedAt(),
-                employeeEnabled(employee)
+                employeeEnabled(employee),
+                credentialStatus,
+                credentialStatusLabel(credentialStatus),
+                "DYNAMIC_SESSION",
+                dynamicExpiresAt,
+                DYNAMIC_QR_TTL_SECONDS,
+                now,
+                now,
+                staticPayload,
+                qrCodeService.dataUri(staticPayload),
+                accessScope(employee),
+                checkpointMarker(employee),
+                credentialHistory(employee)
         );
     }
 
@@ -479,6 +502,10 @@ public class EmployeeAttendanceService {
     }
 
     private User resolveEmployeeQr(String payload) {
+        if (payloadLooksDynamic(payload)) {
+            return resolveDynamicEmployeeQr(payload);
+        }
+
         String token = parseQrToken(payload);
         User employee = userRepository.findByEmployeeQrToken(token)
                 .orElseThrow(() -> new BadRequestException("Employee QR credential was not recognized."));
@@ -507,13 +534,116 @@ public class EmployeeAttendanceService {
         throw new BadRequestException("This is not an employee attendance QR.");
     }
 
-    private String qrPayload(User employee) {
+    private User resolveDynamicEmployeeQr(String payload) {
+        String[] parts = payload.trim().split(":", 8);
+        if (parts.length != 8 || !DYNAMIC_QR_PREFIX.equals(parts[0])) {
+            throw new BadRequestException("This workforce QR credential is malformed.");
+        }
+
+        String organizationId = trimToNull(parts[1]);
+        String employeeId = trimToNull(parts[2]);
+        String employeeUserId = trimToNull(parts[3]);
+        long issuedEpoch = parseEpoch(parts[4], "issued");
+        long expiresEpoch = parseEpoch(parts[5], "expiry");
+        String nonce = trimToNull(parts[6]);
+        String signature = trimToNull(parts[7]);
+        if (organizationId == null || employeeId == null || employeeUserId == null || nonce == null || signature == null) {
+            throw new BadRequestException("This workforce QR credential is missing validation fields.");
+        }
+
+        User employee = requireEmployee(employeeUserId);
+        validateEmployeeAccess(employee);
+        if (!organizationId.equals(employee.getOrganizationId()) || !employeeId.equals(employee.getEmployeeId())) {
+            throw new BadRequestException("This workforce QR credential does not match the employee record.");
+        }
+
+        Instant now = Instant.now();
+        if (issuedEpoch > now.plusSeconds(DYNAMIC_QR_GRACE_SECONDS).getEpochSecond()) {
+            throw new BadRequestException("This workforce QR credential is not valid yet.");
+        }
+        if (expiresEpoch + DYNAMIC_QR_GRACE_SECONDS < now.getEpochSecond()) {
+            throw new BadRequestException("This workforce QR credential has expired. Ask the employee to refresh their badge.");
+        }
+
+        String signedContent = dynamicQrSigningContent(organizationId, employeeId, employeeUserId, issuedEpoch, expiresEpoch, nonce);
+        String expectedSignature = signDynamicQr(signedContent, employee.getEmployeeQrToken());
+        if (!MessageDigest.isEqual(signature.getBytes(StandardCharsets.UTF_8), expectedSignature.getBytes(StandardCharsets.UTF_8))) {
+            throw new BadRequestException("This workforce QR credential failed tamper validation.");
+        }
+        return employee;
+    }
+
+    private String staticQrPayload(User employee) {
         return "%s:%s:%s:%s".formatted(
                 QR_PREFIX,
                 employee.getOrganizationId(),
                 employee.getEmployeeId(),
                 employee.getEmployeeQrToken()
         );
+    }
+
+    private String dynamicQrPayload(User employee, Instant issuedAt, Instant expiresAt) {
+        String nonce = URL_ENCODER.encodeToString(randomBytes(18));
+        long issuedEpoch = issuedAt.getEpochSecond();
+        long expiresEpoch = expiresAt.getEpochSecond();
+        String signingContent = dynamicQrSigningContent(
+                employee.getOrganizationId(),
+                employee.getEmployeeId(),
+                employee.getId(),
+                issuedEpoch,
+                expiresEpoch,
+                nonce
+        );
+        return "%s:%s:%s:%s:%d:%d:%s:%s".formatted(
+                DYNAMIC_QR_PREFIX,
+                employee.getOrganizationId(),
+                employee.getEmployeeId(),
+                employee.getId(),
+                issuedEpoch,
+                expiresEpoch,
+                nonce,
+                signDynamicQr(signingContent, employee.getEmployeeQrToken())
+        );
+    }
+
+    private String dynamicQrSigningContent(
+            String organizationId,
+            String employeeId,
+            String employeeUserId,
+            long issuedEpoch,
+            long expiresEpoch,
+            String nonce
+    ) {
+        return String.join(":", DYNAMIC_QR_PREFIX, organizationId, employeeId, employeeUserId,
+                Long.toString(issuedEpoch), Long.toString(expiresEpoch), nonce);
+    }
+
+    private String signDynamicQr(String content, String employeeQrToken) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(employeeQrToken.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return URL_ENCODER.encodeToString(mac.doFinal(content.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception ex) {
+            throw new BadRequestException("Workforce QR credential could not be signed.");
+        }
+    }
+
+    private byte[] randomBytes(int size) {
+        byte[] bytes = new byte[size];
+        RANDOM.nextBytes(bytes);
+        return bytes;
+    }
+
+    private long parseEpoch(String value, String label) {
+        try {
+            return Long.parseLong(value);
+        } catch (RuntimeException ex) {
+            throw new BadRequestException("This workforce QR credential has an invalid " + label + " timestamp.");
+        }
+    }
+
+    private boolean payloadLooksDynamic(String payload) {
+        return payload != null && payload.trim().startsWith(DYNAMIC_QR_PREFIX + ":");
     }
 
     private void provisionAndPersistIfNeeded(User employee) {
@@ -543,6 +673,72 @@ public class EmployeeAttendanceService {
         return employee.isActive()
                 && employee.getAccountStatus() == AccountStatus.ACTIVE
                 && employee.getEmployeeQrRevokedAt() == null;
+    }
+
+    private String credentialStatus(User employee) {
+        if (employee.getEmployeeQrRevokedAt() != null) {
+            return "REVOKED";
+        }
+        if (employee.getAccountStatus() == AccountStatus.PENDING_APPROVAL || employee.getAccountStatus() == AccountStatus.UNVERIFIED) {
+            return "PENDING_APPROVAL";
+        }
+        if (!employee.isActive() || employee.getAccountStatus() == AccountStatus.DISABLED || employee.getAccountStatus() == AccountStatus.LOCKED) {
+            return "SUSPENDED";
+        }
+        if (employee.getAccountStatus() == AccountStatus.REJECTED) {
+            return "REVOKED";
+        }
+        return "ACTIVE";
+    }
+
+    private String credentialStatusLabel(String status) {
+        return switch (status) {
+            case "ACTIVE" -> "Active";
+            case "PENDING_APPROVAL" -> "Pending Approval";
+            case "SUSPENDED" -> "Suspended";
+            case "REVOKED" -> "Revoked";
+            default -> "Review";
+        };
+    }
+
+    private String accessScope(User employee) {
+        List<String> scope = new ArrayList<>();
+        if (trimToNull(employee.getDepartment()) != null) {
+            scope.add(employee.getDepartment());
+        }
+        if (trimToNull(employee.getEmployeeType()) != null) {
+            scope.add(employee.getEmployeeType());
+        }
+        if (trimToNull(employee.getShiftName()) != null) {
+            scope.add(employee.getShiftName());
+        }
+        return scope.isEmpty() ? "Workforce identity" : String.join(" / ", scope);
+    }
+
+    private String checkpointMarker(User employee) {
+        String organizationCode = trimToNull(employee.getOrganizationCode());
+        String department = trimToNull(employee.getDepartment());
+        if (organizationCode != null && department != null) {
+            return "%s-%s".formatted(organizationCode, department.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT));
+        }
+        return organizationCode == null ? "ACCESSFLOW" : organizationCode;
+    }
+
+    private List<String> credentialHistory(User employee) {
+        List<String> history = new ArrayList<>();
+        if (employee.getEmployeeQrIssuedAt() != null) {
+            history.add("Credential issued " + employee.getEmployeeQrIssuedAt());
+        }
+        if (employee.getWorkforceApprovedAt() != null) {
+            history.add("Workforce approval " + employee.getWorkforceApprovedAt());
+        }
+        if (employee.getUpdatedAt() != null) {
+            history.add("Profile updated " + employee.getUpdatedAt());
+        }
+        if (employee.getEmployeeQrRevokedAt() != null) {
+            history.add("Credential revoked " + employee.getEmployeeQrRevokedAt());
+        }
+        return history.stream().limit(4).toList();
     }
 
     private void notifyCredentialIssue(User guard, String detail) {

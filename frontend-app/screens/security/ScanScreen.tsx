@@ -164,13 +164,13 @@ export function ScanScreen() {
       case 'employee-check-in':
         return {
           title: 'Manual workforce check-in',
-          helperText: 'Document why the static QR could not be used before you log the assisted workforce check-in.',
+          helperText: 'Document why the digital credential could not be validated before you log the assisted workforce check-in.',
           confirmLabel: 'Check in',
         };
       case 'employee-check-out':
         return {
           title: 'Manual workforce check-out',
-          helperText: 'Document why the static QR could not be used before you log the assisted workforce check-out.',
+          helperText: 'Document why the digital credential could not be validated before you log the assisted workforce check-out.',
           confirmLabel: 'Check out',
         };
     }
@@ -856,7 +856,9 @@ export function ScanScreen() {
 
 function looksLikeEmployeeQr(value: string) {
   const normalized = value.trim();
-  return normalized.startsWith('ACCESSFLOW_EMPLOYEE:') || normalized.includes('employeeToken=');
+  return normalized.startsWith('ACCESSFLOW_EMPLOYEE:')
+    || normalized.startsWith('ACCESSFLOW_EMPLOYEE_DYNAMIC:')
+    || normalized.includes('employeeToken=');
 }
 
 function truncatePayload(value: string) {

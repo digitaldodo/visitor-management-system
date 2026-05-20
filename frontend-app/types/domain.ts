@@ -192,6 +192,18 @@ export type EmployeeBadge = {
   qrImageDataUri?: string | null;
   issuedAt?: string | null;
   active: boolean;
+  credentialStatus?: 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED' | 'PENDING_APPROVAL' | string | null;
+  statusLabel?: string | null;
+  qrMode?: string | null;
+  qrExpiresAt?: string | null;
+  qrRefreshIntervalSeconds?: number | null;
+  serverTime?: string | null;
+  lastValidatedAt?: string | null;
+  staticFallbackPayload?: string | null;
+  staticFallbackQrImageDataUri?: string | null;
+  accessScope?: string | null;
+  checkpointMarker?: string | null;
+  credentialHistory?: string[] | null;
 };
 
 export type HostDirectoryEntry = {

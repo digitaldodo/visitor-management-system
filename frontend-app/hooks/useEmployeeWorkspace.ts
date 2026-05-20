@@ -31,6 +31,12 @@ export function useEmployeeBadge() {
     queryKey: ['employee', 'badge'],
     queryFn: getEmployeeBadge,
     placeholderData: (previous) => previous,
+    refetchInterval: (query) => {
+      const intervalSeconds = query.state.data?.qrRefreshIntervalSeconds ?? 60;
+      return Math.max(20, intervalSeconds - 10) * 1000;
+    },
+    refetchIntervalInBackground: false,
+    staleTime: 15_000,
   });
 }
 

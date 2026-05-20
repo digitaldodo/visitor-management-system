@@ -1,6 +1,7 @@
 package com.visitor.management.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record EmployeeBadgeResponse(
         String employeeUserId,
@@ -20,6 +21,18 @@ public record EmployeeBadgeResponse(
         String qrPayload,
         String qrImageDataUri,
         Instant issuedAt,
-        boolean active
+        boolean active,
+        String credentialStatus,
+        String statusLabel,
+        String qrMode,
+        Instant qrExpiresAt,
+        int qrRefreshIntervalSeconds,
+        Instant serverTime,
+        Instant lastValidatedAt,
+        String staticFallbackPayload,
+        String staticFallbackQrImageDataUri,
+        String accessScope,
+        String checkpointMarker,
+        List<String> credentialHistory
 ) {
 }
