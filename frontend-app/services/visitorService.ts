@@ -119,7 +119,7 @@ export async function getVisitorHistory() {
   });
 }
 
-export async function getVisitorHosts(query?: string, companyCode?: string) {
+export async function getVisitorHosts(query?: string, companyCode?: string, signal?: AbortSignal) {
   return request<HostDirectoryEntry[]>({
     url: '/visitor/hosts',
     method: 'GET',
@@ -127,6 +127,7 @@ export async function getVisitorHosts(query?: string, companyCode?: string) {
       query,
       companyCode,
     },
+    signal,
   });
 }
 

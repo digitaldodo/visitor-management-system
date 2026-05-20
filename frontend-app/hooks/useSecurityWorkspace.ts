@@ -80,7 +80,7 @@ export function useSecurityAttendance() {
 export function useSecurityEmployees(query?: string) {
   return useQuery({
     queryKey: ['security', 'employees', query ?? ''],
-    queryFn: () => getSecurityEmployees(query),
+    queryFn: ({ signal }) => getSecurityEmployees(query, signal),
     placeholderData: (previous) => previous,
   });
 }
@@ -88,7 +88,7 @@ export function useSecurityEmployees(query?: string) {
 export function useSecurityHosts(query?: string) {
   return useQuery({
     queryKey: ['security', 'hosts', query ?? ''],
-    queryFn: () => getSecurityHosts(query),
+    queryFn: ({ signal }) => getSecurityHosts(query, signal),
     enabled: Boolean(query && query.trim().length >= 2),
   });
 }

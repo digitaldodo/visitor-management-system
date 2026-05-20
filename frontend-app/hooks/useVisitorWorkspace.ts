@@ -41,7 +41,7 @@ export function useVisitorHosts(query?: string, companyCode?: string) {
   const normalizedQuery = (query || '').trim();
   return useQuery({
     queryKey: ['visitor', 'hosts', normalizedQuery, companyCode],
-    queryFn: () => getVisitorHosts(normalizedQuery, companyCode),
+    queryFn: ({ signal }) => getVisitorHosts(normalizedQuery, companyCode, signal),
     enabled: normalizedQuery.length >= 2 && Boolean((companyCode || '').trim()),
   });
 }

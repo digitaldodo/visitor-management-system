@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { OperationalFieldList } from '../../components/security/OperationalField
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useCheckInVisitorMutation,
@@ -25,11 +26,11 @@ import {
   useEscalateVisitorMutation,
   useOverrideCheckInMutation,
   useReportVisitorMismatchMutation,
-  useSecurityHosts,
   useSecurityMonitoring,
   useSecurityVisitors,
   useUploadVisitorPhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
+import { getSecurityHosts } from '../../services/securityService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, SecurityMonitoring, VisitorRecord, VisitorType } from '../../types/domain';
 import {
@@ -82,13 +83,17 @@ export function VisitorsScreen() {
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const normalizedHostSearch = hostSearch.trim();
-  const deferredHostSearch = useDebouncedValue(normalizedHostSearch, 220);
-  const hostSearchSettling = normalizedHostSearch.length >= 2 && normalizedHostSearch !== deferredHostSearch;
-  const hostSearchReady = !selectedHost && deferredHostSearch.length >= 2;
 
   const monitoring = useSecurityMonitoring(deferredSearch);
   const visitors = useSecurityVisitors(deferredSearch, statusFilter === 'ALL' ? undefined : statusFilter);
-  const hosts = useSecurityHosts(selectedHost ? '' : deferredHostSearch);
+  const searchHosts = useCallback((nextQuery: string, signal: AbortSignal) => getSecurityHosts(nextQuery, signal), []);
+  const hostSearchState = useOperationalAutocomplete({
+    query: normalizedHostSearch,
+    enabled: !selectedHost,
+    minQueryLength: 2,
+    debounceMs: 220,
+    search: searchHosts,
+  });
 
   const createVisitorMutation = useCreateVisitorMutation();
   const uploadVisitorPhotoMutation = useUploadVisitorPhotoMutation();
@@ -98,6 +103,12 @@ export function VisitorsScreen() {
   const denyMutation = useDenyVisitorMutation();
   const escalateMutation = useEscalateVisitorMutation();
   const mismatchMutation = useReportVisitorMismatchMutation();
+
+  useEffect(() => {
+    if (hostSearchState.isError && hostSearchState.error) {
+      showSnackbar({ message: 'Search failed. Retry shortly', tone: 'danger' });
+    }
+  }, [hostSearchState.error, hostSearchState.isError, showSnackbar]);
 
   const operationalHighlights = useMemo(
     () => buildOperationalHighlights(monitoring.data, visitors.data?.items ?? []),
@@ -300,10 +311,10 @@ export function VisitorsScreen() {
                 setSelectedHost(null);
                 setHostSearch('');
               }}
-              hosts={hostSearchReady && !hostSearchSettling ? hosts.data ?? [] : []}
-              loading={!selectedHost && (hostSearchSettling || (hostSearchReady && hosts.isFetching))}
-              errorText={hostSearchReady && !hostSearchSettling && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
-              onRetry={() => void hosts.refetch()}
+              hosts={hostSearchState.results}
+              loading={hostSearchState.isLoading}
+              errorText={hostSearchState.isError ? getErrorMessage(hostSearchState.error, 'Unable to load results') : null}
+              onRetry={hostSearchState.retry}
               helperText="Search the employee directory so approvals stay connected to the right host."
             />
           </View>

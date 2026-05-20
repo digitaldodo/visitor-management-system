@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { usePublicOrganizations } from '../../hooks/useOrganizations';
-import type { OrganizationOption } from '../../services/organizationService';
+import { useOperationalSnackbar } from '../feedback/OperationalSnackbar';
+import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
+import { getPublicOrganizations, type OrganizationOption } from '../../services/organizationService';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 
 type OrganizationSelectorProps = {
@@ -27,17 +27,10 @@ export function OrganizationSelector({
   onSelect,
   onClear,
 }: OrganizationSelectorProps) {
+  const { showSnackbar } = useOperationalSnackbar();
   const [query, setQuery] = useState(selectedName || selectedCode || '');
+  const [selectedOrganization, setSelectedOrganization] = useState<OrganizationOption | null>(null);
   const trimmedQuery = query.trim();
-  const debouncedQuery = useDebouncedValue(trimmedQuery, 220);
-  const queryReady = trimmedQuery.length >= MIN_ORGANIZATION_QUERY_LENGTH;
-  const searchPending = queryReady && trimmedQuery !== debouncedQuery;
-  const organizations = usePublicOrganizations({ enabled: queryReady || Boolean(selectedCode) });
-  const activeOrganizations = useMemo(() => (organizations.data ?? []).filter((item) => item.activeStatus !== false), [organizations.data]);
-  const selectedOrganization = useMemo(
-    () => activeOrganizations.find((organization) => organization.companyCode === selectedCode) ?? null,
-    [activeOrganizations, selectedCode],
-  );
   const selectedDisplayName = selectedName || selectedOrganization?.companyName || (selectedCode ? 'Organization selected' : null);
   const selectedDisplayMeta = [
     selectedOrganization?.regionCountry,
@@ -51,12 +44,20 @@ export function OrganizationSelector({
     }
   }, [selectedDisplayName, selectedName, selectedOrganization?.companyName]);
 
-  const results = useMemo(() => {
-    const normalized = debouncedQuery.toLowerCase().trim();
-    if (normalized.length < MIN_ORGANIZATION_QUERY_LENGTH) {
-      return [];
+  useEffect(() => {
+    if (!selectedCode || selectedOrganization?.companyCode === selectedCode) {
+      return;
     }
-    return activeOrganizations
+
+    setSelectedOrganization(null);
+  }, [selectedCode, selectedOrganization?.companyCode]);
+
+  const searchOrganizations = useCallback(async (nextQuery: string, signal: AbortSignal) => {
+    const normalized = nextQuery.toLowerCase().trim();
+    const organizations = await getPublicOrganizations(signal);
+
+    return organizations
+      .filter((item) => item.activeStatus !== false)
       .filter((item) => [
         item.companyName,
         item.companyCode,
@@ -64,7 +65,21 @@ export function OrganizationSelector({
         item.timezone,
       ].filter(Boolean).join(' ').toLowerCase().includes(normalized))
       .slice(0, MAX_ORGANIZATION_RESULTS);
-  }, [activeOrganizations, debouncedQuery]);
+  }, []);
+
+  const organizationSearch = useOperationalAutocomplete({
+    query: trimmedQuery,
+    enabled: !selectedDisplayName,
+    minQueryLength: MIN_ORGANIZATION_QUERY_LENGTH,
+    debounceMs: 220,
+    search: searchOrganizations,
+  });
+
+  useEffect(() => {
+    if (organizationSearch.isError && organizationSearch.error) {
+      showSnackbar({ message: 'Unable to load organizations', tone: 'danger' });
+    }
+  }, [organizationSearch.error, organizationSearch.isError, showSnackbar]);
 
   return (
     <AutocompleteDropdown
@@ -73,32 +88,33 @@ export function OrganizationSelector({
       onChangeText={(value) => {
         setQuery(value);
         if (!value.trim()) {
+          setSelectedOrganization(null);
           onClear?.();
         }
       }}
       placeholder={placeholder}
       helperText={helperText}
       minQueryLength={MIN_ORGANIZATION_QUERY_LENGTH}
-      results={searchPending ? [] : results}
-      loading={queryReady && (searchPending || organizations.isLoading || organizations.isFetching)}
-      errorText={queryReady && organizations.isError ? errorMessage(organizations.error, 'Organizations could not be loaded.') : null}
-      emptyText="No organizations found"
+      results={organizationSearch.results}
+      loading={organizationSearch.isLoading}
+      errorText={organizationSearch.isError ? errorMessage(organizationSearch.error, 'Organizations could not be loaded.') : null}
+      emptyText="No matching organizations found"
       emptyBody="Try a different organization or facility name."
       selectedTitle={selectedDisplayName}
       selectedMeta={selectedDisplayMeta}
       selectedAvatarText={selectedOrganization?.companyCode ?? selectedCode ?? undefined}
       resultIconName="business-outline"
       onSelect={(organization) => {
+        setSelectedOrganization(organization);
         setQuery(organization.companyName);
         onSelect(organization);
       }}
-      onRetry={() => {
-        void organizations.refetch();
-      }}
+      onRetry={organizationSearch.retry}
       getKey={(organization) => organization.id || organization.companyCode}
       getTitle={(organization) => organization.companyName}
       getMeta={(organization) => [organization.regionCountry, organization.timezone].filter(Boolean).join(' · ')}
       onClearSelection={onClear ? () => {
+        setSelectedOrganization(null);
         setQuery('');
         onClear();
       } : undefined}

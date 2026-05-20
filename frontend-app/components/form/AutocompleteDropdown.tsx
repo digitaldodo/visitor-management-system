@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  ActivityIndicator,
+  FlatList,
   Keyboard,
   LayoutAnimation,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   UIManager,
@@ -141,33 +142,37 @@ export function AutocompleteDropdown<T>({
               ) : null}
             </View>
           ) : results.length ? (
-            <ScrollView
+            <FlatList
+              data={results.slice(0, 8)}
+              keyExtractor={getKey}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
               style={styles.resultsScroll}
-            >
-              {results.slice(0, 8).map((item) => (
-                <Pressable
-                  key={getKey(item)}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    animate();
-                    Keyboard.dismiss();
-                    onSelect(item);
-                  }}
-                  android_ripple={{ color: theme.colors.primarySoft }}
-                  style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
-                >
-                  <View style={styles.resultIcon}>
-                    <Ionicons name={resultIconName} size={17} color={theme.colors.info} />
-                  </View>
-                  <View style={styles.resultCopy}>
-                    <Text maxFontSizeMultiplier={1.08} style={styles.resultTitle}>{getTitle(item)}</Text>
-                    {getMeta?.(item) ? <Text maxFontSizeMultiplier={1.08} style={styles.metaText}>{getMeta(item)}</Text> : null}
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
+              renderItem={({ item }) => {
+                const meta = getMeta?.(item);
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      animate();
+                      Keyboard.dismiss();
+                      onSelect(item);
+                    }}
+                    android_ripple={{ color: theme.colors.primarySoft }}
+                    style={({ pressed }) => [styles.resultRow, pressed ? styles.pressed : null]}
+                  >
+                    <View style={styles.resultIcon}>
+                      <Ionicons name={resultIconName} size={17} color={theme.colors.info} />
+                    </View>
+                    <View style={styles.resultCopy}>
+                      <Text maxFontSizeMultiplier={1.08} numberOfLines={1} style={styles.resultTitle}>{getTitle(item)}</Text>
+                      {meta ? <Text maxFontSizeMultiplier={1.08} numberOfLines={2} style={styles.metaText}>{meta}</Text> : null}
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
           ) : (
             <StateRow icon="file-tray-outline" title={emptyText} body={emptyBody} />
           )}
@@ -190,7 +195,11 @@ function StateRow({
 }) {
   return (
     <View style={styles.stateRow}>
-      <Ionicons name={icon} size={18} color={tone === 'danger' ? theme.colors.danger : theme.colors.textSecondary} />
+      {icon === 'sync-outline' ? (
+        <ActivityIndicator size="small" color={theme.colors.info} />
+      ) : (
+        <Ionicons name={icon} size={18} color={tone === 'danger' ? theme.colors.danger : theme.colors.textSecondary} />
+      )}
       <View style={styles.resultCopy}>
         <Text style={styles.resultTitle}>{title}</Text>
         <Text style={styles.metaText}>{body}</Text>
@@ -255,6 +264,8 @@ const styles = StyleSheet.create({
   resultsPanel: {
     maxHeight: 292,
     overflow: 'hidden',
+    zIndex: 20,
+    elevation: 8,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,

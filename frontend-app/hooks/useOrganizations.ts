@@ -5,7 +5,7 @@ import { getPublicOrganizations } from '../services/organizationService';
 export function usePublicOrganizations(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['organizations', 'public'],
-    queryFn: getPublicOrganizations,
+    queryFn: ({ signal }) => getPublicOrganizations(signal),
     placeholderData: (previous) => previous,
     enabled: options?.enabled ?? true,
     staleTime: 10 * 60_000,

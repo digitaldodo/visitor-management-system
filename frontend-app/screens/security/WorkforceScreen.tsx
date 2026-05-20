@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -6,6 +6,7 @@ import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
+import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
@@ -13,15 +14,16 @@ import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useCreateWorkforceOnboardingMutation,
   useManualEmployeeCheckInMutation,
   useManualEmployeeCheckOutMutation,
   useSecurityAttendance,
-  useSecurityEmployees,
   useUploadWorkforcePhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
+import { getSecurityEmployees } from '../../services/securityService';
 import { theme } from '../../theme';
 import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry } from '../../types/domain';
 import { employeePresenceLabel, formatDateTime, relativePresenceSummary, statusTone } from '../../utils/securityFormatting';
@@ -41,6 +43,7 @@ const WORKER_TYPES = [
 export function WorkforceScreen() {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { showSnackbar } = useOperationalSnackbar();
   const [search, setSearch] = useState('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [workforceAction, setWorkforceAction] = useState<WorkforceAction | null>(null);
@@ -60,14 +63,30 @@ export function WorkforceScreen() {
   const [shiftEndTime, setShiftEndTime] = useState('18:00');
   const [formError, setFormError] = useState<string | null>(null);
 
-  const deferredSearch = useDeferredValue(search.trim());
   const attendance = useSecurityAttendance();
-  const employees = useSecurityEmployees(deferredSearch);
+  const normalizedSearch = search.trim();
+  const searchEmployees = useCallback(
+    (nextQuery: string, signal: AbortSignal) => getSecurityEmployees(nextQuery || undefined, signal),
+    [],
+  );
+  const employees = useOperationalAutocomplete({
+    query: normalizedSearch,
+    enabled: true,
+    minQueryLength: 0,
+    debounceMs: normalizedSearch ? 220 : 0,
+    search: searchEmployees,
+  });
 
   const createWorkforceMutation = useCreateWorkforceOnboardingMutation();
   const uploadWorkforcePhotoMutation = useUploadWorkforcePhotoMutation();
   const manualCheckInMutation = useManualEmployeeCheckInMutation();
   const manualCheckOutMutation = useManualEmployeeCheckOutMutation();
+
+  useEffect(() => {
+    if (employees.isError && employees.error) {
+      showSnackbar({ message: 'Unable to load employees', tone: 'danger' });
+    }
+  }, [employees.error, employees.isError, showSnackbar]);
 
   const recentPresenceByEmployee = useMemo(() => {
     const map = new Map<string, EmployeeAttendanceRecord>();
@@ -180,8 +199,11 @@ export function WorkforceScreen() {
       <AppScreen
         title="Workforce Operations"
         subtitle="Security-led workforce verification, presence visibility, and assisted onboarding for support teams."
-        refreshing={attendance.isRefetching || employees.isRefetching}
-        onRefresh={() => Promise.all([attendance.refetch(), employees.refetch()])}
+        refreshing={attendance.isRefetching || employees.isLoading}
+        onRefresh={() => {
+          employees.retry();
+          return attendance.refetch();
+        }}
       >
         <SurfaceCard title="Assisted onboarding" subtitle="Capture the worker identity, service type, and shift context for admin approval.">
           <AppTextField label="Worker name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
@@ -253,8 +275,12 @@ export function WorkforceScreen() {
 
         <SurfaceCard title="Workforce search" subtitle="Look up cleaners, gardeners, support staff, contract labor, and active employees from the backend directory.">
           <AppTextField label="Search workforce" value={search} onChangeText={setSearch} placeholder="Search by name, employee ID, designation, or department" />
-          {employees.data?.length ? (
-            employees.data.slice(0, 10).map((employee) => {
+          {employees.isLoading ? (
+            <EmptyState title="Searching workforce" body="Loading matching employees..." />
+          ) : employees.isError ? (
+            <EmptyState title="Unable to load results" body={employees.error?.message || 'Search failed. Retry shortly.'} />
+          ) : employees.results.length ? (
+            employees.results.slice(0, 10).map((employee) => {
               const recent = recentPresenceByEmployee.get(employee.id);
               return (
                 <View key={employee.id} style={styles.directoryCard}>

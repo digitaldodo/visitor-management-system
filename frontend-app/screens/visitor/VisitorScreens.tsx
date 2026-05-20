@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Linking, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -9,6 +9,7 @@ import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { DetailRow } from '../../components/employee/DetailRow';
 import { EmptyState } from '../../components/feedback/EmptyState';
+import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { ArrivalTimeSelector, nearestArrivalTime } from '../../components/form/ArrivalTimeSelector';
@@ -19,13 +20,12 @@ import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { AccountProfileScreen } from '../common/AccountProfileScreen';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   useRequestVisitorVisitMutation,
   useUploadVisitorVisitPhotoMutation,
   useVisitorHistory,
-  useVisitorHosts,
   useVisitorNotifications,
   useVisitorOverview,
   useVisitorPass,
@@ -33,6 +33,7 @@ import {
 } from '../../hooks/useVisitorWorkspace';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
+import { getVisitorHosts } from '../../services/visitorService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, NotificationRecord, VisitorRecord } from '../../types/domain';
 import { formatDateTime } from '../../utils/employeeFormatting';
@@ -95,6 +96,7 @@ export function VisitorRequestScreen() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { showSnackbar } = useOperationalSnackbar();
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [companyCode, setCompanyCode] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -113,13 +115,25 @@ export function VisitorRequestScreen() {
   const [calendarEventUrl, setCalendarEventUrl] = useState<string | null>(null);
 
   const normalizedHostSearch = hostSearch.trim();
-  const deferredHostSearch = useDebouncedValue(normalizedHostSearch, 220);
-  const hostSearchSettling = normalizedHostSearch.length >= 2 && normalizedHostSearch !== deferredHostSearch;
-  const hostSearchReady = !selectedHost && deferredHostSearch.length >= 2 && Boolean(companyCode.trim());
-  const hosts = useVisitorHosts(selectedHost ? '' : deferredHostSearch, companyCode.trim());
-  const hostResults = hostSearchReady && !hostSearchSettling ? hosts.data ?? [] : [];
+  const searchHosts = useCallback(
+    (nextQuery: string, signal: AbortSignal) => getVisitorHosts(nextQuery, companyCode.trim(), signal),
+    [companyCode],
+  );
+  const hostSearchState = useOperationalAutocomplete({
+    query: normalizedHostSearch,
+    enabled: !selectedHost && Boolean(companyCode.trim()),
+    minQueryLength: 2,
+    debounceMs: 220,
+    search: searchHosts,
+  });
   const requestVisitMutation = useRequestVisitorVisitMutation();
   const uploadPhotoMutation = useUploadVisitorVisitPhotoMutation();
+
+  useEffect(() => {
+    if (hostSearchState.isError && hostSearchState.error) {
+      showSnackbar({ message: 'Unable to load employees', tone: 'danger' });
+    }
+  }, [hostSearchState.error, hostSearchState.isError, showSnackbar]);
 
   const submitRequest = async () => {
     if (!purposeOfVisit.trim()) {
@@ -240,10 +254,10 @@ export function VisitorRequestScreen() {
               setSelectedHost(null);
               setHostSearch('');
             }}
-            hosts={hostResults}
-            loading={!selectedHost && Boolean(companyCode.trim()) && (hostSearchSettling || (hostSearchReady && hosts.isFetching))}
-            errorText={hostSearchReady && !hostSearchSettling && hosts.isError ? getErrorMessage(hosts.error, 'Host search failed.') : null}
-            onRetry={() => void hosts.refetch()}
+            hosts={hostSearchState.results}
+            loading={hostSearchState.isLoading}
+            errorText={hostSearchState.isError ? getErrorMessage(hostSearchState.error, 'Unable to load results') : null}
+            onRetry={hostSearchState.retry}
             helperText={companyCode ? 'Type at least two letters to find your host.' : 'Select an organization first, then search the host.'}
           />
           <ArrivalTimeSelector

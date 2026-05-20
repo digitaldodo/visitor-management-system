@@ -11,9 +11,10 @@ export type OrganizationOption = {
   activeStatus?: boolean;
 };
 
-export async function getPublicOrganizations() {
+export async function getPublicOrganizations(signal?: AbortSignal) {
   return publicRequest<OrganizationOption[]>({
     url: '/organizations/public',
     method: 'GET',
+    signal,
   });
 }

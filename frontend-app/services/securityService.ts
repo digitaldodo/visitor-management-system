@@ -127,19 +127,21 @@ export async function getSecurityAttendance() {
   });
 }
 
-export async function getSecurityEmployees(query?: string) {
+export async function getSecurityEmployees(query?: string, signal?: AbortSignal) {
   return request<EmployeeDirectoryEntry[]>({
     url: '/security/employees',
     method: 'GET',
     params: query ? { query } : undefined,
+    signal,
   });
 }
 
-export async function getSecurityHosts(query?: string) {
+export async function getSecurityHosts(query?: string, signal?: AbortSignal) {
   return request<HostDirectoryEntry[]>({
     url: '/security/hosts',
     method: 'GET',
     params: query ? { query } : undefined,
+    signal,
   });
 }
 
