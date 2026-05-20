@@ -24,7 +24,7 @@
     "android": {
       "package": "com.accessflow.mobile",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 29,
+      "versionCode": 30,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
