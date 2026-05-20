@@ -353,6 +353,124 @@ function analyticsTemplate() {
         </article>
       </section>
 
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Live Operations</p>
+              <h3>Active Access State</h3>
+            </div>
+          </div>
+          <div class="operational-intel-grid" id="live-operations-grid"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Actionable Intelligence</p>
+              <h3>Operational Insights</h3>
+            </div>
+          </div>
+          <div class="operational-insight-list" id="operational-insights-list"></div>
+        </article>
+      </section>
+
+      <section class="panel chart-panel chart-panel--wide">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Traffic Heatmap</p>
+            <h3>Busiest Entry Hours</h3>
+          </div>
+        </div>
+        <div class="chart-stage" id="traffic-heatmap-chart"></div>
+      </section>
+
+      <section class="analytics-chart-grid" aria-label="Operational intelligence charts">
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Workforce Movement</p>
+              <h3>Rush Periods</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="workforce-rush-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Denied Entry</p>
+              <h3>Denial Trend</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="denial-trends-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Incidents</p>
+              <h3>Incident Spikes</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="incident-trends-chart"></div>
+        </article>
+      </section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Repeat Traffic</p>
+              <h3>Visitor Intelligence</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="repeat-visitor-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Security</p>
+              <h3>Denials and Incidents</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="security-intelligence-list"></div>
+        </article>
+      </section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Workforce Access</p>
+              <h3>Anomaly Detection</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="workforce-anomaly-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Site Scope</p>
+              <h3>Organization and Checkpoints</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="site-scope-list"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Historical Reporting</p>
+            <h3>Operational Snapshots</h3>
+          </div>
+        </div>
+        <div class="operational-export-grid" id="operational-export-grid"></div>
+      </section>
+
       <section class="panel employee-analytics-panel">
         <div class="panel__header">
           <div>
@@ -424,6 +542,124 @@ function platformAnalyticsTemplate() {
           </div>
           <div class="chart-stage" id="monthly-trends-chart"></div>
         </article>
+      </section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Platform Operations</p>
+              <h3>Live Access State</h3>
+            </div>
+          </div>
+          <div class="operational-intel-grid" id="live-operations-grid"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Platform Intelligence</p>
+              <h3>Operational Insights</h3>
+            </div>
+          </div>
+          <div class="operational-insight-list" id="operational-insights-list"></div>
+        </article>
+      </section>
+
+      <section class="panel chart-panel chart-panel--wide">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Cross-tenant Traffic</p>
+            <h3>Busiest Entry Hours</h3>
+          </div>
+        </div>
+        <div class="chart-stage" id="traffic-heatmap-chart"></div>
+      </section>
+
+      <section class="analytics-chart-grid" aria-label="Platform operational intelligence charts">
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Workforce Movement</p>
+              <h3>Rush Periods</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="workforce-rush-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Denied Entry</p>
+              <h3>Denial Trend</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="denial-trends-chart"></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Incidents</p>
+              <h3>Incident Spikes</h3>
+            </div>
+          </div>
+          <div class="chart-stage" id="incident-trends-chart"></div>
+        </article>
+      </section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Repeat Traffic</p>
+              <h3>Visitor Intelligence</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="repeat-visitor-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Security</p>
+              <h3>Denials and Incidents</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="security-intelligence-list"></div>
+        </article>
+      </section>
+
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Workforce Access</p>
+              <h3>Anomaly Detection</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="workforce-anomaly-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Site Scope</p>
+              <h3>Organizations and Checkpoints</h3>
+            </div>
+          </div>
+          <div class="operational-signal-list" id="site-scope-list"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Historical Reporting</p>
+            <h3>Operational Snapshots</h3>
+          </div>
+        </div>
+        <div class="operational-export-grid" id="operational-export-grid"></div>
       </section>
     </section>
   `;
@@ -2470,6 +2706,7 @@ function renderAnalytics(data) {
   renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
   renderChart("#peak-hours-chart", compactBars(analytics.peakHours));
   renderChart("#approval-rates-chart", approvalRateChart(analytics.approvalRates));
+  renderOperationalAnalytics(analytics);
   renderEmployeeAnalytics(analytics.employeeAnalytics);
   renderWorkforceAttendanceAnalytics(analytics.workforceAttendance);
 }
@@ -2479,6 +2716,7 @@ function renderAnalyticsLoading() {
   renderChart("#monthly-trends-chart", chartEmpty("Trends will appear as activity accumulates."));
   renderChart("#peak-hours-chart", chartEmpty("Peak-hour signals will appear after check-ins."));
   renderChart("#approval-rates-chart", chartEmpty("Decision patterns will appear after approvals."));
+  renderOperationalAnalytics(defaultAnalyticsPayload());
   renderEmployeeAnalytics([]);
   renderWorkforceAttendanceAnalytics({});
 }
@@ -2537,6 +2775,28 @@ function defaultAnalyticsPayload() {
     checkInTrends: [],
     approvalRates: [],
     employeeAnalytics: [],
+    trafficHeatmap: [],
+    checkInHours: [],
+    checkOutHours: [],
+    workforceRushHours: [],
+    weeklyPatterns: [],
+    dailyPatterns: [],
+    repeatVisitors: [],
+    repeatOrganizations: [],
+    repeatDeniedVisitors: [],
+    denialTrends: [],
+    denialReasons: [],
+    denialAttempts: [],
+    securityIncidents: [],
+    incidentTrends: [],
+    workforceAnomalies: [],
+    liveOperations: [],
+    organizationBreakdown: [],
+    departmentBreakdown: [],
+    visitorCategoryBreakdown: [],
+    checkpointActivity: [],
+    operationalInsights: [],
+    exportSnapshots: [],
     workforceAttendance: {
       timezone: "UTC",
       widgets: [],
@@ -2567,6 +2827,28 @@ function normalizeAnalyticsPayload(data = {}) {
     checkInTrends: normalizeChartSeries(source.checkInTrends),
     approvalRates: normalizeArray(source.approvalRates),
     employeeAnalytics: normalizeArray(source.employeeAnalytics),
+    trafficHeatmap: normalizeHeatmap(source.trafficHeatmap),
+    checkInHours: normalizeChartSeries(source.checkInHours),
+    checkOutHours: normalizeChartSeries(source.checkOutHours),
+    workforceRushHours: normalizeChartSeries(source.workforceRushHours),
+    weeklyPatterns: normalizeChartSeries(source.weeklyPatterns),
+    dailyPatterns: normalizeChartSeries(source.dailyPatterns),
+    repeatVisitors: normalizeArray(source.repeatVisitors),
+    repeatOrganizations: normalizeArray(source.repeatOrganizations),
+    repeatDeniedVisitors: normalizeArray(source.repeatDeniedVisitors),
+    denialTrends: normalizeChartSeries(source.denialTrends),
+    denialReasons: normalizeArray(source.denialReasons),
+    denialAttempts: normalizeArray(source.denialAttempts),
+    securityIncidents: normalizeArray(source.securityIncidents),
+    incidentTrends: normalizeChartSeries(source.incidentTrends),
+    workforceAnomalies: normalizeArray(source.workforceAnomalies),
+    liveOperations: normalizeArray(source.liveOperations),
+    organizationBreakdown: normalizeArray(source.organizationBreakdown),
+    departmentBreakdown: normalizeArray(source.departmentBreakdown),
+    visitorCategoryBreakdown: normalizeArray(source.visitorCategoryBreakdown),
+    checkpointActivity: normalizeArray(source.checkpointActivity),
+    operationalInsights: normalizeArray(source.operationalInsights),
+    exportSnapshots: normalizeArray(source.exportSnapshots),
     workforceAttendance: {
       ...fallback.workforceAttendance,
       ...workforceAttendance,
@@ -2596,6 +2878,202 @@ function normalizeChartSeries(items) {
     }));
 }
 
+function normalizeHeatmap(items) {
+  return normalizeArray(items)
+    .filter((item) => isObject(item))
+    .map((item) => ({
+      label: item.label || "Day",
+      date: item.date || "",
+      hours: normalizeArray(item.hours).map((hour) => ({
+        hour: hour.hour || "00:00",
+        value: Number(hour.value) || 0,
+      })),
+    }));
+}
+
+function renderOperationalAnalytics(analytics) {
+  renderOperationalTiles("#live-operations-grid", analytics.liveOperations, "No live operations yet", "Current active visitors, workforce, checkpoints, and expiration windows will appear here.");
+  renderOperationalInsights(analytics.operationalInsights);
+  renderChart("#traffic-heatmap-chart", heatmapChart(analytics.trafficHeatmap));
+  renderChart("#workforce-rush-chart", compactBars(analytics.workforceRushHours));
+  renderChart("#denial-trends-chart", lineChart(analytics.denialTrends));
+  renderChart("#incident-trends-chart", lineChart(analytics.incidentTrends));
+  renderOperationalSignals("#repeat-visitor-list", [
+    ...analytics.repeatVisitors.map((item) => ({ ...item, group: "Frequent visitor" })),
+    ...analytics.repeatOrganizations.map((item) => ({ ...item, group: "Repeat organization" })),
+  ], "No repeat traffic yet", "Frequent visitors, recurring vendors, and repeated organizations will appear after activity accumulates.");
+  renderOperationalSignals("#security-intelligence-list", [
+    ...analytics.denialReasons.map((item) => ({ ...item, group: "Denial reason" })),
+    ...analytics.repeatDeniedVisitors.map((item) => ({ ...item, group: "Repeat denial" })),
+    ...analytics.denialAttempts.map((item) => ({ ...item, group: "Retry attempt" })),
+    ...analytics.securityIncidents.map((item) => ({ ...item, group: "Incident" })),
+  ], "No security intelligence yet", "Denied-entry reasons, retry patterns, and escalations will appear here.");
+  renderOperationalSignals("#workforce-anomaly-list", analytics.workforceAnomalies, "No workforce anomalies", "Late arrivals, missing check-outs, suspicious activity, and manual overrides will appear here.");
+  renderOperationalSignals("#site-scope-list", [
+    ...analytics.checkpointActivity.map((item) => ({ ...item, group: "Checkpoint" })),
+    ...analytics.organizationBreakdown.map((item) => ({ ...item, group: "Organization" })),
+    ...analytics.departmentBreakdown.map((item) => ({ ...item, group: "Department" })),
+    ...analytics.visitorCategoryBreakdown.map((item) => ({ ...item, group: "Visitor category" })),
+  ], "No site activity yet", "Organization, department, site/checkpoint, and category activity will appear here.");
+  renderOperationalExports(analytics.exportSnapshots, analytics);
+}
+
+function renderOperationalTiles(selector, items, emptyTitle, emptyBody) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    return;
+  }
+  const rows = normalizeArray(items);
+  element.innerHTML = rows.length ? rows.map((item) => `
+    <article class="operational-intel-card">
+      <span>${escapeHtml(item.label || "Signal")}</span>
+      <strong>${escapeHtml(item.value ?? 0)}</strong>
+      <small>${escapeHtml(item.note || "Operational state")}</small>
+    </article>
+  `).join("") : emptyInline(emptyTitle, emptyBody);
+}
+
+function renderOperationalInsights(items) {
+  const element = document.querySelector("#operational-insights-list");
+  if (!element) {
+    return;
+  }
+  const rows = normalizeArray(items);
+  element.innerHTML = rows.length ? rows.slice(0, 6).map((item) => `
+    <article class="operational-insight-card operational-insight-card--${escapeHtml(String(item.severity || "low").toLowerCase())}">
+      <span>${escapeHtml(item.severity || "Signal")}</span>
+      <strong>${escapeHtml(item.label || "Operational insight")}</strong>
+      <small>${escapeHtml(item.detail || "Access pattern detected.")}</small>
+    </article>
+  `).join("") : emptyInline("No insights yet", "Actionable operational insights will appear after traffic, denial, incident, and workforce patterns accumulate.");
+}
+
+function renderOperationalSignals(selector, items, emptyTitle, emptyBody) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    return;
+  }
+  const rows = normalizeArray(items).filter((item) => isObject(item));
+  element.innerHTML = rows.length ? rows.slice(0, 10).map((item) => `
+    <article class="operational-signal-card">
+      <div>
+        <span>${escapeHtml(item.group || item.severity || "Signal")}</span>
+        <strong>${escapeHtml(item.label || item.target || "Operational signal")}</strong>
+        <small>${escapeHtml(item.note || item.reason || item.detail || item.organization || item.value || "Recorded")}</small>
+      </div>
+      <b>${escapeHtml(item.value ?? item.records ?? "")}</b>
+    </article>
+  `).join("") : emptyInline(emptyTitle, emptyBody);
+}
+
+function renderOperationalExports(items, analytics) {
+  const element = document.querySelector("#operational-export-grid");
+  if (!element) {
+    return;
+  }
+  const rows = normalizeArray(items);
+  element.innerHTML = rows.length ? rows.map((item) => `
+    <article class="operational-export-card">
+      <span>${escapeHtml(item.format || "CSV")}</span>
+      <strong>${escapeHtml(item.label || "Operational report")}</strong>
+      <small>${escapeHtml(item.note || "Exportable operational snapshot")}</small>
+      <button class="button button--ghost button--small" type="button" data-export-snapshot="${escapeHtml(item.label || "snapshot")}" data-export-format="${escapeHtml(item.format || "CSV")}">Export ${escapeHtml(item.format || "CSV")}</button>
+    </article>
+  `).join("") : emptyInline("No export snapshots", "Visitor, denial, incident, workforce, and operational snapshots will appear here.");
+  element.querySelectorAll("[data-export-snapshot]").forEach((button) => {
+    button.addEventListener("click", () => exportOperationalSnapshot(button.dataset.exportSnapshot, button.dataset.exportFormat, analytics));
+  });
+}
+
+function heatmapChart(rows) {
+  if (!rows.length || !rows.some((row) => normalizeArray(row.hours).some((hour) => Number(hour.value) > 0))) {
+    return chartEmpty("No hourly traffic activity yet.");
+  }
+  const max = Math.max(1, ...rows.flatMap((row) => normalizeArray(row.hours).map((hour) => Number(hour.value) || 0)));
+  return `
+    <div class="traffic-heatmap">
+      ${rows.map((row) => `
+        <div class="traffic-heatmap__row">
+          <span>${escapeHtml(row.label)}</span>
+          <div>
+            ${normalizeArray(row.hours).map((hour) => {
+              const alpha = 0.16 + Math.min(0.84, (Number(hour.value) || 0) / max);
+              return `<i style="opacity:${alpha}" title="${escapeHtml(row.label)} ${escapeHtml(hour.hour)}: ${escapeHtml(hour.value)}"></i>`;
+            }).join("")}
+          </div>
+        </div>
+      `).join("")}
+      <div class="traffic-heatmap__axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+    </div>
+  `;
+}
+
+function exportOperationalSnapshot(label, format, analytics) {
+  const normalizedFormat = String(format || "CSV").toUpperCase();
+  const filename = `${String(label || "operational-snapshot").toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "") || "operational-snapshot"}-${new Date().toISOString().slice(0, 10)}`;
+  if (normalizedFormat === "PDF") {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      showToast("Export blocked", "Allow pop-ups to generate the PDF snapshot.");
+      return;
+    }
+    printWindow.document.write(reportHtml(label, analytics));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    return;
+  }
+  const csv = operationalCsv(label, analytics);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${filename}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function operationalCsv(label, analytics) {
+  const sections = [
+    ["Live operations", analytics.liveOperations],
+    ["Insights", analytics.operationalInsights],
+    ["Repeat visitors", analytics.repeatVisitors],
+    ["Denied reasons", analytics.denialReasons],
+    ["Security incidents", analytics.securityIncidents],
+    ["Workforce anomalies", analytics.workforceAnomalies],
+    ["Checkpoint activity", analytics.checkpointActivity],
+  ];
+  const rows = [["Report", "Section", "Label", "Value", "Detail"]];
+  sections.forEach(([section, items]) => {
+    normalizeArray(items).forEach((item) => {
+      rows.push([
+        label || "Operational snapshot",
+        section,
+        item.label || item.target || "",
+        item.value ?? item.records ?? item.severity ?? "",
+        item.note || item.detail || item.reason || item.organization || "",
+      ]);
+    });
+  });
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function reportHtml(label, analytics) {
+  const cards = normalizeArray(analytics.liveOperations).map((item) => `
+    <article><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value ?? 0)}</strong><small>${escapeHtml(item.note || "")}</small></article>
+  `).join("");
+  const insights = normalizeArray(analytics.operationalInsights).map((item) => `<li><strong>${escapeHtml(item.label)}</strong> ${escapeHtml(item.detail || "")}</li>`).join("");
+  return `<!doctype html><html><head><title>${escapeHtml(label || "Operational snapshot")}</title><style>
+    body{font-family:Inter,Arial,sans-serif;margin:32px;color:#111827} h1{margin:0 0 8px} p{color:#4b5563}
+    section{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:24px 0}
+    article{border:1px solid #d1d5db;border-radius:10px;padding:14px} span,small{display:block;color:#6b7280;font-size:12px;text-transform:uppercase} strong{display:block;font-size:28px;margin:8px 0}
+  </style></head><body><h1>${escapeHtml(label || "Operational snapshot")}</h1><p>AccessFlow operational intelligence export generated ${escapeHtml(new Date().toLocaleString())}.</p><section>${cards}</section><h2>Actionable insights</h2><ul>${insights}</ul></body></html>`;
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
 function renderPlatformAnalytics(data, organizations, monitoring) {
   const analytics = normalizeAnalyticsPayload(data);
   const organizationItems = normalizeArray(organizations);
@@ -2615,6 +3093,7 @@ function renderPlatformAnalytics(data, organizations, monitoring) {
   ]);
   renderChart("#daily-visitors-chart", barChart(analytics.dailyVisitors, "Visitors"));
   renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
+  renderOperationalAnalytics(analytics);
   renderTenantHealthList("#tenant-health-list", organizationItems.slice(0, 5));
   renderPlatformSignalList("#security-overview-list", monitoringData);
 }
@@ -4103,6 +4582,10 @@ function isObject(value) {
 
 function chartEmpty(message) {
   return `<div class="empty-state empty-state--inline"><h3>No analytics available yet</h3><p>${escapeHtml(message)}</p></div>`;
+}
+
+function emptyInline(title, body) {
+  return `<div class="empty-state empty-state--inline"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></div>`;
 }
 
 function validateOrganization(payload) {

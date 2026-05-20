@@ -18,6 +18,7 @@ import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal
 import { AccountProfileScreen } from '../common/AccountProfileScreen';
 import {
   useAdminOverview,
+  useAdminAnalytics,
   useAdminReports,
   useAdminUsers,
   useAdminVisitors,
@@ -42,7 +43,18 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
 import { theme } from '../../theme';
-import type { EmployeeAttendanceRecord, NotificationRecord, VisitorRecord, VisitorStatus, WorkforceOnboardingRecord } from '../../types/domain';
+import type {
+  AdminOperationalAnalytics,
+  AnalyticsHeatmapRow,
+  AnalyticsPoint,
+  AnalyticsSnapshot,
+  EmployeeAttendanceRecord,
+  NotificationRecord,
+  OperationalInsight,
+  VisitorRecord,
+  VisitorStatus,
+  WorkforceOnboardingRecord,
+} from '../../types/domain';
 import {
   employeePresenceLabel,
   formatDateTime,
@@ -161,6 +173,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const overview = useAdminOverview();
+  const analytics = useAdminAnalytics();
   const reports = useAdminReports();
   const workforceOnboarding = useAdminWorkforceOnboarding();
   const users = useAdminUsers();
@@ -226,6 +239,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const criticalAlertCount = securityNotifications.filter((item) => item.priority === 'CRITICAL' && !item.read).length;
   const activeVisitorCount = insideVisitors.data?.totalItems ?? Number(overview.data?.metrics?.checkedIn ?? 0);
   const isRefreshing = overview.isRefetching
+    || analytics.isRefetching
     || reports.isRefetching
     || workforceOnboarding.isRefetching
     || visitors.isRefetching
@@ -307,6 +321,36 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     await refreshWorkspace();
   };
 
+  const exportOperationalSnapshot = async (snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) => {
+    try {
+      const format = String(snapshot.format || 'CSV').toUpperCase();
+      const filename = `${slugify(snapshot.label)}-${new Date().toISOString().slice(0, 10)}`;
+      if (format === 'PDF') {
+        const Print = await import('expo-print');
+        const Sharing = await import('expo-sharing');
+        const result = await Print.printToFileAsync({ html: operationalReportHtml(snapshot, payload) });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(result.uri, { mimeType: 'application/pdf', dialogTitle: snapshot.label });
+        }
+        setActionMessage(`${snapshot.label} PDF snapshot generated.`);
+        return;
+      }
+
+      const FileSystem = await import('expo-file-system/legacy');
+      const Sharing = await import('expo-sharing');
+      const uri = `${FileSystem.documentDirectory ?? ''}${filename}.csv`;
+      await FileSystem.writeAsStringAsync(uri, operationalReportCsv(snapshot, payload), {
+        encoding: 'utf8',
+      });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: snapshot.label });
+      }
+      setActionMessage(`${snapshot.label} CSV snapshot generated.`);
+    } catch {
+      setActionMessage('Report export could not be generated on this device.');
+    }
+  };
+
   const executeReasonAction = async (reason: string) => {
     if (!actionState) {
       return;
@@ -380,6 +424,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
               <MetricCard label="Active visitors" value={activeVisitorCount} tone={activeVisitorCount ? 'success' : 'default'} />
               <MetricCard label="Critical alerts" value={criticalAlertCount} tone={criticalAlertCount ? 'danger' : 'default'} />
             </View>
+            <EnterpriseAnalytics data={analytics.data} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
             <SurfaceCard title="Quick actions" subtitle="Fast mobile entry points for common admin decisions.">
               <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
                 <PrimaryButton label="Approve workforce" onPress={() => navigation.navigate('Approvals')} />
@@ -642,6 +687,339 @@ function SplitPane({ children }: { children: ReactNode }) {
       ))}
     </View>
   );
+}
+
+function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalytics; onExport: (snapshot: AnalyticsSnapshot) => void | Promise<void> }) {
+  const layout = useResponsiveLayout();
+  const widgets = data?.widgets ?? [];
+  const liveOperations = data?.liveOperations ?? [];
+  const insights = data?.operationalInsights ?? [];
+  const heatmap = data?.trafficHeatmap ?? [];
+  const checkInHours = data?.checkInHours ?? data?.peakHours ?? [];
+  const checkOutHours = data?.checkOutHours ?? [];
+  const workforceRush = data?.workforceRushHours ?? [];
+  const repeatVisitors = data?.repeatVisitors ?? [];
+  const repeatOrganizations = data?.repeatOrganizations ?? [];
+  const repeatDenied = data?.repeatDeniedVisitors ?? [];
+  const denialReasons = data?.denialReasons ?? [];
+  const denialTrends = data?.denialTrends ?? [];
+  const incidents = data?.securityIncidents ?? [];
+  const incidentTrends = data?.incidentTrends ?? [];
+  const anomalies = data?.workforceAnomalies ?? [];
+  const checkpoints = data?.checkpointActivity ?? [];
+  const snapshots = data?.exportSnapshots ?? [];
+  const organizationBreakdown = data?.organizationBreakdown ?? [];
+  const departmentBreakdown = data?.departmentBreakdown ?? [];
+  const categoryBreakdown = data?.visitorCategoryBreakdown ?? [];
+
+  return (
+    <>
+      {widgets.length ? (
+        <SurfaceCard title="Operational intelligence" subtitle={`Live organization analytics${data?.timezone ? ` in ${data.timezone}` : ''}.`}>
+          <View style={styles.metricsGrid}>
+            {widgets.slice(0, 6).map((item) => (
+              <MetricCard key={item.label} label={item.label} value={formatMetricValue(item.value)} tone={metricTone(item)} />
+            ))}
+          </View>
+        </SurfaceCard>
+      ) : null}
+
+      <SplitPane>
+        <SurfaceCard title="Live access state" subtitle="Current visitor, workforce, checkpoint, and expiration posture.">
+          <AnalyticsTileGrid items={liveOperations} />
+        </SurfaceCard>
+        <SurfaceCard title="Actionable insights" subtitle="Generated from traffic, denial, incident, and workforce anomaly signals.">
+          <InsightList items={insights} />
+        </SurfaceCard>
+      </SplitPane>
+
+      <SurfaceCard title="Busiest entry hours" subtitle="Hourly traffic heatmap for guard staffing and entry planning.">
+        <HourlyHeatmap rows={heatmap} />
+      </SurfaceCard>
+
+      <View style={[styles.analyticsGrid, layout.isTwoColumn ? styles.analyticsGridWide : null]}>
+        <SurfaceCard title="Visitor traffic trends" subtitle="Check-in, check-out, and workforce rush windows.">
+          <TrendBars title="Check-ins" items={checkInHours} />
+          <TrendBars title="Check-outs" items={checkOutHours} />
+          <TrendBars title="Workforce rush" items={workforceRush} />
+        </SurfaceCard>
+        <SurfaceCard title="Denied entry intelligence" subtitle="Security-focused denial reasons, retry patterns, and trend spikes.">
+          <TrendBars title="Denied trend" items={denialTrends} compact />
+          <AnalyticsList items={denialReasons} emptyTitle="No denial reasons" emptyBody="Denied-entry reasons will appear as security decisions are recorded." />
+          <AnalyticsList items={repeatDenied} emptyTitle="No repeat denials" emptyBody="Repeat denied visitors will appear when patterns emerge." />
+        </SurfaceCard>
+      </View>
+
+      <SplitPane>
+        <SurfaceCard title="Repeat visitor intelligence" subtitle="Frequent visitors, recurring vendors, and organization traffic patterns.">
+          <AnalyticsList items={repeatVisitors} emptyTitle="No repeat visitors" emptyBody="Repeat visitor movement will appear after multiple visits are recorded." />
+          <AnalyticsList items={repeatOrganizations} emptyTitle="No repeat organizations" emptyBody="Vendor and organization repeat traffic will appear here." />
+        </SurfaceCard>
+        <SurfaceCard title="Security incident analytics" subtitle="Escalations, suspicious activity, manual overrides, and anomaly signals.">
+          <TrendBars title="Incident spikes" items={incidentTrends} compact />
+          <IncidentList items={incidents} />
+        </SurfaceCard>
+      </SplitPane>
+
+      <SplitPane>
+        <SurfaceCard title="Workforce access anomalies" subtitle="Access/security anomaly detection without payroll or HR scoring.">
+          <AnalyticsList items={anomalies} emptyTitle="No workforce anomalies" emptyBody="Late, missing check-out, and manual override signals will appear here." />
+        </SurfaceCard>
+        <SurfaceCard title="Site and checkpoint activity" subtitle="Operational scope by checkpoint, organization, department, and visitor category.">
+          <AnalyticsList items={checkpoints} emptyTitle="No checkpoint activity" emptyBody="Checkpoint activity appears after guard-assisted access events." />
+          <AnalyticsList items={[...organizationBreakdown, ...departmentBreakdown, ...categoryBreakdown].slice(0, 8)} emptyTitle="No scope breakdown" emptyBody="Organization, department, and category analytics will appear after activity." />
+        </SurfaceCard>
+      </SplitPane>
+
+      <SurfaceCard title="Historical reporting" subtitle="Operational snapshots prepared for CSV/PDF report generation.">
+        <SnapshotList items={snapshots} onExport={onExport} />
+      </SurfaceCard>
+    </>
+  );
+}
+
+function AnalyticsTileGrid({ items }: { items: AnalyticsPoint[] }) {
+  if (!items.length) {
+    return <EmptyState title="No live state" body="Current operational state will appear when analytics are available." />;
+  }
+  return (
+    <View style={styles.analyticsTileGrid}>
+      {items.map((item) => (
+        <View key={item.label} style={styles.analyticsTile}>
+          <Text style={styles.analyticsTileLabel}>{item.label}</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.analyticsTileValue}>{formatMetricValue(item.value)}</Text>
+          {item.note ? <Text style={styles.analyticsTileNote}>{String(item.note)}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function InsightList({ items }: { items: OperationalInsight[] }) {
+  if (!items.length) {
+    return <EmptyState title="No insights yet" body="Actionable operational insights will appear after traffic and security patterns accumulate." />;
+  }
+  return (
+    <View style={styles.listStack}>
+      {items.slice(0, 6).map((item) => (
+        <View key={`${item.label}-${item.detail}`} style={styles.insightRow}>
+          <StatusPill label={String(item.severity || 'Signal')} tone={severityTone(item.severity)} />
+          <View style={styles.insightBody}>
+            <Text style={styles.insightTitle}>{item.label}</Text>
+            <Text style={styles.analyticsTileNote}>{item.detail || 'Operational pattern detected.'}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function HourlyHeatmap({ rows }: { rows: AnalyticsHeatmapRow[] }) {
+  const max = Math.max(1, ...rows.flatMap((row) => row.hours ?? []).map((item) => Number(item.value) || 0));
+  if (!rows.length || max <= 1) {
+    return <EmptyState title="No heatmap activity" body="Hourly traffic heatmaps will appear after check-ins are recorded." />;
+  }
+  return (
+    <View style={styles.heatmap}>
+      {rows.map((row) => (
+        <View key={row.date || row.label} style={styles.heatmapRow}>
+          <Text style={styles.heatmapLabel}>{row.label}</Text>
+          <View style={styles.heatmapCells}>
+            {(row.hours ?? []).map((hour) => (
+              <View
+                key={`${row.date}-${hour.hour}`}
+                style={[styles.heatmapCell, { opacity: 0.2 + Math.min(0.8, (Number(hour.value) || 0) / max) }]}
+              />
+            ))}
+          </View>
+        </View>
+      ))}
+      <View style={styles.heatmapAxis}>
+        <Text style={styles.heatmapLabel}>00</Text>
+        <Text style={styles.heatmapLabel}>06</Text>
+        <Text style={styles.heatmapLabel}>12</Text>
+        <Text style={styles.heatmapLabel}>18</Text>
+        <Text style={styles.heatmapLabel}>23</Text>
+      </View>
+    </View>
+  );
+}
+
+function TrendBars({ title, items, compact }: { title: string; items: AnalyticsPoint[]; compact?: boolean }) {
+  const values = items.filter((_, index) => compact ? true : index % 2 === 0);
+  const max = Math.max(1, ...values.map((item) => Number(item.value) || 0));
+  if (!values.length || values.every((item) => Number(item.value) <= 0)) {
+    return (
+      <View style={styles.trendBlock}>
+        <Text style={styles.trendTitle}>{title}</Text>
+        <Text style={styles.analyticsTileNote}>No activity recorded.</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.trendBlock}>
+      <Text style={styles.trendTitle}>{title}</Text>
+      {values.slice(0, compact ? 8 : 12).map((item) => (
+        <View key={`${title}-${item.label}`} style={styles.trendRow}>
+          <Text style={styles.trendLabel}>{item.label}</Text>
+          <View style={styles.trendTrack}>
+            <View style={[styles.trendFill, { width: `${Math.max(4, Math.round(((Number(item.value) || 0) / max) * 100))}%` }]} />
+          </View>
+          <Text style={styles.trendValue}>{formatMetricValue(item.value)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function AnalyticsList({ items, emptyTitle, emptyBody }: { items: AnalyticsPoint[]; emptyTitle: string; emptyBody: string }) {
+  if (!items.length) {
+    return <EmptyState title={emptyTitle} body={emptyBody} />;
+  }
+  return (
+    <View style={styles.analyticsList}>
+      {items.slice(0, 8).map((item, index) => (
+        <View key={`${item.label}-${index}`} style={styles.analyticsListRow}>
+          <Text numberOfLines={2} style={styles.analyticsListTitle}>{item.label}</Text>
+          <Text style={styles.analyticsListValue}>{formatMetricValue(item.value)}</Text>
+          {item.note || item.reason || item.detail ? <Text numberOfLines={2} style={styles.analyticsTileNote}>{String(item.note || item.reason || item.detail)}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function IncidentList({ items }: { items: AnalyticsPoint[] }) {
+  if (!items.length) {
+    return <EmptyState title="No incident signals" body="Escalations and suspicious activity will appear as security teams record events." />;
+  }
+  return (
+    <View style={styles.listStack}>
+      {items.slice(0, 6).map((item, index) => (
+        <RecordCard
+          key={`${item.label}-${index}`}
+          title={String(item.label || 'Security incident')}
+          subtitle={String(item.target || item.value || 'Recorded')}
+          meta={String(item.detail || item.createdAt || 'Latest security signal')}
+          status="Incident"
+          tone="warning"
+        />
+      ))}
+    </View>
+  );
+}
+
+function SnapshotList({ items, onExport }: { items: AnalyticsSnapshot[]; onExport: (snapshot: AnalyticsSnapshot) => void | Promise<void> }) {
+  if (!items.length) {
+    return <EmptyState title="No report snapshots" body="Exportable visitor, denial, incident, workforce, and operational snapshots will appear here." />;
+  }
+  return (
+    <View style={styles.analyticsTileGrid}>
+      {items.map((item) => (
+        <View key={item.label} style={styles.snapshotTile}>
+          <View style={styles.snapshotHeader}>
+            <Text style={styles.analyticsTileLabel}>{item.label}</Text>
+            <StatusPill label={String(item.format || 'CSV')} tone={item.format === 'PDF' ? 'info' : 'default'} />
+          </View>
+          <Text style={styles.analyticsTileValue}>{formatMetricValue(item.records ?? 0)}</Text>
+          <Text style={styles.analyticsTileNote}>{item.note || 'Operational report snapshot'}</Text>
+          <PrimaryButton label={`Export ${item.format || 'CSV'}`} onPress={() => void onExport(item)} tone="secondary" />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function metricTone(item: AnalyticsPoint): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const label = String(item.label || '').toLowerCase();
+  const value = Number(item.value) || 0;
+  if (label.includes('denied') || label.includes('incident') || label.includes('overdue')) {
+    return value > 0 ? 'danger' : 'default';
+  }
+  if (label.includes('pending') || label.includes('expir')) {
+    return value > 0 ? 'warning' : 'default';
+  }
+  if (label.includes('inside') || label.includes('active')) {
+    return value > 0 ? 'success' : 'default';
+  }
+  return 'info';
+}
+
+function severityTone(severity?: string | null): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const value = String(severity || '').toLowerCase();
+  if (value === 'high') {
+    return 'danger';
+  }
+  if (value === 'medium') {
+    return 'warning';
+  }
+  if (value === 'low') {
+    return 'info';
+  }
+  return 'default';
+}
+
+function formatMetricValue(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value.toLocaleString();
+  }
+  return String(value ?? 0);
+}
+
+function operationalReportCsv(snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) {
+  const rows = [
+    ['Report', 'Section', 'Label', 'Value', 'Detail'],
+    ...snapshotRows(snapshot, payload),
+  ];
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n');
+}
+
+function operationalReportHtml(snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) {
+  const live = (payload?.liveOperations ?? []).map((item) => (
+    `<article><span>${escapeReport(item.label)}</span><strong>${escapeReport(item.value)}</strong><small>${escapeReport(item.note || '')}</small></article>`
+  )).join('');
+  const insights = (payload?.operationalInsights ?? []).map((item) => (
+    `<li><strong>${escapeReport(item.label)}</strong> ${escapeReport(item.detail || '')}</li>`
+  )).join('');
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28px;color:#111827}h1{margin:0 0 8px}p{color:#4b5563}section{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:22px 0}article{border:1px solid #d1d5db;border-radius:10px;padding:12px}span,small{display:block;color:#6b7280;font-size:11px;text-transform:uppercase}strong{display:block;font-size:24px;margin:8px 0}</style></head><body><h1>${escapeReport(snapshot.label)}</h1><p>${escapeReport(snapshot.note || 'AccessFlow operational snapshot')}</p><section>${live}</section><h2>Actionable insights</h2><ul>${insights}</ul></body></html>`;
+}
+
+function snapshotRows(snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) {
+  const sections: [string, (AnalyticsPoint | OperationalInsight)[] | undefined][] = [
+    ['Live operations', payload?.liveOperations],
+    ['Repeat visitors', payload?.repeatVisitors],
+    ['Denied reasons', payload?.denialReasons],
+    ['Security incidents', payload?.securityIncidents],
+    ['Workforce anomalies', payload?.workforceAnomalies],
+    ['Checkpoint activity', payload?.checkpointActivity],
+    ['Insights', payload?.operationalInsights],
+  ];
+  return sections.flatMap(([section, items]) => (items ?? []).map((item) => [
+    snapshot.label,
+    section,
+    String((item as AnalyticsPoint).label || (item as OperationalInsight).label || ''),
+    String((item as AnalyticsPoint).value ?? (item as OperationalInsight).severity ?? ''),
+    String((item as AnalyticsPoint).note || (item as AnalyticsPoint).detail || (item as OperationalInsight).detail || ''),
+  ]));
+}
+
+function csvCell(value: unknown) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`;
+}
+
+function escapeReport(value: unknown) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function slugify(value?: string | null) {
+  const slug = String(value || 'operational-snapshot').toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, '');
+  return slug || 'operational-snapshot';
 }
 
 function WorkforceList({
@@ -968,6 +1346,173 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  analyticsGrid: {
+    gap: theme.spacing.md,
+  },
+  analyticsGridWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  analyticsTileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  analyticsTile: {
+    flexGrow: 1,
+    flexBasis: 150,
+    minHeight: 118,
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.md,
+  },
+  analyticsTileLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  analyticsTileValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 26,
+    fontWeight: theme.typography.metric.fontWeight,
+  },
+  analyticsTileNote: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  insightBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  insightTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  heatmap: {
+    gap: theme.spacing.xs,
+  },
+  heatmapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  heatmapLabel: {
+    width: 34,
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+  },
+  heatmapCells: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 3,
+  },
+  heatmapCell: {
+    flex: 1,
+    aspectRatio: 1,
+    minHeight: 8,
+    borderRadius: 3,
+    backgroundColor: theme.colors.info,
+  },
+  heatmapAxis: {
+    marginLeft: 42,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  trendBlock: {
+    gap: theme.spacing.xs,
+  },
+  trendTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  trendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    minHeight: 26,
+  },
+  trendLabel: {
+    width: 58,
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+  },
+  trendTrack: {
+    flex: 1,
+    height: 9,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.surfaceMuted,
+    overflow: 'hidden',
+  },
+  trendFill: {
+    height: '100%',
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
+  },
+  trendValue: {
+    width: 42,
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+    textAlign: 'right',
+  },
+  analyticsList: {
+    gap: theme.spacing.sm,
+  },
+  analyticsListRow: {
+    gap: 4,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.sm,
+  },
+  analyticsListTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  analyticsListValue: {
+    color: theme.colors.info,
+    fontSize: 20,
+    fontWeight: theme.typography.metric.fontWeight,
+  },
+  snapshotTile: {
+    flexGrow: 1,
+    flexBasis: 190,
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.md,
+  },
+  snapshotHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
   splitPane: {

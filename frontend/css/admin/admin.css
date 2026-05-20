@@ -292,6 +292,135 @@
   font-size: 1.35rem;
 }
 
+.chart-panel--wide {
+  min-height: 16rem;
+}
+
+.operational-intel-grid,
+.operational-export-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+.operational-intel-card,
+.operational-export-card,
+.operational-insight-card,
+.operational-signal-card {
+  background: rgba(14, 21, 35, 0.74);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.operational-intel-card {
+  display: grid;
+  gap: 0.25rem;
+  min-height: 8rem;
+}
+
+.operational-intel-card span,
+.operational-export-card span,
+.operational-insight-card span,
+.operational-signal-card span,
+.traffic-heatmap__row span,
+.traffic-heatmap__axis span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.operational-intel-card strong {
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
+.operational-intel-card small,
+.operational-export-card small,
+.operational-insight-card small,
+.operational-signal-card small {
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
+.operational-insight-list,
+.operational-signal-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.operational-insight-card {
+  border-left: 4px solid var(--role-accent);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.operational-insight-card--high {
+  border-left-color: #f87171;
+}
+
+.operational-insight-card--medium {
+  border-left-color: #f59e0b;
+}
+
+.operational-signal-card {
+  align-items: start;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.operational-signal-card strong,
+.operational-export-card strong,
+.operational-insight-card strong {
+  display: block;
+  margin: 0.2rem 0;
+}
+
+.operational-signal-card b {
+  color: var(--role-accent);
+  font-size: 1.25rem;
+}
+
+.traffic-heatmap {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.traffic-heatmap__row {
+  align-items: center;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 3rem minmax(0, 1fr);
+}
+
+.traffic-heatmap__row div {
+  display: grid;
+  gap: 0.18rem;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+}
+
+.traffic-heatmap__row i {
+  aspect-ratio: 1;
+  background: linear-gradient(180deg, #7dd3fc, #4f7cff);
+  border-radius: 0.2rem;
+  min-height: 0.5rem;
+}
+
+.traffic-heatmap__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 3.65rem;
+}
+
+.operational-export-card {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .employee-analytics-table {
   background: rgba(10, 16, 28, 0.42);
   border: 1px solid var(--color-line);

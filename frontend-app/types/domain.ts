@@ -275,6 +275,75 @@ export type AdminOperationalReport = {
   status: string;
 };
 
+export type AnalyticsPoint = {
+  label: string;
+  value: number;
+  note?: string | null;
+  percentage?: number | null;
+  [key: string]: unknown;
+};
+
+export type AnalyticsHeatmapRow = {
+  label: string;
+  date?: string | null;
+  hours: AnalyticsPoint[];
+};
+
+export type OperationalInsight = {
+  label: string;
+  detail?: string | null;
+  severity?: 'low' | 'medium' | 'high' | string | null;
+};
+
+export type AnalyticsSnapshot = {
+  label: string;
+  format?: string | null;
+  records?: number | null;
+  note?: string | null;
+};
+
+export type AdminOperationalAnalytics = {
+  timezone?: string | null;
+  metrics?: Record<string, number>;
+  widgets?: AnalyticsPoint[];
+  dailyVisitors?: AnalyticsPoint[];
+  monthlyTrends?: AnalyticsPoint[];
+  peakHours?: AnalyticsPoint[];
+  visitorFlow?: AnalyticsPoint[];
+  staffingInsights?: AnalyticsPoint[];
+  approvalWorkload?: AnalyticsPoint[];
+  checkInTrends?: AnalyticsPoint[];
+  approvalRates?: AnalyticsPoint[];
+  employeeAnalytics?: Record<string, unknown>[];
+  trafficHeatmap?: AnalyticsHeatmapRow[];
+  checkInHours?: AnalyticsPoint[];
+  checkOutHours?: AnalyticsPoint[];
+  workforceRushHours?: AnalyticsPoint[];
+  weeklyPatterns?: AnalyticsPoint[];
+  dailyPatterns?: AnalyticsPoint[];
+  repeatVisitors?: AnalyticsPoint[];
+  repeatOrganizations?: AnalyticsPoint[];
+  repeatDeniedVisitors?: AnalyticsPoint[];
+  denialTrends?: AnalyticsPoint[];
+  denialReasons?: AnalyticsPoint[];
+  denialAttempts?: AnalyticsPoint[];
+  securityIncidents?: AnalyticsPoint[];
+  incidentTrends?: AnalyticsPoint[];
+  workforceAnomalies?: AnalyticsPoint[];
+  liveOperations?: AnalyticsPoint[];
+  organizationBreakdown?: AnalyticsPoint[];
+  departmentBreakdown?: AnalyticsPoint[];
+  visitorCategoryBreakdown?: AnalyticsPoint[];
+  checkpointActivity?: AnalyticsPoint[];
+  operationalInsights?: OperationalInsight[];
+  exportSnapshots?: AnalyticsSnapshot[];
+  workforceAttendance?: {
+    timezone?: string | null;
+    widgets?: AnalyticsPoint[];
+    recentLogs?: EmployeeAttendanceRecord[];
+  };
+};
+
 export type QrVerificationResult = {
   valid: boolean;
   recognized: boolean;

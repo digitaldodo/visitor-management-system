@@ -53,6 +53,14 @@ public class MongoIndexConfig {
                         .on("status", Sort.Direction.ASC)
                         .on("checkOutTime", Sort.Direction.DESC)
                         .named("visitor_org_status_checkout_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("checkInTime", Sort.Direction.DESC)
+                        .named("visitor_org_checkin_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("rejectedAt", Sort.Direction.DESC)
+                        .named("visitor_org_rejected_idx"));
                 mongoTemplate.indexOps(Notification.class).createIndex(new Index()
                         .on("recipientUserId", Sort.Direction.ASC)
                         .on("read", Sort.Direction.ASC)
@@ -66,11 +74,20 @@ public class MongoIndexConfig {
                         .on("action", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("access_audit_action_created_idx"));
+                mongoTemplate.indexOps(AccessAuditLog.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("action", Sort.Direction.ASC)
+                        .on("createdAt", Sort.Direction.DESC)
+                        .named("access_audit_org_action_created_idx"));
                 mongoTemplate.indexOps(EmployeeAttendanceLog.class).createIndex(new Index()
                         .on("organizationId", Sort.Direction.ASC)
                         .on("attendanceDate", Sort.Direction.DESC)
                         .on("state", Sort.Direction.ASC)
                         .named("employee_attendance_org_date_state_idx"));
+                mongoTemplate.indexOps(EmployeeAttendanceLog.class).createIndex(new Index()
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("createdAt", Sort.Direction.DESC)
+                        .named("employee_attendance_org_created_idx"));
                 mongoTemplate.indexOps(EmployeeAttendanceLog.class).createIndex(new Index()
                         .on("employeeUserId", Sort.Direction.ASC)
                         .on("checkInTime", Sort.Direction.DESC)

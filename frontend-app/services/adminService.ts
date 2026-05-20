@@ -3,6 +3,7 @@ import { trackFirebaseEvent } from '../runtime/firebaseRuntime';
 import type { PageResponse } from '../types/api';
 import type {
   AdminOperationalReport,
+  AdminOperationalAnalytics,
   EmployeeAttendanceRecord,
   SecurityOverview,
   VisitorRecord,
@@ -42,6 +43,13 @@ type VisitorDecisionPayload = {
 export async function getAdminOverview() {
   return request<SecurityOverview>({
     url: '/admin/overview',
+    method: 'GET',
+  });
+}
+
+export async function getAdminAnalytics() {
+  return request<AdminOperationalAnalytics>({
+    url: '/admin/analytics',
     method: 'GET',
   });
 }

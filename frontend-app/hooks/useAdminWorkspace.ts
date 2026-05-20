@@ -8,6 +8,7 @@ import {
   denyAdminVisitor,
   disableAdminUser,
   enableAdminUser,
+  getAdminAnalytics,
   escalateAdminVisitor,
   getAdminOverview,
   getAdminReports,
@@ -25,6 +26,15 @@ export function useAdminOverview() {
   return useQuery({
     queryKey: ['admin', 'overview'],
     queryFn: getAdminOverview,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useAdminAnalytics() {
+  return useQuery({
+    queryKey: ['admin', 'analytics'],
+    queryFn: getAdminAnalytics,
+    staleTime: 45_000,
     placeholderData: (previous) => previous,
   });
 }
