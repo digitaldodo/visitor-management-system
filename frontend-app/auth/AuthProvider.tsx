@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionRef = useRef<AuthSession | null>(null);
   const rememberSessionRef = useRef(false);
   const runtimeRecoveryPromiseRef = useRef<Promise<boolean> | null>(null);
+  const logoutPromiseRef = useRef<Promise<void> | null>(null);
 
   const setStateSafely = useCallback((nextState: AuthBootstrapState) => {
     if (isMountedRef.current) {
@@ -288,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           await persistAuthenticatedSession(session, versions, {
-            rememberSession: rememberSessionRef.current || Boolean(trustProfile?.trusted) || Boolean(await readPersistedSession()),
+            rememberSession: rememberSessionRef.current || Boolean(trustProfile?.trusted) || Boolean(persistedSession),
           });
           await recordDiagnosticEvent({
             level: 'info',
@@ -355,24 +356,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const trustProfile = await readLocalDeviceTrustProfile();
-    if (trustProfile?.trusted && trustProfile.biometricEnabled) {
-      const unlock = await authenticateDeviceUnlock('bootstrap');
-      if (!unlock.success) {
-        await showAuthInterruptedState({
-          session: sessionRef.current,
-          reason: unlock.interrupted ? unlock.reason : 'device-unlock-unavailable',
-          diagnosticCode: 'BOOTSTRAP_DEVICE_UNLOCK_INTERRUPTED',
-        });
-        return;
-      }
-      await markDeviceUnlocked(trustProfile);
-    }
 
     let persistedSession: AuthSession | null = null;
     try {
       persistedSession = await readPersistedSession({
         requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
       });
+      if (persistedSession && trustProfile?.trusted && trustProfile.biometricEnabled) {
+        await markDeviceUnlocked(trustProfile);
+      }
     } catch (error) {
       if (isSecureSessionAuthInterruption(error)) {
         await showAuthInterruptedState({
@@ -528,15 +520,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    setIsBusy(true);
-    try {
-      await logoutRequest(sessionRef.current);
-    } finally {
-      await clearLocalDeviceTrustProfile();
-      await clearSessionState();
-      resetNavigationToAuth();
-      setIsBusy(false);
+    if (logoutPromiseRef.current) {
+      return logoutPromiseRef.current;
     }
+
+    setIsBusy(true);
+    logoutPromiseRef.current = (async () => {
+      try {
+        await logoutRequest(sessionRef.current);
+      } finally {
+        await clearLocalDeviceTrustProfile();
+        await clearSessionState();
+        resetNavigationToAuth();
+        setIsBusy(false);
+        logoutPromiseRef.current = null;
+      }
+    })();
+
+    return logoutPromiseRef.current;
   }, [clearSessionState]);
 
   const retryBootstrap = useCallback(async () => {

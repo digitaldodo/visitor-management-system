@@ -51,9 +51,9 @@ export function RuntimeBanner() {
     return null;
   }
 
-  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious || mobileSecurity.sensitiveOperationsRestricted || mobileSecurity.certificatePinningWarning
+  const tone = offlineOperationalMode === 'offline' || degradedMessage || devicePosture.suspicious || mobileSecurity.sensitiveOperationsRestricted
     ? styles.danger
-    : offlineOperationalQueueSize > 0
+    : offlineOperationalQueueSize > 0 || mobileSecurity.certificatePinningWarning
       ? styles.warning
       : styles.info;
   const title = offlineOperationalMode === 'offline'
@@ -65,7 +65,7 @@ export function RuntimeBanner() {
         : mobileSecurity.warning
           ? 'Device security warning'
           : mobileSecurity.certificatePinningWarning
-            ? 'Certificate validation warning'
+            ? 'Secure connection unavailable'
             : devicePosture.suspicious
               ? t('runtime.deviceReview')
               : offlineOperationalQueueSize > 0

@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption.fontSize,
     fontWeight: theme.typography.caption.fontWeight,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 0,
   },
   value: {
     color: theme.colors.textPrimary,

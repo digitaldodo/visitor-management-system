@@ -14,6 +14,10 @@ import type { AuthSession, WorkspaceAudience } from '../types/auth';
 import type { DeviceIntegritySignals, TrustedDeviceRecord } from '../types/runtime';
 
 const TRUST_PROFILE_KEY = 'accessflow.mobile.device-trust.profile';
+const DEVICE_UNLOCK_PROMPT_DEBOUNCE_MS = 1_500;
+
+let deviceUnlockPromise: Promise<DeviceUnlockResult> | null = null;
+let lastDeviceUnlockPromptAt = 0;
 
 export type LocalDeviceTrustProfile = {
   deviceId: string;
@@ -136,6 +140,25 @@ export async function promptForDeviceTrust(session: AuthSession) {
 }
 
 export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 'enable' | 'manual'): Promise<DeviceUnlockResult> {
+  if (deviceUnlockPromise) {
+    return deviceUnlockPromise;
+  }
+
+  const now = Date.now();
+  if (now - lastDeviceUnlockPromptAt < DEVICE_UNLOCK_PROMPT_DEBOUNCE_MS) {
+    return { success: false, reason: 'device-unlock-debounced', interrupted: true };
+  }
+  lastDeviceUnlockPromptAt = now;
+
+  deviceUnlockPromise = performDeviceUnlock(reason);
+  try {
+    return await deviceUnlockPromise;
+  } finally {
+    deviceUnlockPromise = null;
+  }
+}
+
+async function performDeviceUnlock(reason: 'bootstrap' | 'resume' | 'enable' | 'manual'): Promise<DeviceUnlockResult> {
   const ready = await isBiometricOrDeviceCredentialReady();
   if (!ready) {
     return { success: false, reason: 'device-unlock-unavailable', interrupted: true };

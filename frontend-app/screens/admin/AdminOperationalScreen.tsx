@@ -75,7 +75,7 @@ type AdminAction =
   | { type: 'disable-user'; user: WorkforceOnboardingRecord };
 
 type SectionProps = {
-  section: 'dashboard' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'settings';
+  section: 'dashboard' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'settings' | 'more';
 };
 
 const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
@@ -106,6 +106,10 @@ export function AdminWorkforceScreen() {
 
 export function AdminAlertsScreen() {
   return <AdminOperationalScreen section="alerts" />;
+}
+
+export function AdminMoreScreen() {
+  return <AdminOperationalScreen section="more" />;
 }
 
 export function AdminRegisterScreen() {
@@ -417,6 +421,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     register: ['Register', 'Searchable visitor, workforce, denied-entry, approval, and incident history.'],
     employees: ['Employee Access', 'Search employees, verify badge status, and suspend or reactivate access.'],
     settings: ['Admin Settings', 'Mobile role scope, session controls, and operational readiness.'],
+    more: ['More', 'Secondary admin tools, profile controls, and operational shortcuts.'],
   }[section];
 
   return (
@@ -594,6 +599,31 @@ export function AdminOperationalScreen({ section }: SectionProps) {
           </>
         ) : null}
 
+        {section === 'more' ? (
+          <>
+            <SurfaceCard title="Priority shortcuts" subtitle="Keep the tab bar focused while preserving full admin reach from one place.">
+              <View style={styles.shortcutGrid}>
+                <AdminShortcut title="Visitor control" subtitle="Pending, active, denied, and recurring access" tone="info" onPress={() => navigation.navigate('Visitors')} />
+                <AdminShortcut title="Register" subtitle="History, audit lookup, and paged operational records" tone="default" onPress={() => navigation.navigate('Register')} />
+                <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
+                <AdminShortcut title="Live feed" subtitle="Cross-role operational event stream" tone="info" onPress={() => navigation.navigate('Live')} />
+                <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
+                <AdminShortcut title="Profile" subtitle="Trusted devices, account security, and diagnostics" tone="default" onPress={() => navigation.navigate('Profile')} />
+              </View>
+            </SurfaceCard>
+            <SurfaceCard title="Admin workspace focus" subtitle="Mobile admin prioritizes approvals, workforce, alerts, and quick intervention over desktop parity.">
+              <View style={styles.metricsGrid}>
+                <MetricCard label="Approvals" value={pendingWorkforceCount + pendingVisitorCount} tone={pendingWorkforceCount + pendingVisitorCount ? 'warning' : 'success'} />
+                <MetricCard label="Active visitors" value={activeVisitorCount} tone={activeVisitorCount ? 'success' : 'default'} />
+                <MetricCard label="Critical alerts" value={criticalAlertCount} tone={criticalAlertCount ? 'danger' : 'default'} />
+              </View>
+              <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
+                <PrimaryButton label="Sign out safely" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
+              </View>
+            </SurfaceCard>
+          </>
+        ) : null}
+
         {section === 'register' ? (
           <>
             <SurfaceCard title="Register filters" subtitle="Paged and searchable to avoid heavy mobile renders on operational tablets.">
@@ -700,6 +730,31 @@ function SplitPane({ children }: { children: ReactNode }) {
         <View style={layout.isTwoColumn ? styles.splitPaneColumn : null}>{child}</View>
       ))}
     </View>
+  );
+}
+
+function AdminShortcut({
+  title,
+  subtitle,
+  tone,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  tone: 'default' | 'info' | 'danger';
+  onPress: () => void;
+}) {
+  const toneStyle = tone === 'danger'
+    ? styles.shortcutDanger
+    : tone === 'info'
+      ? styles.shortcutInfo
+      : null;
+
+  return (
+    <Pressable accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.shortcut, toneStyle, pressed ? styles.shortcutPressed : null]}>
+      <Text numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.shortcutTitle}>{title}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.06} style={styles.shortcutSubtitle}>{subtitle}</Text>
+    </Pressable>
   );
 }
 
@@ -1076,8 +1131,8 @@ function WorkforceList({
   return (
     <View style={styles.listStack}>
       {workers.map((worker) => (
-        <View key={worker.id} style={styles.operationalCard}>
-          <IdentityPhoto uri={worker.employeePhotoUrl} fallback="No photo" />
+        <View key={worker.id} style={[styles.operationalCard, layout.isPhone ? styles.operationalCardCompact : null]}>
+          <IdentityPhoto uri={worker.employeePhotoUrl} fallback="No photo" compact={layout.isPhone} />
           <View style={styles.cardBody}>
             <RecordCard
               title={worker.fullName}
@@ -1139,8 +1194,8 @@ function VisitorList({
   return (
     <View style={styles.listStack}>
       {visitors.map((visitor) => (
-        <View key={visitor.id} style={styles.operationalCard}>
-          <IdentityPhoto uri={visitor.photoUrl} fallback="No photo" />
+        <View key={visitor.id} style={[styles.operationalCard, layout.isPhone ? styles.operationalCardCompact : null]}>
+          <IdentityPhoto uri={visitor.photoUrl} fallback="No photo" compact={layout.isPhone} />
           <View style={styles.cardBody}>
             <RecordCard
               title={visitor.fullName}
@@ -1229,7 +1284,7 @@ function EmployeeList({
       {users.map((user) => {
         const latest = attendance.find((entry) => entry.employeeUserId === user.id);
         return (
-          <View key={user.id} style={styles.employeeCard}>
+          <View key={user.id} style={[styles.employeeCard, layout.isPhone ? styles.employeeCardCompact : null]}>
             <IdentityPhoto uri={user.employeePhotoUrl} fallback="No photo" compact />
             <View style={styles.cardBody}>
               <RecordCard
@@ -1410,7 +1465,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption.fontSize,
     fontWeight: theme.typography.caption.fontWeight,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0,
   },
   analyticsTileValue: {
     color: theme.colors.textPrimary,
@@ -1573,6 +1628,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
     padding: theme.spacing.md,
   },
+  operationalCardCompact: {
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+  },
   cardBody: {
     flex: 1,
     gap: theme.spacing.md,
@@ -1613,7 +1672,7 @@ const styles = StyleSheet.create({
   },
   fieldCell: {
     flexGrow: 1,
-    flexBasis: 130,
+    flexBasis: 118,
     gap: 3,
     borderRadius: theme.radii.md,
     borderWidth: 1,
@@ -1683,6 +1742,49 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     padding: theme.spacing.md,
+  },
+  employeeCardCompact: {
+    flexBasis: 300,
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+  },
+  shortcutGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  shortcut: {
+    flexGrow: 1,
+    flexBasis: 150,
+    minHeight: 88,
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.md,
+  },
+  shortcutInfo: {
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.infoSoft,
+  },
+  shortcutDanger: {
+    borderColor: 'rgba(248, 113, 113, 0.34)',
+    backgroundColor: theme.colors.dangerSoft,
+  },
+  shortcutPressed: {
+    opacity: 0.82,
+  },
+  shortcutTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  shortcutSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 18,
   },
   paginationRow: {
     flexDirection: 'row',

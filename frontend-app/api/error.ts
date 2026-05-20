@@ -111,6 +111,16 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
   }
 
   if (
+    lower.includes('certificate')
+    || lower.includes('ssl')
+    || lower.includes('tls')
+    || lower.includes('pinning')
+    || lower.includes('trust anchor')
+  ) {
+    return 'Unable to verify secure connection. Trying to restore secure session.';
+  }
+
+  if (
     !normalized
     || lower.includes('handshake')
     || lower.includes('socket')

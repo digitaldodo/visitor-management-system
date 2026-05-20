@@ -17,6 +17,7 @@ import {
 } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
+import { authenticateDeviceUnlock, readLocalDeviceTrustProfile } from '../auth/deviceTrust';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
@@ -146,7 +147,8 @@ const defaultDevicePosture: DevicePostureState = {
 };
 
 const RESUME_RECOVERY_THROTTLE_MS = 12_000;
-const FORCE_REFRESH_AFTER_BACKGROUND_MS = 30_000;
+const SESSION_DIRECT_RESTORE_MS = 5 * 60_000;
+const BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS = 30 * 60_000;
 const initialNetworkState: NetworkReachabilityState = {
   isConnected: null,
   isInternetReachable: null,
@@ -180,6 +182,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const lastOperationalRestoreRef = useRef(0);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
+  const unlockPromiseRef = useRef<Promise<void> | null>(null);
   const lastLifecycleRecoveryAtRef = useRef(0);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null; fcmToken: string | null }>({
     deviceId: null,
@@ -233,7 +236,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   const applySessionLock = useCallback(
     async (reason: SessionLockReason) => {
-      if (auth.status !== 'authenticated') {
+      if (auth.status !== 'authenticated' || sessionLock.isLocked) {
         return;
       }
 
@@ -545,6 +548,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         suspicious: policy.suspiciousDevice,
         concurrentSessionCount: policy.concurrentSessionCount,
         lastPolicySyncAt: new Date().toISOString(),
+      }));
+      setSessionLock((current) => ({
+        ...current,
+        inactivityTimeoutMs: policy.inactivityTimeoutSeconds && policy.inactivityTimeoutSeconds > 0
+          ? policy.inactivityTimeoutSeconds * 1_000
+          : current.inactivityTimeoutMs,
+        biometricEnabled: Boolean(policy.biometricRequired ?? current.biometricEnabled),
       }));
 
       if (!policy.sessionValid || policy.forceLogout) {
@@ -958,7 +968,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       const now = Date.now();
       const shouldThrottle =
         now - lastLifecycleRecoveryAtRef.current < RESUME_RECOVERY_THROTTLE_MS
-        && elapsedMs < FORCE_REFRESH_AFTER_BACKGROUND_MS;
+        && elapsedMs < SESSION_DIRECT_RESTORE_MS;
 
       if (shouldThrottle) {
         return;
@@ -966,6 +976,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
       lastLifecycleRecoveryAtRef.current = now;
       lifecycleRecoveryPromiseRef.current = (async () => {
+        const lockThresholdMs = getSessionLockThresholdMs(devicePosture.inactivityTimeoutSeconds);
         try {
           setDegradedMessage(null);
           await recordOperationalMetric({
@@ -977,31 +988,33 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             },
           });
 
-          const recovered = await auth.recoverRuntimeSession({
-            trigger: 'resume',
-            forceRefresh: elapsedMs >= FORCE_REFRESH_AFTER_BACKGROUND_MS,
-            failClosed: true,
-          });
-
-          if (!recovered) {
-            queryClient.clear();
+          if (elapsedMs >= lockThresholdMs && elapsedMs < BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS) {
+            await applySessionLock('inactive');
             return;
+          }
+
+          if (elapsedMs >= BIOMETRIC_UNLOCK_AFTER_BACKGROUND_MS) {
+            const recovered = await auth.recoverRuntimeSession({
+              trigger: 'resume',
+              forceRefresh: true,
+              failClosed: false,
+            });
+
+            if (!recovered) {
+              return;
+            }
           }
 
           await Promise.all([
             queryClient.resumePausedMutations().catch(() => undefined),
-            invalidateOperationalQueries(),
-            reconcileOperationalQueries(),
-            probeRuntime(),
+            elapsedMs >= SESSION_DIRECT_RESTORE_MS ? invalidateOperationalQueries() : Promise.resolve(),
+            elapsedMs >= SESSION_DIRECT_RESTORE_MS ? reconcileOperationalQueries() : Promise.resolve(),
+            elapsedMs >= SESSION_DIRECT_RESTORE_MS ? probeRuntime() : Promise.resolve(),
             syncDevicePolicy(),
             flushTelemetry(),
             refreshOfflineQueueSize(),
             runOtaCheck(false),
           ]);
-
-          if (reason === 'inactive') {
-            await applySessionLock('inactive');
-          }
         } catch (error) {
           if (isOfflineNetworkState(networkState)) {
             setDegradedMessage('Offline Operational Mode is active. Cached guard workflows remain available and queued actions will sync when connectivity returns.');
@@ -1018,18 +1031,17 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             });
             return;
           }
-          queryClient.clear();
           await recordDiagnosticEvent({
-            level: 'error',
+            level: 'warn',
             scope: 'runtime',
-            code: 'LIFECYCLE_RECOVERY_FAILED_CLOSED',
-            message: error instanceof Error ? error.message : 'Lifecycle recovery failed closed.',
+            code: 'LIFECYCLE_RECOVERY_DEFERRED',
+            message: error instanceof Error ? error.message : 'Lifecycle recovery deferred.',
             context: {
               reason,
               elapsedMs,
             },
           });
-          await auth.logout();
+          setDegradedMessage('Trying to restore secure session. Cached workspace data remains available where policy allows.');
         } finally {
           lifecycleRecoveryPromiseRef.current = null;
         }
@@ -1040,6 +1052,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     [
       applySessionLock,
       auth,
+      devicePosture.inactivityTimeoutSeconds,
       flushTelemetry,
       invalidateOperationalQueries,
       probeRuntime,
@@ -1057,39 +1070,44 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
+    if (unlockPromiseRef.current) {
+      return unlockPromiseRef.current;
+    }
+
     setIsUnlocking(true);
     setAuthInterruptionMessage(null);
-    try {
-      if (sessionLock.biometricEnabled && sessionLock.biometricAvailable) {
-        const biometricResult = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Unlock AccessFlow',
-          fallbackLabel: 'Use device unlock',
-          disableDeviceFallback: false,
-        });
+    unlockPromiseRef.current = (async () => {
+      try {
+        if (sessionLock.biometricEnabled && sessionLock.biometricAvailable) {
+          const unlock = await authenticateDeviceUnlock('resume');
 
-        if (!biometricResult.success) {
-          setAuthInterruptionMessage('Biometric verification interrupted. Continue securely to retry, or use device PIN from the Android prompt.');
-          await recordDiagnosticEvent({
-            level: 'warn',
-            scope: 'security',
-            code: 'BIOMETRIC_UNLOCK_CANCELLED',
-            message: 'The operator did not complete biometric unlock.',
-            context: {
-              warning: biometricResult.warning ?? null,
-            },
-          });
-          return;
+          if (!unlock.success) {
+            setAuthInterruptionMessage('Verification interrupted. Continue securely to retry, or use device PIN from the Android prompt.');
+            await recordDiagnosticEvent({
+              level: 'warn',
+              scope: 'security',
+              code: 'BIOMETRIC_UNLOCK_CANCELLED',
+              message: 'The operator did not complete device unlock.',
+              context: {
+                reason: unlock.reason,
+              },
+            });
+            return;
+          }
         }
-      }
 
-      await auth.refreshSession();
-      await syncDevicePolicy();
-      await releaseSessionLock();
-      resetNavigationToRoleHome(auth.session.user.activeRole);
-      await syncNow();
-    } finally {
-      setIsUnlocking(false);
-    }
+        await auth.refreshSession();
+        await syncDevicePolicy();
+        await releaseSessionLock();
+        resetNavigationToRoleHome(auth.session.user.activeRole);
+        await syncNow();
+      } finally {
+        setIsUnlocking(false);
+        unlockPromiseRef.current = null;
+      }
+    })();
+
+    return unlockPromiseRef.current;
   }, [auth, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
 
   useEffect(() => {
@@ -1133,11 +1151,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         LocalAuthentication.isEnrolledAsync().catch(() => false),
         readSessionLockState().catch(() => null),
       ]);
+      const trustProfile = await readLocalDeviceTrustProfile().catch(() => null);
 
       const nextState = {
         ...(persistedLockState ?? defaultLockState),
         inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
-        biometricEnabled: apiConfig.security.requireBiometricUnlock,
+        biometricEnabled: Boolean(apiConfig.security.requireBiometricUnlock || trustProfile?.biometricEnabled),
         biometricAvailable: hasHardware && isEnrolled,
         screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
       } satisfies SessionLockState;
@@ -1346,9 +1365,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       if (nextState === 'active' && previousState !== 'active' && auth.status === 'authenticated') {
         const elapsedMs = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
         backgroundedAtRef.current = null;
+        const lockThresholdMs = getSessionLockThresholdMs(devicePosture.inactivityTimeoutSeconds);
 
         void runLifecycleRecovery(
-          elapsedMs >= apiConfig.security.inactivityLockMs ? 'inactive' : 'resume',
+          elapsedMs >= lockThresholdMs ? 'inactive' : 'resume',
           elapsedMs,
         );
       }
@@ -1357,7 +1377,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       subscription.remove();
     };
-  }, [auth.status, runLifecycleRecovery]);
+  }, [auth.status, devicePosture.inactivityTimeoutSeconds, runLifecycleRecovery]);
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {
@@ -1558,6 +1578,13 @@ function isOfflineNetworkState(state: NetworkReachabilityState) {
   return state.isConnected === false
     || state.isInternetReachable === false
     || (!state.isApiReachable && state.consecutiveFailures >= 2);
+}
+
+function getSessionLockThresholdMs(policySeconds?: number | null) {
+  if (policySeconds && policySeconds > 0) {
+    return Math.max(SESSION_DIRECT_RESTORE_MS, policySeconds * 1_000);
+  }
+  return Math.max(SESSION_DIRECT_RESTORE_MS, apiConfig.security.inactivityLockMs);
 }
 
 function restoreOperationalWorkspace(reason: string, lastRestoreRef: { current: number }) {

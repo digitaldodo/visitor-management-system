@@ -79,12 +79,12 @@ function recoveryCopy(reason?: string, message?: string | null) {
   }
 
   return {
-    title: 'Secure session recovery',
-    subtitle: 'AccessFlow paused workspace restoration until the saved session can be safely verified.',
+    title: 'Restoring session',
+    subtitle: 'AccessFlow is checking the saved workspace before reopening it.',
     message: fallbackMessage,
     primaryAction: 'Retry recovery',
-    helpTitle: 'What this protects',
-    helpBody: 'This keeps expired, revoked, or incomplete session data from reopening an operational workspace.',
+    helpTitle: 'What to expect',
+    helpBody: 'Most recovery issues clear after the service connection or session state refreshes. Signing out only clears this device.',
   };
 }
 

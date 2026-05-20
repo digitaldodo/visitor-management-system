@@ -40,6 +40,7 @@ import {
   AdminApprovalsScreen,
   AdminDashboardScreen,
   AdminEmployeesScreen,
+  AdminMoreScreen,
   AdminRegisterScreen,
   AdminSettingsScreen,
   AdminVisitorsScreen,
@@ -244,20 +245,20 @@ function VisitorNavigator() {
 
 function AdminNavigator() {
   const screenOptions = useMobileTabOptions();
-  const { t } = useLocalization();
 
   return (
     <AdminTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
-      <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
       <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
-      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
       <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
       <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
-      <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} />
-      <AdminTabs.Screen name="Register" component={AdminRegisterScreen} />
-      <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} />
-      <AdminTabs.Screen name="Profile" component={AdminSettingsScreen} />
+      <AdminTabs.Screen name="More" component={AdminMoreScreen} options={{ tabBarLabel: 'More' }} />
+      <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Register" component={AdminRegisterScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Profile" component={AdminSettingsScreen} options={{ tabBarButton: () => null }} />
     </AdminTabs.Navigator>
   );
 }
@@ -319,6 +320,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Approvals: 'checkmark-done-outline',
     Employees: 'id-card-outline',
     Live: 'pulse-outline',
+    More: 'ellipsis-horizontal-circle-outline',
   };
 
   return iconMap[routeName] || 'ellipse-outline';

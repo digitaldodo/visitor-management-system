@@ -25,12 +25,14 @@ type MobileSecurityState = {
 const MobileSecurityContext = createContext<MobileSecurityState | null>(null);
 
 let pinningInitialized = false;
+const TLS_WARNING_THROTTLE_MS = 5 * 60_000;
 
 export function MobileSecurityProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const sensitiveReasonsRef = useRef<Map<number, string>>(new Map());
   const sensitiveIdRef = useRef(0);
+  const certificateFailuresRef = useRef<Record<string, { count: number; lastWarnedAt: number }>>({});
   const [integrity, setIntegrity] = useState<DeviceIntegritySignals | null>(null);
   const [sensitiveScreenCount, setSensitiveScreenCount] = useState(0);
   const [appStateStatus, setAppStateStatus] = useState<AppStateStatus>(AppState.currentState);
@@ -81,11 +83,38 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const handleCertificateValidationFailure = useCallback((error: { serverHostname?: string; message?: string }) => {
+    const host = error.serverHostname ?? 'unknown';
+    const previous = certificateFailuresRef.current[host] ?? { count: 0, lastWarnedAt: 0 };
+    const now = Date.now();
+    const next = { count: previous.count + 1, lastWarnedAt: previous.lastWarnedAt };
+    certificateFailuresRef.current[host] = next;
+
+    void recordDiagnosticEvent({
+      level: 'error',
+      scope: 'security',
+      code: 'TLS_PIN_VALIDATION_FAILED',
+      message: 'Secure connection validation failed for AccessFlow backend communication.',
+      context: {
+        host,
+        detail: error.message ?? null,
+        count: next.count,
+      },
+    });
+
+    if (!apiConfig.security.certificatePinningEnforced || now - previous.lastWarnedAt < TLS_WARNING_THROTTLE_MS) {
+      return;
+    }
+
+    certificateFailuresRef.current[host] = { ...next, lastWarnedAt: now };
+    setCertificatePinningWarning('Unable to verify secure connection. Trying to restore secure session.');
+  }, []);
+
   useEffect(() => {
-    void initializeCertificatePinning().then((warning) => {
+    void initializeCertificatePinning(handleCertificateValidationFailure).then((warning) => {
       setCertificatePinningWarning(warning);
     });
-  }, []);
+  }, [handleCertificateValidationFailure]);
 
   useEffect(() => {
     if (auth.status === 'authenticated') {
@@ -212,7 +241,9 @@ export function useSensitiveScreenProtection(reason?: string, enabled = true) {
   }, [enabled, reason, registerSensitiveScreen]);
 }
 
-async function initializeCertificatePinning() {
+async function initializeCertificatePinning(
+  onValidationFailure: (error: { serverHostname?: string; message?: string }) => void,
+) {
   if (pinningInitialized || !apiConfig.security.certificatePinningEnabled) {
     return null;
   }
@@ -220,7 +251,7 @@ async function initializeCertificatePinning() {
   const pinHosts = Object.keys(apiConfig.security.certificatePins);
   if (!pinHosts.length) {
     const message = apiConfig.security.certificatePinningEnforced
-      ? 'TLS pinning is enforced but no certificate pins are configured.'
+      ? 'Secure connection unavailable. Trying to restore secure session.'
       : 'TLS pinning is prepared but no certificate pins are configured.';
     await recordDiagnosticEvent({
       level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
@@ -231,7 +262,7 @@ async function initializeCertificatePinning() {
         environment: apiConfig.environment,
       },
     });
-    return message;
+    return apiConfig.security.certificatePinningEnforced ? message : null;
   }
 
   try {
@@ -244,18 +275,20 @@ async function initializeCertificatePinning() {
     } | null;
 
     if (!sslPinning?.initializeSslPinning) {
-      const message = 'Native TLS pinning module is unavailable in this runtime.';
+      const diagnosticMessage = 'Native TLS pinning module is unavailable in this runtime.';
       await recordDiagnosticEvent({
         level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
         scope: 'security',
         code: 'TLS_PINNING_MODULE_UNAVAILABLE',
-        message,
+        message: diagnosticMessage,
         context: {
           platform: Platform.OS,
           environment: apiConfig.environment,
         },
       });
-      return message;
+      return apiConfig.security.certificatePinningEnforced
+        ? 'Secure connection unavailable. Trying to restore secure session.'
+        : null;
     }
 
     const configuration = Object.fromEntries(
@@ -270,16 +303,7 @@ async function initializeCertificatePinning() {
 
     await sslPinning.initializeSslPinning(configuration);
     sslPinning.addSslPinningErrorListener?.((error) => {
-      void recordDiagnosticEvent({
-        level: 'error',
-        scope: 'security',
-        code: 'TLS_PIN_VALIDATION_FAILED',
-        message: 'Certificate validation failed for AccessFlow backend communication.',
-        context: {
-          host: error.serverHostname ?? null,
-          detail: error.message ?? null,
-        },
-      });
+      onValidationFailure(error);
     });
 
     pinningInitialized = true;
@@ -295,17 +319,19 @@ async function initializeCertificatePinning() {
     });
     return null;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'TLS pinning initialization failed.';
+    const diagnosticMessage = error instanceof Error ? error.message : 'TLS pinning initialization failed.';
     await recordDiagnosticEvent({
       level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
       scope: 'security',
       code: 'TLS_PINNING_INITIALIZATION_FAILED',
-      message,
+      message: diagnosticMessage,
       context: {
         environment: apiConfig.environment,
       },
     });
-    return message;
+    return apiConfig.security.certificatePinningEnforced
+      ? 'Secure connection unavailable. Trying to restore secure session.'
+      : null;
   }
 }
 
