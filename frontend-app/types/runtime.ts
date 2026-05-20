@@ -128,4 +128,42 @@ export type MobileSessionPolicy = {
   managedMode?: DevicePostureState['managedMode'] | null;
   kioskModeReady?: boolean | null;
   remoteLogoutSupported?: boolean | null;
+  deviceTrusted?: boolean;
+  biometricRequired?: boolean;
+  trustStatus?: TrustedDeviceStatus | null;
+};
+
+export type TrustedDeviceStatus = 'TRUSTED' | 'UNTRUSTED' | 'REVOKED' | 'SUSPICIOUS';
+
+export type DeviceIntegritySignals = {
+  rootedOrJailbroken: boolean;
+  emulator: boolean;
+  debugBuild: boolean;
+  suspicious: boolean;
+  reasons: string[];
+};
+
+export type TrustedDeviceRecord = {
+  id: string;
+  deviceId: string;
+  deviceName?: string | null;
+  deviceType?: string | null;
+  platform?: string | null;
+  appVersion?: string | null;
+  runtimeVersion?: string | null;
+  trustStatus: TrustedDeviceStatus;
+  trusted: boolean;
+  active: boolean;
+  biometricEnabled: boolean;
+  currentDevice: boolean;
+  suspicious: boolean;
+  lastActiveAt?: string | null;
+  trustEstablishedAt?: string | null;
+  trustRevokedAt?: string | null;
+  revokedReason?: string | null;
+  integritySignals?: DeviceIntegritySignals | null;
+};
+
+export type TrustedDeviceListResponse = {
+  devices: TrustedDeviceRecord[];
 };

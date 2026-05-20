@@ -212,7 +212,8 @@ public class NotificationService {
         device.setPermissionStatus(permissionStatus);
         device.setExpoPushToken(expoPushToken);
         device.setLastSeenAt(now);
-        device.setActive("GRANTED".equals(permissionStatus) && expoPushToken != null);
+        device.setLastActiveAt(now);
+        device.setActive(true);
         device.setLastDeliveryError(null);
         mobileDeviceRegistrationRepository.save(device);
     }

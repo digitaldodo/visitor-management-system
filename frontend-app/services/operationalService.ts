@@ -1,5 +1,12 @@
 import { request } from '../api/apiClient';
-import type { DiagnosticEvent, MobileSessionPolicy, OperationalMetric } from '../types/runtime';
+import type {
+  DeviceIntegritySignals,
+  DiagnosticEvent,
+  MobileSessionPolicy,
+  OperationalMetric,
+  TrustedDeviceListResponse,
+  TrustedDeviceRecord,
+} from '../types/runtime';
 
 type TelemetryPayload = {
   diagnostics: DiagnosticEvent[];
@@ -19,5 +26,48 @@ export async function getMobileSessionPolicy(deviceId: string | null) {
     url: '/mobile/session-policy',
     method: 'GET',
     params: deviceId ? { deviceId } : undefined,
+  });
+}
+
+export type TrustedDeviceRegistrationPayload = {
+  deviceId: string;
+  deviceName: string;
+  deviceType: string;
+  platform: string;
+  platformVersion?: string | null;
+  appVersion: string;
+  runtimeVersion: string;
+  fingerprint: string;
+  biometricEnabled: boolean;
+  integritySignals: DeviceIntegritySignals;
+};
+
+export async function registerTrustedDevice(payload: TrustedDeviceRegistrationPayload) {
+  return request<TrustedDeviceRecord>({
+    url: '/mobile/trusted-devices',
+    method: 'POST',
+    data: payload,
+  });
+}
+
+export async function listTrustedDevices(currentDeviceId?: string | null) {
+  return request<TrustedDeviceListResponse>({
+    url: '/mobile/trusted-devices',
+    method: 'GET',
+    params: currentDeviceId ? { currentDeviceId } : undefined,
+  });
+}
+
+export async function revokeTrustedDevice(deviceRegistrationId: string) {
+  return request<{ acknowledged: boolean }>({
+    url: `/mobile/trusted-devices/${deviceRegistrationId}`,
+    method: 'DELETE',
+  });
+}
+
+export async function logoutTrustedDevice(deviceRegistrationId: string) {
+  return request<{ acknowledged: boolean }>({
+    url: `/mobile/trusted-devices/${deviceRegistrationId}/logout`,
+    method: 'POST',
   });
 }

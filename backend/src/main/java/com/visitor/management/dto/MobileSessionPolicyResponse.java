@@ -8,6 +8,9 @@ public record MobileSessionPolicyResponse(
         int concurrentSessionCount,
         String managedMode,
         boolean kioskModeReady,
-        boolean remoteLogoutSupported
+        boolean remoteLogoutSupported,
+        boolean deviceTrusted,
+        boolean biometricRequired,
+        String trustStatus
 ) {
 }

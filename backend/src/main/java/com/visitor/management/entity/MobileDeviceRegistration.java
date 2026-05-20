@@ -32,6 +32,12 @@ public class MobileDeviceRegistration {
 
     private String platform;
 
+    private String platformVersion;
+
+    private String deviceType;
+
+    private String deviceFingerprint;
+
     private String appVersion;
 
     private String runtimeVersion;
@@ -42,9 +48,33 @@ public class MobileDeviceRegistration {
 
     private boolean active;
 
+    private boolean trusted;
+
+    private boolean biometricEnabled;
+
+    private String trustStatus;
+
+    private boolean rootedOrJailbroken;
+
+    private boolean emulator;
+
+    private boolean debugBuild;
+
+    private boolean suspicious;
+
+    private String integrityReasons;
+
     private String lastDeliveryError;
 
     private Instant lastSeenAt;
+
+    private Instant lastActiveAt;
+
+    private Instant trustEstablishedAt;
+
+    private Instant trustRevokedAt;
+
+    private String revokedReason;
 
     private Instant lastDeliveredAt;
 
@@ -102,6 +132,30 @@ public class MobileDeviceRegistration {
         this.platform = platform;
     }
 
+    public String getPlatformVersion() {
+        return platformVersion;
+    }
+
+    public void setPlatformVersion(String platformVersion) {
+        this.platformVersion = platformVersion;
+    }
+
+    public String getDeviceType() {
+        return deviceType;
+    }
+
+    public void setDeviceType(String deviceType) {
+        this.deviceType = deviceType;
+    }
+
+    public String getDeviceFingerprint() {
+        return deviceFingerprint;
+    }
+
+    public void setDeviceFingerprint(String deviceFingerprint) {
+        this.deviceFingerprint = deviceFingerprint;
+    }
+
     public String getAppVersion() {
         return appVersion;
     }
@@ -142,6 +196,70 @@ public class MobileDeviceRegistration {
         this.active = active;
     }
 
+    public boolean isTrusted() {
+        return trusted;
+    }
+
+    public void setTrusted(boolean trusted) {
+        this.trusted = trusted;
+    }
+
+    public boolean isBiometricEnabled() {
+        return biometricEnabled;
+    }
+
+    public void setBiometricEnabled(boolean biometricEnabled) {
+        this.biometricEnabled = biometricEnabled;
+    }
+
+    public String getTrustStatus() {
+        return trustStatus;
+    }
+
+    public void setTrustStatus(String trustStatus) {
+        this.trustStatus = trustStatus;
+    }
+
+    public boolean isRootedOrJailbroken() {
+        return rootedOrJailbroken;
+    }
+
+    public void setRootedOrJailbroken(boolean rootedOrJailbroken) {
+        this.rootedOrJailbroken = rootedOrJailbroken;
+    }
+
+    public boolean isEmulator() {
+        return emulator;
+    }
+
+    public void setEmulator(boolean emulator) {
+        this.emulator = emulator;
+    }
+
+    public boolean isDebugBuild() {
+        return debugBuild;
+    }
+
+    public void setDebugBuild(boolean debugBuild) {
+        this.debugBuild = debugBuild;
+    }
+
+    public boolean isSuspicious() {
+        return suspicious;
+    }
+
+    public void setSuspicious(boolean suspicious) {
+        this.suspicious = suspicious;
+    }
+
+    public String getIntegrityReasons() {
+        return integrityReasons;
+    }
+
+    public void setIntegrityReasons(String integrityReasons) {
+        this.integrityReasons = integrityReasons;
+    }
+
     public String getLastDeliveryError() {
         return lastDeliveryError;
     }
@@ -156,6 +274,38 @@ public class MobileDeviceRegistration {
 
     public void setLastSeenAt(Instant lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
+    }
+
+    public Instant getLastActiveAt() {
+        return lastActiveAt;
+    }
+
+    public void setLastActiveAt(Instant lastActiveAt) {
+        this.lastActiveAt = lastActiveAt;
+    }
+
+    public Instant getTrustEstablishedAt() {
+        return trustEstablishedAt;
+    }
+
+    public void setTrustEstablishedAt(Instant trustEstablishedAt) {
+        this.trustEstablishedAt = trustEstablishedAt;
+    }
+
+    public Instant getTrustRevokedAt() {
+        return trustRevokedAt;
+    }
+
+    public void setTrustRevokedAt(Instant trustRevokedAt) {
+        this.trustRevokedAt = trustRevokedAt;
+    }
+
+    public String getRevokedReason() {
+        return revokedReason;
+    }
+
+    public void setRevokedReason(String revokedReason) {
+        this.revokedReason = revokedReason;
     }
 
     public Instant getLastDeliveredAt() {

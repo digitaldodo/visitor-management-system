@@ -1,0 +1,220 @@
+import * as Application from 'expo-application';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { Alert, Platform } from 'react-native';
+
+import { apiConfig } from '../api/apiConfig';
+import { recordDiagnosticEvent } from '../runtime/diagnostics';
+import { readOrCreateDeviceId } from '../storage/sessionStorage';
+import { readSecureJson, removeSecureValue, writeSecureJson } from '../storage/secureStore';
+import type { AuthSession, WorkspaceAudience } from '../types/auth';
+import type { DeviceIntegritySignals, TrustedDeviceRecord } from '../types/runtime';
+
+const TRUST_PROFILE_KEY = 'accessflow.mobile.device-trust.profile';
+
+export type LocalDeviceTrustProfile = {
+  deviceId: string;
+  userId: string;
+  audience: WorkspaceAudience;
+  trusted: boolean;
+  biometricEnabled: boolean;
+  deviceName: string;
+  deviceType: string;
+  platform: string;
+  appVersion: string;
+  runtimeVersion: string;
+  trustEstablishedAt: string;
+  lastUnlockedAt?: string | null;
+};
+
+export async function readLocalDeviceTrustProfile() {
+  return readSecureJson<LocalDeviceTrustProfile>(TRUST_PROFILE_KEY);
+}
+
+export async function writeLocalDeviceTrustProfile(profile: LocalDeviceTrustProfile) {
+  await writeSecureJson(TRUST_PROFILE_KEY, profile);
+}
+
+export async function clearLocalDeviceTrustProfile() {
+  await removeSecureValue(TRUST_PROFILE_KEY);
+}
+
+export function isEnterpriseTrustAudience(audience: WorkspaceAudience) {
+  return audience === 'security' || audience === 'employee' || audience === 'admin';
+}
+
+export async function getCurrentDeviceDescriptor() {
+  const deviceId = await readOrCreateDeviceId();
+  const deviceName = Constants.deviceName
+    || Device.deviceName
+    || Application.applicationName
+    || `${Platform.OS} device`;
+  const deviceType = Device.deviceType === Device.DeviceType.TABLET
+    ? 'tablet'
+    : Device.deviceType === Device.DeviceType.DESKTOP
+      ? 'desktop'
+      : 'phone';
+
+  return {
+    deviceId,
+    deviceName,
+    deviceType,
+    platform: Platform.OS,
+    platformVersion: String(Device.osVersion || ''),
+    appVersion: apiConfig.appVersion,
+    runtimeVersion: apiConfig.runtimeVersion,
+    fingerprint: buildDeviceFingerprint(deviceId),
+  };
+}
+
+export async function collectDeviceIntegritySignals(): Promise<DeviceIntegritySignals> {
+  const reasons: string[] = [];
+  const debugBuild = Boolean(__DEV__);
+  const emulator = !Device.isDevice;
+
+  if (debugBuild) {
+    reasons.push('debug-build');
+  }
+  if (emulator) {
+    reasons.push('emulator');
+  }
+
+  return {
+    rootedOrJailbroken: false,
+    emulator,
+    debugBuild,
+    suspicious: emulator || debugBuild,
+    reasons,
+  };
+}
+
+export async function promptForDeviceTrust(session: AuthSession) {
+  if (!isEnterpriseTrustAudience(session.audience)) {
+    return { trusted: false, biometricEnabled: false };
+  }
+
+  const biometricReady = await isBiometricOrDeviceCredentialReady();
+  return new Promise<{ trusted: boolean; biometricEnabled: boolean }>((resolve) => {
+    Alert.alert(
+      'Trust this device?',
+      biometricReady
+        ? 'Bind this AccessFlow session to this device and enable biometric or device unlock for future workspace recovery.'
+        : 'Bind this AccessFlow session to this device. You can enable biometrics after enrolling device unlock.',
+      [
+        {
+          text: 'Not now',
+          style: 'cancel',
+          onPress: () => resolve({ trusted: false, biometricEnabled: false }),
+        },
+        {
+          text: biometricReady ? 'Trust and enable' : 'Trust device',
+          onPress: () => resolve({ trusted: true, biometricEnabled: biometricReady }),
+        },
+      ],
+    );
+  });
+}
+
+export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 'enable' | 'manual') {
+  const ready = await isBiometricOrDeviceCredentialReady();
+  if (!ready) {
+    return { success: false, reason: 'device-unlock-unavailable' };
+  }
+
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage: promptForReason(reason),
+    cancelLabel: 'Use password',
+    fallbackLabel: 'Use device PIN',
+    disableDeviceFallback: false,
+    requireConfirmation: false,
+  });
+
+  if (!result.success) {
+    await recordDiagnosticEvent({
+      level: 'warn',
+      scope: 'security',
+      code: 'DEVICE_UNLOCK_FAILED',
+      message: 'Device unlock was not completed.',
+      context: {
+        reason,
+        error: 'error' in result ? result.error : null,
+        warning: result.warning ?? null,
+      },
+    });
+  }
+
+  return result.success
+    ? { success: true as const }
+    : { success: false as const, reason: 'error' in result ? result.error : 'cancelled' };
+}
+
+export async function bindTrustedDeviceLocally(session: AuthSession, biometricEnabled: boolean) {
+  const descriptor = await getCurrentDeviceDescriptor();
+  const profile: LocalDeviceTrustProfile = {
+    deviceId: descriptor.deviceId,
+    userId: session.user.id,
+    audience: session.audience,
+    trusted: true,
+    biometricEnabled,
+    deviceName: descriptor.deviceName,
+    deviceType: descriptor.deviceType,
+    platform: descriptor.platform,
+    appVersion: descriptor.appVersion,
+    runtimeVersion: descriptor.runtimeVersion,
+    trustEstablishedAt: new Date().toISOString(),
+    lastUnlockedAt: null,
+  };
+  await writeLocalDeviceTrustProfile(profile);
+  return profile;
+}
+
+export async function markDeviceUnlocked(profile: LocalDeviceTrustProfile) {
+  await writeLocalDeviceTrustProfile({
+    ...profile,
+    lastUnlockedAt: new Date().toISOString(),
+  });
+}
+
+export function mergeCurrentDevice(devices: TrustedDeviceRecord[], currentDeviceId: string | null) {
+  return devices.map((device) => ({
+    ...device,
+    currentDevice: Boolean(currentDeviceId && device.deviceId === currentDeviceId) || device.currentDevice,
+  }));
+}
+
+async function isBiometricOrDeviceCredentialReady() {
+  try {
+    const [hardware, enrolled] = await Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.isEnrolledAsync(),
+    ]);
+    return hardware && enrolled;
+  } catch {
+    return false;
+  }
+}
+
+function buildDeviceFingerprint(deviceId: string) {
+  return [
+    deviceId,
+    Platform.OS,
+    Device.osName || '',
+    Device.osVersion || '',
+    Device.modelName || '',
+    Application.applicationId || '',
+  ].join('|');
+}
+
+function promptForReason(reason: 'bootstrap' | 'resume' | 'enable' | 'manual') {
+  switch (reason) {
+    case 'bootstrap':
+      return 'Unlock AccessFlow';
+    case 'resume':
+      return 'Resume AccessFlow workspace';
+    case 'enable':
+      return 'Enable biometric unlock';
+    default:
+      return 'Confirm device unlock';
+  }
+}

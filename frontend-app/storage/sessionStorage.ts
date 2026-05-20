@@ -1,20 +1,28 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Application from 'expo-application';
 
 import type { AuthSession } from '../types/auth';
 import type { RuntimeSnapshot, SessionLockState } from '../types/runtime';
-import { readSecureJson, removeSecureValue, writeSecureJson } from './secureStore';
+import { readSecureJson, readSecureValue, removeSecureValue, writeSecureJson, writeSecureValue } from './secureStore';
 
 const SESSION_KEY = 'accessflow.mobile.session';
 const RUNTIME_KEY = 'accessflow.mobile.runtime';
 const DEVICE_ID_KEY = 'accessflow.mobile.device-id';
+const LEGACY_DEVICE_ID_KEY = 'accessflow.mobile.device-id';
 const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
-export async function readPersistedSession() {
-  return readSecureJson<AuthSession>(SESSION_KEY);
+export async function readPersistedSession(options?: { requireAuthentication?: boolean }) {
+  return readSecureJson<AuthSession>(SESSION_KEY, options?.requireAuthentication ? {
+    requireAuthentication: true,
+    authenticationPrompt: 'Unlock AccessFlow secure session',
+  } : undefined);
 }
 
-export async function writePersistedSession(session: AuthSession) {
-  await writeSecureJson(SESSION_KEY, session);
+export async function writePersistedSession(session: AuthSession, options?: { requireAuthentication?: boolean }) {
+  await writeSecureJson(SESSION_KEY, session, options?.requireAuthentication ? {
+    requireAuthentication: true,
+    authenticationPrompt: 'Protect AccessFlow secure session',
+  } : undefined);
 }
 
 export async function clearPersistedSession() {
@@ -66,12 +74,28 @@ export async function clearSessionLockState() {
 }
 
 export async function readOrCreateDeviceId() {
-  const existing = await AsyncStorage.getItem(DEVICE_ID_KEY);
+  const existing = await readSecureValue(DEVICE_ID_KEY);
   if (existing) {
     return existing;
   }
 
-  const nextValue = `afm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  await AsyncStorage.setItem(DEVICE_ID_KEY, nextValue);
+  const legacyValue = await AsyncStorage.getItem(LEGACY_DEVICE_ID_KEY).catch(() => null);
+  const nextValue = legacyValue || [
+    'afm',
+    normalizeDevicePart(Application.applicationId),
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2, 12),
+    Math.random().toString(36).slice(2, 12),
+  ].filter(Boolean).join('-');
+  await writeSecureValue(DEVICE_ID_KEY, nextValue);
+  await AsyncStorage.removeItem(LEGACY_DEVICE_ID_KEY).catch(() => undefined);
   return nextValue;
+}
+
+function normalizeDevicePart(value?: string | null) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
 }

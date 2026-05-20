@@ -3,9 +3,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiConfig } from '../api/apiConfig';
 import { configureApiClient } from '../api/apiClient';
 import { createAppError, normalizeApiError, sanitizeUserFacingErrorMessage } from '../api/error';
+import {
+  authenticateDeviceUnlock,
+  bindTrustedDeviceLocally,
+  clearLocalDeviceTrustProfile,
+  collectDeviceIntegritySignals,
+  getCurrentDeviceDescriptor,
+  isEnterpriseTrustAudience,
+  markDeviceUnlocked,
+  promptForDeviceTrust,
+  readLocalDeviceTrustProfile,
+} from './deviceTrust';
 import { resetNavigationToAuth, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { login as loginRequest, logout as logoutRequest, restoreSession } from '../services/authService';
+import { registerTrustedDevice } from '../services/operationalService';
 import { getApiVersions } from '../services/systemService';
 import {
   clearPersistedSession,
@@ -69,7 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rememberSessionRef.current = shouldPersist;
       sessionRef.current = session;
       if (shouldPersist) {
-        await writePersistedSession(session);
+        const trustProfile = await readLocalDeviceTrustProfile();
+        await writePersistedSession(session, {
+          requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
+        });
       } else {
         await clearPersistedSession();
       }
@@ -187,7 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       runtimeRecoveryPromiseRef.current = (async () => {
-        const persistedSession = sessionRef.current ?? (await readPersistedSession());
+        const trustProfile = await readLocalDeviceTrustProfile();
+        const persistedSession = sessionRef.current ?? (await readPersistedSession({
+          requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
+        }));
         const trigger = options?.trigger ?? 'manual';
 
         if (!persistedSession || !isValidSessionSnapshot(persistedSession)) {
@@ -201,7 +219,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             forceRefresh: options?.forceRefresh,
           });
 
-          await persistAuthenticatedSession(session, versions, { rememberSession: rememberSessionRef.current || Boolean(await readPersistedSession()) });
+          await persistAuthenticatedSession(session, versions, {
+            rememberSession: rememberSessionRef.current || Boolean(trustProfile?.trusted) || Boolean(await readPersistedSession()),
+          });
           await recordDiagnosticEvent({
             level: 'info',
             scope: 'auth',
@@ -266,7 +286,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const persistedSession = await readPersistedSession();
+    const trustProfile = await readLocalDeviceTrustProfile();
+    if (trustProfile?.trusted && trustProfile.biometricEnabled) {
+      const unlock = await authenticateDeviceUnlock('bootstrap');
+      if (!unlock.success) {
+        setStateSafely({
+          status: 'signed-out',
+          session: null,
+          recovery: null,
+          lastError: 'Use password sign-in to recover this device session.',
+        });
+        return;
+      }
+      await markDeviceUnlocked(trustProfile);
+    }
+
+    const persistedSession = await readPersistedSession({
+      requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
+    });
     if (!persistedSession) {
       await clearSessionLockState();
       await writeRuntimeSnapshot({
@@ -353,7 +390,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsBusy(true);
       try {
         const session = await loginRequest(payload);
-        await persistAuthenticatedSession(session, null, { rememberSession: Boolean(payload.rememberMe) });
+        sessionRef.current = session;
+        const trustResult = await establishTrustedDevice(session, Boolean(payload.rememberMe));
+        await persistAuthenticatedSession(session, null, { rememberSession: trustResult.persistSession });
         resetNavigationToRoleHome(session.user.activeRole);
       } catch (error) {
         const normalizedError = normalizeApiError(error);
@@ -380,6 +419,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logoutRequest(sessionRef.current);
     } finally {
+      await clearLocalDeviceTrustProfile();
       await clearSessionState();
       resetNavigationToAuth();
       setIsBusy(false);
@@ -506,6 +546,53 @@ function compareVersionStrings(left: string, right: string) {
   }
 
   return 0;
+}
+
+async function establishTrustedDevice(session: AuthSession, rememberRequested: boolean) {
+  const enterpriseAudience = isEnterpriseTrustAudience(session.audience);
+  if (!enterpriseAudience && !rememberRequested) {
+    return { persistSession: false };
+  }
+
+  const decision = enterpriseAudience
+    ? await promptForDeviceTrust(session)
+    : { trusted: rememberRequested, biometricEnabled: false };
+
+  if (!decision.trusted) {
+    await clearLocalDeviceTrustProfile();
+    return { persistSession: !enterpriseAudience && rememberRequested };
+  }
+
+  let biometricEnabled = decision.biometricEnabled;
+  if (biometricEnabled) {
+    const unlock = await authenticateDeviceUnlock('enable');
+    biometricEnabled = unlock.success;
+  }
+
+  const profile = await bindTrustedDeviceLocally(session, biometricEnabled);
+  const [descriptor, integritySignals] = await Promise.all([
+    getCurrentDeviceDescriptor(),
+    collectDeviceIntegritySignals(),
+  ]);
+
+  await registerTrustedDevice({
+    ...descriptor,
+    biometricEnabled,
+    integritySignals,
+  }).catch(async (error) => {
+    await recordDiagnosticEvent({
+      level: 'warn',
+      scope: 'security',
+      code: 'TRUSTED_DEVICE_REGISTRATION_FAILED',
+      message: error instanceof Error ? error.message : 'Trusted device registration failed.',
+      context: {
+        role: session.user.activeRole,
+        deviceId: profile.deviceId,
+      },
+    });
+  });
+
+  return { persistSession: true };
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {

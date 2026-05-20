@@ -1,10 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { apiConfig } from '../../api/apiConfig';
+import {
+  authenticateDeviceUnlock,
+  bindTrustedDeviceLocally,
+  clearLocalDeviceTrustProfile,
+  collectDeviceIntegritySignals,
+  getCurrentDeviceDescriptor,
+  readLocalDeviceTrustProfile,
+  writeLocalDeviceTrustProfile,
+  type LocalDeviceTrustProfile,
+} from '../../auth/deviceTrust';
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
@@ -23,9 +33,16 @@ import {
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import type { UploadAsset } from '../../services/accountService';
+import {
+  listTrustedDevices,
+  logoutTrustedDevice,
+  registerTrustedDevice,
+  revokeTrustedDevice,
+} from '../../services/operationalService';
 import { theme } from '../../theme';
 import type { ActiveWorkspaceRole } from '../../types/auth';
 import type { UserProfile } from '../../types/domain';
+import type { TrustedDeviceRecord } from '../../types/runtime';
 import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
@@ -74,6 +91,10 @@ export function AccountProfileScreen({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
+  const [trustedDevices, setTrustedDevices] = useState<TrustedDeviceRecord[]>([]);
+  const [localTrustProfile, setLocalTrustProfile] = useState<LocalDeviceTrustProfile | null>(null);
+  const [securityCenterBusy, setSecurityCenterBusy] = useState(false);
 
   const identity = profile.data;
   const role = session?.user.activeRole ?? identity?.roles?.[0] ?? 'EMPLOYEE';
@@ -91,6 +112,28 @@ export function AccountProfileScreen({
     hydrateEditableFields(identity);
   }, [identity]);
 
+  const loadSecurityCenter = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+
+    try {
+      const [profile, descriptor] = await Promise.all([
+        readLocalDeviceTrustProfile(),
+        getCurrentDeviceDescriptor(),
+      ]);
+      setLocalTrustProfile(profile);
+      const response = await listTrustedDevices(descriptor.deviceId);
+      setTrustedDevices(response.devices);
+    } catch {
+      setTrustedDevices([]);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    void loadSecurityCenter();
+  }, [loadSecurityCenter]);
+
   const refreshAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['account', 'profile'] }),
@@ -100,7 +143,111 @@ export function AccountProfileScreen({
     ]);
     await profile.refetch();
     await refreshSession();
+    await loadSecurityCenter();
     await Promise.resolve(onRefresh?.());
+  };
+
+  const setBiometricUnlock = async (enabled: boolean) => {
+    if (!session) {
+      return;
+    }
+
+    setSecurityCenterBusy(true);
+    try {
+      const currentProfile = localTrustProfile ?? await bindTrustedDeviceLocally(session, false);
+      if (enabled) {
+        const unlock = await authenticateDeviceUnlock('enable');
+        if (!unlock.success) {
+          Alert.alert('Biometric unlock unavailable', 'Enroll fingerprint, face unlock, or device PIN before enabling secure workspace unlock.');
+          return;
+        }
+      }
+
+      const nextProfile = {
+        ...currentProfile,
+        biometricEnabled: enabled,
+        trusted: true,
+      };
+      await writeLocalDeviceTrustProfile(nextProfile);
+
+      const [descriptor, integritySignals] = await Promise.all([
+        getCurrentDeviceDescriptor(),
+        collectDeviceIntegritySignals(),
+      ]);
+      await registerTrustedDevice({
+        ...descriptor,
+        biometricEnabled: enabled,
+        integritySignals,
+      });
+      await loadSecurityCenter();
+      Alert.alert('Security updated', enabled ? 'Biometric unlock is enabled for this trusted device.' : 'Biometric unlock was disabled for this device.');
+    } catch (error) {
+      Alert.alert('Security update failed', error instanceof Error ? error.message : 'AccessFlow could not update trusted-device settings.');
+    } finally {
+      setSecurityCenterBusy(false);
+    }
+  };
+
+  const revokeDeviceAccess = (device: TrustedDeviceRecord) => {
+    Alert.alert(
+      device.currentDevice ? 'Revoke this device?' : 'Revoke trusted device?',
+      device.currentDevice
+        ? 'This clears the local trusted session and you will need to sign in again.'
+        : 'This device will be blocked from restoring its AccessFlow session.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setSecurityCenterBusy(true);
+              try {
+                await revokeTrustedDevice(device.id);
+                if (device.currentDevice) {
+                  await clearLocalDeviceTrustProfile();
+                  await logout();
+                  return;
+                }
+                await loadSecurityCenter();
+              } catch (error) {
+                Alert.alert('Revocation failed', error instanceof Error ? error.message : 'The device could not be revoked.');
+              } finally {
+                setSecurityCenterBusy(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const logoutDeviceAccess = (device: TrustedDeviceRecord) => {
+    Alert.alert('Log out device?', 'This invalidates the selected trusted-device session record.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setSecurityCenterBusy(true);
+            try {
+              await logoutTrustedDevice(device.id);
+              if (device.currentDevice) {
+                await clearLocalDeviceTrustProfile();
+                await logout();
+                return;
+              }
+              await loadSecurityCenter();
+            } catch (error) {
+              Alert.alert('Logout failed', error instanceof Error ? error.message : 'The device could not be logged out.');
+            } finally {
+              setSecurityCenterBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
   };
 
   const saveProfile = async () => {
@@ -356,13 +503,55 @@ export function AccountProfileScreen({
           autoCapitalize="none"
           errorText={confirmPassword && newPassword !== confirmPassword ? 'Passwords do not match.' : undefined}
         />
-        <PreferenceSwitchRow
-          label="Biometric unlock"
-          helperText="Device biometric unlock is prepared for policy enablement and remains controlled by organization security."
-          value={false}
-          onValueChange={() => Alert.alert('Managed setting', 'Biometric unlock will become available when your organization enables the mobile policy.')}
-        />
         <PrimaryButton label="Update password" onPress={() => void changePassword()} loading={updatePasswordMutation.isPending} />
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Toggle security center"
+          onPress={() => setSecurityCenterOpen((open) => !open)}
+          style={styles.advancedHeader}
+        >
+          <View style={styles.advancedTitle}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.info} />
+            <Text style={styles.panelTitle}>Security center</Text>
+          </View>
+          <Ionicons name={securityCenterOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
+        </Pressable>
+        {securityCenterOpen ? (
+          <View style={styles.securityCenter}>
+            <View style={styles.securityGrid}>
+              <SecurityStatusTile label="Current device" value={localTrustProfile?.trusted ? 'Trusted' : 'Not trusted'} tone={localTrustProfile?.trusted ? 'success' : 'warning'} />
+              <SecurityStatusTile label="Biometric unlock" value={localTrustProfile?.biometricEnabled ? 'Enabled' : 'Disabled'} tone={localTrustProfile?.biometricEnabled ? 'success' : 'default'} />
+              <SecurityStatusTile label="Session timeout" value={`${Math.round(runtime.sessionLock.inactivityTimeoutMs / 60000)} min`} tone="info" />
+              <SecurityStatusTile label="Active devices" value={String(trustedDevices.filter((device) => device.active).length)} tone="info" />
+            </View>
+            <PreferenceSwitchRow
+              label="Biometric unlock"
+              helperText="Use fingerprint, face unlock, or device PIN to unlock this trusted AccessFlow session after app restarts or inactivity."
+              value={Boolean(localTrustProfile?.biometricEnabled)}
+              onValueChange={(enabled) => void setBiometricUnlock(enabled)}
+            />
+            <View style={styles.securityActions}>
+              <PrimaryButton label="Refresh security status" tone="secondary" onPress={() => void loadSecurityCenter()} loading={securityCenterBusy} />
+              <PrimaryButton label="Quick secure logout" tone="danger" onPress={() => void logout()} disabled={isBusy || securityCenterBusy} />
+            </View>
+            <View style={styles.deviceList}>
+              {trustedDevices.length ? trustedDevices.map((device) => (
+                <TrustedDeviceItem
+                  key={device.id}
+                  device={device}
+                  busy={securityCenterBusy}
+                  onLogout={() => logoutDeviceAccess(device)}
+                  onRevoke={() => revokeDeviceAccess(device)}
+                />
+              )) : (
+                <Text style={styles.helperText}>No trusted devices are registered for this account yet.</Text>
+              )}
+            </View>
+          </View>
+        ) : null}
       </SurfaceCard>
 
       <SurfaceCard>
@@ -437,6 +626,82 @@ function IconAction({
       <Ionicons name={icon} size={22} color={danger ? theme.colors.danger : theme.colors.textPrimary} />
       <Text style={[styles.iconActionLabel, danger ? styles.iconActionLabelDanger : null]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function SecurityStatusTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'success' | 'warning' | 'info' | 'default';
+}) {
+  const color = tone === 'success'
+    ? theme.colors.success
+    : tone === 'warning'
+      ? theme.colors.warning
+      : tone === 'info'
+        ? theme.colors.info
+        : theme.colors.textPrimary;
+
+  return (
+    <View style={styles.securityTile}>
+      <Text style={styles.securityTileLabel}>{label}</Text>
+      <Text style={[styles.securityTileValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+function TrustedDeviceItem({
+  device,
+  busy,
+  onLogout,
+  onRevoke,
+}: {
+  device: TrustedDeviceRecord;
+  busy: boolean;
+  onLogout: () => void;
+  onRevoke: () => void;
+}) {
+  const statusTone = device.trustStatus === 'TRUSTED' && device.active
+    ? 'success'
+    : device.trustStatus === 'SUSPICIOUS'
+      ? 'warning'
+      : 'danger';
+
+  return (
+    <View style={styles.deviceItem}>
+      <View style={styles.deviceIcon}>
+        <Ionicons
+          name={device.deviceType === 'tablet' ? 'tablet-landscape-outline' : 'phone-portrait-outline'}
+          size={22}
+          color={theme.colors.info}
+        />
+      </View>
+      <View style={styles.deviceCopy}>
+        <View style={styles.deviceTitleRow}>
+          <Text style={styles.deviceTitle}>{device.deviceName || 'Mobile device'}</Text>
+          {device.currentDevice ? <StatusPill label="Current" tone="info" /> : null}
+          <StatusPill label={device.trustStatus.toLowerCase()} tone={statusTone} />
+        </View>
+        <Text style={styles.helperText}>
+          {[device.platform, device.deviceType, device.appVersion ? `v${device.appVersion}` : null].filter(Boolean).join(' · ')}
+        </Text>
+        <Text style={styles.helperText}>
+          Last active: {device.lastActiveAt ? formatDateTime(device.lastActiveAt) : 'Not recorded'}
+        </Text>
+        <Text style={styles.helperText}>
+          Biometric unlock: {device.biometricEnabled ? 'enabled' : 'disabled'}
+          {device.suspicious ? ' · Review device posture' : ''}
+        </Text>
+        <View style={styles.deviceActions}>
+          <PrimaryButton label="Log out" tone="secondary" onPress={onLogout} disabled={busy} />
+          <PrimaryButton label="Revoke" tone="danger" onPress={onRevoke} disabled={busy} />
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -689,6 +954,80 @@ const styles = StyleSheet.create({
   },
   detailStack: {
     gap: theme.spacing.sm,
+  },
+  securityCenter: {
+    gap: theme.spacing.md,
+  },
+  securityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  securityTile: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minHeight: 70,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    justifyContent: 'center',
+    gap: 4,
+    padding: theme.spacing.md,
+  },
+  securityTileLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  securityTileValue: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  securityActions: {
+    gap: theme.spacing.sm,
+  },
+  deviceList: {
+    gap: theme.spacing.sm,
+  },
+  deviceItem: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  deviceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.infoSoft,
+  },
+  deviceCopy: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  deviceTitleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  deviceTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  deviceActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
   },
   sessionActions: {
     gap: theme.spacing.sm,
