@@ -132,6 +132,8 @@ export function ScanScreen() {
   const liveActionsAvailable = runtime.offlineOperationalMode === 'online';
   const emergencyCheckInsBlocked = Boolean(emergencyState.data?.lockdownActive);
   const checkInActionsAvailable = liveActionsAvailable && !emergencyCheckInsBlocked && !mobileSecurity.sensitiveOperationsRestricted;
+  const operationalDevice = runtime.devicePosture.operationalModeEnabled;
+  const autoRestoreDelayMs = operationalDevice && runtime.devicePosture.autoRestoreScanner ? 950 : 1700;
 
   const reasonConfig = useMemo(() => {
     if (!reasonAction) {
@@ -225,13 +227,15 @@ export function ScanScreen() {
       if (!active) {
         setTorchEnabled(false);
         setScannerMode((current) => (current === 'processing' ? 'feedback' : current));
+      } else if (runtime.devicePosture.autoRestoreScanner && scannerMode === 'feedback' && !reasonAction) {
+        scheduleScannerReset(450);
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [reasonAction, runtime.devicePosture.autoRestoreScanner, scannerMode]);
 
   const refreshWorkspace = async () => {
     await Promise.all([
@@ -461,7 +465,7 @@ export function ScanScreen() {
       if (isMountedRef.current) {
         setScannerMode('feedback');
         if (shouldAutoReset) {
-          scheduleScannerReset();
+          scheduleScannerReset(autoRestoreDelayMs);
         }
       }
     }
@@ -496,7 +500,7 @@ export function ScanScreen() {
     const visitor = await visitorCheckInMutation.mutateAsync(lastPayload);
     setLastActionMessage(`${visitor.fullName} checked in successfully.`);
     setScannerMode('feedback');
-    scheduleScannerReset();
+    scheduleScannerReset(autoRestoreDelayMs);
     await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-in' } });
     await refreshWorkspace();
   };
@@ -513,7 +517,7 @@ export function ScanScreen() {
     } : current);
     setLastActionMessage(`${visitor.fullName} checked out successfully.`);
     setScannerMode('feedback');
-    scheduleScannerReset();
+    scheduleScannerReset(autoRestoreDelayMs);
     await recordOperationalMetric({ name: 'scan_throughput', tags: { action: 'visitor-check-out' } });
     await refreshWorkspace();
   };
@@ -598,6 +602,15 @@ export function ScanScreen() {
         <View style={[styles.workspaceGrid, layout.isTwoColumn ? styles.workspaceGridWide : null]}>
           <View style={[styles.primaryColumn, layout.isTwoColumn ? styles.primaryColumnWide : null]}>
           <SurfaceCard title="Checkpoint scanner" subtitle="Designed for reception desks, guard tablets, and one-hand Android workflows.">
+              {operationalDevice ? (
+                <View style={styles.operationalContext}>
+                  <StatusPill label="Trusted operational device" tone="success" />
+                  <Text style={styles.operationalContextTitle}>
+                    {runtime.devicePosture.checkpointName || runtime.devicePosture.operationalZone || 'Assigned checkpoint'}
+                  </Text>
+                </View>
+              ) : null}
+
               {runtime.offlineScanQueueSize > 0 || runtime.runtimeHealth === 'degraded' ? (
                 <View style={styles.degradedState}>
                   <StatusPill
@@ -971,6 +984,19 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(251, 191, 36, 0.28)',
     backgroundColor: theme.colors.warningSoft,
     padding: theme.spacing.md,
+  },
+  operationalContext: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    padding: theme.spacing.md,
+  },
+  operationalContextTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   workspaceGrid: {
     gap: theme.spacing.lg,

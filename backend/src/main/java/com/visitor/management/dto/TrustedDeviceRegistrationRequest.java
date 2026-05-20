@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record TrustedDeviceRegistrationRequest(
         @NotBlank @Size(max = 120) String deviceId,
+        @Size(max = 120) String installationId,
         @Size(max = 120) String deviceName,
         @Size(max = 32) String deviceType,
         @NotBlank @Size(max = 24) String platform,

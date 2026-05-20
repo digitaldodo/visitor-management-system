@@ -115,11 +115,24 @@ const defaultLockState: SessionLockState = {
   screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
 };
 
-  const defaultDevicePosture: DevicePostureState = {
+const defaultDevicePosture: DevicePostureState = {
   deviceId: null,
   managedMode: apiConfig.deviceManagement.managedMode,
   kioskModeReady: apiConfig.deviceManagement.kioskModeReady,
   remoteLogoutSupported: true,
+  deviceTrusted: false,
+  trustStatus: null,
+  deviceCategory: 'PERSONAL_DEVICE',
+  operationalRole: 'PERSONAL',
+  checkpointId: null,
+  checkpointName: null,
+  operationalZone: null,
+  operationalModeEnabled: false,
+  scannerFirst: false,
+  restrictedNavigation: false,
+  autoRestoreScanner: false,
+  sharedOperationalDevice: false,
+  inactivityTimeoutSeconds: null,
   suspicious: false,
   rootedOrJailbroken: false,
   emulator: false,
@@ -162,6 +175,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const backgroundedAtRef = useRef<number | null>(null);
   const lastOtaCheckAtRef = useRef(0);
   const lastOfflineModeRef = useRef<OfflineOperationalMode>('online');
+  const lastOperationalRestoreRef = useRef(0);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
   const lastLifecycleRecoveryAtRef = useRef(0);
@@ -504,11 +518,25 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     try {
       const policy = await getMobileSessionPolicy(deviceId);
+      const operationalModeEnabled = Boolean(policy.operationalModeEnabled);
       setDevicePosture((current) => ({
         ...current,
         managedMode: policy.managedMode ?? current.managedMode,
         kioskModeReady: Boolean(policy.kioskModeReady ?? current.kioskModeReady),
         remoteLogoutSupported: Boolean(policy.remoteLogoutSupported ?? current.remoteLogoutSupported),
+        deviceTrusted: Boolean(policy.deviceTrusted ?? current.deviceTrusted),
+        trustStatus: policy.trustStatus ?? current.trustStatus,
+        deviceCategory: policy.deviceCategory ?? current.deviceCategory,
+        operationalRole: policy.operationalRole ?? current.operationalRole,
+        checkpointId: policy.checkpointId ?? null,
+        checkpointName: policy.checkpointName ?? null,
+        operationalZone: policy.operationalZone ?? null,
+        operationalModeEnabled,
+        scannerFirst: Boolean(policy.scannerFirst ?? current.scannerFirst),
+        restrictedNavigation: Boolean(policy.restrictedNavigation ?? current.restrictedNavigation),
+        autoRestoreScanner: Boolean(policy.autoRestoreScanner ?? current.autoRestoreScanner),
+        sharedOperationalDevice: Boolean(policy.sharedOperationalDevice ?? current.sharedOperationalDevice),
+        inactivityTimeoutSeconds: policy.inactivityTimeoutSeconds ?? null,
         suspicious: policy.suspiciousDevice,
         concurrentSessionCount: policy.concurrentSessionCount,
         lastPolicySyncAt: new Date().toISOString(),
@@ -528,6 +556,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
       if (policy.suspiciousDevice) {
         await applySessionLock('suspicious-device');
+      }
+
+      if (
+        operationalModeEnabled
+        && (policy.scannerFirst || policy.autoRestoreScanner)
+        && auth.session.user.activeRole === 'SECURITY_GUARD'
+      ) {
+        restoreOperationalWorkspace('policy-sync', lastOperationalRestoreRef);
       }
     } catch (error) {
       await recordDiagnosticEvent({
@@ -1513,4 +1549,19 @@ function isOfflineNetworkState(state: NetworkReachabilityState) {
   return state.isConnected === false
     || state.isInternetReachable === false
     || (!state.isApiReachable && state.consecutiveFailures >= 2);
+}
+
+function restoreOperationalWorkspace(reason: string, lastRestoreRef: { current: number }) {
+  const now = Date.now();
+  if (now - lastRestoreRef.current < 2_500) {
+    return;
+  }
+  lastRestoreRef.current = now;
+  navigateToWorkspace('security-scan');
+  void recordOperationalMetric({
+    name: 'runtime_recovery',
+    tags: {
+      reason: `operational-workspace-${reason}`,
+    },
+  });
 }

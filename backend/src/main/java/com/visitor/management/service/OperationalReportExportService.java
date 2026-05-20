@@ -208,7 +208,7 @@ public class OperationalReportExportService {
     }
 
     private String normalizeType(String value) {
-        String normalized = String(value == null ? "" : value).trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        String normalized = String.valueOf(value == null ? "" : value).trim().toLowerCase(Locale.ROOT).replace('_', '-');
         if (normalized.isBlank()) {
             return "visitor-register";
         }
@@ -216,7 +216,7 @@ public class OperationalReportExportService {
     }
 
     private String normalizeFormat(String value) {
-        String normalized = String(value == null ? "" : value).trim().toUpperCase(Locale.ROOT);
+        String normalized = String.valueOf(value == null ? "" : value).trim().toUpperCase(Locale.ROOT);
         return "PDF".equals(normalized) ? "PDF" : "CSV";
     }
 

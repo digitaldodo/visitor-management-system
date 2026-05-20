@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { useSensitiveScreenProtection } from '../../security/MobileSecurityProvider';
 import { EmergencyBanner } from '../feedback/EmergencyBanner';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
@@ -27,6 +28,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { t } = useLocalization();
+  const { devicePosture, offlineOperationalMode, syncConnection } = useOperationalRuntime();
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -110,6 +112,25 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
             </View>
             <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>
             {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
+            {devicePosture.operationalModeEnabled ? (
+              <View style={styles.operationalIndicatorRow}>
+                <View style={styles.operationalIndicator}>
+                  <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
+                    {devicePosture.deviceCategory.replaceAll('_', ' ')}
+                  </Text>
+                </View>
+                {devicePosture.checkpointName ? (
+                  <View style={styles.operationalIndicator}>
+                    <Text allowFontScaling={false} style={styles.operationalIndicatorText}>{devicePosture.checkpointName}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.operationalIndicator}>
+                  <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
+                    {offlineOperationalMode === 'online' && syncConnection.status === 'live' ? 'Synced' : offlineOperationalMode}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
           <RuntimeBanner />
           <EmergencyBanner />
@@ -209,6 +230,26 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
+  },
+  operationalIndicatorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  operationalIndicator: {
+    minHeight: 28,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.surfaceMuted,
+    paddingHorizontal: theme.spacing.sm,
+    justifyContent: 'center',
+  },
+  operationalIndicatorText: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   children: {
   },

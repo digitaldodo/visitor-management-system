@@ -7,7 +7,7 @@ import { Alert, Platform } from 'react-native';
 
 import { apiConfig } from '../api/apiConfig';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
-import { readOrCreateDeviceId } from '../storage/sessionStorage';
+import { readOrCreateDeviceId, readOrCreateInstallationId } from '../storage/sessionStorage';
 import { readSecureJson, removeSecureValue, writeSecureJson } from '../storage/secureStore';
 import type { AuthSession, WorkspaceAudience } from '../types/auth';
 import type { DeviceIntegritySignals, TrustedDeviceRecord } from '../types/runtime';
@@ -46,7 +46,10 @@ export function isEnterpriseTrustAudience(audience: WorkspaceAudience) {
 }
 
 export async function getCurrentDeviceDescriptor() {
-  const deviceId = await readOrCreateDeviceId();
+  const [deviceId, installationId] = await Promise.all([
+    readOrCreateDeviceId(),
+    readOrCreateInstallationId(),
+  ]);
   const deviceName = Constants.deviceName
     || Device.deviceName
     || Application.applicationName
@@ -59,6 +62,7 @@ export async function getCurrentDeviceDescriptor() {
 
   return {
     deviceId,
+    installationId,
     deviceName,
     deviceType,
     platform: Platform.OS,

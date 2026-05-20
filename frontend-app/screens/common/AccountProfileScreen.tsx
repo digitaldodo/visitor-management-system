@@ -40,11 +40,12 @@ import {
   logoutTrustedDevice,
   registerTrustedDevice,
   revokeTrustedDevice,
+  updateTrustedDevice,
 } from '../../services/operationalService';
 import { theme } from '../../theme';
 import type { ActiveWorkspaceRole } from '../../types/auth';
 import type { UserProfile } from '../../types/domain';
-import type { TrustedDeviceRecord } from '../../types/runtime';
+import type { TrustedDeviceCategory, TrustedDeviceRecord, TrustedOperationalRole } from '../../types/runtime';
 import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
@@ -96,6 +97,7 @@ export function AccountProfileScreen({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
   const [trustedDevices, setTrustedDevices] = useState<TrustedDeviceRecord[]>([]);
+  const [devicePolicyDrafts, setDevicePolicyDrafts] = useState<Record<string, { deviceName: string; checkpointName: string; operationalZone: string }>>({});
   const [localTrustProfile, setLocalTrustProfile] = useState<LocalDeviceTrustProfile | null>(null);
   const [securityCenterBusy, setSecurityCenterBusy] = useState(false);
   const [observabilitySnapshot, setObservabilitySnapshot] = useState<Awaited<ReturnType<typeof getObservabilitySnapshot>> | null>(null);
@@ -106,6 +108,7 @@ export function AccountProfileScreen({
   const status = identity?.accountStatus || session?.user.accountStatus || (identity?.active === false ? 'INACTIVE' : 'ACTIVE');
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
+  const canManageTrustedDevices = Boolean(session?.user.roles?.some((nextRole) => nextRole === 'ADMIN' || nextRole === 'SUPER_ADMIN'));
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -146,6 +149,22 @@ export function AccountProfileScreen({
   useEffect(() => {
     void loadSecurityCenter();
   }, [loadSecurityCenter]);
+
+  useEffect(() => {
+    setDevicePolicyDrafts((current) => {
+      const nextDrafts = { ...current };
+      trustedDevices.forEach((device) => {
+        if (!nextDrafts[device.id]) {
+          nextDrafts[device.id] = {
+            deviceName: device.deviceName || '',
+            checkpointName: device.checkpointName || '',
+            operationalZone: device.operationalZone || '',
+          };
+        }
+      });
+      return nextDrafts;
+    });
+  }, [trustedDevices]);
 
   useEffect(() => {
     if (!advancedOpen) {
@@ -261,6 +280,79 @@ export function AccountProfileScreen({
               await loadSecurityCenter();
             } catch (error) {
               Alert.alert('Logout failed', error instanceof Error ? error.message : 'The device could not be logged out.');
+            } finally {
+              setSecurityCenterBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const updateDeviceDraft = (deviceId: string, key: 'deviceName' | 'checkpointName' | 'operationalZone', value: string) => {
+    setDevicePolicyDrafts((current) => ({
+      ...current,
+      [deviceId]: {
+        deviceName: current[deviceId]?.deviceName ?? '',
+        checkpointName: current[deviceId]?.checkpointName ?? '',
+        operationalZone: current[deviceId]?.operationalZone ?? '',
+        [key]: value,
+      },
+    }));
+  };
+
+  const saveDeviceOperationalPolicy = async (device: TrustedDeviceRecord, category: TrustedDeviceCategory) => {
+    const draft = devicePolicyDrafts[device.id] ?? { deviceName: '', checkpointName: '', operationalZone: '' };
+    const operational = category !== 'PERSONAL_DEVICE';
+    setSecurityCenterBusy(true);
+    try {
+      await updateTrustedDevice(device.id, {
+        deviceName: draft.deviceName.trim() || device.deviceName || null,
+        deviceCategory: category,
+        operationalRole: roleForDeviceCategory(category),
+        checkpointName: draft.checkpointName.trim() || null,
+        operationalZone: draft.operationalZone.trim() || null,
+        trusted: operational ? true : device.trusted,
+        active: true,
+        trustStatus: operational ? 'TRUSTED' : device.trustStatus === 'DISABLED' ? 'TRUSTED' : device.trustStatus,
+        sharedOperationalDevice: operational,
+        scannerFirst: operational,
+        restrictedNavigation: operational,
+        autoRestoreScanner: operational,
+        inactivityTimeoutSeconds: operational ? 300 : null,
+        reason: operational ? 'Assigned from mobile trusted-device management.' : 'Returned to personal mobile mode.',
+      });
+      await loadSecurityCenter();
+    } catch (error) {
+      Alert.alert('Device policy failed', error instanceof Error ? error.message : 'The device policy could not be saved.');
+    } finally {
+      setSecurityCenterBusy(false);
+    }
+  };
+
+  const disableOperationalDevice = async (device: TrustedDeviceRecord) => {
+    Alert.alert('Disable device?', 'This immediately removes operational trust and forces the device out of shared checkpoint mode.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Disable',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setSecurityCenterBusy(true);
+            try {
+              await updateTrustedDevice(device.id, {
+                trusted: false,
+                active: false,
+                trustStatus: 'DISABLED',
+                sharedOperationalDevice: false,
+                scannerFirst: false,
+                restrictedNavigation: false,
+                autoRestoreScanner: false,
+                reason: 'Disabled from mobile trusted-device management.',
+              });
+              await loadSecurityCenter();
+            } catch (error) {
+              Alert.alert('Disable failed', error instanceof Error ? error.message : 'The device could not be disabled.');
             } finally {
               setSecurityCenterBusy(false);
             }
@@ -568,6 +660,15 @@ export function AccountProfileScreen({
                   key={device.id}
                   device={device}
                   busy={securityCenterBusy}
+                  canManage={canManageTrustedDevices}
+                  draft={devicePolicyDrafts[device.id]}
+                  onDraftChange={(key, value) => updateDeviceDraft(device.id, key, value)}
+                  onAssignSharedGuard={() => void saveDeviceOperationalPolicy(device, 'SHARED_GUARD_DEVICE')}
+                  onAssignReception={() => void saveDeviceOperationalPolicy(device, 'RECEPTION_KIOSK')}
+                  onAssignScanner={() => void saveDeviceOperationalPolicy(device, 'CHECKPOINT_SCANNER')}
+                  onAssignStation={() => void saveDeviceOperationalPolicy(device, 'TABLET_SECURITY_STATION')}
+                  onPersonalMode={() => void saveDeviceOperationalPolicy(device, 'PERSONAL_DEVICE')}
+                  onDisable={() => disableOperationalDevice(device)}
                   onLogout={() => logoutDeviceAccess(device)}
                   onRevoke={() => revokeDeviceAccess(device)}
                 />
@@ -692,11 +793,29 @@ function SecurityStatusTile({
 function TrustedDeviceItem({
   device,
   busy,
+  canManage,
+  draft,
+  onDraftChange,
+  onAssignSharedGuard,
+  onAssignReception,
+  onAssignScanner,
+  onAssignStation,
+  onPersonalMode,
+  onDisable,
   onLogout,
   onRevoke,
 }: {
   device: TrustedDeviceRecord;
   busy: boolean;
+  canManage: boolean;
+  draft?: { deviceName: string; checkpointName: string; operationalZone: string };
+  onDraftChange: (key: 'deviceName' | 'checkpointName' | 'operationalZone', value: string) => void;
+  onAssignSharedGuard: () => void;
+  onAssignReception: () => void;
+  onAssignScanner: () => void;
+  onAssignStation: () => void;
+  onPersonalMode: () => void;
+  onDisable: () => void;
   onLogout: () => void;
   onRevoke: () => void;
 }) {
@@ -731,6 +850,39 @@ function TrustedDeviceItem({
           Biometric unlock: {device.biometricEnabled ? 'enabled' : 'disabled'}
           {device.suspicious ? ' · Review device posture' : ''}
         </Text>
+        <Text style={styles.helperText}>
+          {[device.deviceCategory.replaceAll('_', ' '), device.checkpointName, device.operationalZone].filter(Boolean).join(' · ')}
+        </Text>
+        {canManage ? (
+          <View style={styles.devicePolicyPanel}>
+            <AppTextField
+              label="Device name"
+              value={draft?.deviceName ?? ''}
+              onChangeText={(value) => onDraftChange('deviceName', value)}
+              placeholder="Gate 2 tablet, Main reception kiosk"
+            />
+            <AppTextField
+              label="Checkpoint"
+              value={draft?.checkpointName ?? ''}
+              onChangeText={(value) => onDraftChange('checkpointName', value)}
+              placeholder="Gate 2 Security, Main Reception"
+            />
+            <AppTextField
+              label="Operational zone"
+              value={draft?.operationalZone ?? ''}
+              onChangeText={(value) => onDraftChange('operationalZone', value)}
+              placeholder="Contractor Entry, Lobby, Loading Dock"
+            />
+            <View style={styles.deviceActions}>
+              <PrimaryButton label="Guard" tone="secondary" onPress={onAssignSharedGuard} disabled={busy} />
+              <PrimaryButton label="Reception" tone="secondary" onPress={onAssignReception} disabled={busy} />
+              <PrimaryButton label="Scanner" tone="secondary" onPress={onAssignScanner} disabled={busy} />
+              <PrimaryButton label="Station" tone="secondary" onPress={onAssignStation} disabled={busy} />
+              <PrimaryButton label="Personal" tone="secondary" onPress={onPersonalMode} disabled={busy} />
+              <PrimaryButton label="Disable" tone="danger" onPress={onDisable} disabled={busy} />
+            </View>
+          </View>
+        ) : null}
         <View style={styles.deviceActions}>
           <PrimaryButton label="Log out" tone="secondary" onPress={onLogout} disabled={busy} />
           <PrimaryButton label="Revoke" tone="danger" onPress={onRevoke} disabled={busy} />
@@ -738,6 +890,21 @@ function TrustedDeviceItem({
       </View>
     </View>
   );
+}
+
+function roleForDeviceCategory(category: TrustedDeviceCategory): TrustedOperationalRole {
+  switch (category) {
+    case 'SHARED_GUARD_DEVICE':
+      return 'SECURITY_GUARD';
+    case 'RECEPTION_KIOSK':
+      return 'RECEPTION';
+    case 'CHECKPOINT_SCANNER':
+      return 'CHECKPOINT_OPERATOR';
+    case 'TABLET_SECURITY_STATION':
+      return 'SECURITY_GUARD';
+    default:
+      return 'PERSONAL';
+  }
 }
 
 async function pickProfilePhoto(source: 'camera' | 'gallery') {
@@ -1061,8 +1228,17 @@ const styles = StyleSheet.create({
   },
   deviceActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.xs,
+  },
+  devicePolicyPanel: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.sm,
   },
   sessionActions: {
     gap: theme.spacing.sm,

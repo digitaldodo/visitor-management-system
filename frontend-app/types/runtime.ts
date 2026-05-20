@@ -77,9 +77,22 @@ export type OtaUpdateState = {
 
 export type DevicePostureState = {
   deviceId: string | null;
-  managedMode: 'personal' | 'shared-guard' | 'kiosk-ready' | 'organization-owned';
+  managedMode: 'personal' | 'shared-guard' | 'kiosk-ready' | 'organization-owned' | 'checkpoint-scanner';
   kioskModeReady: boolean;
   remoteLogoutSupported: boolean;
+  deviceTrusted: boolean;
+  trustStatus: TrustedDeviceStatus | null;
+  deviceCategory: TrustedDeviceCategory;
+  operationalRole: TrustedOperationalRole;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+  operationalZone?: string | null;
+  operationalModeEnabled: boolean;
+  scannerFirst: boolean;
+  restrictedNavigation: boolean;
+  autoRestoreScanner: boolean;
+  sharedOperationalDevice: boolean;
+  inactivityTimeoutSeconds?: number | null;
   suspicious: boolean;
   rootedOrJailbroken: boolean;
   emulator: boolean;
@@ -241,15 +254,40 @@ export type MobileSessionPolicy = {
   deviceTrusted?: boolean;
   biometricRequired?: boolean;
   trustStatus?: TrustedDeviceStatus | null;
+  deviceCategory?: TrustedDeviceCategory | null;
+  operationalRole?: TrustedOperationalRole | null;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+  operationalZone?: string | null;
+  operationalModeEnabled?: boolean | null;
+  scannerFirst?: boolean | null;
+  restrictedNavigation?: boolean | null;
+  autoRestoreScanner?: boolean | null;
+  sharedOperationalDevice?: boolean | null;
+  inactivityTimeoutSeconds?: number | null;
 };
 
-export type TrustedDeviceStatus = 'TRUSTED' | 'UNTRUSTED' | 'REVOKED' | 'SUSPICIOUS';
+export type TrustedDeviceStatus = 'TRUSTED' | 'UNTRUSTED' | 'REVOKED' | 'SUSPICIOUS' | 'DISABLED';
+
+export type TrustedDeviceCategory =
+  | 'PERSONAL_DEVICE'
+  | 'SHARED_GUARD_DEVICE'
+  | 'RECEPTION_KIOSK'
+  | 'CHECKPOINT_SCANNER'
+  | 'TABLET_SECURITY_STATION';
+
+export type TrustedOperationalRole =
+  | 'PERSONAL'
+  | 'SECURITY_GUARD'
+  | 'RECEPTION'
+  | 'CHECKPOINT_OPERATOR'
+  | 'KIOSK';
 
 export type DeviceIntegritySignals = {
   rootedOrJailbroken: boolean;
   emulator: boolean;
   debugBuild: boolean;
-  tamperedRuntime: boolean;
+  tamperedRuntime?: boolean;
   suspicious: boolean;
   reasons: string[];
 };
@@ -262,16 +300,33 @@ export type TrustedDeviceRecord = {
   platform?: string | null;
   appVersion?: string | null;
   runtimeVersion?: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  userId?: string | null;
+  registeredByName?: string | null;
   trustStatus: TrustedDeviceStatus;
   trusted: boolean;
   active: boolean;
   biometricEnabled: boolean;
   currentDevice: boolean;
   suspicious: boolean;
+  deviceCategory: TrustedDeviceCategory;
+  operationalRole: TrustedOperationalRole;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+  operationalZone?: string | null;
+  sharedOperationalDevice: boolean;
+  scannerFirst: boolean;
+  restrictedNavigation: boolean;
+  autoRestoreScanner: boolean;
+  inactivityTimeoutSeconds?: number | null;
   lastActiveAt?: string | null;
   trustEstablishedAt?: string | null;
   trustRevokedAt?: string | null;
   revokedReason?: string | null;
+  disabledAt?: string | null;
+  disabledReason?: string | null;
+  policyUpdatedAt?: string | null;
   integritySignals?: DeviceIntegritySignals | null;
 };
 

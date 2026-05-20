@@ -11,6 +11,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useLocalization } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
 import { recordObservedError, trackScreenContext } from '../runtime/observability';
+import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { BootScreen } from '../screens/common/BootScreen';
@@ -154,14 +155,20 @@ function SecurityStackNavigator() {
 function SecurityNavigator() {
   const screenOptions = useMobileTabOptions();
   const { t } = useLocalization();
+  const { devicePosture } = useOperationalRuntime();
+  const restrictedOperationalMode = devicePosture.operationalModeEnabled && devicePosture.restrictedNavigation;
 
   return (
-    <SecurityTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
+    <SecurityTabs.Navigator
+      backBehavior="history"
+      initialRouteName={devicePosture.scannerFirst ? 'Scan' : 'Live'}
+      screenOptions={screenOptions}
+    >
       <SecurityTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarLabel: t('feed.tab') }} />
       <SecurityTabs.Screen name="Scan" component={ScanScreen} />
       <SecurityTabs.Screen name="Visitors" component={VisitorsScreen} />
-      <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />
-      <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />
+      {restrictedOperationalMode ? null : <SecurityTabs.Screen name="Register" component={SecurityRegisterScreen} />}
+      {restrictedOperationalMode ? null : <SecurityTabs.Screen name="Workforce" component={WorkforceScreen} />}
       <SecurityTabs.Screen name="Alerts" component={AlertsScreen} />
       <SecurityTabs.Screen name="Emergency" component={EmergencyOpsScreen} />
       <SecurityTabs.Screen name="Profile" component={ProfileScreen} />

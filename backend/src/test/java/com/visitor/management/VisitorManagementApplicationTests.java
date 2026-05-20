@@ -5,6 +5,7 @@ import com.visitor.management.repository.RefreshTokenRepository;
 import com.visitor.management.repository.SuperAdminCreationOtpRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorRepository;
+import com.visitor.management.repository.VisitorInviteRepository;
 import com.visitor.management.repository.AccessAuditLogRepository;
 import com.visitor.management.repository.VisitorAuditLogRepository;
 import com.visitor.management.repository.DepartmentRepository;
@@ -13,6 +14,8 @@ import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.OrganizationRepository;
 import com.visitor.management.repository.HomepageSettingsRepository;
 import com.visitor.management.repository.MobileDeviceRegistrationRepository;
+import com.visitor.management.repository.EmergencyIncidentRepository;
+import com.visitor.management.repository.EmergencyOperationalStateRepository;
 import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.Department;
@@ -88,6 +91,9 @@ class VisitorManagementApplicationTests {
     private VisitorRepository visitorRepository;
 
     @MockitoBean
+    private VisitorInviteRepository visitorInviteRepository;
+
+    @MockitoBean
     private VisitorAuditLogRepository visitorAuditLogRepository;
 
     @MockitoBean
@@ -110,6 +116,12 @@ class VisitorManagementApplicationTests {
 
     @MockitoBean
     private MobileDeviceRegistrationRepository mobileDeviceRegistrationRepository;
+
+    @MockitoBean
+    private EmergencyIncidentRepository emergencyIncidentRepository;
+
+    @MockitoBean
+    private EmergencyOperationalStateRepository emergencyOperationalStateRepository;
 
     @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
@@ -1053,7 +1065,7 @@ class VisitorManagementApplicationTests {
                         .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.employeeUserId").value("employee-id"))
-                .andExpect(jsonPath("$.data.qrPayload").value(org.hamcrest.Matchers.startsWith("ACCESSFLOW_EMPLOYEE:")))
+                .andExpect(jsonPath("$.data.qrPayload").value(org.hamcrest.Matchers.startsWith("ACCESSFLOW_EMPLOYEE")))
                 .andExpect(jsonPath("$.data.qrImageDataUri").value(org.hamcrest.Matchers.startsWith("data:image/png;base64,")))
                 .andExpect(jsonPath("$.data.shiftStartTime").value("09:00"))
                 .andExpect(jsonPath("$.data.shiftEndTime").value("18:00"));

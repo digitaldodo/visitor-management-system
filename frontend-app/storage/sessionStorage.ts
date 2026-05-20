@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
+import * as Crypto from 'expo-crypto';
 
 import type { AuthSession } from '../types/auth';
 import type { RuntimeSnapshot, SessionLockState } from '../types/runtime';
@@ -8,6 +9,7 @@ import { readSecureJson, readSecureValue, removeSecureValue, writeSecureJson, wr
 const SESSION_KEY = 'accessflow.mobile.session';
 const RUNTIME_KEY = 'accessflow.mobile.runtime';
 const DEVICE_ID_KEY = 'accessflow.mobile.device-id';
+const INSTALLATION_ID_KEY = 'accessflow.mobile.installation-id';
 const LEGACY_DEVICE_ID_KEY = 'accessflow.mobile.device-id';
 const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
@@ -83,13 +85,33 @@ export async function readOrCreateDeviceId() {
   const nextValue = legacyValue || [
     'afm',
     normalizeDevicePart(Application.applicationId),
-    Date.now().toString(36),
-    Math.random().toString(36).slice(2, 12),
-    Math.random().toString(36).slice(2, 12),
+    secureRandomToken(),
   ].filter(Boolean).join('-');
   await writeSecureValue(DEVICE_ID_KEY, nextValue);
   await AsyncStorage.removeItem(LEGACY_DEVICE_ID_KEY).catch(() => undefined);
   return nextValue;
+}
+
+export async function readOrCreateInstallationId() {
+  const existing = await readSecureValue(INSTALLATION_ID_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const nextValue = `afi-${secureRandomToken()}`;
+  await writeSecureValue(INSTALLATION_ID_KEY, nextValue);
+  return nextValue;
+}
+
+function secureRandomToken() {
+  if (typeof Crypto.randomUUID === 'function') {
+    return Crypto.randomUUID();
+  }
+
+  const bytes = Crypto.getRandomBytes(18);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function normalizeDevicePart(value?: string | null) {

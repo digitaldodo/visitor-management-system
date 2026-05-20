@@ -16,4 +16,8 @@ public interface MobileDeviceRegistrationRepository extends MongoRepository<Mobi
     List<MobileDeviceRegistration> findAllByUserIdAndActiveTrue(String userId);
 
     List<MobileDeviceRegistration> findAllByUserIdAndDeviceId(String userId, String deviceId);
+
+    List<MobileDeviceRegistration> findAllByOrganizationId(String organizationId);
+
+    List<MobileDeviceRegistration> findAllByOrganizationIdAndDeviceId(String organizationId, String deviceId);
 }

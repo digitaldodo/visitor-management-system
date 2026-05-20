@@ -22,6 +22,15 @@ public class MobileDeviceRegistration {
     @Indexed
     private String userId;
 
+    @Indexed
+    private String organizationId;
+
+    private String organizationName;
+
+    private String registeredByUserId;
+
+    private String registeredByName;
+
     @Indexed(unique = true, sparse = true)
     private String expoPushToken;
 
@@ -32,6 +41,8 @@ public class MobileDeviceRegistration {
 
     @Indexed
     private String deviceId;
+
+    private String installationId;
 
     private String deviceName;
 
@@ -59,6 +70,26 @@ public class MobileDeviceRegistration {
 
     private String trustStatus;
 
+    private String deviceCategory;
+
+    private String operationalRole;
+
+    private String checkpointId;
+
+    private String checkpointName;
+
+    private String operationalZone;
+
+    private boolean sharedOperationalDevice;
+
+    private boolean scannerFirst;
+
+    private boolean restrictedNavigation;
+
+    private boolean autoRestoreScanner;
+
+    private Integer inactivityTimeoutSeconds;
+
     private boolean rootedOrJailbroken;
 
     private boolean emulator;
@@ -80,6 +111,12 @@ public class MobileDeviceRegistration {
     private Instant trustRevokedAt;
 
     private String revokedReason;
+
+    private Instant disabledAt;
+
+    private String disabledReason;
+
+    private Instant policyUpdatedAt;
 
     private Instant lastDeliveredAt;
 
@@ -103,6 +140,38 @@ public class MobileDeviceRegistration {
 
     public void setUserId(String userId) {
         this.userId = userId;
+    }
+
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
+    }
+
+    public String getOrganizationName() {
+        return organizationName;
+    }
+
+    public void setOrganizationName(String organizationName) {
+        this.organizationName = organizationName;
+    }
+
+    public String getRegisteredByUserId() {
+        return registeredByUserId;
+    }
+
+    public void setRegisteredByUserId(String registeredByUserId) {
+        this.registeredByUserId = registeredByUserId;
+    }
+
+    public String getRegisteredByName() {
+        return registeredByName;
+    }
+
+    public void setRegisteredByName(String registeredByName) {
+        this.registeredByName = registeredByName;
     }
 
     public String getExpoPushToken() {
@@ -135,6 +204,14 @@ public class MobileDeviceRegistration {
 
     public void setDeviceId(String deviceId) {
         this.deviceId = deviceId;
+    }
+
+    public String getInstallationId() {
+        return installationId;
+    }
+
+    public void setInstallationId(String installationId) {
+        this.installationId = installationId;
     }
 
     public String getDeviceName() {
@@ -241,6 +318,86 @@ public class MobileDeviceRegistration {
         this.trustStatus = trustStatus;
     }
 
+    public String getDeviceCategory() {
+        return deviceCategory;
+    }
+
+    public void setDeviceCategory(String deviceCategory) {
+        this.deviceCategory = deviceCategory;
+    }
+
+    public String getOperationalRole() {
+        return operationalRole;
+    }
+
+    public void setOperationalRole(String operationalRole) {
+        this.operationalRole = operationalRole;
+    }
+
+    public String getCheckpointId() {
+        return checkpointId;
+    }
+
+    public void setCheckpointId(String checkpointId) {
+        this.checkpointId = checkpointId;
+    }
+
+    public String getCheckpointName() {
+        return checkpointName;
+    }
+
+    public void setCheckpointName(String checkpointName) {
+        this.checkpointName = checkpointName;
+    }
+
+    public String getOperationalZone() {
+        return operationalZone;
+    }
+
+    public void setOperationalZone(String operationalZone) {
+        this.operationalZone = operationalZone;
+    }
+
+    public boolean isSharedOperationalDevice() {
+        return sharedOperationalDevice;
+    }
+
+    public void setSharedOperationalDevice(boolean sharedOperationalDevice) {
+        this.sharedOperationalDevice = sharedOperationalDevice;
+    }
+
+    public boolean isScannerFirst() {
+        return scannerFirst;
+    }
+
+    public void setScannerFirst(boolean scannerFirst) {
+        this.scannerFirst = scannerFirst;
+    }
+
+    public boolean isRestrictedNavigation() {
+        return restrictedNavigation;
+    }
+
+    public void setRestrictedNavigation(boolean restrictedNavigation) {
+        this.restrictedNavigation = restrictedNavigation;
+    }
+
+    public boolean isAutoRestoreScanner() {
+        return autoRestoreScanner;
+    }
+
+    public void setAutoRestoreScanner(boolean autoRestoreScanner) {
+        this.autoRestoreScanner = autoRestoreScanner;
+    }
+
+    public Integer getInactivityTimeoutSeconds() {
+        return inactivityTimeoutSeconds;
+    }
+
+    public void setInactivityTimeoutSeconds(Integer inactivityTimeoutSeconds) {
+        this.inactivityTimeoutSeconds = inactivityTimeoutSeconds;
+    }
+
     public boolean isRootedOrJailbroken() {
         return rootedOrJailbroken;
     }
@@ -327,6 +484,30 @@ public class MobileDeviceRegistration {
 
     public void setRevokedReason(String revokedReason) {
         this.revokedReason = revokedReason;
+    }
+
+    public Instant getDisabledAt() {
+        return disabledAt;
+    }
+
+    public void setDisabledAt(Instant disabledAt) {
+        this.disabledAt = disabledAt;
+    }
+
+    public String getDisabledReason() {
+        return disabledReason;
+    }
+
+    public void setDisabledReason(String disabledReason) {
+        this.disabledReason = disabledReason;
+    }
+
+    public Instant getPolicyUpdatedAt() {
+        return policyUpdatedAt;
+    }
+
+    public void setPolicyUpdatedAt(Instant policyUpdatedAt) {
+        this.policyUpdatedAt = policyUpdatedAt;
     }
 
     public Instant getLastDeliveredAt() {
