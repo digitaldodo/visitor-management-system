@@ -15,6 +15,7 @@ import { useEmergencyState } from '../../hooks/useEmergencyWorkspace';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
+import { PermissionEducationPanel, showPermissionEducation } from '../../permissions/permissionEducation';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { useMobileSecurity } from '../../security/MobileSecurityProvider';
 import { recordDiagnosticEvent } from '../../runtime/diagnostics';
@@ -270,6 +271,13 @@ export function ScanScreen() {
         resetScanner();
       }
     }, delayMs);
+  };
+
+  const enableCamera = async () => {
+    const accepted = await showPermissionEducation('camera');
+    if (accepted) {
+      await requestPermission();
+    }
   };
 
   const processOfflinePayload = async (nextPayload: string) => {
@@ -628,11 +636,7 @@ export function ScanScreen() {
               {!permission ? (
                 <Text style={styles.helperText}>Loading camera permission…</Text>
               ) : !permission.granted ? (
-                <View style={styles.permissionState}>
-                  <Text style={styles.permissionTitle}>Camera access is required</Text>
-                  <Text style={styles.helperText}>AccessFlow needs the camera to scan visitor and workforce QR badges in real time.</Text>
-                  <PrimaryButton label="Enable camera" onPress={() => void requestPermission()} />
-                </View>
+                <PermissionEducationPanel kind="camera" onContinue={() => void enableCamera()} />
               ) : (
                 <>
                   <View style={[styles.cameraFrame, { height: layout.scannerHeight }]}>

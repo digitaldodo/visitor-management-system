@@ -8,6 +8,7 @@ import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider'
 import { useSensitiveScreenProtection } from '../../security/MobileSecurityProvider';
 import { EmergencyBanner } from '../feedback/EmergencyBanner';
 import { RuntimeBanner } from '../feedback/RuntimeBanner';
+import { FadeSlideView } from '../motion/FadeSlideView';
 import { theme } from '../../theme';
 import { KeyboardAwareScreen } from './KeyboardAwareScreen';
 
@@ -96,7 +97,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
         }
       >
         <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth, gap: layout.cardSpacing }]}>
-          <View style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
+          <FadeSlideView style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
             <View style={styles.brandChrome}>
               <View style={styles.brandLockup}>
                 <Image source={require('../../assets/brand-icon.png')} style={styles.brandIcon} resizeMode="contain" />
@@ -131,10 +132,14 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
                 </View>
               </View>
             ) : null}
-          </View>
-          <RuntimeBanner />
-          <EmergencyBanner />
-          <View style={[styles.children, { gap: layout.cardSpacing }]}>{children}</View>
+          </FadeSlideView>
+          <FadeSlideView delayMs={70}>
+            <RuntimeBanner />
+          </FadeSlideView>
+          <FadeSlideView delayMs={110}>
+            <EmergencyBanner />
+          </FadeSlideView>
+          <FadeSlideView delayMs={140} style={[styles.children, { gap: layout.cardSpacing }]}>{children}</FadeSlideView>
         </View>
       </KeyboardAwareScreen>
     </SafeAreaView>

@@ -20,6 +20,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
+import { showPermissionEducation } from '../permissions/permissionEducation';
 import { openOperationalDeepLink } from './operationalDeepLinks';
 import { operationalSyncRuntime } from './operationalSyncRuntime';
 import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
@@ -440,7 +441,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
       let permissions = await Notifications.getPermissionsAsync();
       if (permissions.status !== 'granted') {
-        permissions = await Notifications.requestPermissionsAsync();
+        const accepted = await showPermissionEducation('notifications');
+        permissions = accepted ? await Notifications.requestPermissionsAsync() : permissions;
       }
 
       const nextStatus = String(permissions.status || 'unknown').toUpperCase();

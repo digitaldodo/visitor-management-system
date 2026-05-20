@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
+import { OperationalLoadingState, SkeletonCard } from '../../components/feedback/LoadingState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { useAuth } from '../../auth/AuthProvider';
@@ -129,7 +130,14 @@ export function OperationalFeedScreen() {
           ))}
         </View>
 
-        {filteredItems.length ? (
+        {feed.isLoading ? (
+          <OperationalLoadingState
+            title="Loading operational stream"
+            body="Pulling visitor, workforce, approval, notification, and sync activity into one mobile-ready feed."
+          >
+            <SkeletonCard rows={3} />
+          </OperationalLoadingState>
+        ) : filteredItems.length ? (
           <View style={styles.timeline}>
             {filteredItems.map((item, index) => (
               <FeedRow
@@ -142,7 +150,7 @@ export function OperationalFeedScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState title={t('feed.emptyTitle')} body={t('feed.emptyBody')} />
+          <EmptyState icon="pulse-outline" title={t('feed.emptyTitle')} body={t('feed.emptyBody')} />
         )}
       </SurfaceCard>
     </AppScreen>

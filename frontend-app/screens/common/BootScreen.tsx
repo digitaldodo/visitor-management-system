@@ -1,20 +1,60 @@
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 
+import { ShimmerSkeleton } from '../../components/feedback/LoadingState';
 import { theme } from '../../theme';
 
 export function BootScreen() {
+  const scale = useRef(new Animated.Value(0.96)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scale, {
+            toValue: 1.02,
+            duration: 1200,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 0.96,
+            duration: 1200,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
+    ]).start();
+  }, [opacity, scale]);
+
   return (
     <View style={styles.container}>
-      <View style={styles.badge}>
-        <Image source={require('../../assets/brand-icon.png')} style={styles.logo} resizeMode="contain" />
+      <Animated.View style={[styles.badge, { opacity, transform: [{ scale }] }]}>
+        <View style={styles.logoShell}>
+          <Image source={require('../../assets/brand-icon.png')} style={styles.logo} resizeMode="contain" />
+        </View>
         <Image source={require('../../assets/brand-wordmark.png')} style={styles.wordmark} resizeMode="contain" />
-        <Text style={styles.badgeLabel}>Mobile operations</Text>
-      </View>
+        <View style={styles.badgePill}>
+          <Ionicons name="shield-checkmark-outline" size={15} color={theme.colors.info} />
+          <Text style={styles.badgeLabel}>Mobile operations</Text>
+        </View>
+      </Animated.View>
       <Text style={styles.title}>Restoring your operational workspace</Text>
       <Text style={styles.subtitle}>
         Verifying the runtime, recovering the secure session, and reconnecting to the backend.
       </Text>
-      <ActivityIndicator color={theme.colors.primary} size="large" />
+      <View style={styles.loadingBlock}>
+        <ShimmerSkeleton rows={3} compact />
+      </View>
     </View>
   );
 }
@@ -32,14 +72,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
+  logoShell: {
+    width: 92,
+    height: 92,
+    borderRadius: theme.radii.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.card,
+  },
   logo: {
     width: 72,
     height: 72,
-    borderRadius: theme.radii.lg,
   },
   wordmark: {
     width: 240,
     height: 64,
+  },
+  badgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 7,
   },
   badgeLabel: {
     color: theme.colors.primary,
@@ -59,5 +120,9 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  loadingBlock: {
+    width: '100%',
+    maxWidth: 280,
   },
 });

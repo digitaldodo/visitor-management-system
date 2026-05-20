@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, type CameraCapturedPicture } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { PermissionEducationPanel, showPermissionEducation } from '../../permissions/permissionEducation';
 import { theme } from '../../theme';
 import { PrimaryButton } from '../buttons/PrimaryButton';
+import { OperationalLoadingState } from '../feedback/LoadingState';
 
 type CapturedAsset = {
   uri: string;
@@ -30,12 +32,6 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (visible && permission && !permission.granted && permission.canAskAgain) {
-      void requestPermission();
-    }
-  }, [permission, requestPermission, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -72,6 +68,10 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
     try {
       setIsPickingPhoto(true);
       setCaptureError(null);
+      const accepted = await showPermissionEducation('files');
+      if (!accepted) {
+        return;
+      }
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
         setCaptureError('Photo library access is required to upload an identity image.');
@@ -103,6 +103,13 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
     }
   };
 
+  const enableCamera = async () => {
+    const accepted = await showPermissionEducation('camera');
+    if (accepted) {
+      await requestPermission();
+    }
+  };
+
   const confirmPhoto = () => {
     if (!preview?.uri) {
       return;
@@ -129,16 +136,14 @@ export function PhotoCaptureModal({ visible, title, onCancel, onCapture }: Props
 
         {!permission ? (
           <View style={styles.centerState}>
-            <ActivityIndicator color={theme.colors.primary} />
-            <Text style={styles.helperText}>Loading camera permission...</Text>
+            <OperationalLoadingState title="Preparing camera" body="Checking Android permission state before opening the verification camera." />
           </View>
         ) : !permission.granted ? (
-          <View style={styles.centerState}>
-            <Text style={styles.centerTitle}>Camera access is needed</Text>
-            <Text style={styles.centerBody}>AccessFlow uses a live photo for visitor and worker identity verification.</Text>
-            <PrimaryButton label="Enable camera" onPress={() => void requestPermission()} />
-            <PrimaryButton label="Upload photo instead" onPress={() => void choosePhoto()} tone="secondary" loading={isPickingPhoto} />
-          </View>
+          <PermissionEducationPanel
+            kind="camera"
+            onContinue={() => void enableCamera()}
+            secondaryAction={{ label: 'Upload photo instead', onPress: () => void choosePhoto(), loading: isPickingPhoto }}
+          />
         ) : preview ? (
           <>
             <View style={styles.previewShell}>

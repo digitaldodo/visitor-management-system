@@ -23,6 +23,7 @@ import { PreferenceSwitchRow } from '../../components/employee/PreferenceSwitchR
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { InternationalPhoneInput } from '../../components/form/InternationalPhoneInput';
+import { LegalDocument, type LegalDocumentType } from '../../components/legal/LegalDocument';
 import { AppScreen } from '../../components/layout/AppScreen';
 import {
   useAccountProfile,
@@ -32,6 +33,7 @@ import {
 } from '../../hooks/useAccountProfile';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
+import { showPermissionEducation } from '../../permissions/permissionEducation';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { getObservabilitySnapshot } from '../../runtime/observability';
 import type { UploadAsset } from '../../services/accountService';
@@ -95,6 +97,7 @@ export function AccountProfileScreen({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [legalOpen, setLegalOpen] = useState<LegalDocumentType | null>(null);
   const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
   const [trustedDevices, setTrustedDevices] = useState<TrustedDeviceRecord[]>([]);
   const [devicePolicyDrafts, setDevicePolicyDrafts] = useState<Record<string, { deviceName: string; checkpointName: string; operationalZone: string }>>({});
@@ -717,6 +720,22 @@ export function AccountProfileScreen({
         ) : null}
       </SurfaceCard>
 
+      <SurfaceCard title="Legal and compliance" subtitle="Review the mobile policy experience from settings at any time.">
+        <View style={[styles.legalActionRow, layout.fieldStacked ? styles.legalActionRowStacked : null]}>
+          <PrimaryButton
+            label="Privacy Policy"
+            tone={legalOpen === 'privacy' ? 'primary' : 'secondary'}
+            onPress={() => setLegalOpen((current) => (current === 'privacy' ? null : 'privacy'))}
+          />
+          <PrimaryButton
+            label="Terms & Conditions"
+            tone={legalOpen === 'terms' ? 'primary' : 'secondary'}
+            onPress={() => setLegalOpen((current) => (current === 'terms' ? null : 'terms'))}
+          />
+        </View>
+        {legalOpen ? <LegalDocument type={legalOpen} embedded /> : null}
+      </SurfaceCard>
+
       <View style={[styles.sessionActions, layout.isTwoColumn ? styles.sessionActionsWide : null]}>
         <PrimaryButton label="Log out" onPress={() => void logout()} tone="secondary" disabled={isBusy} />
       </View>
@@ -909,11 +928,19 @@ function roleForDeviceCategory(category: TrustedDeviceCategory): TrustedOperatio
 
 async function pickProfilePhoto(source: 'camera' | 'gallery') {
   if (source === 'camera') {
+    const accepted = await showPermissionEducation('camera');
+    if (!accepted) {
+      return null;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       throw new Error('Camera permission is required to capture a profile photo.');
     }
   } else {
+    const accepted = await showPermissionEducation('files');
+    if (!accepted) {
+      return null;
+    }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       throw new Error('Gallery permission is required to choose a profile photo.');
@@ -1239,6 +1266,13 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
     padding: theme.spacing.sm,
+  },
+  legalActionRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  legalActionRowStacked: {
+    flexDirection: 'column',
   },
   sessionActions: {
     gap: theme.spacing.sm,

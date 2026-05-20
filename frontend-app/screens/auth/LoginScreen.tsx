@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -59,6 +60,7 @@ const registerStepFields: Array<Array<keyof VisitorRegisterFormValues>> = [
 const registerStepLabels = ['Identity', 'Contact'];
 
 export function LoginScreen() {
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const { login, isBusy, lastError } = useAuth();
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
@@ -561,6 +563,19 @@ export function LoginScreen() {
               />
             )}
             </SurfaceCard>
+            <View style={styles.legalLinks}>
+              <Pressable accessibilityRole="link" onPress={() => navigation.navigate('Legal', { type: 'privacy' })} hitSlop={8}>
+                <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              </Pressable>
+              <Text style={styles.legalDivider}>/</Text>
+              <Pressable accessibilityRole="link" onPress={() => navigation.navigate('Legal', { type: 'terms' })} hitSlop={8}>
+                <Text style={styles.legalLinkText}>Terms & Conditions</Text>
+              </Pressable>
+              <Text style={styles.legalDivider}>/</Text>
+              <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Onboarding')} hitSlop={8}>
+                <Text style={styles.legalLinkText}>Replay onboarding</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </KeyboardAwareScreen>
@@ -909,6 +924,23 @@ const styles = StyleSheet.create({
   authCardShellWide: {
     flex: 1,
     maxWidth: 520,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingTop: theme.spacing.md,
+  },
+  legalLinkText: {
+    color: theme.colors.info,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  legalDivider: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
   },
   hero: {
     gap: theme.spacing.md,

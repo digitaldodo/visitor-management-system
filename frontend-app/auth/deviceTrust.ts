@@ -6,6 +6,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Alert, Platform } from 'react-native';
 
 import { apiConfig } from '../api/apiConfig';
+import { showPermissionEducation } from '../permissions/permissionEducation';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { readOrCreateDeviceId, readOrCreateInstallationId } from '../storage/sessionStorage';
 import { readSecureJson, removeSecureValue, writeSecureJson } from '../storage/secureStore';
@@ -134,6 +135,11 @@ export async function authenticateDeviceUnlock(reason: 'bootstrap' | 'resume' | 
   const ready = await isBiometricOrDeviceCredentialReady();
   if (!ready) {
     return { success: false, reason: 'device-unlock-unavailable' };
+  }
+
+  const accepted = await showPermissionEducation('biometric');
+  if (!accepted) {
+    return { success: false, reason: 'device-unlock-cancelled' };
   }
 
   const result = await LocalAuthentication.authenticateAsync({

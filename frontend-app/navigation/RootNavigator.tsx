@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthProvider';
@@ -12,11 +13,14 @@ import { useLocalization } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
 import { recordObservedError, trackScreenContext } from '../runtime/observability';
 import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
+import { readOnboardingComplete } from '../storage/onboardingStorage';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { BootScreen } from '../screens/common/BootScreen';
+import { LegalScreen } from '../screens/common/LegalScreen';
 import { OperationalFeedScreen } from '../screens/common/OperationalFeedScreen';
 import { SessionRecoveryScreen } from '../screens/common/SessionRecoveryScreen';
+import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { BadgeScreen } from '../screens/employee/BadgeScreen';
 import { NotificationsScreen } from '../screens/employee/NotificationsScreen';
 import { PresenceScreen } from '../screens/employee/PresenceScreen';
@@ -121,9 +125,36 @@ export function RootNavigator() {
 }
 
 function AuthNavigator() {
+  const [initialRoute, setInitialRoute] = useState<'Onboarding' | 'Login' | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void readOnboardingComplete()
+      .then((complete) => {
+        if (active) {
+          setInitialRoute(complete ? 'Login' : 'Onboarding');
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setInitialRoute('Onboarding');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!initialRoute) {
+    return <BootScreen />;
+  }
+
   return (
-    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+    <AuthStack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false, animation: 'fade_from_bottom' }}>
+      <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Legal" component={LegalScreen} options={{ animation: 'slide_from_right' }} />
       <AuthStack.Screen name="VisitorInviteRegistration" component={VisitorInviteRegistrationScreen} />
     </AuthStack.Navigator>
   );
