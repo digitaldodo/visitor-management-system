@@ -8,8 +8,9 @@ type TranslationParams = Record<string, string | number | null | undefined>;
 type LocalizationContextValue = {
   language: SupportedLanguage;
   preference: LanguagePreference;
-  setLanguagePreference: (language: LanguagePreference) => Promise<void>;
+  setLanguagePreference: (language: SupportedLanguage) => Promise<void>;
   t: (key: TranslationKey, params?: TranslationParams) => string;
+  tText: (text?: string | null, params?: TranslationParams) => string;
 };
 
 const LANGUAGE_STORAGE_KEY = 'accessflow.mobile.language-preference.v1';
@@ -18,7 +19,6 @@ const translations = {
   en: {
     'app.brandMeta': 'Operational workspace',
     'common.live': 'Ready',
-    'common.system': 'System',
     'common.english': 'English',
     'common.hindi': 'Hindi',
     'common.save': 'Save',
@@ -131,7 +131,6 @@ const translations = {
   hi: {
     'app.brandMeta': 'ऑपरेशनल कार्यक्षेत्र',
     'common.live': 'तैयार',
-    'common.system': 'सिस्टम',
     'common.english': 'अंग्रेजी',
     'common.hindi': 'हिंदी',
     'common.save': 'सेव करें',
@@ -245,6 +244,131 @@ const translations = {
 
 type TranslationKey = keyof typeof translations.en;
 
+const staticTextTranslations = {
+  hi: {
+    'AccessFlow Mobile': 'AccessFlow मोबाइल',
+    'Ready': 'तैयार',
+    'Reconnecting': 'फिर जुड़ रहा है',
+    'Profile': 'प्रोफाइल',
+    'Manage your identity, secure account settings, and role-scoped AccessFlow workspace.': 'अपनी पहचान, सुरक्षित खाता सेटिंग और भूमिका-आधारित AccessFlow कार्यक्षेत्र प्रबंधित करें।',
+    'Profile photo': 'प्रोफाइल फोटो',
+    'Check username': 'यूजरनेम जांचें',
+    'Use 3-32 lowercase letters, numbers, or underscores.': '3-32 छोटे अक्षर, नंबर या अंडरस्कोर उपयोग करें।',
+    'Profile update failed': 'प्रोफाइल अपडेट विफल',
+    'Your account profile could not be updated.': 'आपकी खाता प्रोफाइल अपडेट नहीं हो सकी।',
+    'Capture or select a square profile photo. Preview it before applying it to your account and credential surfaces.': 'चौकोर प्रोफाइल फोटो कैप्चर या चुनें। खाते और क्रेडेंशियल पर लगाने से पहले पूर्वावलोकन देखें।',
+    'Camera': 'कैमरा',
+    'Gallery': 'गैलरी',
+    'Retake': 'फिर लें',
+    'Remove': 'हटाएं',
+    'Preview ready': 'पूर्वावलोकन तैयार',
+    'Review the crop before replacing the current account photo.': 'मौजूदा खाता फोटो बदलने से पहले क्रॉप जांचें।',
+    'Apply photo': 'फोटो लागू करें',
+    'Editable account details': 'संपादन योग्य खाता विवरण',
+    'These fields belong to you. Organization-controlled identity and access fields stay locked below.': 'ये फ़ील्ड आपके हैं। संगठन-नियंत्रित पहचान और एक्सेस फ़ील्ड नीचे लॉक रहते हैं।',
+    'Username': 'यूजरनेम',
+    'Lowercase letters, numbers, and underscores only.': 'केवल छोटे अक्षर, नंबर और अंडरस्कोर।',
+    'Emergency contact': 'आपातकालीन संपर्क',
+    'Emergency contact number or note': 'आपातकालीन संपर्क नंबर या नोट',
+    'In-app alerts': 'इन-ऐप अलर्ट',
+    'Receive account, approval, pass, and operational notifications inside AccessFlow.': 'AccessFlow में खाता, स्वीकृति, पास और संचालन सूचनाएं पाएं।',
+    'Email alerts': 'ईमेल अलर्ट',
+    'Receive operational notifications by email when delivery is enabled for your organization.': 'आपके संगठन में डिलीवरी सक्षम होने पर ईमेल से संचालन सूचनाएं पाएं।',
+    'Enable notifications': 'सूचनाएं सक्षम करें',
+    'Open Android notification settings': 'Android सूचना सेटिंग खोलें',
+    'Log out': 'लॉग आउट',
+    'Sign out safely': 'सुरक्षित रूप से साइन आउट',
+    'Photo on file': 'फोटो मौजूद है',
+    'Photo pending': 'फोटो लंबित',
+    'Verified email pending': 'सत्यापित ईमेल लंबित',
+    'Admin workspace': 'प्रशासन कार्यक्षेत्र',
+    'Employee workspace': 'कर्मचारी कार्यक्षेत्र',
+    'Security workspace': 'सुरक्षा कार्यक्षेत्र',
+    'Visitor workspace': 'आगंतुक कार्यक्षेत्र',
+    'Shift': 'शिफ्ट',
+    'All caught up': 'सब पूरा',
+    '{count} unread': '{count} अपठित',
+    'Mark all read': 'सभी पढ़ा हुआ करें',
+    'Read': 'पढ़ा हुआ',
+    'New': 'नया',
+    'Operational update': 'संचालन अपडेट',
+    'No operational notifications': 'कोई संचालन सूचना नहीं',
+    'Approvals, arrivals, access revocations, security alerts, and account updates will appear here.': 'स्वीकृतियां, आगमन, एक्सेस रद्दीकरण, सुरक्षा अलर्ट और खाता अपडेट यहां दिखेंगे।',
+    'Security': 'सुरक्षा',
+    'Visitor': 'आगंतुक',
+    'Workforce': 'कार्यबल',
+    'System': 'सिस्टम',
+    'items': 'आइटम',
+    '{count} items': '{count} आइटम',
+    'Just now': 'अभी',
+    'Preparing workspace': 'कार्यस्थल तैयार हो रहा है',
+    'AccessFlow is loading operational data and restoring a secure mobile session.': 'AccessFlow संचालन डेटा लोड कर रहा है और सुरक्षित मोबाइल सत्र बहाल कर रहा है।',
+    'Dismiss notification': 'सूचना बंद करें',
+    'OK': 'ठीक है',
+    'Trusted access for every role': 'हर भूमिका के लिए भरोसेमंद एक्सेस',
+    'Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.': 'भूमिका-सचेत रूटिंग, सुरक्षित सत्र बहाली और Android संचालन सुविधा के साथ साइन इन करें, एक्सेस रिकवर करें या आगंतुक के रूप में ऑनबोर्ड हों।',
+    'Biometric-ready': 'बायोमेट्रिक तैयार',
+    'Refresh-token safe': 'रिफ्रेश-टोकन सुरक्षित',
+    'Enterprise roles': 'एंटरप्राइज भूमिकाएं',
+    'Pass status and visit requests': 'पास स्थिति और विजिट अनुरोध',
+    'Checkpoint and scan operations': 'चेकपॉइंट और स्कैन संचालन',
+    'Badge, approvals, and presence': 'बैज, स्वीकृतियां और उपस्थिति',
+    'Org Admin': 'संगठन एडमिन',
+    'Organization approvals and visibility': 'संगठन स्वीकृतियां और दृश्यता',
+    'Start typing to search. The organization list stays hidden until then.': 'खोजने के लिए टाइप करना शुरू करें। तब तक संगठन सूची छिपी रहेगी।',
+    'Stores only tokens in secure device storage.': 'केवल टोकन सुरक्षित डिवाइस स्टोरेज में रखता है।',
+    'Visitor onboarding started': 'आगंतुक ऑनबोर्डिंग शुरू',
+    'Recovery in progress': 'रिकवरी जारी है',
+    'Action failed': 'कार्रवाई विफल',
+    'Sign in was not accepted': 'साइन इन स्वीकार नहीं हुआ',
+    'Connection issue': 'कनेक्शन समस्या',
+    'Service unavailable': 'सेवा उपलब्ध नहीं',
+    'Session expired': 'सत्र समाप्त',
+    'Account locked': 'खाता लॉक है',
+    'Mobile access unavailable': 'मोबाइल एक्सेस उपलब्ध नहीं',
+    'You can retry or recover the account.': 'आप फिर प्रयास कर सकते हैं या खाता रिकवर कर सकते हैं।',
+    'Check connectivity, then retry.': 'कनेक्शन जांचें, फिर प्रयास करें।',
+    'Retry once the backend is reachable.': 'बैकएंड उपलब्ध होने पर फिर प्रयास करें।',
+    'Recovery complete': 'रिकवरी पूरी',
+    'Create a verified visitor account.': 'सत्यापित आगंतुक खाता बनाएं।',
+    'Verify and reset your password.': 'सत्यापित करें और पासवर्ड रीसेट करें।',
+    'Choose a workspace and sign in.': 'कार्यस्थल चुनें और साइन इन करें।',
+    'Create a verified visitor account with clear steps and less mobile form friction.': 'स्पष्ट चरणों और कम मोबाइल फॉर्म झंझट के साथ सत्यापित आगंतुक खाता बनाएं।',
+    'Your password has been reset and previous sessions were cleared.': 'आपका पासवर्ड रीसेट हो गया है और पिछले सत्र साफ कर दिए गए हैं।',
+    'Verify your email code, then set a new password without exposing saved credentials.': 'ईमेल कोड सत्यापित करें, फिर सहेजे क्रेडेंशियल दिखाए बिना नया पासवर्ड सेट करें।',
+    'Choose your workspace, authenticate, and optionally restore this session on future launches.': 'अपना कार्यस्थल चुनें, प्रमाणीकरण करें, और भविष्य में यह सत्र बहाल कर सकते हैं।',
+    'Full name': 'पूरा नाम',
+    'Your full name': 'आपका पूरा नाम',
+    'Email': 'ईमेल',
+    'Password': 'पासवर्ड',
+    'Identity': 'पहचान',
+    'Contact': 'संपर्क',
+    'Email or username': 'ईमेल या यूजरनेम',
+    'Send verification code': 'सत्यापन कोड भेजें',
+    '6 digit code': '6 अंकों का कोड',
+    'Resend': 'फिर भेजें',
+    'Verify code': 'कोड सत्यापित करें',
+    'New password': 'नया पासवर्ड',
+    'Confirm password': 'पासवर्ड पुष्टि करें',
+    'Use 12 or more characters. Existing sessions will be revoked.': '12 या अधिक अक्षर उपयोग करें। मौजूदा सत्र रद्द होंगे।',
+    'Update password': 'पासवर्ड अपडेट करें',
+    'Restart recovery': 'रिकवरी फिर शुरू करें',
+    'Account access restored': 'खाता एक्सेस बहाल',
+    'All refresh sessions were revoked by the backend. Sign in again with the new password.': 'बैकएंड ने सभी रिफ्रेश सत्र रद्द कर दिए। नए पासवर्ड से फिर साइन इन करें।',
+    'Return to sign in': 'साइन इन पर लौटें',
+    'Code': 'कोड',
+    'Preparing visitor, workforce, approval, notification, and incident activity.': 'आगंतुक, कार्यबल, स्वीकृति, सूचना और घटना गतिविधि तैयार हो रही है।',
+    'Your workspace is focused on role-specific tasks and notifications.': 'आपका कार्यस्थल भूमिका-विशिष्ट कार्यों और सूचनाओं पर केंद्रित है।',
+    'Activity is admin-only': 'गतिविधि केवल एडमिन के लिए',
+    'Your mobile workspace shows the tasks and notifications for your role.': 'आपका मोबाइल कार्यस्थल आपकी भूमिका के कार्य और सूचनाएं दिखाता है।',
+    'Emergency broadcast': 'आपातकालीन प्रसारण',
+    'Send high-priority operational guidance to in-app and push notification channels.': 'इन-ऐप और पुश सूचना चैनलों पर उच्च-प्राथमिकता संचालन निर्देश भेजें।',
+    'Your workspace receives emergency broadcasts and lockdown alerts through banners and notifications.': 'आपका कार्यस्थल बैनर और सूचनाओं से आपातकालीन प्रसारण और लॉकडाउन अलर्ट पाता है।',
+    'Loaded': 'लोड हुआ',
+    'Unread alerts': 'अपठित अलर्ट',
+  },
+} as const;
+
 const LocalizationContext = createContext<LocalizationContextValue | null>(null);
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
@@ -271,19 +395,27 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setLanguagePreference = useCallback(async (nextLanguage: LanguagePreference) => {
-    const normalized = nextLanguage === 'hi' || nextLanguage === 'en' ? nextLanguage : '';
+  const setLanguagePreference = useCallback(async (nextLanguage: SupportedLanguage) => {
+    const normalized = nextLanguage === 'hi' ? 'hi' : 'en';
     setPreference(normalized);
-    if (normalized) {
-      await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
-      return;
-    }
-    await AsyncStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
   }, []);
 
-  const language = preference || detectDeviceLanguage();
+  const language = preference || 'en';
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) => interpolate(translations[language][key] ?? translations.en[key] ?? key, params),
+    [language],
+  );
+  const tText = useCallback(
+    (text?: string | null, params?: TranslationParams) => {
+      if (!text) {
+        return '';
+      }
+      const translated = language === 'hi'
+        ? staticTextTranslations.hi[text as keyof typeof staticTextTranslations.hi] ?? text
+        : text;
+      return interpolate(translated, params);
+    },
     [language],
   );
 
@@ -293,8 +425,9 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       preference,
       setLanguagePreference,
       t,
+      tText,
     }),
-    [language, preference, setLanguagePreference, t],
+    [language, preference, setLanguagePreference, t, tText],
   );
 
   if (!hydrated) {
@@ -314,11 +447,6 @@ export function useLocalization() {
     throw new Error('useLocalization must be used within LocalizationProvider.');
   }
   return context;
-}
-
-function detectDeviceLanguage(): SupportedLanguage {
-  const locale = Intl.DateTimeFormat().resolvedOptions().locale?.toLowerCase() || '';
-  return locale.startsWith('hi') ? 'hi' : 'en';
 }
 
 function interpolate(template: string, params?: TranslationParams) {

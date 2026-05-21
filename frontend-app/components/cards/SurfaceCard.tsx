@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -12,13 +13,16 @@ type Props = {
 
 export function SurfaceCard({ title, subtitle, children }: Props) {
   const layout = useResponsiveLayout();
+  const { tText } = useLocalization();
+  const translatedTitle = tText(title);
+  const translatedSubtitle = tText(subtitle);
 
   return (
     <View style={[styles.card, { gap: layout.cardSpacing, padding: layout.cardPadding }]}>
-      {(title || subtitle) ? (
+      {(translatedTitle || translatedSubtitle) ? (
         <View style={styles.header}>
-          {title ? <Text allowFontScaling maxFontSizeMultiplier={1.14} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text> : null}
-          {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.1} style={styles.subtitle}>{subtitle}</Text> : null}
+          {translatedTitle ? <Text allowFontScaling maxFontSizeMultiplier={1.14} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{translatedTitle}</Text> : null}
+          {translatedSubtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.1} style={styles.subtitle}>{translatedSubtitle}</Text> : null}
         </View>
       ) : null}
       {children}

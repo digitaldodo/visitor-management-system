@@ -64,7 +64,7 @@ export function LoginScreen() {
   const { login, isBusy, lastError } = useAuth();
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const { t } = useLocalization();
+  const { t, tText } = useLocalization();
   const [submitError, setSubmitError] = useState<string | null>(lastError);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [registerStep, setRegisterStep] = useState(0);
@@ -327,13 +327,13 @@ export function LoginScreen() {
             {!isCompactLandscape ? (
               <>
                 <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
-                  Trusted access for every role
+                  {tText('Trusted access for every role')}
                 </Text>
                 <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
-                  Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.
+                  {tText('Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.')}
                 </Text>
                 <View style={styles.proofRow}>
-                  <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : 'Biometric-ready'} />
+                  <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : tText('Biometric-ready')} />
                   <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
                   <TrustChip icon="business-outline" label="Enterprise roles" />
                 </View>
@@ -382,9 +382,9 @@ export function LoginScreen() {
                       >
                         <View style={styles.audienceHeader}>
                           <Ionicons name={option.icon} size={20} color={selected ? theme.colors.info : theme.colors.textSecondary} />
-                          <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{option.label}</Text>
+                          <Text style={[styles.audienceLabel, selected ? styles.audienceLabelSelected : null]}>{tText(option.label)}</Text>
                         </View>
-                        <Text style={styles.audienceDescription}>{option.description}</Text>
+                        <Text style={styles.audienceDescription}>{tText(option.description)}</Text>
                       </Pressable>
                     );
                   })}
@@ -584,10 +584,12 @@ export function LoginScreen() {
 }
 
 function TrustChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+  const { tText } = useLocalization();
+
   return (
     <View style={styles.trustChip}>
       <Ionicons name={icon} size={16} color={theme.colors.info} />
-      <Text style={styles.trustChipText}>{label}</Text>
+      <Text style={styles.trustChipText}>{tText(label)}</Text>
     </View>
   );
 }
@@ -618,6 +620,8 @@ function ModeButton({
 }
 
 function ProgressHeader({ step }: { step: number }) {
+  const { tText } = useLocalization();
+
   return (
     <View style={styles.progressBlock}>
       <View style={styles.progressTrack}>
@@ -628,7 +632,7 @@ function ProgressHeader({ step }: { step: number }) {
               <View style={[styles.progressDot, active ? styles.progressDotActive : null]}>
                 <Text style={[styles.progressNumber, active ? styles.progressNumberActive : null]}>{index + 1}</Text>
               </View>
-              <Text style={[styles.progressLabel, active ? styles.progressLabelActive : null]}>{label}</Text>
+              <Text style={[styles.progressLabel, active ? styles.progressLabelActive : null]}>{tText(label)}</Text>
             </View>
           );
         })}
@@ -764,6 +768,8 @@ function RecoveryFlow({
 }
 
 function RecoveryStepItem({ active, complete, label }: { active: boolean; complete: boolean; label: string }) {
+  const { tText } = useLocalization();
+
   return (
     <View style={[styles.recoveryStepItem, active ? styles.recoveryStepItemActive : null]}>
       <Ionicons
@@ -771,12 +777,13 @@ function RecoveryStepItem({ active, complete, label }: { active: boolean; comple
         size={16}
         color={complete ? theme.colors.success : active ? theme.colors.info : theme.colors.textMuted}
       />
-      <Text style={[styles.recoveryStepLabel, active ? styles.recoveryStepLabelActive : null]}>{label}</Text>
+      <Text style={[styles.recoveryStepLabel, active ? styles.recoveryStepLabelActive : null]}>{tText(label)}</Text>
     </View>
   );
 }
 
 function StatusPanel({ status }: { status: { tone: 'danger' | 'success' | 'warning' | 'info'; title: string; body: string } }) {
+  const { tText } = useLocalization();
   const toneStyles = {
     danger: { icon: 'alert-circle-outline' as const, color: theme.colors.danger, backgroundColor: theme.colors.dangerSoft },
     success: { icon: 'checkmark-circle-outline' as const, color: theme.colors.success, backgroundColor: theme.colors.successSoft },
@@ -788,8 +795,8 @@ function StatusPanel({ status }: { status: { tone: 'danger' | 'success' | 'warni
     <View style={[styles.statusPanel, { backgroundColor: toneStyles.backgroundColor }]}>
       <Ionicons name={toneStyles.icon} size={22} color={toneStyles.color} />
       <View style={styles.statusCopy}>
-        <Text style={styles.statusTitle}>{status.title}</Text>
-        <Text style={styles.statusBody}>{status.body}</Text>
+        <Text style={styles.statusTitle}>{tText(status.title)}</Text>
+        <Text style={styles.statusBody}>{tText(status.body)}</Text>
       </View>
     </View>
   );

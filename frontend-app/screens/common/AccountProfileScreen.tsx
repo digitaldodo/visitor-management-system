@@ -44,7 +44,6 @@ import type { TrustedDeviceCategory, TrustedDeviceRecord, TrustedOperationalRole
 import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
-  { labelKey: 'common.system', value: '' },
   { labelKey: 'common.english', value: 'en' },
   { labelKey: 'common.hindi', value: 'hi' },
 ] as const;
@@ -70,7 +69,7 @@ export function AccountProfileScreen({
 }: Props) {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
-  const { preference, setLanguagePreference, t } = useLocalization();
+  const { preference, setLanguagePreference, t, tText } = useLocalization();
   const { session, logout, isBusy, refreshSession } = useAuth();
   const runtime = useOperationalRuntime();
   const profile = useAccountProfile();
@@ -82,7 +81,7 @@ export function AccountProfileScreen({
   const [phoneCountryCode, setPhoneCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
-  const [preferredLanguage, setPreferredLanguage] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'hi'>('en');
   const [notificationEmailEnabled, setNotificationEmailEnabled] = useState(true);
   const [notificationInAppEnabled, setNotificationInAppEnabled] = useState(true);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -114,15 +113,6 @@ export function AccountProfileScreen({
     }
     hydrateEditableFields(identity);
   }, [identity]);
-
-  useEffect(() => {
-    if (!identity?.preferredLanguage || preference) {
-      return;
-    }
-    if (identity.preferredLanguage === 'en' || identity.preferredLanguage === 'hi') {
-      void setLanguagePreference(identity.preferredLanguage);
-    }
-  }, [identity?.preferredLanguage, preference, setLanguagePreference]);
 
   const loadSecurityCenter = useCallback(async () => {
     if (!session) {
@@ -321,7 +311,7 @@ export function AccountProfileScreen({
   const saveProfile = async () => {
     const normalizedUsername = username.trim().toLowerCase();
     if (!/^[a-z0-9_]{3,32}$/.test(normalizedUsername)) {
-      Alert.alert('Check username', 'Use 3-32 lowercase letters, numbers, or underscores.');
+      Alert.alert(tText('Check username'), tText('Use 3-32 lowercase letters, numbers, or underscores.'));
       return;
     }
 
@@ -331,15 +321,15 @@ export function AccountProfileScreen({
         phoneCountryCode: phoneCountryCode.trim() || null,
         phone: phone.trim() || null,
         emergencyContact: emergencyContact.trim() || null,
-        preferredLanguage: preferredLanguage || null,
+        preferredLanguage,
         notificationEmailEnabled,
         notificationInAppEnabled,
       });
-      await setLanguagePreference(preferredLanguage === 'en' || preferredLanguage === 'hi' ? preferredLanguage : '');
+      await setLanguagePreference(preferredLanguage);
       await refreshAll();
-      Alert.alert('Profile saved', t('settings.languageSavedBody'));
+      Alert.alert(t('settings.languageSaved'), t('settings.languageSavedBody'));
     } catch (error) {
-      Alert.alert('Profile update failed', error instanceof Error ? error.message : 'Your account profile could not be updated.');
+      Alert.alert(tText('Profile update failed'), error instanceof Error ? error.message : tText('Your account profile could not be updated.'));
     }
   };
 
@@ -472,8 +462,8 @@ export function AccountProfileScreen({
           <View style={styles.pendingPanel}>
             <Image source={{ uri: pendingPhoto.previewUri }} style={styles.pendingPhoto} />
             <View style={styles.pendingCopy}>
-              <Text style={styles.panelTitle}>Preview ready</Text>
-              <Text style={styles.helperText}>Review the crop before replacing the current account photo.</Text>
+              <Text style={styles.panelTitle}>{tText('Preview ready')}</Text>
+              <Text style={styles.helperText}>{tText('Review the crop before replacing the current account photo.')}</Text>
               <PrimaryButton label="Apply photo" onPress={() => void applyPhoto()} loading={uploadPhotoMutation.isPending || updateProfileMutation.isPending} />
             </View>
           </View>
@@ -508,7 +498,7 @@ export function AccountProfileScreen({
           <View style={styles.segmentRow}>
             {LANGUAGE_OPTIONS.map((option) => (
               <Pressable
-                key={option.value || 'system'}
+                key={option.value}
                 onPress={() => {
                   setPreferredLanguage(option.value);
                   void setLanguagePreference(option.value);
@@ -708,7 +698,7 @@ export function AccountProfileScreen({
     setPhoneCountryCode(nextProfile.phoneCountryCode || '+1');
     setPhone(nextProfile.phone || '');
     setEmergencyContact(nextProfile.emergencyContact || '');
-    setPreferredLanguage(nextProfile.preferredLanguage || preference || '');
+    setPreferredLanguage(preference === 'hi' ? 'hi' : 'en');
     setNotificationEmailEnabled(nextProfile.notificationEmailEnabled ?? true);
     setNotificationInAppEnabled(nextProfile.notificationInAppEnabled ?? true);
   }

@@ -6,6 +6,7 @@ import { EmptyState } from '../feedback/EmptyState';
 import { StatusPill } from '../feedback/StatusPill';
 import { SurfaceCard } from '../cards/SurfaceCard';
 import { theme } from '../../theme';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import type { NotificationInbox, NotificationRecord } from '../../types/domain';
 
 type Props = {
@@ -31,6 +32,7 @@ export function NotificationCenter({
   onMarkLocalRead,
   loading,
 }: Props) {
+  const { tText } = useLocalization();
   const mergedItems = useMemo(() => {
     const combined = [...(localNotifications ?? []), ...(inbox?.items ?? [])];
     return combined
@@ -58,7 +60,7 @@ export function NotificationCenter({
   return (
     <SurfaceCard title={title} subtitle={subtitle}>
       <View style={styles.controls}>
-        <StatusPill label={unreadCount ? `${unreadCount} unread` : 'All caught up'} tone={unreadCount ? 'warning' : 'success'} />
+        <StatusPill label={unreadCount ? tText('{count} unread', { count: unreadCount }) : 'All caught up'} tone={unreadCount ? 'warning' : 'success'} />
         {onMarkAllRead ? (
           <PrimaryButton
             label="Mark all read"
@@ -77,8 +79,8 @@ export function NotificationCenter({
         groupedItems.map((group) => (
           <View key={group.category} style={styles.group}>
             <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>{humanize(group.category)}</Text>
-              <Text style={styles.groupMeta}>{group.items.length} items</Text>
+              <Text style={styles.groupTitle}>{tText(humanize(group.category))}</Text>
+              <Text style={styles.groupMeta}>{tText('{count} items', { count: group.items.length })}</Text>
             </View>
             {group.items.map((notification) => (
               <Pressable
@@ -101,7 +103,7 @@ export function NotificationCenter({
 
                 <View style={styles.metaRow}>
                   <Text style={styles.metaText}>
-                    {[notification.actorName, notification.visitorName].filter(Boolean).join(' · ') || 'Operational update'}
+                    {[notification.actorName, notification.visitorName].filter(Boolean).join(' · ') || tText('Operational update')}
                   </Text>
                   <Text style={styles.metaText}>{formatTimestamp(notification.createdAt, notification.organizationTimezone)}</Text>
                 </View>

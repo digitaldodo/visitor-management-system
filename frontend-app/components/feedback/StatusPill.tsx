@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export function StatusPill({ label, tone = 'default' }: Props) {
+  const { tText } = useLocalization();
   const palette = {
     default: [theme.colors.surfaceMuted, theme.colors.textSecondary, theme.colors.border],
     success: [theme.colors.successSoft, theme.colors.success, 'rgba(74, 222, 128, 0.24)'],
@@ -20,7 +22,7 @@ export function StatusPill({ label, tone = 'default' }: Props) {
 
   return (
     <View style={[styles.pill, { backgroundColor, borderColor }]}>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color }]}>{label}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color }]}>{tText(label)}</Text>
     </View>
   );
 }

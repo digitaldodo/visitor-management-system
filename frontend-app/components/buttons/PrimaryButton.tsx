@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -13,6 +14,8 @@ type Props = {
 
 export function PrimaryButton({ label, onPress, disabled, loading, tone = 'primary' }: Props) {
   const layout = useResponsiveLayout();
+  const { tText } = useLocalization();
+  const translatedLabel = tText(label);
   const toneStyles = {
     primary: {
       backgroundColor: theme.colors.primary,
@@ -52,10 +55,10 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={toneStyles.labelColor} />
-          <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
+          <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
         </View>
       ) : (
-        <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{label}</Text>
+        <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
       )}
     </Pressable>
   );

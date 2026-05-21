@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type SnackbarTone = 'info' | 'success' | 'warning' | 'danger';
@@ -36,6 +37,7 @@ const INFRASTRUCTURE_MESSAGE_PATTERN = /(syncing securely|retrying request|resto
 
 export function OperationalSnackbarProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  const { tText } = useLocalization();
   const nextIdRef = useRef(1);
   const lastShownRef = useRef<Record<string, number>>({});
   const translateY = useRef(new Animated.Value(88)).current;
@@ -147,16 +149,16 @@ export function OperationalSnackbarProvider({ children }: { children: ReactNode 
           >
             <View style={[styles.indicator, { backgroundColor: palette.accent }]} />
             <Text maxFontSizeMultiplier={1.12} numberOfLines={3} style={styles.message}>
-              {current.message}
+              {tText(current.message)}
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Dismiss notification"
+              accessibilityLabel={tText('Dismiss notification')}
               hitSlop={8}
               onPress={() => setCurrent(null)}
               style={styles.dismiss}
             >
-              <Text allowFontScaling={false} style={styles.dismissText}>OK</Text>
+              <Text allowFontScaling={false} style={styles.dismissText}>{tText('OK')}</Text>
             </Pressable>
           </Animated.View>
         </View>

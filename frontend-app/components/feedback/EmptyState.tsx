@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { theme } from '../../theme';
+import { useLocalization } from '../../localization/LocalizationProvider';
 
 type Props = {
   title: string;
@@ -13,6 +14,10 @@ type Props = {
 };
 
 export function EmptyState({ title, body, icon = 'file-tray-outline', actionLabel, onAction, tone = 'default' }: Props) {
+  const { tText } = useLocalization();
+  const translatedTitle = tText(title);
+  const translatedBody = tText(body);
+  const translatedActionLabel = tText(actionLabel);
   const toneColor = tone === 'warning'
     ? theme.colors.warning
     : tone === 'danger'
@@ -26,11 +31,11 @@ export function EmptyState({ title, body, icon = 'file-tray-outline', actionLabe
       <View style={[styles.iconWrap, { borderColor: toneColor, backgroundColor: softTone(tone) }]}>
         <Ionicons name={icon} size={24} color={toneColor} />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.body}>{body}</Text>
+      <Text style={styles.title}>{translatedTitle}</Text>
+      <Text style={styles.body}>{translatedBody}</Text>
       {actionLabel && onAction ? (
         <Pressable accessibilityRole="button" onPress={onAction} style={styles.action}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
+          <Text style={styles.actionText}>{translatedActionLabel}</Text>
           <Ionicons name="arrow-forward-outline" size={16} color={theme.colors.info} />
         </Pressable>
       ) : null}

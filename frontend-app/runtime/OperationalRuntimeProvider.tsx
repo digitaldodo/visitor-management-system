@@ -31,6 +31,12 @@ import { openOperationalDeepLink } from './operationalDeepLinks';
 import { operationalSyncRuntime } from './operationalSyncRuntime';
 import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
 import {
+  isExpoGoRuntime,
+  logExpoGoNotificationBypass,
+  supportsNativePushNotifications,
+  suppressExpoGoNotificationWarnings,
+} from './expoRuntime';
+import {
   getFirebaseMessagingToken,
   getInitialFirebaseNotification,
   onFirebaseForegroundMessage,
@@ -104,15 +110,19 @@ type OperationalRuntimeContextValue = {
 
 const OperationalRuntimeContext = createContext<OperationalRuntimeContextValue | null>(null);
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+suppressExpoGoNotificationWarnings();
+
+if (!isExpoGoRuntime()) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 const defaultLockState: SessionLockState = {
   isLocked: false,
@@ -194,6 +204,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
   const unlockPromiseRef = useRef<Promise<void> | null>(null);
   const lastLifecycleRecoveryAtRef = useRef(0);
+  const expoGoNotificationBypassLoggedRef = useRef(false);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null; fcmToken: string | null }>({
     deviceId: null,
     expoPushToken: null,
@@ -448,17 +459,24 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
-    if (Platform.OS !== 'android') {
-      setPushPermissionStatus('UNAVAILABLE');
-      return;
-    }
-
     try {
       const deviceId = await readOrCreateDeviceId();
       deviceRegistrationRef.current.deviceId = deviceId;
       setDevicePosture((current) => (
         current.deviceId === deviceId ? current : { ...current, deviceId }
       ));
+
+      if (!supportsNativePushNotifications()) {
+        setPushPermissionStatus(Platform.OS === 'android' && isExpoGoRuntime() ? 'EXPO_GO_UNAVAILABLE' : 'UNAVAILABLE');
+        setPushToken(null);
+        deviceRegistrationRef.current.expoPushToken = null;
+        deviceRegistrationRef.current.fcmToken = null;
+        if (!expoGoNotificationBypassLoggedRef.current) {
+          expoGoNotificationBypassLoggedRef.current = true;
+          logExpoGoNotificationBypass('device-registration');
+        }
+        return;
+      }
 
       if (options?.forcePrompt) {
         await resetPermissionLifecycleForManualEnable('notifications');
@@ -1287,6 +1305,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [runOtaCheck]);
 
   useEffect(() => {
+    if (!supportsNativePushNotifications()) {
+      logExpoGoNotificationBypass('notification-channel-setup');
+      return;
+    }
+
     void (async () => {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('accessflow-operations', {
@@ -1346,6 +1369,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [activeRole, flushTelemetry, probeRuntime, queryClient, registerCurrentDevice, syncDevicePolicy]);
 
   useEffect(() => {
+    if (!supportsNativePushNotifications()) {
+      return undefined;
+    }
+
     const pushTokenApi = Notifications as typeof Notifications & {
       addPushTokenListener?: (listener: (token: { data: string }) => void) => { remove: () => void };
     };
@@ -1399,6 +1426,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [activeRole, pushPermissionStatus]);
 
   useEffect(() => {
+    if (!supportsNativePushNotifications()) {
+      return undefined;
+    }
+
     const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
       void syncNow();
     });
@@ -1533,7 +1564,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     if (auth.status !== 'authenticated') {
-      if (deviceRegistrationRef.current.deviceId) {
+      if (deviceRegistrationRef.current.deviceId && supportsNativePushNotifications()) {
         void unregisterNotificationDevice({
           expoPushToken: deviceRegistrationRef.current.expoPushToken,
           fcmToken: deviceRegistrationRef.current.fcmToken,

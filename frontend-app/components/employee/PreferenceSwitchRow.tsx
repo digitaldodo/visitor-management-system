@@ -1,5 +1,6 @@
 import { StyleSheet, Switch, Text, View } from 'react-native';
 
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -10,11 +11,13 @@ type Props = {
 };
 
 export function PreferenceSwitchRow({ label, helperText, value, onValueChange }: Props) {
+  const { tText } = useLocalization();
+
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.helper}>{helperText}</Text>
+        <Text style={styles.label}>{tText(label)}</Text>
+        <Text style={styles.helper}>{tText(helperText)}</Text>
       </View>
       <Switch
         value={value}

@@ -28,7 +28,7 @@ const MIN_PULL_REFRESH_MS = 450;
 export function AppScreen({ title, subtitle, children, refreshing, onRefresh, contentMaxWidth, sensitive, sensitiveReason }: Props) {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const { t } = useLocalization();
+  const { t, tText } = useLocalization();
   const { devicePosture, offlineOperationalMode } = useOperationalRuntime();
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
@@ -111,8 +111,8 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
                 <Text allowFontScaling={false} style={styles.liveText}>{t('common.live')}</Text>
               </View>
             </View>
-            <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{title}</Text>
-            {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{subtitle}</Text> : null}
+            <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{tText(title)}</Text>
+            {subtitle ? <Text allowFontScaling maxFontSizeMultiplier={1.12} style={styles.subtitle}>{tText(subtitle)}</Text> : null}
             {devicePosture.operationalModeEnabled ? (
               <View style={styles.operationalIndicatorRow}>
                 <View style={styles.operationalIndicator}>
@@ -127,7 +127,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
                 ) : null}
                 <View style={styles.operationalIndicator}>
                   <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
-                    {offlineOperationalMode === 'online' ? 'Ready' : 'Reconnecting'}
+                    {offlineOperationalMode === 'online' ? t('common.ready') : t('common.reconnecting')}
                   </Text>
                 </View>
               </View>

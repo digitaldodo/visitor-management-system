@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -9,9 +10,11 @@ type Props = {
 };
 
 export function DetailRow({ label, value, muted }: Props) {
+  const { tText } = useLocalization();
+
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label}>{tText(label)}</Text>
       <Text style={[styles.value, muted ? styles.valueMuted : null]}>{value}</Text>
     </View>
   );

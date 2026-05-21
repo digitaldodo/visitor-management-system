@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 
 export function MetricCard({ label, value, tone = 'default' }: Props) {
   const layout = useResponsiveLayout();
+  const { tText } = useLocalization();
   const accent = {
     default: theme.colors.surfaceRaised,
     success: theme.colors.successSoft,
@@ -21,7 +23,7 @@ export function MetricCard({ label, value, tone = 'default' }: Props) {
 
   return (
     <View style={[styles.card, { backgroundColor: accent, minWidth: layout.isSmallPhone ? 132 : 144, padding: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md }]}>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={styles.label}>{label}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={styles.label}>{tText(label)}</Text>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.value, layout.isSmallPhone ? styles.valueCompact : null]}>{value}</Text>
     </View>
   );

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 import { useKeyboardAwareScroll } from '../layout/KeyboardAwareScreen';
 
@@ -46,6 +47,11 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
 ) {
   const hasError = Boolean(errorText);
   const layout = useResponsiveLayout();
+  const { tText } = useLocalization();
+  const translatedLabel = tText(label);
+  const translatedHelperText = tText(helperText);
+  const translatedErrorText = tText(errorText);
+  const translatedPlaceholder = typeof props.placeholder === 'string' ? tText(props.placeholder) : props.placeholder;
   const inputRef = useRef<TextInput>(null);
   const { scrollToInput } = useKeyboardAwareScroll();
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,7 +120,7 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
 
   return (
     <View style={styles.container}>
-      <Text maxFontSizeMultiplier={1.1} style={styles.label}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.1} style={styles.label}>{translatedLabel}</Text>
       <View
         style={[
           styles.inputFrame,
@@ -151,6 +157,7 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
             onBlur?.(event);
           }}
           {...props}
+          placeholder={translatedPlaceholder}
         />
         {isPasswordField ? (
           <Pressable
@@ -177,7 +184,7 @@ export const AppTextField = forwardRef<TextInput, Props>(function AppTextField(
           </View>
         ) : null}
       </View>
-      {errorText ? <Text maxFontSizeMultiplier={1.1} style={styles.errorText}>{errorText}</Text> : helperText ? <Text maxFontSizeMultiplier={1.1} style={styles.helperText}>{helperText}</Text> : null}
+      {errorText ? <Text maxFontSizeMultiplier={1.1} style={styles.errorText}>{translatedErrorText}</Text> : helperText ? <Text maxFontSizeMultiplier={1.1} style={styles.helperText}>{translatedHelperText}</Text> : null}
     </View>
   );
 });

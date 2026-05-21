@@ -3,6 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 
 type SkeletonProps = {
@@ -60,6 +61,7 @@ export function OperationalLoadingState({
   icon = 'sync-circle-outline',
   children,
 }: OperationalLoadingProps) {
+  const { tText } = useLocalization();
   const opacity = useShimmerOpacity();
 
   return (
@@ -67,8 +69,8 @@ export function OperationalLoadingState({
       <Animated.View style={[styles.loadingIcon, { opacity }]}>
         <Ionicons name={icon} size={24} color={theme.colors.info} />
       </Animated.View>
-      <Text style={styles.loadingTitle}>{title}</Text>
-      <Text style={styles.loadingBody}>{body}</Text>
+      <Text style={styles.loadingTitle}>{tText(title)}</Text>
+      <Text style={styles.loadingBody}>{tText(body)}</Text>
       {children ?? <ShimmerSkeleton rows={3} />}
     </View>
   );
