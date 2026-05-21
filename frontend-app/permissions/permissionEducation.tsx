@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/buttons/PrimaryButton';
 import { theme } from '../theme';
 
-export type PermissionEducationKind = 'camera' | 'notifications' | 'files' | 'biometric';
+export type PermissionEducationKind = 'camera' | 'notifications' | 'files';
 export type PermissionLifecycleStatus = 'not-requested' | 'granted' | 'denied' | 'permanently-denied';
 
 type PermissionCopy = {
@@ -56,17 +56,6 @@ const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
       'AccessFlow does not browse unrelated files in the background.',
     ],
     icon: 'images-outline',
-    actionLabel: 'Continue',
-  },
-  biometric: {
-    title: 'Faster secure access',
-    body: 'Use fingerprint authentication for faster and more secure access.',
-    bullets: [
-      'Unlock the saved session without exposing credentials.',
-      'Use Android device security; biometric data stays on the device.',
-      'Password sign-in remains available if you decline.',
-    ],
-    icon: 'finger-print-outline',
     actionLabel: 'Continue',
   },
 };

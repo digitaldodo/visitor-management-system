@@ -78,40 +78,17 @@ export type AuthBootstrapState =
   | {
       status: 'bootstrapping';
       session: null;
-      recovery: null;
       lastError: null;
-    }
-  | {
-      status: 'auth-interrupted';
-      session: AuthSession | null;
-      recovery: null;
-      interruption: {
-        reason: string;
-        message: string;
-        canUsePassword: boolean;
-      };
-      lastError: string | null;
     }
   | {
       status: 'signed-out';
       session: null;
-      recovery: null;
       lastError: string | null;
     }
   | {
       status: 'authenticated';
       session: AuthSession;
-      recovery: null;
       lastError: null;
-    }
-  | {
-      status: 'recovery';
-      session: AuthSession | null;
-      recovery: {
-        reason: string;
-        message: string;
-      };
-      lastError: string | null;
     };
 
 export type AuthResponseDto = {

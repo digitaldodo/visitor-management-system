@@ -52,8 +52,6 @@ public class MobileDeviceRegistration {
 
     private String deviceType;
 
-    private String deviceFingerprint;
-
     private String appVersion;
 
     private String runtimeVersion;
@@ -63,32 +61,6 @@ public class MobileDeviceRegistration {
     private String permissionStatus;
 
     private boolean active;
-
-    private boolean trusted;
-
-    private boolean biometricEnabled;
-
-    private String trustStatus;
-
-    private String deviceCategory;
-
-    private String operationalRole;
-
-    private String checkpointId;
-
-    private String checkpointName;
-
-    private String operationalZone;
-
-    private boolean sharedOperationalDevice;
-
-    private boolean scannerFirst;
-
-    private boolean restrictedNavigation;
-
-    private boolean autoRestoreScanner;
-
-    private Integer inactivityTimeoutSeconds;
 
     private boolean rootedOrJailbroken;
 
@@ -105,18 +77,6 @@ public class MobileDeviceRegistration {
     private Instant lastSeenAt;
 
     private Instant lastActiveAt;
-
-    private Instant trustEstablishedAt;
-
-    private Instant trustRevokedAt;
-
-    private String revokedReason;
-
-    private Instant disabledAt;
-
-    private String disabledReason;
-
-    private Instant policyUpdatedAt;
 
     private Instant lastDeliveredAt;
 
@@ -246,14 +206,6 @@ public class MobileDeviceRegistration {
         this.deviceType = deviceType;
     }
 
-    public String getDeviceFingerprint() {
-        return deviceFingerprint;
-    }
-
-    public void setDeviceFingerprint(String deviceFingerprint) {
-        this.deviceFingerprint = deviceFingerprint;
-    }
-
     public String getAppVersion() {
         return appVersion;
     }
@@ -292,110 +244,6 @@ public class MobileDeviceRegistration {
 
     public void setActive(boolean active) {
         this.active = active;
-    }
-
-    public boolean isTrusted() {
-        return trusted;
-    }
-
-    public void setTrusted(boolean trusted) {
-        this.trusted = trusted;
-    }
-
-    public boolean isBiometricEnabled() {
-        return biometricEnabled;
-    }
-
-    public void setBiometricEnabled(boolean biometricEnabled) {
-        this.biometricEnabled = biometricEnabled;
-    }
-
-    public String getTrustStatus() {
-        return trustStatus;
-    }
-
-    public void setTrustStatus(String trustStatus) {
-        this.trustStatus = trustStatus;
-    }
-
-    public String getDeviceCategory() {
-        return deviceCategory;
-    }
-
-    public void setDeviceCategory(String deviceCategory) {
-        this.deviceCategory = deviceCategory;
-    }
-
-    public String getOperationalRole() {
-        return operationalRole;
-    }
-
-    public void setOperationalRole(String operationalRole) {
-        this.operationalRole = operationalRole;
-    }
-
-    public String getCheckpointId() {
-        return checkpointId;
-    }
-
-    public void setCheckpointId(String checkpointId) {
-        this.checkpointId = checkpointId;
-    }
-
-    public String getCheckpointName() {
-        return checkpointName;
-    }
-
-    public void setCheckpointName(String checkpointName) {
-        this.checkpointName = checkpointName;
-    }
-
-    public String getOperationalZone() {
-        return operationalZone;
-    }
-
-    public void setOperationalZone(String operationalZone) {
-        this.operationalZone = operationalZone;
-    }
-
-    public boolean isSharedOperationalDevice() {
-        return sharedOperationalDevice;
-    }
-
-    public void setSharedOperationalDevice(boolean sharedOperationalDevice) {
-        this.sharedOperationalDevice = sharedOperationalDevice;
-    }
-
-    public boolean isScannerFirst() {
-        return scannerFirst;
-    }
-
-    public void setScannerFirst(boolean scannerFirst) {
-        this.scannerFirst = scannerFirst;
-    }
-
-    public boolean isRestrictedNavigation() {
-        return restrictedNavigation;
-    }
-
-    public void setRestrictedNavigation(boolean restrictedNavigation) {
-        this.restrictedNavigation = restrictedNavigation;
-    }
-
-    public boolean isAutoRestoreScanner() {
-        return autoRestoreScanner;
-    }
-
-    public void setAutoRestoreScanner(boolean autoRestoreScanner) {
-        this.autoRestoreScanner = autoRestoreScanner;
-    }
-
-    public Integer getInactivityTimeoutSeconds() {
-        return inactivityTimeoutSeconds;
-    }
-
-    public void setInactivityTimeoutSeconds(Integer inactivityTimeoutSeconds) {
-        this.inactivityTimeoutSeconds = inactivityTimeoutSeconds;
     }
 
     public boolean isRootedOrJailbroken() {
@@ -460,54 +308,6 @@ public class MobileDeviceRegistration {
 
     public void setLastActiveAt(Instant lastActiveAt) {
         this.lastActiveAt = lastActiveAt;
-    }
-
-    public Instant getTrustEstablishedAt() {
-        return trustEstablishedAt;
-    }
-
-    public void setTrustEstablishedAt(Instant trustEstablishedAt) {
-        this.trustEstablishedAt = trustEstablishedAt;
-    }
-
-    public Instant getTrustRevokedAt() {
-        return trustRevokedAt;
-    }
-
-    public void setTrustRevokedAt(Instant trustRevokedAt) {
-        this.trustRevokedAt = trustRevokedAt;
-    }
-
-    public String getRevokedReason() {
-        return revokedReason;
-    }
-
-    public void setRevokedReason(String revokedReason) {
-        this.revokedReason = revokedReason;
-    }
-
-    public Instant getDisabledAt() {
-        return disabledAt;
-    }
-
-    public void setDisabledAt(Instant disabledAt) {
-        this.disabledAt = disabledAt;
-    }
-
-    public String getDisabledReason() {
-        return disabledReason;
-    }
-
-    public void setDisabledReason(String disabledReason) {
-        this.disabledReason = disabledReason;
-    }
-
-    public Instant getPolicyUpdatedAt() {
-        return policyUpdatedAt;
-    }
-
-    public void setPolicyUpdatedAt(Instant policyUpdatedAt) {
-        this.policyUpdatedAt = policyUpdatedAt;
     }
 
     public Instant getLastDeliveredAt() {

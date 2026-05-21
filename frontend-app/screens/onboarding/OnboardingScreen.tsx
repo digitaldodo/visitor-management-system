@@ -55,7 +55,7 @@ export function OnboardingScreen() {
     { icon: 'camera-outline' as const, label: 'Camera', body: 'QR verification and identity photos' },
     { icon: 'notifications-outline' as const, label: 'Notifications', body: 'Approvals, incidents, and account updates' },
     { icon: 'images-outline' as const, label: 'Files', body: 'Selected credential and profile images' },
-    { icon: 'finger-print-outline' as const, label: 'Biometric', body: 'Trusted-session unlock on supported devices' },
+    { icon: 'refresh-circle-outline' as const, label: 'Session', body: 'Encrypted token restore and automatic refresh' },
   ], []);
 
   const finish = async () => {

@@ -3,10 +3,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiConfig } from '../api/apiConfig';
 import { configureApiClient } from '../api/apiClient';
 import { createAppError, normalizeApiError, sanitizeUserFacingErrorMessage } from '../api/error';
-import {
-  clearLocalDeviceTrustProfile,
-  isSoftDeviceUnlockInterruption,
-} from './deviceTrust';
 import { resetNavigationToAuth, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { clearFirebaseUserContext, recordFirebaseError, setFirebaseUserContext, trackFirebaseEvent } from '../runtime/firebaseRuntime';
@@ -16,7 +12,6 @@ import {
   clearPersistedSession,
   clearRuntimeSnapshot,
   clearSessionLockState,
-  isSecureSessionAuthInterruption,
   isSecureSessionCorruption,
   readPersistedSession,
   readRuntimeSnapshot,
@@ -35,7 +30,6 @@ type AuthContextValue = AuthBootstrapState & {
   refreshSession: () => Promise<void>;
   recoverRuntimeSession: (options?: RuntimeRecoveryOptions) => Promise<boolean>;
   recoverAppShell: () => Promise<void>;
-  continueWithPasswordSignIn: () => void;
 };
 
 type RuntimeRecoveryOptions = {
@@ -50,7 +44,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const initialState: AuthBootstrapState = {
   status: 'bootstrapping',
   session: null,
-  recovery: null,
   lastError: null,
 };
 
@@ -107,7 +100,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStateSafely({
         status: 'authenticated',
         session,
-        recovery: null,
         lastError: null,
       });
     },
@@ -127,63 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStateSafely({
         status: 'signed-out',
         session: null,
-        recovery: null,
         lastError: reason ? sanitizeUserFacingErrorMessage(reason, 'auth') : null,
-      });
-    },
-    [setStateSafely],
-  );
-
-  const showRecoveryState = useCallback(
-    async (input: { session: AuthSession | null; reason: string; message: string; diagnosticCode: string }) => {
-      const safeMessage = sanitizeUserFacingErrorMessage(input.message, input.reason === 'network' ? 'network' : undefined);
-      await recordDiagnosticEvent({
-        level: input.reason === 'network' ? 'warn' : 'error',
-        scope: 'auth',
-        code: input.diagnosticCode,
-        message: safeMessage,
-        context: {
-          hasSession: Boolean(input.session),
-          reason: input.reason,
-        },
-      });
-
-      setStateSafely({
-        status: 'recovery',
-        session: input.session,
-        recovery: {
-          reason: input.reason,
-          message: safeMessage,
-        },
-        lastError: safeMessage,
-      });
-    },
-    [setStateSafely],
-  );
-
-  const showAuthInterruptedState = useCallback(
-    async (input: { session?: AuthSession | null; reason: string; diagnosticCode: string }) => {
-      await recordDiagnosticEvent({
-        level: 'info',
-        scope: 'auth',
-        code: input.diagnosticCode,
-        message: 'Secure device verification was interrupted by the operator.',
-        context: {
-          hasSession: Boolean(input.session ?? sessionRef.current),
-          reason: input.reason,
-        },
-      });
-
-      setStateSafely({
-        status: 'auth-interrupted',
-        session: input.session ?? sessionRef.current,
-        recovery: null,
-        interruption: {
-          reason: input.reason,
-          message: authInterruptionCopy(input.reason),
-          canUsePassword: true,
-        },
-        lastError: null,
       });
     },
     [setStateSafely],
@@ -197,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const versions = await withTimeout(
         getApiVersions(),
         8_000,
-        'AccessFlow could not complete secure runtime validation.',
+        'AccessFlow could not complete runtime validation.',
       );
       ensureVersionSupport(versions);
 
@@ -216,12 +152,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await withTimeout(
         restoreSession(persistedSession, { forceRefresh: Boolean(options?.forceRefresh || runtimeChanged) }),
         12_000,
-        'AccessFlow could not complete secure session recovery.',
+        'AccessFlow could not restore the saved session.',
       );
 
       return { session, versions };
     },
     [],
+  );
+
+  const keepPersistedSessionOnline = useCallback(
+    async (persistedSession: AuthSession, reason: string) => {
+      sessionRef.current = persistedSession;
+      rememberSessionRef.current = true;
+      setStateSafely({
+        status: 'authenticated',
+        session: persistedSession,
+        lastError: null,
+      });
+      resetNavigationToRoleHome(persistedSession.user.activeRole);
+      await recordDiagnosticEvent({
+        level: 'warn',
+        scope: 'auth',
+        code: 'SESSION_RESTORE_DEFERRED',
+        message: reason,
+        context: {
+          role: persistedSession.user.activeRole,
+        },
+      });
+    },
+    [setStateSafely],
   );
 
   const recoverRuntimeSession = useCallback(
@@ -235,30 +194,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           persistedSession = sessionRef.current ?? (await readPersistedSession());
         } catch (error) {
-          if (isSecureSessionAuthInterruption(error)) {
-            await showAuthInterruptedState({
-              session: sessionRef.current,
-              reason: 'secure-session-auth-interrupted',
-              diagnosticCode: 'SECURE_SESSION_AUTH_INTERRUPTED',
-            });
-            return false;
-          }
-          if (isSecureSessionCorruption(error)) {
-            await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
-            await showRecoveryState({
-              session: null,
-              reason: 'corrupted-session',
-              message: 'AccessFlow could not validate the saved secure session. Sign in again to re-establish trust on this device.',
-              diagnosticCode: 'CORRUPTED_SESSION_SNAPSHOT',
-            });
-            return false;
-          }
-          await showRecoveryState({
-            session: sessionRef.current,
-            reason: 'secure-storage',
-            message: 'AccessFlow could not validate secure session storage. Retry, or sign in again if this continues.',
-            diagnosticCode: 'SECURE_SESSION_STORAGE_READ_FAILED',
+          await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
+          await recordDiagnosticEvent({
+            level: 'error',
+            scope: 'auth',
+            code: isSecureSessionCorruption(error) ? 'CORRUPTED_SESSION_SNAPSHOT' : 'SESSION_STORAGE_READ_FAILED',
+            message: 'Saved session storage could not be read and was cleared.',
           });
+          await clearSessionState('Please sign in again.');
+          resetNavigationToAuth();
           return false;
         }
         const trigger = options?.trigger ?? 'manual';
@@ -280,8 +224,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await recordDiagnosticEvent({
             level: 'info',
             scope: 'auth',
-            code: 'SESSION_RECOVERY_SUCCEEDED',
-            message: 'Mobile session recovered successfully.',
+            code: 'SESSION_RESTORE_SUCCEEDED',
+            message: 'Mobile session restored successfully.',
             context: {
               trigger,
               role: session.user.activeRole,
@@ -293,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await recordDiagnosticEvent({
             level: normalizedError.kind === 'network' ? 'warn' : 'error',
             scope: 'auth',
-            code: 'SESSION_RECOVERY_FAILED',
+            code: 'SESSION_RESTORE_FAILED',
             message: normalizedError.message,
             context: {
               trigger,
@@ -310,37 +254,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return false;
           }
 
-          if (isTransientRecoveryFailure(normalizedError)) {
-            sessionRef.current = persistedSession;
-            setStateSafely({
-              status: 'authenticated',
-              session: persistedSession,
-              recovery: null,
-              lastError: null,
-            });
-            resetNavigationToRoleHome(persistedSession.user.activeRole);
-            return true;
-          }
-
-          if (options?.silent) {
-            sessionRef.current = persistedSession;
-            setStateSafely({
-              status: 'authenticated',
-              session: persistedSession,
-              recovery: null,
-              lastError: null,
-            });
-            resetNavigationToRoleHome(persistedSession.user.activeRole);
-            return true;
-          }
-
-          await showRecoveryState({
-            session: persistedSession,
-            reason: normalizedError.kind,
-            message: normalizedError.message,
-            diagnosticCode: 'SESSION_RECOVERY_FAILED',
-          });
-          return false;
+          await keepPersistedSessionOnline(persistedSession, normalizedError.message);
+          return true;
         } finally {
           runtimeRecoveryPromiseRef.current = null;
         }
@@ -348,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return runtimeRecoveryPromiseRef.current;
     },
-    [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, showAuthInterruptedState, showRecoveryState],
+    [clearSessionState, keepPersistedSessionOnline, persistAuthenticatedSession, restoreRuntimeSessionSnapshot],
   );
 
   const bootstrap = useCallback(async () => {
@@ -356,46 +271,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!apiConfig.isConfigured) {
       await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
-      await showRecoveryState({
+      setStateSafely({
+        status: 'signed-out',
         session: null,
-        reason: 'config-missing',
-        message: 'Set EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL before launching the app.',
-        diagnosticCode: 'MOBILE_CONFIG_MISSING',
+        lastError: 'Set EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL before launching the app.',
       });
       return;
     }
-
-    await clearLocalDeviceTrustProfile().catch(() => undefined);
 
     let persistedSession: AuthSession | null = null;
     try {
       persistedSession = await readPersistedSession();
     } catch (error) {
-      if (isSecureSessionAuthInterruption(error)) {
-        await showAuthInterruptedState({
-          session: sessionRef.current,
-          reason: 'secure-session-auth-interrupted',
-          diagnosticCode: 'BOOTSTRAP_SECURE_SESSION_AUTH_INTERRUPTED',
-        });
-        return;
-      }
-
-      if (isSecureSessionCorruption(error)) {
-        await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
-        await showRecoveryState({
-          session: null,
-          reason: 'corrupted-session',
-          message: 'AccessFlow could not validate the saved secure session. Sign in again to re-establish trust on this device.',
-          diagnosticCode: 'CORRUPTED_SESSION_SNAPSHOT',
-        });
-        return;
-      }
-
-      await showRecoveryState({
-        session: sessionRef.current,
-        reason: 'secure-storage',
-        message: 'AccessFlow could not validate secure session storage. Retry, or sign in again if this continues.',
-        diagnosticCode: 'SECURE_SESSION_STORAGE_READ_FAILED',
+      await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
+      await recordDiagnosticEvent({
+        level: 'error',
+        scope: 'auth',
+        code: isSecureSessionCorruption(error) ? 'CORRUPTED_SESSION_SNAPSHOT' : 'SESSION_STORAGE_READ_FAILED',
+        message: 'Saved session storage could not be read and was cleared.',
+      });
+      setStateSafely({
+        status: 'signed-out',
+        session: null,
+        lastError: 'Please sign in again.',
       });
       return;
     }
@@ -414,7 +312,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStateSafely({
         status: 'signed-out',
         session: null,
-        recovery: null,
         lastError: null,
       });
       return;
@@ -422,11 +319,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!isValidSessionSnapshot(persistedSession)) {
       await Promise.all([clearPersistedSession(), clearRuntimeSnapshot(), clearSessionLockState()]);
-      await showRecoveryState({
+      setStateSafely({
+        status: 'signed-out',
         session: null,
-        reason: 'corrupted-session',
-        message: 'The saved mobile session became unreadable and was cleared for safety. Sign in again.',
-        diagnosticCode: 'CORRUPTED_SESSION_SNAPSHOT',
+        lastError: 'Please sign in again.',
       });
       return;
     }
@@ -441,37 +337,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (isTransientRecoveryFailure(normalizedError)) {
-        sessionRef.current = persistedSession;
-        rememberSessionRef.current = true;
-        await recordDiagnosticEvent({
-          level: 'warn',
-          scope: 'auth',
-          code: 'SESSION_BOOTSTRAP_DEFERRED',
-          message: normalizedError.message,
-          context: {
-            kind: normalizedError.kind,
-            status: normalizedError.status ?? null,
-          },
-        });
-        setStateSafely({
-          status: 'authenticated',
-          session: persistedSession,
-          recovery: null,
-          lastError: null,
-        });
-        resetNavigationToRoleHome(persistedSession.user.activeRole);
-        return;
-      }
-
-      await showRecoveryState({
-        session: persistedSession,
-        reason: normalizedError.kind,
-        message: normalizedError.message,
-        diagnosticCode: 'SESSION_BOOTSTRAP_FAILED',
-      });
+      await keepPersistedSessionOnline(persistedSession, normalizedError.message);
     }
-  }, [clearSessionState, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, setStateSafely, showAuthInterruptedState, showRecoveryState]);
+  }, [clearSessionState, keepPersistedSessionOnline, persistAuthenticatedSession, restoreRuntimeSessionSnapshot, setStateSafely]);
 
   useEffect(() => {
     configureApiClient({
@@ -509,12 +377,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const session = await loginRequest(payload);
         sessionRef.current = session;
-        const trustResult = await establishTrustedDevice(session, Boolean(payload.rememberMe));
-        await persistAuthenticatedSession(session, null, { rememberSession: trustResult.persistSession });
+        await persistAuthenticatedSession(session, null, { rememberSession: Boolean(payload.rememberMe) });
         await trackFirebaseEvent('login_success', {
           audience: session.audience,
           role: session.user.activeRole,
-          remember_session: trustResult.persistSession,
+          remember_session: Boolean(payload.rememberMe),
         });
         resetNavigationToRoleHome(session.user.activeRole);
       } catch (error) {
@@ -557,7 +424,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await logoutRequest(sessionRef.current);
       } finally {
-        await clearLocalDeviceTrustProfile();
         await clearSessionState();
         resetNavigationToAuth();
         setIsBusy(false);
@@ -605,15 +471,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await bootstrap();
   }, [bootstrap]);
 
-  const continueWithPasswordSignIn = useCallback(() => {
-    setStateSafely({
-      status: 'signed-out',
-      session: null,
-      recovery: null,
-      lastError: null,
-    });
-  }, [setStateSafely]);
-
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
@@ -624,9 +481,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshSession: refreshSessionState,
       recoverRuntimeSession,
       recoverAppShell,
-      continueWithPasswordSignIn,
     }),
-    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverRuntimeSession, recoverAppShell, continueWithPasswordSignIn],
+    [state, isBusy, login, logout, retryBootstrap, refreshSessionState, recoverRuntimeSession, recoverAppShell],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -681,20 +537,6 @@ function ensureVersionSupport(versions: VersionHandshakePayload) {
   }
 }
 
-function authInterruptionCopy(reason?: string | null) {
-  const normalized = String(reason || '').toLowerCase();
-  if (normalized.includes('not_enrolled') || normalized.includes('passcode') || normalized.includes('unavailable')) {
-    return 'Device unlock is not ready on this Android device. Use password sign-in or enable device security, then try again.';
-  }
-  if (normalized.includes('lockout')) {
-    return 'Biometric verification is temporarily paused by Android. Use device PIN when prompted, or try again shortly.';
-  }
-  if (isSoftDeviceUnlockInterruption(normalized) || normalized.includes('secure-session-auth')) {
-    return 'Authentication cancelled. Your session remains protected; continue securely to retry.';
-  }
-  return 'Unable to verify identity. Please retry securely.';
-}
-
 function compareVersionStrings(left: string, right: string) {
   const leftParts = left.split(/[^\d]+/).filter(Boolean).map(Number);
   const rightParts = right.split(/[^\d]+/).filter(Boolean).map(Number);
@@ -712,30 +554,6 @@ function compareVersionStrings(left: string, right: string) {
   }
 
   return 0;
-}
-
-function isTransientRecoveryFailure(error: AppError) {
-  return error.kind === 'network'
-    || error.status === 408
-    || error.status === 429
-    || Boolean(error.status && error.status >= 500)
-    || (error.kind === 'http' && error.recoverable);
-}
-
-async function establishTrustedDevice(session: AuthSession, rememberRequested: boolean) {
-  await clearLocalDeviceTrustProfile().catch(() => undefined);
-  await recordDiagnosticEvent({
-    level: 'info',
-    scope: 'security',
-    code: 'TRUSTED_DEVICE_FLOW_DISABLED',
-    message: 'Trusted-device binding is disabled while mobile session persistence is stabilized.',
-    context: {
-      role: session.user.activeRole,
-      audience: session.audience,
-      rememberRequested,
-    },
-  });
-  return { persistSession: rememberRequested };
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {

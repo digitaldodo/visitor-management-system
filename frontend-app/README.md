@@ -21,7 +21,7 @@ frontend-app/
   components/     Reusable buttons, cards, form fields, layout
   hooks/          Query hooks for role workspaces
   navigation/     Auth stack, role routing, protected tabs
-  screens/        Auth, recovery, security, employee, admin screens
+  screens/        Auth, security, employee, admin screens
   services/       Thin backend endpoint adapters only
   storage/        Secure session persistence and runtime snapshots
   theme/          Shared tokens and navigation theme
@@ -67,7 +67,7 @@ The app is prepared for future managed-device controls through device posture st
 
 ## Store Review Notes
 
-Android permissions are intentionally limited to camera/scanning, notifications, biometric unlock, secure storage, and image selection for credential/photo workflows. Audio recording is explicitly blocked in Expo config and camera recording is disabled.
+Android permissions are intentionally limited to camera/scanning, notifications, secure storage, and image selection for credential/photo workflows. Audio recording is explicitly blocked in Expo config and camera recording is disabled.
 
 ## Run
 

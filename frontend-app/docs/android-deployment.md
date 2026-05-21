@@ -96,7 +96,7 @@ With `runtimeVersion.policy = appVersion`, native/runtime changes require bumpin
 
 ## Android Permission Policy
 
-Allowed Android permissions are limited to camera scanning, notification prompts, biometric unlock, and image selection:
+Allowed Android permissions are limited to camera scanning, notification prompts, secure token storage, and image selection:
 
 - `android.permission.CAMERA`
 - `android.permission.POST_NOTIFICATIONS`

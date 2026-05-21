@@ -7,7 +7,6 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
-import { getBiometricReadiness, type BiometricReadiness } from '../../auth/biometricReadiness';
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
@@ -78,7 +77,6 @@ export function LoginScreen() {
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
-  const [biometricReadiness, setBiometricReadiness] = useState<BiometricReadiness | null>(null);
   const registerVisitorMutation = useRegisterVisitorAccountMutation();
 
   const {
@@ -117,19 +115,6 @@ export function LoginScreen() {
       phone: '',
     },
   });
-
-  useEffect(() => {
-    let active = true;
-    void getBiometricReadiness().then((readiness) => {
-      if (active) {
-        setBiometricReadiness(readiness);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const selectedAudience = watch('audience');
   const selectedCompanyCode = watch('companyCode');
@@ -327,13 +312,13 @@ export function LoginScreen() {
             {!isCompactLandscape ? (
               <>
                 <Text maxFontSizeMultiplier={1.12} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>
-                  {tText('Trusted access for every role')}
+                  {tText('Reliable access for every role')}
                 </Text>
                 <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
                   {tText('Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.')}
                 </Text>
                 <View style={styles.proofRow}>
-                  <TrustChip icon="finger-print-outline" label={biometricReadiness?.enrolled ? biometricReadiness.label : tText('Biometric-ready')} />
+                  <TrustChip icon="shield-checkmark-outline" label={tText('JWT protected')} />
                   <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
                   <TrustChip icon="business-outline" label="Enterprise roles" />
                 </View>

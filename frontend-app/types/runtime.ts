@@ -46,15 +46,12 @@ export type DiagnosticEvent = {
   context?: Record<string, string | number | boolean | null>;
 };
 
-export type SessionLockReason = 'inactive' | 'background' | 'manual' | 'update-required' | 'remote-invalidated' | 'suspicious-device';
+export type SessionLockReason = 'update-required';
 
 export type SessionLockState = {
   isLocked: boolean;
   reason: SessionLockReason | null;
   lockedAt: string | null;
-  inactivityTimeoutMs: number;
-  biometricAvailable: boolean;
-  biometricEnabled: boolean;
   screenshotProtectionEnabled: boolean;
 };
 
@@ -80,10 +77,6 @@ export type DevicePostureState = {
   managedMode: 'personal' | 'shared-guard' | 'kiosk-ready' | 'organization-owned' | 'checkpoint-scanner';
   kioskModeReady: boolean;
   remoteLogoutSupported: boolean;
-  deviceTrusted: boolean;
-  trustStatus: TrustedDeviceStatus | null;
-  deviceCategory: TrustedDeviceCategory;
-  operationalRole: TrustedOperationalRole;
   checkpointId?: string | null;
   checkpointName?: string | null;
   operationalZone?: string | null;
@@ -251,11 +244,6 @@ export type MobileSessionPolicy = {
   managedMode?: DevicePostureState['managedMode'] | null;
   kioskModeReady?: boolean | null;
   remoteLogoutSupported?: boolean | null;
-  deviceTrusted?: boolean;
-  biometricRequired?: boolean;
-  trustStatus?: TrustedDeviceStatus | null;
-  deviceCategory?: TrustedDeviceCategory | null;
-  operationalRole?: TrustedOperationalRole | null;
   checkpointId?: string | null;
   checkpointName?: string | null;
   operationalZone?: string | null;
@@ -267,22 +255,6 @@ export type MobileSessionPolicy = {
   inactivityTimeoutSeconds?: number | null;
 };
 
-export type TrustedDeviceStatus = 'TRUSTED' | 'UNTRUSTED' | 'REVOKED' | 'SUSPICIOUS' | 'DISABLED';
-
-export type TrustedDeviceCategory =
-  | 'PERSONAL_DEVICE'
-  | 'SHARED_GUARD_DEVICE'
-  | 'RECEPTION_KIOSK'
-  | 'CHECKPOINT_SCANNER'
-  | 'TABLET_SECURITY_STATION';
-
-export type TrustedOperationalRole =
-  | 'PERSONAL'
-  | 'SECURITY_GUARD'
-  | 'RECEPTION'
-  | 'CHECKPOINT_OPERATOR'
-  | 'KIOSK';
-
 export type DeviceIntegritySignals = {
   rootedOrJailbroken: boolean;
   emulator: boolean;
@@ -290,46 +262,4 @@ export type DeviceIntegritySignals = {
   tamperedRuntime?: boolean;
   suspicious: boolean;
   reasons: string[];
-};
-
-export type TrustedDeviceRecord = {
-  id: string;
-  deviceId: string;
-  deviceName?: string | null;
-  deviceType?: string | null;
-  platform?: string | null;
-  appVersion?: string | null;
-  runtimeVersion?: string | null;
-  organizationId?: string | null;
-  organizationName?: string | null;
-  userId?: string | null;
-  registeredByName?: string | null;
-  trustStatus: TrustedDeviceStatus;
-  trusted: boolean;
-  active: boolean;
-  biometricEnabled: boolean;
-  currentDevice: boolean;
-  suspicious: boolean;
-  deviceCategory: TrustedDeviceCategory;
-  operationalRole: TrustedOperationalRole;
-  checkpointId?: string | null;
-  checkpointName?: string | null;
-  operationalZone?: string | null;
-  sharedOperationalDevice: boolean;
-  scannerFirst: boolean;
-  restrictedNavigation: boolean;
-  autoRestoreScanner: boolean;
-  inactivityTimeoutSeconds?: number | null;
-  lastActiveAt?: string | null;
-  trustEstablishedAt?: string | null;
-  trustRevokedAt?: string | null;
-  revokedReason?: string | null;
-  disabledAt?: string | null;
-  disabledReason?: string | null;
-  policyUpdatedAt?: string | null;
-  integritySignals?: DeviceIntegritySignals | null;
-};
-
-export type TrustedDeviceListResponse = {
-  devices: TrustedDeviceRecord[];
 };

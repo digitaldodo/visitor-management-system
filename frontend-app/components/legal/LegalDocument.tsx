@@ -10,7 +10,7 @@ export type LegalDocumentType = 'privacy' | 'terms';
 const privacySections = [
   {
     title: 'Data AccessFlow processes',
-    body: 'AccessFlow stores account identity, organization role, visitor records, badge state, operational audit events, device trust status, and notification delivery metadata required to run access-control workflows.',
+    body: 'AccessFlow stores account identity, organization role, visitor records, badge state, operational audit events, session metadata, and notification delivery metadata required to run access-control workflows.',
   },
   {
     title: 'Operational purpose',
@@ -18,11 +18,11 @@ const privacySections = [
   },
   {
     title: 'Device permissions',
-    body: 'Camera, notifications, selected photos/files, and biometric/device unlock are requested only when a workflow needs them. Audio recording and unrelated background file access are not part of the mobile permission scope.',
+    body: 'Camera, notifications, and selected photos/files are requested only when a workflow needs them. Audio recording and unrelated background file access are not part of the mobile permission scope.',
   },
   {
     title: 'Security controls',
-    body: 'Sessions use secure storage, trusted-device checks, inactivity lock, revocation support, and role-scoped API access. Offline records are bounded to operational use and sync back for backend validation.',
+    body: 'Sessions use encrypted secure storage, refresh-token validation, revocation support, and role-scoped API access. Offline records are bounded to operational use and sync back for backend validation.',
   },
   {
     title: 'Retention and support',
@@ -37,7 +37,7 @@ const termsSections = [
   },
   {
     title: 'Credential responsibility',
-    body: 'Users must protect account credentials, device unlock methods, badges, QR passes, and trusted devices. Shared operational devices should be assigned and revoked by administrators.',
+    body: 'Users must protect account credentials, badges, QR passes, and organization devices. Shared operational devices should follow administrator policy.',
   },
   {
     title: 'Security operations',

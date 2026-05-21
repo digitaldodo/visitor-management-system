@@ -48,7 +48,6 @@ type RuntimeConfig = {
   };
   security: {
     inactivityLockMs: number;
-    requireBiometricUnlock: boolean;
     screenshotProtectionEnabled: boolean;
     rootDetectionPrepared: boolean;
     certificatePinningEnabled: boolean;
@@ -285,7 +284,6 @@ export const apiConfig: RuntimeConfig = {
       process.env.EXPO_PUBLIC_ACCESSFLOW_INACTIVITY_LOCK_MS,
       environment === 'production' ? 5 * 60_000 : 10 * 60_000,
     ),
-    requireBiometricUnlock: String(process.env.EXPO_PUBLIC_ACCESSFLOW_REQUIRE_BIOMETRIC_UNLOCK ?? '').trim().toLowerCase() === 'true',
     screenshotProtectionEnabled:
       String(process.env.EXPO_PUBLIC_ACCESSFLOW_SCREENSHOT_PROTECTION ?? 'true').trim().toLowerCase() !== 'false',
     rootDetectionPrepared: true,

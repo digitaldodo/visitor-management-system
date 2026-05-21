@@ -1,15 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 
-export type SecureStoreHardeningOptions = Pick<SecureStore.SecureStoreOptions, 'keychainAccessible' | 'requireAuthentication' | 'authenticationPrompt'>;
-
 const defaultOptions: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
 
-export async function readSecureJson<T>(key: string, options?: SecureStoreHardeningOptions): Promise<T | null> {
+export async function readSecureJson<T>(key: string): Promise<T | null> {
   const rawValue = await SecureStore.getItemAsync(key, {
     ...defaultOptions,
-    ...options,
   });
   if (!rawValue) {
     return null;
@@ -22,24 +19,21 @@ export async function readSecureJson<T>(key: string, options?: SecureStoreHarden
   }
 }
 
-export async function readSecureValue(key: string, options?: SecureStoreHardeningOptions) {
+export async function readSecureValue(key: string) {
   return SecureStore.getItemAsync(key, {
     ...defaultOptions,
-    ...options,
   });
 }
 
-export async function writeSecureJson<T>(key: string, value: T, options?: SecureStoreHardeningOptions) {
+export async function writeSecureJson<T>(key: string, value: T) {
   await SecureStore.setItemAsync(key, JSON.stringify(value), {
     ...defaultOptions,
-    ...options,
   });
 }
 
-export async function writeSecureValue(key: string, value: string, options?: SecureStoreHardeningOptions) {
+export async function writeSecureValue(key: string, value: string) {
   await SecureStore.setItemAsync(key, value, {
     ...defaultOptions,
-    ...options,
   });
 }
 

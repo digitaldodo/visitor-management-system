@@ -4,7 +4,7 @@ import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { apiConfig } from '../api/apiConfig';
 import { useAuth } from '../auth/AuthProvider';
-import { collectDeviceIntegritySignals } from '../auth/deviceTrust';
+import { collectDeviceIntegritySignals } from '../auth/deviceIdentity';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { recordOperationalMetric } from '../runtime/telemetry';
 import type { DeviceIntegritySignals } from '../types/runtime';

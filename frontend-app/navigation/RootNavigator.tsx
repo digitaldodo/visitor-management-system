@@ -15,11 +15,9 @@ import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
 import { readOnboardingComplete } from '../storage/onboardingStorage';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
-import { AuthInterruptionScreen } from '../screens/common/AuthInterruptionScreen';
 import { BootScreen } from '../screens/common/BootScreen';
 import { LegalScreen } from '../screens/common/LegalScreen';
 import { OperationalFeedScreen } from '../screens/common/OperationalFeedScreen';
-import { SessionRecoveryScreen } from '../screens/common/SessionRecoveryScreen';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { BadgeScreen } from '../screens/employee/BadgeScreen';
 import { NotificationsScreen } from '../screens/employee/NotificationsScreen';
@@ -99,10 +97,6 @@ export function RootNavigator() {
     >
       {auth.status === 'bootstrapping' ? (
         <BootScreen />
-      ) : auth.status === 'auth-interrupted' ? (
-        <AuthInterruptionScreen />
-      ) : auth.status === 'recovery' ? (
-        <SessionRecoveryScreen />
       ) : auth.status === 'signed-out' ? (
         <AuthNavigator />
       ) : (

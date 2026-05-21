@@ -133,7 +133,7 @@ export function AppListScreen<T>({
                 <View style={styles.operationalIndicatorRow}>
                   <View style={styles.operationalIndicator}>
                     <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
-                      {devicePosture.deviceCategory.replaceAll('_', ' ')}
+                      Operational mode
                     </Text>
                   </View>
                   {devicePosture.checkpointName ? (

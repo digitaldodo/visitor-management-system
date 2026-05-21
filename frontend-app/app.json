@@ -67,7 +67,6 @@
           "cameraPermission": "Allow AccessFlow Mobile to capture verification photos for visitor identity and employee credentials."
         }
       ],
-      "expo-local-authentication",
       "@react-native-community/datetimepicker"
     ],
     "extra": {

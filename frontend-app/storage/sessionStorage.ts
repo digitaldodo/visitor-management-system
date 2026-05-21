@@ -13,13 +13,6 @@ const INSTALLATION_ID_KEY = 'accessflow.mobile.installation-id';
 const LEGACY_DEVICE_ID_KEY = 'accessflow.mobile.device-id';
 const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
-export class SecureSessionAuthInterruptedError extends Error {
-  constructor(message = 'Secure session authentication was interrupted.') {
-    super(message);
-    this.name = 'SecureSessionAuthInterruptedError';
-  }
-}
-
 export class SecureSessionStorageError extends Error {
   constructor(message = 'Secure session storage could not be read.') {
     super(message);
@@ -34,12 +27,9 @@ export class SecureSessionCorruptionError extends Error {
   }
 }
 
-export async function readPersistedSession(options?: { requireAuthentication?: boolean }) {
+export async function readPersistedSession() {
   try {
-    const rawValue = await readSecureValue(SESSION_KEY, options?.requireAuthentication ? {
-      requireAuthentication: true,
-      authenticationPrompt: 'Unlock AccessFlow secure session',
-    } : undefined);
+    const rawValue = await readSecureValue(SESSION_KEY);
     if (!rawValue) {
       return null;
     }
@@ -53,18 +43,12 @@ export async function readPersistedSession(options?: { requireAuthentication?: b
     if (error instanceof SecureSessionCorruptionError) {
       throw error;
     }
-    if (isSecureSessionAuthInterruption(error)) {
-      throw new SecureSessionAuthInterruptedError();
-    }
     throw new SecureSessionStorageError(error instanceof Error ? error.message : undefined);
   }
 }
 
-export async function writePersistedSession(session: AuthSession, options?: { requireAuthentication?: boolean }) {
-  await writeSecureJson(SESSION_KEY, session, options?.requireAuthentication ? {
-    requireAuthentication: true,
-    authenticationPrompt: 'Protect AccessFlow secure session',
-  } : undefined);
+export async function writePersistedSession(session: AuthSession) {
+  await writeSecureJson(SESSION_KEY, session);
 }
 
 export async function clearPersistedSession() {
@@ -160,24 +144,6 @@ function normalizeDevicePart(value?: string | null) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 32);
-}
-
-export function isSecureSessionAuthInterruption(error: unknown) {
-  if (error instanceof SecureSessionAuthInterruptedError) {
-    return true;
-  }
-
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  const lower = message.toLowerCase();
-  return (
-    lower.includes('cancel')
-    || lower.includes('canceled')
-    || lower.includes('cancelled')
-    || lower.includes('user interaction')
-    || lower.includes('authentication failed')
-    || lower.includes('authentication was not completed')
-    || lower.includes('authenticat') && lower.includes('interrupt')
-  );
 }
 
 export function isSecureSessionCorruption(error: unknown) {

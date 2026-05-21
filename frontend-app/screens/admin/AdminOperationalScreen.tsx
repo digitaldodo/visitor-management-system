@@ -137,7 +137,7 @@ function AdminAccountSettingsScreen() {
   return (
     <AccountProfileScreen
       title="Profile"
-      subtitle="Admin identity, organization oversight, trusted devices, and secure account settings."
+      subtitle="Admin identity, organization oversight, session management, and secure account settings."
       refreshing={overview.isRefetching || reports.isRefetching || users.isRefetching || workforceOnboarding.isRefetching || notifications.isRefetching}
       onRefresh={() => Promise.all([
         overview.refetch(),

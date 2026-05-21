@@ -1,4 +1,3 @@
-import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
@@ -17,7 +16,6 @@ import {
 } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
-import { authenticateDeviceUnlock } from '../auth/deviceTrust';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
@@ -67,8 +65,6 @@ import {
 import {
   clearSessionLockState,
   readOrCreateDeviceId,
-  readSessionLockState,
-  writeSessionLockState,
 } from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
 import type { OperationalEvent, OperationalSyncConnectionState } from '../types/operationalSync';
@@ -100,7 +96,6 @@ type OperationalRuntimeContextValue = {
   runtimeHealth: 'healthy' | 'degraded' | 'locked' | 'update-required';
   sessionLock: SessionLockState;
   isUnlocking: boolean;
-  authInterruptionMessage: string | null;
   markLocalNotificationRead: (notificationId: string) => void;
   requestPushRegistration: (options?: { forcePrompt?: boolean }) => Promise<void>;
   syncNow: () => Promise<void>;
@@ -128,9 +123,6 @@ const defaultLockState: SessionLockState = {
   isLocked: false,
   reason: null,
   lockedAt: null,
-  inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
-  biometricAvailable: false,
-  biometricEnabled: apiConfig.security.requireBiometricUnlock,
   screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
 };
 
@@ -139,10 +131,6 @@ const defaultDevicePosture: DevicePostureState = {
   managedMode: apiConfig.deviceManagement.managedMode,
   kioskModeReady: apiConfig.deviceManagement.kioskModeReady,
   remoteLogoutSupported: true,
-  deviceTrusted: false,
-  trustStatus: null,
-  deviceCategory: 'PERSONAL_DEVICE',
-  operationalRole: 'PERSONAL',
   checkpointId: null,
   checkpointName: null,
   operationalZone: null,
@@ -227,7 +215,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [syncConnection, setSyncConnection] = useState<OperationalSyncConnectionState>(initialSyncConnection);
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
-  const [authInterruptionMessage, setAuthInterruptionMessage] = useState<string | null>(null);
   const sessionLockRef = useRef(sessionLock);
   const activeSession = auth.status === 'authenticated' ? auth.session : null;
   const activeRole = activeSession?.user.activeRole ?? null;
@@ -236,22 +223,16 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     sessionLockRef.current = sessionLock;
   }, [sessionLock]);
 
-  const persistLockState = useCallback(async (nextState: SessionLockState) => {
-    sessionLockRef.current = nextState;
-    setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
-    await writeSessionLockState(nextState).catch(() => undefined);
-  }, []);
-
   const releaseSessionLock = useCallback(async () => {
-    setAuthInterruptionMessage(null);
     const nextState = {
       ...sessionLockRef.current,
       isLocked: false,
       reason: null,
       lockedAt: null,
     } satisfies SessionLockState;
-    await persistLockState(nextState);
-  }, [persistLockState]);
+    sessionLockRef.current = nextState;
+    setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
+  }, []);
 
   const refreshOfflineQueueSize = useCallback(async () => {
     const [queuedOperations, metadata] = await Promise.all([
@@ -282,19 +263,15 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
 
       await recordDiagnosticEvent({
-        level: reason === 'update-required' ? 'error' : 'warn',
+        level: 'error',
         scope: 'security',
         code: 'SESSION_LOCKED',
-        message: reason === 'update-required'
-          ? 'The mobile runtime requires an app update before the workspace can resume.'
-          : 'The mobile workspace was locked after inactivity and requires a safe resume.',
+        message: 'The mobile runtime requires an app update before the workspace can resume.',
         context: {
           role: activeRole,
           reason,
         },
       });
-
-      await writeSessionLockState(nextState).catch(() => undefined);
     },
     [activeRole, auth.status],
   );
@@ -592,26 +569,21 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     try {
       const policy = await getMobileSessionPolicy(deviceId);
-      const operationalModeEnabled = Boolean(policy.operationalModeEnabled);
       setDevicePosture((current) => {
         const next = {
           ...current,
           managedMode: policy.managedMode ?? current.managedMode,
           kioskModeReady: Boolean(policy.kioskModeReady ?? current.kioskModeReady),
           remoteLogoutSupported: Boolean(policy.remoteLogoutSupported ?? current.remoteLogoutSupported),
-          deviceTrusted: Boolean(policy.deviceTrusted ?? current.deviceTrusted),
-          trustStatus: policy.trustStatus ?? current.trustStatus,
-          deviceCategory: policy.deviceCategory ?? current.deviceCategory,
-          operationalRole: policy.operationalRole ?? current.operationalRole,
-          checkpointId: policy.checkpointId ?? null,
-          checkpointName: policy.checkpointName ?? null,
-          operationalZone: policy.operationalZone ?? null,
-          operationalModeEnabled,
-          scannerFirst: Boolean(policy.scannerFirst ?? current.scannerFirst),
-          restrictedNavigation: Boolean(policy.restrictedNavigation ?? current.restrictedNavigation),
-          autoRestoreScanner: Boolean(policy.autoRestoreScanner ?? current.autoRestoreScanner),
-          sharedOperationalDevice: Boolean(policy.sharedOperationalDevice ?? current.sharedOperationalDevice),
-          inactivityTimeoutSeconds: policy.inactivityTimeoutSeconds ?? null,
+          checkpointId: null,
+          checkpointName: null,
+          operationalZone: null,
+          operationalModeEnabled: false,
+          scannerFirst: false,
+          restrictedNavigation: false,
+          autoRestoreScanner: false,
+          sharedOperationalDevice: false,
+          inactivityTimeoutSeconds: null,
           suspicious: policy.suspiciousDevice,
           concurrentSessionCount: policy.concurrentSessionCount,
           lastPolicySyncAt: current.lastPolicySyncAt,
@@ -623,20 +595,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           ...next,
           lastPolicySyncAt: new Date().toISOString(),
         };
-      });
-      setSessionLock((current) => {
-        const next = {
-          ...current,
-          inactivityTimeoutMs: policy.inactivityTimeoutSeconds && policy.inactivityTimeoutSeconds > 0
-            ? policy.inactivityTimeoutSeconds * 1_000
-            : current.inactivityTimeoutMs,
-          biometricEnabled: Boolean(policy.biometricRequired ?? current.biometricEnabled),
-        };
-        if (isSameSessionLock(current, next)) {
-          return current;
-        }
-        sessionLockRef.current = next;
-        return next;
       });
 
       if (!policy.sessionValid || policy.forceLogout) {
@@ -652,15 +610,15 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       }
 
       if (policy.suspiciousDevice) {
-        await applySessionLock('suspicious-device');
-      }
-
-      if (
-        operationalModeEnabled
-        && (policy.scannerFirst || policy.autoRestoreScanner)
-        && activeRole === 'SECURITY_GUARD'
-      ) {
-        restoreOperationalWorkspace('policy-sync', lastOperationalRestoreRef);
+        await recordDiagnosticEvent({
+          level: 'warn',
+          scope: 'security',
+          code: 'DEVICE_POLICY_REVIEW',
+          message: 'Backend reported device policy review flags. Session remains active.',
+          context: {
+            role: activeRole,
+          },
+        });
       }
     } catch (error) {
       await recordDiagnosticEvent({
@@ -673,7 +631,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         },
       });
     }
-  }, [activeRole, applySessionLock, auth.logout, auth.status]);
+  }, [activeRole, auth.logout, auth.status]);
 
   const flushTelemetry = useCallback(async () => {
     if (auth.status !== 'authenticated') {
@@ -1074,11 +1032,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             return;
           }
 
-          if (elapsedMs >= SESSION_DIRECT_RESTORE_MS && elapsedMs < FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS) {
-            await applySessionLock('inactive');
-            return;
-          }
-
           if (elapsedMs >= FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS) {
             const recovered = await auth.recoverRuntimeSession({
               trigger: 'resume',
@@ -1137,7 +1090,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await lifecycleRecoveryPromiseRef.current;
     },
     [
-      applySessionLock,
       auth,
       devicePosture.inactivityTimeoutSeconds,
       flushTelemetry,
@@ -1162,27 +1114,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     setIsUnlocking(true);
-    setAuthInterruptionMessage(null);
     unlockPromiseRef.current = (async () => {
       try {
-        if (sessionLock.biometricEnabled && sessionLock.biometricAvailable) {
-          const unlock = await authenticateDeviceUnlock('resume');
-
-          if (!unlock.success) {
-            setAuthInterruptionMessage('Verification interrupted. Continue securely to retry, or use device PIN from the Android prompt.');
-            await recordDiagnosticEvent({
-              level: 'warn',
-              scope: 'security',
-              code: 'BIOMETRIC_UNLOCK_CANCELLED',
-              message: 'The operator did not complete device unlock.',
-              context: {
-                reason: unlock.reason,
-              },
-            });
-            return;
-          }
-        }
-
         await auth.refreshSession();
         await syncDevicePolicy();
         await releaseSessionLock();
@@ -1239,16 +1172,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     void (async () => {
-      const [hasHardware, isEnrolled, persistedLockState] = await Promise.all([
-        LocalAuthentication.hasHardwareAsync().catch(() => false),
-        LocalAuthentication.isEnrolledAsync().catch(() => false),
-        readSessionLockState().catch(() => null),
-      ]);
+      await clearSessionLockState().catch(() => undefined);
       const nextState = {
-        ...(persistedLockState ?? defaultLockState),
-        inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
-        biometricEnabled: Boolean(apiConfig.security.requireBiometricUnlock),
-        biometricAvailable: hasHardware && isEnrolled,
+        ...defaultLockState,
         screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
       } satisfies SessionLockState;
 
@@ -1623,7 +1549,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       runtimeHealth,
       sessionLock,
       isUnlocking,
-      authInterruptionMessage,
       markLocalNotificationRead,
       requestPushRegistration: registerCurrentDevice,
       syncNow,
@@ -1649,7 +1574,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       runtimeHealth,
       sessionLock,
       isUnlocking,
-      authInterruptionMessage,
       markLocalNotificationRead,
       registerCurrentDevice,
       syncNow,
@@ -1677,9 +1601,6 @@ function isSameSessionLock(left: SessionLockState, right: SessionLockState) {
   return left.isLocked === right.isLocked
     && left.reason === right.reason
     && left.lockedAt === right.lockedAt
-    && left.inactivityTimeoutMs === right.inactivityTimeoutMs
-    && left.biometricAvailable === right.biometricAvailable
-    && left.biometricEnabled === right.biometricEnabled
     && left.screenshotProtectionEnabled === right.screenshotProtectionEnabled;
 }
 
@@ -1688,10 +1609,6 @@ function isSameDevicePosture(left: DevicePostureState, right: DevicePostureState
     && left.managedMode === right.managedMode
     && left.kioskModeReady === right.kioskModeReady
     && left.remoteLogoutSupported === right.remoteLogoutSupported
-    && left.deviceTrusted === right.deviceTrusted
-    && left.trustStatus === right.trustStatus
-    && left.deviceCategory === right.deviceCategory
-    && left.operationalRole === right.operationalRole
     && left.checkpointId === right.checkpointId
     && left.checkpointName === right.checkpointName
     && left.operationalZone === right.operationalZone
