@@ -148,8 +148,10 @@ export function AccountProfileScreen({
   useEffect(() => {
     setDevicePolicyDrafts((current) => {
       const nextDrafts = { ...current };
+      let changed = false;
       trustedDevices.forEach((device) => {
         if (!nextDrafts[device.id]) {
+          changed = true;
           nextDrafts[device.id] = {
             deviceName: device.deviceName || '',
             checkpointName: device.checkpointName || '',
@@ -157,7 +159,7 @@ export function AccountProfileScreen({
           };
         }
       });
-      return nextDrafts;
+      return changed ? nextDrafts : current;
     });
   }, [trustedDevices]);
 

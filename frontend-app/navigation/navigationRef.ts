@@ -78,6 +78,9 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
 
   const config = getWorkspaceConfig(role);
   if (config.navigator === 'AdminStack') {
+    if (isCurrentRootRoute('AdminStack', 'Dashboard')) {
+      return;
+    }
     navigationRef.resetRoot({
       index: 0,
       routes: [{ name: 'AdminStack', params: { screen: 'Dashboard' } }],
@@ -86,6 +89,9 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
   }
 
   if (config.navigator === 'SecurityTabs') {
+    if (isCurrentRootRoute('SecurityStack', 'SecurityTabs', 'Scan')) {
+      return;
+    }
     navigationRef.resetRoot({
       index: 0,
       routes: [{ name: 'SecurityStack', params: { screen: 'SecurityTabs', params: { screen: 'Scan' } } }],
@@ -94,6 +100,9 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
   }
 
   if (config.navigator === 'VisitorTabs') {
+    if (isCurrentRootRoute('VisitorTabs', 'Home')) {
+      return;
+    }
     navigationRef.resetRoot({
       index: 0,
       routes: [{ name: 'VisitorTabs', params: { screen: 'Home' } }],
@@ -101,6 +110,9 @@ export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
     return;
   }
 
+  if (isCurrentRootRoute('EmployeeTabs', 'Badge')) {
+    return;
+  }
   navigationRef.resetRoot({
     index: 0,
     routes: [{ name: 'EmployeeTabs', params: { screen: 'Badge' } }],
@@ -116,4 +128,22 @@ export function resetNavigationToAuth() {
     index: 0,
     routes: [{ name: 'Login' }],
   });
+}
+
+function isCurrentRootRoute(rootName: string, screen?: string, nestedScreen?: string) {
+  if (!navigationRef.isReady()) {
+    return false;
+  }
+  const state = navigationRef.getRootState();
+  const route = state.routes[state.index ?? 0] as { name?: string; params?: { screen?: string; params?: { screen?: string } } } | undefined;
+  if (route?.name !== rootName) {
+    return false;
+  }
+  if (screen && route.params?.screen !== screen) {
+    return false;
+  }
+  if (nestedScreen && route.params?.params?.screen !== nestedScreen) {
+    return false;
+  }
+  return true;
 }

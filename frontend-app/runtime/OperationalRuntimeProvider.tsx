@@ -212,22 +212,30 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const [sessionLock, setSessionLock] = useState<SessionLockState>(defaultLockState);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [authInterruptionMessage, setAuthInterruptionMessage] = useState<string | null>(null);
+  const sessionLockRef = useRef(sessionLock);
+  const activeSession = auth.status === 'authenticated' ? auth.session : null;
+  const activeRole = activeSession?.user.activeRole ?? null;
+
+  useEffect(() => {
+    sessionLockRef.current = sessionLock;
+  }, [sessionLock]);
 
   const persistLockState = useCallback(async (nextState: SessionLockState) => {
-    setSessionLock(nextState);
+    sessionLockRef.current = nextState;
+    setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
     await writeSessionLockState(nextState).catch(() => undefined);
   }, []);
 
   const releaseSessionLock = useCallback(async () => {
     setAuthInterruptionMessage(null);
     const nextState = {
-      ...sessionLock,
+      ...sessionLockRef.current,
       isLocked: false,
       reason: null,
       lockedAt: null,
     } satisfies SessionLockState;
     await persistLockState(nextState);
-  }, [persistLockState, sessionLock]);
+  }, [persistLockState]);
 
   const refreshOfflineQueueSize = useCallback(async () => {
     const [queuedOperations, metadata] = await Promise.all([
@@ -241,9 +249,21 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   const applySessionLock = useCallback(
     async (reason: SessionLockReason) => {
-      if (auth.status !== 'authenticated' || sessionLock.isLocked) {
+      if (auth.status !== 'authenticated') {
         return;
       }
+
+      if (sessionLockRef.current.isLocked) {
+        return;
+      }
+      const nextState = {
+        ...sessionLockRef.current,
+        isLocked: true,
+        reason,
+        lockedAt: new Date().toISOString(),
+      } satisfies SessionLockState;
+      sessionLockRef.current = nextState;
+      setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
 
       await recordDiagnosticEvent({
         level: reason === 'update-required' ? 'error' : 'warn',
@@ -253,19 +273,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           ? 'The mobile runtime requires an app update before the workspace can resume.'
           : 'The mobile workspace was locked after inactivity and requires a safe resume.',
         context: {
-          role: auth.session.user.activeRole,
+          role: activeRole,
           reason,
         },
       });
 
-      await persistLockState({
-        ...sessionLock,
-        isLocked: true,
-        reason,
-        lockedAt: new Date().toISOString(),
-      });
+      await writeSessionLockState(nextState).catch(() => undefined);
     },
-    [auth, persistLockState, sessionLock],
+    [activeRole, auth.status],
   );
 
   const markLocalNotificationRead = useCallback((notificationId: string) => {
@@ -295,11 +310,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, []);
 
   const invalidateRoleQueries = useCallback(async () => {
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
-    const rolePrefix = getWorkspaceConfig(auth.session.user.activeRole).audience;
+    const rolePrefix = getWorkspaceConfig(activeRole).audience;
 
     await queryClient.invalidateQueries({
       predicate: (query) => {
@@ -307,14 +322,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         return firstKey === rolePrefix || firstKey === 'notifications';
       },
     });
-  }, [auth, queryClient]);
+  }, [activeRole, queryClient]);
 
   const reconcileOperationalQueries = useCallback(async () => {
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
-    const role = auth.session.user.activeRole;
+    const role = activeRole;
     const staleMs = apiConfig.sync.staleCacheMs;
     const now = Date.now();
 
@@ -343,14 +358,14 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         return true;
       },
     });
-  }, [auth, queryClient]);
+  }, [activeRole, queryClient]);
 
   const invalidateOperationalQueries = useCallback(async () => {
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
-    const role = auth.session.user.activeRole;
+    const role = activeRole;
     await queryClient.invalidateQueries({
       predicate: (query) => {
         const firstKey = String(Array.isArray(query.queryKey) ? query.queryKey[0] : '');
@@ -372,10 +387,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         return false;
       },
     });
-  }, [auth, queryClient]);
+  }, [activeRole, queryClient]);
 
   const handleOperationalEvents = useCallback((events: OperationalEvent[]) => {
-    if (auth.status !== 'authenticated' || !canAccessOperationalFeed(auth.session.user.activeRole) || !events.length) {
+    if (!activeRole || !canAccessOperationalFeed(activeRole) || !events.length) {
       return;
     }
 
@@ -406,17 +421,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         if (firstKey === 'emergency') {
           return shouldInvalidateEmergency;
         }
-        if (firstKey === 'security') {
-          return auth.session.user.activeRole === 'SECURITY_GUARD';
-        }
-        if (firstKey === 'employee') {
-          return auth.session.user.activeRole === 'EMPLOYEE';
-        }
-        if (firstKey === 'visitor') {
-          return auth.session.user.activeRole === 'VISITOR';
-        }
         if (firstKey === 'admin') {
-          return auth.session.user.activeRole === 'ADMIN';
+          return true;
         }
         return false;
       },
@@ -426,11 +432,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       name: 'operational_events_received',
       value: events.length,
       tags: {
-        role: auth.session.user.activeRole,
+        role: activeRole,
         categories: Array.from(categories).join(',').slice(0, 80),
       },
     });
-  }, [auth, queryClient]);
+  }, [activeRole, queryClient]);
 
   const registerCurrentDevice = useCallback(async () => {
     if (auth.status !== 'authenticated') {
@@ -445,7 +451,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     try {
       const deviceId = await readOrCreateDeviceId();
       deviceRegistrationRef.current.deviceId = deviceId;
-      setDevicePosture((current) => ({ ...current, deviceId }));
+      setDevicePosture((current) => (
+        current.deviceId === deviceId ? current : { ...current, deviceId }
+      ));
 
       let permissions = await Notifications.getPermissionsAsync();
       if (permissions.status !== 'granted') {
@@ -495,7 +503,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         permissionStatus: nextStatus,
       });
       await trackFirebaseEvent('push_device_registered', {
-        role: auth.session.user.activeRole,
+        role: activeRole,
         has_fcm: Boolean(fcmToken),
         has_expo: Boolean(nextPushToken),
         permission: nextStatus,
@@ -503,7 +511,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     } catch (error) {
       await recordFirebaseError(error, 'DEVICE_REGISTRATION_FAILED', {
         scope: 'notification',
-        role: auth.session.user.activeRole,
+        role: activeRole,
       });
       await recordDiagnosticEvent({
         level: 'warn',
@@ -511,11 +519,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         code: 'DEVICE_REGISTRATION_FAILED',
         message: error instanceof Error ? error.message : 'Push registration failed.',
         context: {
-          role: auth.session.user.activeRole,
+          role: activeRole,
         },
       });
     }
-  }, [auth.status, auth.session]);
+  }, [activeRole, auth.status]);
 
   const syncDevicePolicy = useCallback(async () => {
     if (auth.status !== 'authenticated') {
@@ -524,40 +532,58 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     const deviceId = deviceRegistrationRef.current.deviceId ?? await readOrCreateDeviceId();
     deviceRegistrationRef.current.deviceId = deviceId;
-    setDevicePosture((current) => ({ ...current, deviceId }));
+    setDevicePosture((current) => (
+      current.deviceId === deviceId ? current : { ...current, deviceId }
+    ));
 
     try {
       const policy = await getMobileSessionPolicy(deviceId);
       const operationalModeEnabled = Boolean(policy.operationalModeEnabled);
-      setDevicePosture((current) => ({
-        ...current,
-        managedMode: policy.managedMode ?? current.managedMode,
-        kioskModeReady: Boolean(policy.kioskModeReady ?? current.kioskModeReady),
-        remoteLogoutSupported: Boolean(policy.remoteLogoutSupported ?? current.remoteLogoutSupported),
-        deviceTrusted: Boolean(policy.deviceTrusted ?? current.deviceTrusted),
-        trustStatus: policy.trustStatus ?? current.trustStatus,
-        deviceCategory: policy.deviceCategory ?? current.deviceCategory,
-        operationalRole: policy.operationalRole ?? current.operationalRole,
-        checkpointId: policy.checkpointId ?? null,
-        checkpointName: policy.checkpointName ?? null,
-        operationalZone: policy.operationalZone ?? null,
-        operationalModeEnabled,
-        scannerFirst: Boolean(policy.scannerFirst ?? current.scannerFirst),
-        restrictedNavigation: Boolean(policy.restrictedNavigation ?? current.restrictedNavigation),
-        autoRestoreScanner: Boolean(policy.autoRestoreScanner ?? current.autoRestoreScanner),
-        sharedOperationalDevice: Boolean(policy.sharedOperationalDevice ?? current.sharedOperationalDevice),
-        inactivityTimeoutSeconds: policy.inactivityTimeoutSeconds ?? null,
-        suspicious: policy.suspiciousDevice,
-        concurrentSessionCount: policy.concurrentSessionCount,
-        lastPolicySyncAt: new Date().toISOString(),
-      }));
-      setSessionLock((current) => ({
-        ...current,
-        inactivityTimeoutMs: policy.inactivityTimeoutSeconds && policy.inactivityTimeoutSeconds > 0
-          ? policy.inactivityTimeoutSeconds * 1_000
-          : current.inactivityTimeoutMs,
-        biometricEnabled: Boolean(policy.biometricRequired ?? current.biometricEnabled),
-      }));
+      setDevicePosture((current) => {
+        const next = {
+          ...current,
+          managedMode: policy.managedMode ?? current.managedMode,
+          kioskModeReady: Boolean(policy.kioskModeReady ?? current.kioskModeReady),
+          remoteLogoutSupported: Boolean(policy.remoteLogoutSupported ?? current.remoteLogoutSupported),
+          deviceTrusted: Boolean(policy.deviceTrusted ?? current.deviceTrusted),
+          trustStatus: policy.trustStatus ?? current.trustStatus,
+          deviceCategory: policy.deviceCategory ?? current.deviceCategory,
+          operationalRole: policy.operationalRole ?? current.operationalRole,
+          checkpointId: policy.checkpointId ?? null,
+          checkpointName: policy.checkpointName ?? null,
+          operationalZone: policy.operationalZone ?? null,
+          operationalModeEnabled,
+          scannerFirst: Boolean(policy.scannerFirst ?? current.scannerFirst),
+          restrictedNavigation: Boolean(policy.restrictedNavigation ?? current.restrictedNavigation),
+          autoRestoreScanner: Boolean(policy.autoRestoreScanner ?? current.autoRestoreScanner),
+          sharedOperationalDevice: Boolean(policy.sharedOperationalDevice ?? current.sharedOperationalDevice),
+          inactivityTimeoutSeconds: policy.inactivityTimeoutSeconds ?? null,
+          suspicious: policy.suspiciousDevice,
+          concurrentSessionCount: policy.concurrentSessionCount,
+          lastPolicySyncAt: current.lastPolicySyncAt,
+        };
+        if (isSameDevicePosture(current, next)) {
+          return current;
+        }
+        return {
+          ...next,
+          lastPolicySyncAt: new Date().toISOString(),
+        };
+      });
+      setSessionLock((current) => {
+        const next = {
+          ...current,
+          inactivityTimeoutMs: policy.inactivityTimeoutSeconds && policy.inactivityTimeoutSeconds > 0
+            ? policy.inactivityTimeoutSeconds * 1_000
+            : current.inactivityTimeoutMs,
+          biometricEnabled: Boolean(policy.biometricRequired ?? current.biometricEnabled),
+        };
+        if (isSameSessionLock(current, next)) {
+          return current;
+        }
+        sessionLockRef.current = next;
+        return next;
+      });
 
       if (!policy.sessionValid || policy.forceLogout) {
         await recordOperationalMetric({
@@ -578,7 +604,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       if (
         operationalModeEnabled
         && (policy.scannerFirst || policy.autoRestoreScanner)
-        && auth.session.user.activeRole === 'SECURITY_GUARD'
+        && activeRole === 'SECURITY_GUARD'
       ) {
         restoreOperationalWorkspace('policy-sync', lastOperationalRestoreRef);
       }
@@ -589,11 +615,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         code: 'DEVICE_POLICY_SYNC_FAILED',
         message: error instanceof Error ? error.message : 'Device policy sync failed.',
         context: {
-          role: auth.session.user.activeRole,
+          role: activeRole,
         },
       });
     }
-  }, [applySessionLock, auth]);
+  }, [activeRole, applySessionLock, auth.logout, auth.status]);
 
   const flushTelemetry = useCallback(async () => {
     if (auth.status !== 'authenticated') {
@@ -668,12 +694,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   const handleNotificationRoute = useCallback(
     (payload: Record<string, string | undefined> | string | null | undefined) => {
-      if (auth.status !== 'authenticated') {
+      if (!activeRole) {
         return;
       }
 
       const data = typeof payload === 'string' ? { type: payload } : (payload ?? {});
-      const role = auth.session.user.activeRole;
+      const role = activeRole;
       const type = data.type;
       if (!isNotificationAllowedForRole(role, type)) {
         void recordDiagnosticEvent({
@@ -723,7 +749,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           navigateToWorkspace(getWorkspaceConfig(role).notificationTarget);
       }
     },
-    [auth],
+    [activeRole],
   );
 
   const handleNotificationResponse = useCallback(async (response: Notifications.NotificationResponse) => {
@@ -742,22 +768,22 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await markNotificationRead(notificationId).catch(() => undefined);
     }
 
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
-    if (!isNotificationAllowedForRole(auth.session.user.activeRole, data.type)) {
+    if (!isNotificationAllowedForRole(activeRole, data.type)) {
       return;
     }
 
-    if (actionIdentifier === 'approve' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
+    if (actionIdentifier === 'approve' && activeRole === 'EMPLOYEE' && visitorId) {
       await approveEmployeeVisitor(visitorId).catch(() => undefined);
       await invalidateRoleQueries();
       navigateToWorkspace('employee-requests');
       return;
     }
 
-    if (actionIdentifier === 'reject' && auth.session.user.activeRole === 'EMPLOYEE' && visitorId) {
+    if (actionIdentifier === 'reject' && activeRole === 'EMPLOYEE' && visitorId) {
       await rejectEmployeeVisitor(visitorId, { note: 'Rejected from mobile notification context.' }).catch(() => undefined);
       await invalidateRoleQueries();
       navigateToWorkspace('employee-requests');
@@ -766,7 +792,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
     await invalidateRoleQueries();
     handleNotificationRoute(data);
-  }, [auth, handleNotificationRoute, invalidateRoleQueries]);
+  }, [activeRole, handleNotificationRoute, invalidateRoleQueries]);
 
   const handleFirebaseNotificationResponse = useCallback(async (message: FirebaseMessagePayload, source: 'foreground' | 'opened' | 'initial') => {
     const data = message.data ?? {};
@@ -787,18 +813,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await markNotificationRead(data.notificationId).catch(() => undefined);
     }
 
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
-    if (!isNotificationAllowedForRole(auth.session.user.activeRole, data.type)) {
+    if (!isNotificationAllowedForRole(activeRole, data.type)) {
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'notification',
         code: 'ROLE_SCOPED_FCM_SKIPPED',
         message: 'An FCM notification outside the active workspace scope was ignored.',
         context: {
-          role: auth.session.user.activeRole,
+          role: activeRole,
           type: data.type ?? null,
         },
       });
@@ -809,7 +835,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     if (source !== 'foreground') {
       handleNotificationRoute(data);
     }
-  }, [auth, handleNotificationRoute, invalidateRoleQueries]);
+  }, [activeRole, handleNotificationRoute, invalidateRoleQueries]);
 
   const probeRuntime = useCallback(async () => {
     if (auth.status !== 'authenticated') {
@@ -819,13 +845,17 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     try {
       const [health, versions] = await Promise.all([getHealthStatus(), getApiVersions()]);
       setDegradedMessage(null);
-      setNetworkState((current) => ({
-        ...current,
-        isApiReachable: true,
-        consecutiveFailures: 0,
-        lastApiReachableAt: new Date().toISOString(),
-        lastOnlineAt: new Date().toISOString(),
-      }));
+      setNetworkState((current) => {
+        const now = new Date().toISOString();
+        const next = {
+          ...current,
+          isApiReachable: true,
+          consecutiveFailures: 0,
+          lastApiReachableAt: now,
+          lastOnlineAt: now,
+        };
+        return isSameNetworkState(current, next) ? current : next;
+      });
 
       const recommendedUpdate =
         versions.recommendedAppVersion
@@ -864,23 +894,26 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       }
     } catch (error) {
       setDegradedMessage('Restoring connection. Recent workspace data may be briefly stale.');
-      setNetworkState((current) => ({
-        ...current,
-        isApiReachable: false,
-        consecutiveFailures: current.consecutiveFailures + 1,
-        lastOfflineAt: new Date().toISOString(),
-      }));
+      setNetworkState((current) => {
+        const next = {
+          ...current,
+          isApiReachable: false,
+          consecutiveFailures: current.consecutiveFailures + 1,
+          lastOfflineAt: new Date().toISOString(),
+        };
+        return isSameNetworkState(current, next) ? current : next;
+      });
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'runtime',
         code: 'RUNTIME_SYNC_DEGRADED',
         message: error instanceof Error ? error.message : 'Runtime sync degraded.',
         context: {
-          role: auth.status === 'authenticated' ? auth.session.user.activeRole : 'signed-out',
+          role: activeRole ?? 'signed-out',
         },
       });
     }
-  }, [applySessionLock, auth, upsertSystemNotification]);
+  }, [activeRole, applySessionLock, auth.status, upsertSystemNotification]);
 
   const syncOfflineOperations = useCallback(async () => {
     if (auth.status !== 'authenticated' || sessionLock.isLocked) {
@@ -1066,7 +1099,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   );
 
   const unlockSession = useCallback(async () => {
-    if (auth.status !== 'authenticated' || !sessionLock.isLocked) {
+    if (!activeRole || !sessionLock.isLocked) {
       return;
     }
 
@@ -1099,7 +1132,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         await auth.refreshSession();
         await syncDevicePolicy();
         await releaseSessionLock();
-        resetNavigationToRoleHome(auth.session.user.activeRole);
+        resetNavigationToRoleHome(activeRole);
         await syncNow();
       } finally {
         setIsUnlocking(false);
@@ -1108,7 +1141,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     })();
 
     return unlockPromiseRef.current;
-  }, [auth, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
+  }, [activeRole, auth.refreshSession, releaseSessionLock, sessionLock, syncDevicePolicy, syncNow]);
 
   useEffect(() => {
     void initializeProductionObservability();
@@ -1116,13 +1149,13 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     void setObservabilityContext({
-      role: auth.status === 'authenticated' ? auth.session.user.activeRole : null,
-      audience: auth.status === 'authenticated' ? getWorkspaceConfig(auth.session.user.activeRole).audience : null,
-      workspace: auth.status === 'authenticated'
-        ? auth.session.user.organizationCode || auth.session.user.organizationName || 'platform'
+      role: activeRole,
+      audience: activeRole ? getWorkspaceConfig(activeRole).audience : null,
+      workspace: activeSession
+        ? activeSession.user.organizationCode || activeSession.user.organizationName || 'platform'
         : null,
     });
-  }, [auth.status, auth.session]);
+  }, [activeRole, activeSession]);
 
   useEffect(() => {
     const unsubscribeState = operationalSyncRuntime.subscribeState(setSyncConnection);
@@ -1137,18 +1170,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [handleOperationalEvents]);
 
   useEffect(() => {
-    if (auth.status === 'authenticated' && !sessionLock.isLocked && canAccessOperationalFeed(auth.session.user.activeRole)) {
+    if (activeRole && !sessionLock.isLocked && canAccessOperationalFeed(activeRole)) {
       operationalSyncRuntime.start(syncConnection.cursor);
       return;
     }
     operationalSyncRuntime.stop();
-  }, [auth.status, auth.session, sessionLock.isLocked]);
+  }, [activeRole, sessionLock.isLocked]);
 
   useEffect(() => {
-    if (auth.status !== 'authenticated' || !canAccessOperationalFeed(auth.session.user.activeRole)) {
+    if (!activeRole || !canAccessOperationalFeed(activeRole)) {
       setLiveOperationalEvents([]);
     }
-  }, [auth.status, auth.session]);
+  }, [activeRole]);
 
   useEffect(() => {
     void (async () => {
@@ -1165,7 +1198,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
       } satisfies SessionLockState;
 
-      setSessionLock(nextState);
+      sessionLockRef.current = nextState;
+      setSessionLock((current) => (isSameSessionLock(current, nextState) ? current : nextState));
       await refreshOfflineQueueSize();
     })().catch(() => undefined);
   }, [refreshOfflineQueueSize]);
@@ -1177,15 +1211,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       const offline = connected === false || reachable === false;
       const now = new Date().toISOString();
 
-      setNetworkState((current) => ({
-        ...current,
-        isConnected: connected,
-        isInternetReachable: reachable,
-        lastOnlineAt: offline ? current.lastOnlineAt : now,
-        lastOfflineAt: offline ? now : current.lastOfflineAt,
-      }));
+      setNetworkState((current) => {
+        const next = {
+          ...current,
+          isConnected: connected,
+          isInternetReachable: reachable,
+          lastOnlineAt: offline ? current.lastOnlineAt : now,
+          lastOfflineAt: offline ? now : current.lastOfflineAt,
+        };
+        return isSameNetworkState(current, next) ? current : next;
+      });
 
-      if (!offline && auth.status === 'authenticated') {
+      if (!offline && activeRole) {
         operationalSyncRuntime.resume();
         void syncNow();
       } else if (offline) {
@@ -1196,15 +1233,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     void NetInfo.fetch().then((state) => {
       const connected = state.isConnected ?? null;
       const reachable = state.isInternetReachable ?? null;
-      setNetworkState((current) => ({
-        ...current,
-        isConnected: connected,
-        isInternetReachable: reachable,
-      }));
+      setNetworkState((current) => {
+        const next = {
+          ...current,
+          isConnected: connected,
+          isInternetReachable: reachable,
+        };
+        return isSameNetworkState(current, next) ? current : next;
+      });
     }).catch(() => undefined);
 
     return unsubscribe;
-  }, [auth.status, syncNow]);
+  }, [activeRole, syncNow]);
 
   useEffect(() => {
     void runOtaCheck(false);
@@ -1236,7 +1276,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, []);
 
   useEffect(() => {
-    if (auth.status === 'authenticated') {
+    if (activeRole) {
       void registerCurrentDevice();
       void probeRuntime();
       void syncDevicePolicy();
@@ -1254,13 +1294,20 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     lifecycleRecoveryPromiseRef.current = null;
     lastLifecycleRecoveryAtRef.current = 0;
     void clearSessionLockState().catch(() => undefined);
-    setSessionLock((current) => ({
-      ...current,
-      isLocked: false,
-      reason: null,
-      lockedAt: null,
-    }));
-  }, [auth.status, probeRuntime, queryClient, registerCurrentDevice, syncDevicePolicy, flushTelemetry]);
+    setSessionLock((current) => {
+      const next = {
+        ...current,
+        isLocked: false,
+        reason: null,
+        lockedAt: null,
+      };
+      if (isSameSessionLock(current, next)) {
+        return current;
+      }
+      sessionLockRef.current = next;
+      return next;
+    });
+  }, [activeRole, flushTelemetry, probeRuntime, queryClient, registerCurrentDevice, syncDevicePolicy]);
 
   useEffect(() => {
     const pushTokenApi = Notifications as typeof Notifications & {
@@ -1270,7 +1317,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     const tokenSubscription = pushTokenApi.addPushTokenListener?.(({ data }) => {
       setPushToken(data);
       deviceRegistrationRef.current.expoPushToken = data;
-      if (auth.status === 'authenticated' && deviceRegistrationRef.current.deviceId) {
+      if (activeRole && deviceRegistrationRef.current.deviceId) {
         void registerNotificationDevice({
           expoPushToken: data,
           fcmToken: deviceRegistrationRef.current.fcmToken,
@@ -1289,12 +1336,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       tokenSubscription?.remove();
     };
-  }, [auth.status, pushPermissionStatus]);
+  }, [activeRole, pushPermissionStatus]);
 
   useEffect(() => {
     const unsubscribe = onFirebaseTokenRefresh((token) => {
       deviceRegistrationRef.current.fcmToken = token;
-      if (auth.status === 'authenticated' && deviceRegistrationRef.current.deviceId) {
+      if (activeRole && deviceRegistrationRef.current.deviceId) {
         void registerNotificationDevice({
           expoPushToken: deviceRegistrationRef.current.expoPushToken,
           fcmToken: token,
@@ -1313,7 +1360,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       unsubscribe?.();
     };
-  }, [auth.status, pushPermissionStatus]);
+  }, [activeRole, pushPermissionStatus]);
 
   useEffect(() => {
     const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
@@ -1366,7 +1413,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         backgroundedAtRef.current = Date.now();
       }
 
-      if (nextState === 'active' && previousState !== 'active' && auth.status === 'authenticated') {
+      if (nextState === 'active' && previousState !== 'active' && activeRole) {
         const elapsedMs = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
         backgroundedAtRef.current = null;
         const lockThresholdMs = getSessionLockThresholdMs(devicePosture.inactivityTimeoutSeconds);
@@ -1381,18 +1428,18 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       subscription.remove();
     };
-  }, [auth.status, devicePosture.inactivityTimeoutSeconds, runLifecycleRecovery]);
+  }, [activeRole, devicePosture.inactivityTimeoutSeconds, runLifecycleRecovery]);
 
   useEffect(() => {
-    if (auth.status !== 'authenticated' || sessionLock.isLocked) {
+    if (!activeRole || sessionLock.isLocked) {
       return;
     }
 
-    const intervalMs = auth.session.user.activeRole === 'SECURITY_GUARD'
+    const intervalMs = activeRole === 'SECURITY_GUARD'
       ? apiConfig.sync.securityPollMs
-      : auth.session.user.activeRole === 'EMPLOYEE'
+      : activeRole === 'EMPLOYEE'
         ? apiConfig.sync.employeePollMs
-        : auth.session.user.activeRole === 'VISITOR'
+        : activeRole === 'VISITOR'
           ? apiConfig.sync.employeePollMs
           : apiConfig.sync.adminPollMs;
 
@@ -1405,10 +1452,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       clearInterval(intervalId);
     };
-  }, [auth.status, auth.session, sessionLock.isLocked, syncNow]);
+  }, [activeRole, sessionLock.isLocked, syncNow]);
 
   useEffect(() => {
-    if (auth.status !== 'authenticated') {
+    if (!activeRole) {
       return;
     }
 
@@ -1421,7 +1468,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     return () => {
       clearInterval(intervalId);
     };
-  }, [auth.status, flushTelemetry]);
+  }, [activeRole, flushTelemetry]);
 
   const applyPendingUpdate = useCallback(async () => {
     await applyDownloadedOtaUpdate();
@@ -1483,11 +1530,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     if (offlineOperationalMode !== 'online') {
       void trackFirebaseEvent('offline_mode_activation', {
         mode: offlineOperationalMode,
-        role: auth.status === 'authenticated' ? auth.session.user.activeRole : 'signed_out',
+        role: activeRole ?? 'signed_out',
         api_reachable: networkState.isApiReachable,
       });
     }
-  }, [auth, networkState.isApiReachable, offlineOperationalMode]);
+  }, [activeRole, auth.status, networkState.isApiReachable, offlineOperationalMode]);
 
   const value = useMemo<OperationalRuntimeContextValue>(
     () => ({
@@ -1557,6 +1604,61 @@ export function useOperationalRuntime() {
     throw new Error('useOperationalRuntime must be used within OperationalRuntimeProvider.');
   }
   return context;
+}
+
+function isSameSessionLock(left: SessionLockState, right: SessionLockState) {
+  return left.isLocked === right.isLocked
+    && left.reason === right.reason
+    && left.lockedAt === right.lockedAt
+    && left.inactivityTimeoutMs === right.inactivityTimeoutMs
+    && left.biometricAvailable === right.biometricAvailable
+    && left.biometricEnabled === right.biometricEnabled
+    && left.screenshotProtectionEnabled === right.screenshotProtectionEnabled;
+}
+
+function isSameDevicePosture(left: DevicePostureState, right: DevicePostureState) {
+  return left.deviceId === right.deviceId
+    && left.managedMode === right.managedMode
+    && left.kioskModeReady === right.kioskModeReady
+    && left.remoteLogoutSupported === right.remoteLogoutSupported
+    && left.deviceTrusted === right.deviceTrusted
+    && left.trustStatus === right.trustStatus
+    && left.deviceCategory === right.deviceCategory
+    && left.operationalRole === right.operationalRole
+    && left.checkpointId === right.checkpointId
+    && left.checkpointName === right.checkpointName
+    && left.operationalZone === right.operationalZone
+    && left.operationalModeEnabled === right.operationalModeEnabled
+    && left.scannerFirst === right.scannerFirst
+    && left.restrictedNavigation === right.restrictedNavigation
+    && left.autoRestoreScanner === right.autoRestoreScanner
+    && left.sharedOperationalDevice === right.sharedOperationalDevice
+    && left.inactivityTimeoutSeconds === right.inactivityTimeoutSeconds
+    && left.suspicious === right.suspicious
+    && left.rootedOrJailbroken === right.rootedOrJailbroken
+    && left.emulator === right.emulator
+    && left.debugBuild === right.debugBuild
+    && left.sensitiveOperationsRestricted === right.sensitiveOperationsRestricted
+    && left.concurrentSessionCount === right.concurrentSessionCount
+    && left.lastPolicySyncAt === right.lastPolicySyncAt
+    && areStringArraysEqual(left.integrityReasons, right.integrityReasons);
+}
+
+function isSameNetworkState(left: NetworkReachabilityState, right: NetworkReachabilityState) {
+  return left.isConnected === right.isConnected
+    && left.isInternetReachable === right.isInternetReachable
+    && left.isApiReachable === right.isApiReachable
+    && left.lastOnlineAt === right.lastOnlineAt
+    && left.lastOfflineAt === right.lastOfflineAt
+    && left.lastApiReachableAt === right.lastApiReachableAt
+    && left.consecutiveFailures === right.consecutiveFailures;
+}
+
+function areStringArraysEqual(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
 }
 
 function compareVersionStrings(left: string, right: string) {

@@ -278,7 +278,7 @@ export function useOperationalActivityFeed() {
     notifications.data,
     offlineSnapshot.data,
     role,
-    runtime,
+    runtime.liveOperationalEvents,
     securityAttendance.data,
     securityEnabled,
     securityMonitoring.data,
