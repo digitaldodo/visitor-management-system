@@ -8,12 +8,20 @@ type TranslationParams = Record<string, string | number | null | undefined>;
 type LocalizationContextValue = {
   language: SupportedLanguage;
   preference: LanguagePreference;
+  isHydrated: boolean;
   setLanguagePreference: (language: SupportedLanguage) => Promise<void>;
   t: (key: TranslationKey, params?: TranslationParams) => string;
   tText: (text?: string | null, params?: TranslationParams) => string;
 };
 
 const LANGUAGE_STORAGE_KEY = 'accessflow.mobile.language-preference.v1';
+const DEFAULT_LANGUAGE: SupportedLanguage = 'en';
+
+type StoredLanguagePreference = {
+  version: 2;
+  language: SupportedLanguage;
+  source: 'manual';
+};
 
 const translations = {
   en: {
@@ -112,9 +120,9 @@ const translations = {
     'feed.severityApproval': 'Approval',
     'feed.severityDenied': 'Denied',
     'settings.languageTitle': 'Preferred language',
-    'settings.languageSubtitle': 'Switch operational language instantly. Hindi copy is optimized for guards and workforce teams.',
+    'settings.languageSubtitle': 'Choose the app language manually. Device language never changes AccessFlow automatically.',
     'settings.languageSaved': 'Language updated',
-    'settings.languageSavedBody': 'AccessFlow will use this language across supported mobile surfaces.',
+    'settings.languageSavedBody': 'AccessFlow will keep this language on this device until you change it again.',
     'auth.secureSignIn': 'Secure sign-in',
     'auth.visitorOnboarding': 'Visitor onboarding',
     'auth.recovery': 'Secure account recovery',
@@ -224,9 +232,9 @@ const translations = {
     'feed.severityApproval': 'स्वीकृति',
     'feed.severityDenied': 'अस्वीकृत',
     'settings.languageTitle': 'पसंदीदा भाषा',
-    'settings.languageSubtitle': 'ऑपरेशनल भाषा तुरंत बदलें। हिंदी कॉपी गार्ड और कार्यबल टीमों के लिए अनुकूलित है।',
+    'settings.languageSubtitle': 'ऐप की भाषा मैन्युअल रूप से चुनें। डिवाइस भाषा AccessFlow को अपने-आप नहीं बदलती।',
     'settings.languageSaved': 'भाषा अपडेट हुई',
-    'settings.languageSavedBody': 'AccessFlow समर्थित मोबाइल सतहों पर यह भाषा इस्तेमाल करेगा।',
+    'settings.languageSavedBody': 'AccessFlow इस डिवाइस पर यही भाषा रखेगा जब तक आप इसे फिर नहीं बदलते।',
     'auth.secureSignIn': 'सुरक्षित साइन-इन',
     'auth.visitorOnboarding': 'आगंतुक ऑनबोर्डिंग',
     'auth.recovery': 'सुरक्षित खाता रिकवरी',
@@ -250,20 +258,41 @@ const staticTextTranslations = {
     'Ready': 'तैयार',
     'Reconnecting': 'फिर जुड़ रहा है',
     'Profile': 'प्रोफाइल',
+    'Language': 'भाषा',
+    'Settings': 'सेटिंग्स',
     'Manage your identity, secure account settings, and role-scoped AccessFlow workspace.': 'अपनी पहचान, सुरक्षित खाता सेटिंग और भूमिका-आधारित AccessFlow कार्यक्षेत्र प्रबंधित करें।',
+    'Employee identity, credential status, personal settings, and secure account controls.': 'कर्मचारी पहचान, क्रेडेंशियल स्थिति, निजी सेटिंग और सुरक्षित खाता नियंत्रण।',
+    'Security guard identity, checkpoint readiness, and secure account controls.': 'सुरक्षा गार्ड पहचान, चेकपॉइंट तैयारी और सुरक्षित खाता नियंत्रण।',
+    'Visitor identity, pass status, and secure account controls.': 'आगंतुक पहचान, पास स्थिति और सुरक्षित खाता नियंत्रण।',
+    'Admin settings': 'एडमिन सेटिंग्स',
+    'Mobile role scope, session controls, and operational readiness.': 'मोबाइल भूमिका दायरा, सत्र नियंत्रण और संचालन तैयारी।',
+    'Choose the app language manually. Device language never changes AccessFlow automatically.': 'ऐप की भाषा मैन्युअल रूप से चुनें। डिवाइस भाषा AccessFlow को अपने-आप नहीं बदलती।',
     'Profile photo': 'प्रोफाइल फोटो',
     'Check username': 'यूजरनेम जांचें',
     'Use 3-32 lowercase letters, numbers, or underscores.': '3-32 छोटे अक्षर, नंबर या अंडरस्कोर उपयोग करें।',
     'Profile update failed': 'प्रोफाइल अपडेट विफल',
     'Your account profile could not be updated.': 'आपकी खाता प्रोफाइल अपडेट नहीं हो सकी।',
+    'Profile updated': 'प्रोफाइल अपडेट हुई',
+    'Your account profile was updated.': 'आपकी खाता प्रोफाइल अपडेट हो गई।',
     'Capture or select a square profile photo. Preview it before applying it to your account and credential surfaces.': 'चौकोर प्रोफाइल फोटो कैप्चर या चुनें। खाते और क्रेडेंशियल पर लगाने से पहले पूर्वावलोकन देखें।',
     'Camera': 'कैमरा',
     'Gallery': 'गैलरी',
     'Retake': 'फिर लें',
     'Remove': 'हटाएं',
+    'Cancel': 'रद्द करें',
     'Preview ready': 'पूर्वावलोकन तैयार',
     'Review the crop before replacing the current account photo.': 'मौजूदा खाता फोटो बदलने से पहले क्रॉप जांचें।',
     'Apply photo': 'फोटो लागू करें',
+    'Photo unavailable': 'फोटो उपलब्ध नहीं',
+    'The photo picker could not be opened. Check permission settings and try again.': 'फोटो पिकर नहीं खुल सका। अनुमति सेटिंग जांचें और फिर प्रयास करें।',
+    'Photo updated': 'फोटो अपडेट हुई',
+    'Your profile and credential photo were refreshed.': 'आपकी प्रोफाइल और क्रेडेंशियल फोटो रिफ्रेश हो गई।',
+    'Photo update failed': 'फोटो अपडेट विफल',
+    'Your profile photo could not be updated.': 'आपकी प्रोफाइल फोटो अपडेट नहीं हो सकी।',
+    'Remove profile photo?': 'प्रोफाइल फोटो हटाएं?',
+    'This clears the user-managed profile photo while organization credentials remain controlled by AccessFlow.': 'यह यूजर-प्रबंधित प्रोफाइल फोटो साफ करता है, जबकि संगठन क्रेडेंशियल AccessFlow के नियंत्रण में रहते हैं।',
+    'Photo removal failed': 'फोटो हटाना विफल',
+    'The photo could not be removed.': 'फोटो हटाई नहीं जा सकी।',
     'Editable account details': 'संपादन योग्य खाता विवरण',
     'These fields belong to you. Organization-controlled identity and access fields stay locked below.': 'ये फ़ील्ड आपके हैं। संगठन-नियंत्रित पहचान और एक्सेस फ़ील्ड नीचे लॉक रहते हैं।',
     'Username': 'यूजरनेम',
@@ -276,6 +305,7 @@ const staticTextTranslations = {
     'Receive operational notifications by email when delivery is enabled for your organization.': 'आपके संगठन में डिलीवरी सक्षम होने पर ईमेल से संचालन सूचनाएं पाएं।',
     'Enable notifications': 'सूचनाएं सक्षम करें',
     'Open Android notification settings': 'Android सूचना सेटिंग खोलें',
+    'Save account changes': 'खाता बदलाव सेव करें',
     'Log out': 'लॉग आउट',
     'Sign out safely': 'सुरक्षित रूप से साइन आउट',
     'Photo on file': 'फोटो मौजूद है',
@@ -329,6 +359,7 @@ const staticTextTranslations = {
     'Check connectivity, then retry.': 'कनेक्शन जांचें, फिर प्रयास करें।',
     'Retry once the backend is reachable.': 'बैकएंड उपलब्ध होने पर फिर प्रयास करें।',
     'Recovery complete': 'रिकवरी पूरी',
+    'JWT protected': 'JWT सुरक्षित',
     'Create a verified visitor account.': 'सत्यापित आगंतुक खाता बनाएं।',
     'Verify and reset your password.': 'सत्यापित करें और पासवर्ड रीसेट करें।',
     'Choose a workspace and sign in.': 'कार्यस्थल चुनें और साइन इन करें।',
@@ -365,6 +396,65 @@ const staticTextTranslations = {
     'Your workspace receives emergency broadcasts and lockdown alerts through banners and notifications.': 'आपका कार्यस्थल बैनर और सूचनाओं से आपातकालीन प्रसारण और लॉकडाउन अलर्ट पाता है।',
     'Loaded': 'लोड हुआ',
     'Unread alerts': 'अपठित अलर्ट',
+    'Save': 'सेव करें',
+    'Continue': 'जारी रखें',
+    'Organization-managed identity': 'संगठन-प्रबंधित पहचान',
+    'These fields are read-only on mobile and remain controlled by authorized organization administrators.': 'ये फ़ील्ड मोबाइल पर केवल पढ़ने योग्य हैं और अधिकृत संगठन प्रशासकों द्वारा नियंत्रित रहते हैं।',
+    'Organization': 'संगठन',
+    'Role / workspace': 'भूमिका / कार्यक्षेत्र',
+    'Employee ID': 'कर्मचारी ID',
+    'Department': 'विभाग',
+    'Designation': 'पदनाम',
+    'Password and security': 'पासवर्ड और सुरक्षा',
+    'Sensitive account updates are validated by the backend and refresh-token state is cleared after password changes.': 'संवेदनशील खाता बदलाव बैकएंड से सत्यापित होते हैं और पासवर्ड बदलने के बाद रिफ्रेश-टोकन स्थिति साफ होती है।',
+    'Current password': 'मौजूदा पासवर्ड',
+    '12+ chars with upper, lower, number, symbol': '12+ अक्षर, अपर, लोअर, नंबर, सिंबल',
+    'Confirm new password': 'नया पासवर्ड पुष्टि करें',
+    'Missing details': 'जानकारी अधूरी है',
+    'Enter the current password, a new password, and confirmation.': 'मौजूदा पासवर्ड, नया पासवर्ड और पुष्टि दर्ज करें।',
+    'Passwords do not match': 'पासवर्ड मेल नहीं खाते',
+    'Confirm the new password exactly before saving.': 'सेव करने से पहले नया पासवर्ड ठीक से पुष्टि करें।',
+    'Password is not strong enough': 'पासवर्ड पर्याप्त मजबूत नहीं है',
+    'Use 12-128 characters with uppercase, lowercase, number, and symbol.': '12-128 अक्षर उपयोग करें, जिनमें अपरकेस, लोअरकेस, नंबर और सिंबल हों।',
+    'Password updated': 'पासवर्ड अपडेट हुआ',
+    'For security, AccessFlow will sign you out because active refresh tokens were revoked.': 'सुरक्षा के लिए AccessFlow आपको साइन आउट करेगा क्योंकि सक्रिय रिफ्रेश टोकन रद्द हो गए।',
+    'Password update failed': 'पासवर्ड अपडेट विफल',
+    'The password could not be updated.': 'पासवर्ड अपडेट नहीं हो सका।',
+    'Passwords do not match.': 'पासवर्ड मेल नहीं खाते।',
+    'Security center': 'सुरक्षा केंद्र',
+    'Session': 'सत्र',
+    'Active': 'सक्रिय',
+    'Storage': 'स्टोरेज',
+    'Encrypted tokens': 'एन्क्रिप्टेड टोकन',
+    'Refresh': 'रिफ्रेश',
+    'Automatic': 'स्वचालित',
+    'Push identity': 'पुश पहचान',
+    'Mapped': 'मैप्ड',
+    'Refresh session': 'सत्र रिफ्रेश करें',
+    'Internal diagnostics': 'आंतरिक डायग्नोस्टिक्स',
+    'Environment': 'पर्यावरण',
+    'Distribution': 'डिस्ट्रिब्यूशन',
+    'App version': 'ऐप संस्करण',
+    'Runtime version': 'रनटाइम संस्करण',
+    'Build ID': 'बिल्ड ID',
+    'Release channel': 'रिलीज चैनल',
+    'OTA status': 'OTA स्थिति',
+    'Crash reporting': 'क्रैश रिपोर्टिंग',
+    'Native Firebase': 'नेटिव Firebase',
+    'Previous crash': 'पिछला क्रैश',
+    'Unsent crash reports': 'न भेजी गई क्रैश रिपोर्ट',
+    'Sync health': 'सिंक स्वास्थ्य',
+    'API reachable': 'API उपलब्ध',
+    'Network': 'नेटवर्क',
+    'Offline queue': 'ऑफलाइन कतार',
+    'Last offline sync': 'अंतिम ऑफलाइन सिंक',
+    'Push permission': 'पुश अनुमति',
+    'Runtime health': 'रनटाइम स्वास्थ्य',
+    'Legal and compliance': 'कानूनी और अनुपालन',
+    'Review the mobile policy experience from settings at any time.': 'मोबाइल नीति अनुभव को सेटिंग्स से कभी भी देखें।',
+    'Privacy Policy': 'गोपनीयता नीति',
+    'Terms & Conditions': 'नियम और शर्तें',
+    'Operational mode': 'ऑपरेशनल मोड',
   },
 } as const;
 
@@ -377,11 +467,20 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
-      .then((value) => {
+      .then(async (value) => {
         if (!active) {
           return;
         }
-        setPreference(value === 'hi' || value === 'en' ? value : '');
+        const storedPreference = parseStoredLanguagePreference(value);
+        setPreference(storedPreference);
+        if (value && !storedPreference) {
+          await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, serializeLanguagePreference(DEFAULT_LANGUAGE)).catch(() => undefined);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPreference('');
+        }
       })
       .finally(() => {
         if (active) {
@@ -395,12 +494,12 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLanguagePreference = useCallback(async (nextLanguage: SupportedLanguage) => {
-    const normalized = nextLanguage === 'hi' ? 'hi' : 'en';
+    const normalized = normalizeSupportedLanguage(nextLanguage);
     setPreference(normalized);
-    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, serializeLanguagePreference(normalized));
   }, []);
 
-  const language = preference || 'en';
+  const language = preference || DEFAULT_LANGUAGE;
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) => interpolate(translations[language][key] ?? translations.en[key] ?? key, params),
     [language],
@@ -422,11 +521,12 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     () => ({
       language,
       preference,
+      isHydrated: hydrated,
       setLanguagePreference,
       t,
       tText,
     }),
-    [language, preference, setLanguagePreference, t, tText],
+    [hydrated, language, preference, setLanguagePreference, t, tText],
   );
 
   if (!hydrated) {
@@ -456,4 +556,33 @@ function interpolate(template: string, params?: TranslationParams) {
     const value = params[key];
     return value === null || value === undefined ? '' : String(value);
   });
+}
+
+function parseStoredLanguagePreference(value?: string | null): LanguagePreference {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredLanguagePreference> | null;
+    if (parsed?.version === 2 && parsed.source === 'manual') {
+      return normalizeSupportedLanguage(parsed.language);
+    }
+  } catch {
+    return value === DEFAULT_LANGUAGE ? DEFAULT_LANGUAGE : '';
+  }
+
+  return '';
+}
+
+function serializeLanguagePreference(language: SupportedLanguage) {
+  return JSON.stringify({
+    version: 2,
+    language: normalizeSupportedLanguage(language),
+    source: 'manual',
+  } satisfies StoredLanguagePreference);
+}
+
+function normalizeSupportedLanguage(language?: string | null): SupportedLanguage {
+  return language === 'hi' ? 'hi' : DEFAULT_LANGUAGE;
 }

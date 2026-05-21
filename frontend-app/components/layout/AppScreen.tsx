@@ -117,7 +117,7 @@ export function AppScreen({ title, subtitle, children, refreshing, onRefresh, co
               <View style={styles.operationalIndicatorRow}>
                 <View style={styles.operationalIndicator}>
                   <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
-                    Operational mode
+                    {tText('Operational mode')}
                   </Text>
                 </View>
                 {devicePosture.checkpointName ? (

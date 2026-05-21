@@ -58,7 +58,7 @@ export function AccountProfileScreen({
 }: Props) {
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
-  const { preference, setLanguagePreference, t, tText } = useLocalization();
+  const { language, setLanguagePreference, t, tText } = useLocalization();
   const { session, logout, isBusy, refreshSession } = useAuth();
   const runtime = useOperationalRuntime();
   const profile = useAccountProfile();
@@ -100,6 +100,10 @@ export function AccountProfileScreen({
   }, [identity]);
 
   useEffect(() => {
+    setPreferredLanguage(language === 'hi' ? 'hi' : 'en');
+  }, [language]);
+
+  useEffect(() => {
     if (!advancedOpen) {
       return;
     }
@@ -137,7 +141,7 @@ export function AccountProfileScreen({
       });
       await setLanguagePreference(preferredLanguage);
       await refreshAll();
-      Alert.alert(t('settings.languageSaved'), t('settings.languageSavedBody'));
+      Alert.alert(tText('Profile updated'), tText('Your account profile was updated.'));
     } catch (error) {
       Alert.alert(tText('Profile update failed'), error instanceof Error ? error.message : tText('Your account profile could not be updated.'));
     }
@@ -151,7 +155,7 @@ export function AccountProfileScreen({
       }
       setPendingPhoto({ ...asset, previewUri: asset.uri });
     } catch {
-      Alert.alert('Photo unavailable', 'The photo picker could not be opened. Check permission settings and try again.');
+      Alert.alert(tText('Photo unavailable'), tText('The photo picker could not be opened. Check permission settings and try again.'));
     }
   };
 
@@ -165,9 +169,9 @@ export function AccountProfileScreen({
       await updateProfileMutation.mutateAsync({ employeePhotoUrl: uploadedPhoto.url });
       setPendingPhoto(null);
       await refreshAll();
-      Alert.alert('Photo updated', 'Your profile and credential photo were refreshed.');
+      Alert.alert(tText('Photo updated'), tText('Your profile and credential photo were refreshed.'));
     } catch (error) {
-      Alert.alert('Photo update failed', error instanceof Error ? error.message : 'Your profile photo could not be updated.');
+      Alert.alert(tText('Photo update failed'), error instanceof Error ? error.message : tText('Your profile photo could not be updated.'));
     }
   };
 
@@ -177,10 +181,10 @@ export function AccountProfileScreen({
       return;
     }
 
-    Alert.alert('Remove profile photo?', 'This clears the user-managed profile photo while organization credentials remain controlled by AccessFlow.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(tText('Remove profile photo?'), tText('This clears the user-managed profile photo while organization credentials remain controlled by AccessFlow.'), [
+      { text: tText('Cancel'), style: 'cancel' },
       {
-        text: 'Remove',
+        text: tText('Remove'),
         style: 'destructive',
         onPress: () => {
           void (async () => {
@@ -188,7 +192,7 @@ export function AccountProfileScreen({
               await updateProfileMutation.mutateAsync({ employeePhotoUrl: '' });
               await refreshAll();
             } catch (error) {
-              Alert.alert('Photo removal failed', error instanceof Error ? error.message : 'The photo could not be removed.');
+              Alert.alert(tText('Photo removal failed'), error instanceof Error ? error.message : tText('The photo could not be removed.'));
             }
           })();
         },
@@ -198,15 +202,15 @@ export function AccountProfileScreen({
 
   const changePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Missing details', 'Enter the current password, a new password, and confirmation.');
+      Alert.alert(tText('Missing details'), tText('Enter the current password, a new password, and confirmation.'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Confirm the new password exactly before saving.');
+      Alert.alert(tText('Passwords do not match'), tText('Confirm the new password exactly before saving.'));
       return;
     }
     if (passwordValidation) {
-      Alert.alert('Password is not strong enough', passwordValidation);
+      Alert.alert(tText('Password is not strong enough'), tText(passwordValidation));
       return;
     }
 
@@ -215,16 +219,16 @@ export function AccountProfileScreen({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('Password updated', 'For security, AccessFlow will sign you out because active refresh tokens were revoked.', [
+      Alert.alert(tText('Password updated'), tText('For security, AccessFlow will sign you out because active refresh tokens were revoked.'), [
         {
-          text: 'Continue',
+          text: tText('Continue'),
           onPress: () => {
             void logout();
           },
         },
       ]);
     } catch (error) {
-      Alert.alert('Password update failed', error instanceof Error ? error.message : 'The password could not be updated.');
+      Alert.alert(tText('Password update failed'), error instanceof Error ? error.message : tText('The password could not be updated.'));
     }
   };
 
@@ -280,6 +284,25 @@ export function AccountProfileScreen({
         ) : null}
       </SurfaceCard>
 
+      <SurfaceCard title="Language" subtitle={t('settings.languageSubtitle')}>
+        <View style={styles.segmentRow}>
+          {LANGUAGE_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityLabel={t(option.labelKey)}
+              onPress={() => {
+                setPreferredLanguage(option.value);
+                void setLanguagePreference(option.value);
+              }}
+              style={[styles.segment, preferredLanguage === option.value ? styles.segmentActive : null]}
+            >
+              <Text style={[styles.segmentLabel, preferredLanguage === option.value ? styles.segmentLabelActive : null]}>{t(option.labelKey)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </SurfaceCard>
+
       <SurfaceCard title="Editable account details" subtitle="These fields belong to you. Organization-controlled identity and access fields stay locked below.">
         <AppTextField
           label="Username"
@@ -302,24 +325,6 @@ export function AccountProfileScreen({
           onChangeText={setEmergencyContact}
           placeholder="Emergency contact number or note"
         />
-        <View style={styles.languageRow}>
-          <Text style={styles.sectionLabel}>{t('settings.languageTitle')}</Text>
-          <Text style={styles.helperText}>{t('settings.languageSubtitle')}</Text>
-          <View style={styles.segmentRow}>
-            {LANGUAGE_OPTIONS.map((option) => (
-              <Pressable
-                key={option.value}
-                onPress={() => {
-                  setPreferredLanguage(option.value);
-                  void setLanguagePreference(option.value);
-                }}
-                style={[styles.segment, preferredLanguage === option.value ? styles.segmentActive : null]}
-              >
-                <Text style={[styles.segmentLabel, preferredLanguage === option.value ? styles.segmentLabelActive : null]}>{t(option.labelKey)}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
         <PreferenceSwitchRow
           label="In-app alerts"
           helperText="Receive account, approval, pass, and operational notifications inside AccessFlow."
@@ -400,7 +405,7 @@ export function AccountProfileScreen({
         >
           <View style={styles.advancedTitle}>
             <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.info} />
-            <Text style={styles.panelTitle}>Security center</Text>
+            <Text style={styles.panelTitle}>{tText('Security center')}</Text>
           </View>
           <Ionicons name={securityCenterOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
         </Pressable>
@@ -430,7 +435,7 @@ export function AccountProfileScreen({
           >
             <View style={styles.advancedTitle}>
               <Ionicons name="construct-outline" size={20} color={theme.colors.info} />
-              <Text style={styles.panelTitle}>Internal diagnostics</Text>
+              <Text style={styles.panelTitle}>{tText('Internal diagnostics')}</Text>
             </View>
             <Ionicons name={advancedOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
           </Pressable>
@@ -486,7 +491,7 @@ export function AccountProfileScreen({
     setPhoneCountryCode(nextProfile.phoneCountryCode || '+1');
     setPhone(nextProfile.phone || '');
     setEmergencyContact(nextProfile.emergencyContact || '');
-    setPreferredLanguage(preference === 'hi' ? 'hi' : 'en');
+    setPreferredLanguage(language === 'hi' ? 'hi' : 'en');
     setNotificationEmailEnabled(nextProfile.notificationEmailEnabled ?? true);
     setNotificationInAppEnabled(nextProfile.notificationInAppEnabled ?? true);
   }
@@ -505,10 +510,13 @@ function IconAction({
   disabled?: boolean;
   danger?: boolean;
 }) {
+  const { tText } = useLocalization();
+  const translatedLabel = tText(label);
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={translatedLabel}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -518,7 +526,7 @@ function IconAction({
       ]}
     >
       <Ionicons name={icon} size={22} color={danger ? theme.colors.danger : theme.colors.textPrimary} />
-      <Text style={[styles.iconActionLabel, danger ? styles.iconActionLabelDanger : null]}>{label}</Text>
+      <Text style={[styles.iconActionLabel, danger ? styles.iconActionLabelDanger : null]}>{translatedLabel}</Text>
     </Pressable>
   );
 }
@@ -532,6 +540,7 @@ function SecurityStatusTile({
   value: string;
   tone: 'success' | 'warning' | 'info' | 'default';
 }) {
+  const { tText } = useLocalization();
   const color = tone === 'success'
     ? theme.colors.success
     : tone === 'warning'
@@ -542,8 +551,8 @@ function SecurityStatusTile({
 
   return (
     <View style={styles.securityTile}>
-      <Text style={styles.securityTileLabel}>{label}</Text>
-      <Text style={[styles.securityTileValue, { color }]}>{value}</Text>
+      <Text style={styles.securityTileLabel}>{tText(label)}</Text>
+      <Text style={[styles.securityTileValue, { color }]}>{tText(value)}</Text>
     </View>
   );
 }
@@ -752,16 +761,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: theme.typography.bodyStrong.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
-  },
-  languageRow: {
-    gap: theme.spacing.sm,
-  },
-  sectionLabel: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.caption.fontSize,
-    fontWeight: theme.typography.caption.fontWeight,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
   },
   segmentRow: {
     flexDirection: 'row',

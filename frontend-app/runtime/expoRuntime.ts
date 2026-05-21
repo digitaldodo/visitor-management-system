@@ -5,7 +5,8 @@ const EXPO_GO_NOTIFICATION_WARNING = 'expo-notifications: Android Push notificat
 
 export function isExpoGoRuntime() {
   const executionEnvironment = String(Constants.executionEnvironment ?? '').toLowerCase();
-  return Constants.appOwnership === 'expo' || executionEnvironment.includes('storeclient');
+  const appOwnership = String(Constants.appOwnership ?? '').toLowerCase();
+  return appOwnership === 'expo' || executionEnvironment === 'storeclient' || executionEnvironment.includes('storeclient');
 }
 
 export function supportsNativePushNotifications() {

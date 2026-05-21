@@ -1,4 +1,3 @@
-import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import NetInfo from '@react-native-community/netinfo';
@@ -34,6 +33,7 @@ import {
   supportsNativePushNotifications,
   suppressExpoGoNotificationWarnings,
 } from './expoRuntime';
+import { getNativeNotificationsModule } from './nativeNotifications';
 import {
   getFirebaseMessagingToken,
   getInitialFirebaseNotification,
@@ -68,6 +68,7 @@ import {
 } from '../storage/sessionStorage';
 import type { NotificationRecord } from '../types/domain';
 import type { OperationalEvent, OperationalSyncConnectionState } from '../types/operationalSync';
+import type { NotificationResponse } from 'expo-notifications';
 import type {
   DevicePostureState,
   NetworkReachabilityState,
@@ -107,8 +108,9 @@ const OperationalRuntimeContext = createContext<OperationalRuntimeContextValue |
 
 suppressExpoGoNotificationWarnings();
 
-if (!isExpoGoRuntime()) {
-  Notifications.setNotificationHandler({
+const startupNotifications = getNativeNotificationsModule('notification-handler');
+if (startupNotifications) {
+  startupNotifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldShowBanner: true,
@@ -459,6 +461,15 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         await resetPermissionLifecycleForManualEnable('notifications');
       }
 
+      const Notifications = getNativeNotificationsModule('device-registration');
+      if (!Notifications) {
+        setPushPermissionStatus('UNAVAILABLE');
+        setPushToken(null);
+        deviceRegistrationRef.current.expoPushToken = null;
+        deviceRegistrationRef.current.fcmToken = null;
+        return;
+      }
+
       let permissions = await Notifications.getPermissionsAsync();
       if (permissions.status !== 'granted') {
         const lifecycle = await readPermissionLifecycle('notifications');
@@ -764,7 +775,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     [activeRole],
   );
 
-  const handleNotificationResponse = useCallback(async (response: Notifications.NotificationResponse) => {
+  const handleNotificationResponse = useCallback(async (response: NotificationResponse) => {
     const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
     if (handledResponsesRef.current.has(responseKey)) {
       return;
@@ -1231,8 +1242,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [runOtaCheck]);
 
   useEffect(() => {
-    if (!supportsNativePushNotifications()) {
-      logExpoGoNotificationBypass('notification-channel-setup');
+    const Notifications = getNativeNotificationsModule('notification-channel-setup');
+    if (!Notifications) {
       return;
     }
 
@@ -1295,7 +1306,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [activeRole, flushTelemetry, probeRuntime, queryClient, registerCurrentDevice, syncDevicePolicy]);
 
   useEffect(() => {
-    if (!supportsNativePushNotifications()) {
+    const Notifications = getNativeNotificationsModule('push-token-listener');
+    if (!Notifications) {
       return undefined;
     }
 
@@ -1352,7 +1364,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, [activeRole, pushPermissionStatus]);
 
   useEffect(() => {
-    if (!supportsNativePushNotifications()) {
+    const Notifications = getNativeNotificationsModule('notification-response-listener');
+    if (!Notifications) {
       return undefined;
     }
 
