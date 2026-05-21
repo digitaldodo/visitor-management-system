@@ -17,7 +17,7 @@ import {
 } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
-import { authenticateDeviceUnlock, readLocalDeviceTrustProfile } from '../auth/deviceTrust';
+import { authenticateDeviceUnlock } from '../auth/deviceTrust';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
@@ -46,6 +46,7 @@ import {
 } from '../services/notificationService';
 import { getMobileSessionPolicy, submitMobileTelemetry } from '../services/operationalService';
 import { syncOfflineOperationalQueue } from '../services/offlineSyncService';
+import { syncQueuedVisitorRequests } from '../services/visitorRequestQueueService';
 import { getApiVersions, getHealthStatus } from '../services/systemService';
 import {
   cleanupOfflineOperationalCache,
@@ -932,6 +933,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
             syncDevicePolicy(),
             flushTelemetry(),
             syncOfflineOperations(),
+            syncQueuedVisitorRequests(),
             cleanupOfflineOperationalCache(),
             refreshOfflineQueueSize(),
           ]);
@@ -1155,12 +1157,10 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         LocalAuthentication.isEnrolledAsync().catch(() => false),
         readSessionLockState().catch(() => null),
       ]);
-      const trustProfile = await readLocalDeviceTrustProfile().catch(() => null);
-
       const nextState = {
         ...(persistedLockState ?? defaultLockState),
         inactivityTimeoutMs: apiConfig.security.inactivityLockMs,
-        biometricEnabled: Boolean(apiConfig.security.requireBiometricUnlock || trustProfile?.biometricEnabled),
+        biometricEnabled: Boolean(apiConfig.security.requireBiometricUnlock),
         biometricAvailable: hasHardware && isEnrolled,
         screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
       } satisfies SessionLockState;

@@ -12,7 +12,7 @@ import { LocalizationProvider } from '../localization/LocalizationProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
 import { PermissionEducationProvider } from '../permissions/permissionEducation';
 import { OperationalLockOverlay } from '../runtime/OperationalLockOverlay';
-import { OperationalRuntimeProvider, useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
+import { OperationalRuntimeProvider } from '../runtime/OperationalRuntimeProvider';
 import { MobileSecurityProvider, useMobileSecurity } from '../security/MobileSecurityProvider';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { theme } from '../theme';
@@ -67,31 +67,12 @@ function AppBoundaryHost() {
 }
 
 function RuntimeFeedbackBridge() {
-  const runtime = useOperationalRuntime();
   const mobileSecurity = useMobileSecurity();
   const { showSnackbar } = useOperationalSnackbar();
-  const lastModeRef = useRef(runtime.offlineOperationalMode);
-  const lastSyncingRef = useRef(runtime.isSyncingOfflineOperations);
   const lastCertificateWarningRef = useRef<string | null>(null);
   const lastCertificateWarningAtRef = useRef(0);
 
   useEffect(() => {
-    if (lastModeRef.current !== runtime.offlineOperationalMode) {
-      lastModeRef.current = runtime.offlineOperationalMode;
-      if (runtime.offlineOperationalMode === 'offline') {
-        showSnackbar({ message: 'Restoring connection...', tone: 'warning' });
-      } else if (runtime.offlineOperationalMode === 'degraded') {
-        showSnackbar({ message: 'Retrying request...', tone: 'info' });
-      } else {
-        showSnackbar({ message: 'Connection restored.', tone: 'success' });
-      }
-    }
-
-    if (!lastSyncingRef.current && runtime.isSyncingOfflineOperations) {
-      showSnackbar({ message: 'Syncing securely...', tone: 'info' });
-    }
-    lastSyncingRef.current = runtime.isSyncingOfflineOperations;
-
     if (
       mobileSecurity.certificatePinningWarning
       && (
@@ -101,12 +82,16 @@ function RuntimeFeedbackBridge() {
     ) {
       lastCertificateWarningRef.current = mobileSecurity.certificatePinningWarning;
       lastCertificateWarningAtRef.current = Date.now();
-      showSnackbar({ message: mobileSecurity.certificatePinningWarning, tone: 'danger', durationMs: 5200 });
+      showSnackbar({
+        message: mobileSecurity.certificatePinningWarning,
+        tone: 'danger',
+        durationMs: 5200,
+        dedupeKey: 'certificate-pinning-warning',
+        minIntervalMs: 30 * 60_000,
+      });
     }
   }, [
     mobileSecurity.certificatePinningWarning,
-    runtime.isSyncingOfflineOperations,
-    runtime.offlineOperationalMode,
     showSnackbar,
   ]);
 

@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -89,9 +90,12 @@ public class VisitorPortalController {
     @PostMapping("/visits")
     public ApiResponse<VisitorResponse> requestVisit(
             @Valid @RequestBody VisitorVisitRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-AccessFlow-Operation-Id", required = false) String operationId,
             Authentication authentication
     ) {
-        return ApiResponse.ok("Visit request submitted.", visitorService.createForVisitorAccount(request, currentUser(authentication)));
+        String clientRequestId = idempotencyKey == null || idempotencyKey.isBlank() ? operationId : idempotencyKey;
+        return ApiResponse.ok("Visit request submitted.", visitorService.createForVisitorAccount(request, currentUser(authentication), clientRequestId));
     }
 
     @PostMapping(value = "/visits/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

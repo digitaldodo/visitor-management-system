@@ -153,12 +153,20 @@ public class VisitorService {
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
-    public VisitorResponse createForVisitorAccount(VisitorVisitRequest request, User account) {
+    public VisitorResponse createForVisitorAccount(VisitorVisitRequest request, User account, String idempotencyKey) {
         Instant now = Instant.now();
         Organization organization = account.getOrganizationId() != null
                 ? organizationService.requireActive(account.getOrganizationId())
                 : organizationService.resolveRequired(request.companyCode(), request.companyName());
+        String clientRequestId = normalizeClientRequestId(idempotencyKey == null ? request.clientRequestId() : idempotencyKey);
+        if (clientRequestId != null) {
+            Visitor existing = visitorRepository.findByClientRequestIdAndEmailIgnoreCase(clientRequestId, account.getEmail()).orElse(null);
+            if (existing != null) {
+                return toResponse(existing);
+            }
+        }
         Visitor visitor = new Visitor();
+        visitor.setClientRequestId(clientRequestId);
         visitor.setFullName(requiredTrim(account.getFullName(), "Account name is required."));
         applyPhone(visitor, request.phoneCountryCode() != null ? request.phoneCountryCode() : account.getPhoneCountryCode(), request.phone() != null ? request.phone() : account.getPhone(), true);
         visitor.setEmail(account.getEmail());
@@ -1660,6 +1668,14 @@ public class VisitorService {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeClientRequestId(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        return trimmed.replaceAll("[^a-zA-Z0-9._:-]", "-").substring(0, Math.min(trimmed.length(), 120));
     }
 
     private void requireNoEmergencyLockdown(String organizationId, String message) {

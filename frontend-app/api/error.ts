@@ -52,10 +52,12 @@ export function normalizeApiError(error: unknown): AppError {
     return createAppError({
       kind: isAuthFailure ? 'auth' : 'http',
       status: error.response.status,
-      message: sanitizeUserFacingErrorMessage(
-        payload?.message || payload?.error || 'The backend rejected this request.',
-        isAuthFailure ? 'auth' : 'http',
-      ),
+      message: error.response.status === 429
+        ? 'The service is busy. We will retry automatically when possible.'
+        : sanitizeUserFacingErrorMessage(
+            payload?.message || payload?.error || 'The backend rejected this request.',
+            isAuthFailure ? 'auth' : 'http',
+          ),
       details: payload?.errors,
       code: error.code,
       recoverable: error.response.status >= 500 || error.response.status === 429 || error.response.status === 408,

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Linking, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Linking, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Crypto from 'expo-crypto';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
@@ -33,7 +34,9 @@ import {
 } from '../../hooks/useVisitorWorkspace';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
-import { getVisitorHosts } from '../../services/visitorService';
+import { isTransientVisitorRequestFailure } from '../../services/visitorRequestQueueService';
+import { enqueueVisitorRequest } from '../../storage/visitorRequestQueue';
+import { getVisitorHosts, type VisitorVisitPayload } from '../../services/visitorService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, NotificationRecord, VisitorRecord } from '../../types/domain';
 import { formatDateTime } from '../../utils/employeeFormatting';
@@ -113,6 +116,8 @@ export function VisitorRequestScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [calendarEventUrl, setCalendarEventUrl] = useState<string | null>(null);
+  const [submissionPending, setSubmissionPending] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const normalizedHostSearch = hostSearch.trim();
   const searchHosts = useCallback(
@@ -136,6 +141,10 @@ export function VisitorRequestScreen() {
   }, [hostSearchState.error, hostSearchState.isError, showSnackbar]);
 
   const submitRequest = async () => {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
     if (!purposeOfVisit.trim()) {
       setFormError('Enter the purpose of your visit.');
       return;
@@ -156,6 +165,10 @@ export function VisitorRequestScreen() {
     setFormError(null);
     setSuccessMessage(null);
     setCalendarEventUrl(null);
+    setSubmissionPending(true);
+    isSubmittingRef.current = true;
+    const clientRequestId = `visitor-request-${Crypto.randomUUID()}`;
+    let preparedPayload: VisitorVisitPayload | null = null;
 
     try {
       const uploadedPhoto = await uploadPhotoMutation.mutateAsync(photoAsset);
@@ -166,7 +179,8 @@ export function VisitorRequestScreen() {
       const scheduledStartTime = startAt.toISOString();
       const scheduledEndTime = endAt.toISOString();
 
-      const visit = await requestVisitMutation.mutateAsync({
+      const payload: VisitorVisitPayload = {
+        clientRequestId,
         phoneCountryCode: phoneCountryCode.trim() || null,
         phone: phone.trim(),
         companyCode: companyCode.trim() || null,
@@ -180,7 +194,10 @@ export function VisitorRequestScreen() {
         timezone: companyTimezone || localTimezone,
         photoUrl: uploadedPhoto.url,
         photoPublicId: uploadedPhoto.publicId,
-      });
+      };
+      preparedPayload = payload;
+
+      const visit = await requestVisitMutation.mutateAsync(payload);
 
       setSuccessMessage(`${visit.purposeOfVisit || 'Visit request'} submitted. Track approval status from Home or Pass.`);
       setCalendarEventUrl(buildGoogleCalendarUrl({
@@ -209,7 +226,62 @@ export function VisitorRequestScreen() {
         queryClient.invalidateQueries({ queryKey: ['visitor', 'history'] }),
       ]);
     } catch (error) {
-      Alert.alert('Request failed', error instanceof Error ? error.message : 'Your visit request could not be submitted.');
+      if (isTransientVisitorRequestFailure(error)) {
+        const duration = Number(durationMinutes) || 60;
+        const startAt = scheduledStart;
+        const endAt = new Date(startAt.getTime() + duration * 60_000);
+        let queuedPayload = preparedPayload;
+        if (!queuedPayload) {
+          const queuedPhoto = await uploadPhotoMutation.mutateAsync(photoAsset).catch(() => null);
+          queuedPayload = queuedPhoto ? {
+            clientRequestId,
+            phoneCountryCode: phoneCountryCode.trim() || null,
+            phone: phone.trim(),
+            companyCode: companyCode.trim() || null,
+            companyName: companyName.trim() || null,
+            purposeOfVisit: purposeOfVisit.trim(),
+            hostEmployee: selectedHost?.fullName || hostSearch.trim() || null,
+            hostEmployeeId: selectedHost?.id || null,
+            scheduledStartTime: startAt.toISOString(),
+            scheduledEndTime: endAt.toISOString(),
+            expectedDurationMinutes: duration,
+            timezone: companyTimezone || localTimezone,
+            photoUrl: queuedPhoto.url,
+            photoPublicId: queuedPhoto.publicId,
+          } : null;
+        }
+        if (queuedPayload) {
+          await enqueueVisitorRequest(queuedPayload, clientRequestId);
+          setSuccessMessage('Request queued for sync. We will retry automatically.');
+          showSnackbar({
+            message: 'Request queued for sync',
+            tone: 'warning',
+            dedupeKey: 'visitor-request-queued',
+            minIntervalMs: 20_000,
+          });
+          setPurposeOfVisit('');
+          setHostSearch('');
+          setSelectedHost(null);
+          setCompanyCode('');
+          setCompanyName('');
+          setCompanyTimezone(localTimezone);
+          setScheduledStart(nearestArrivalTime());
+          setDurationMinutes('60');
+          setPhotoAsset(null);
+          return;
+        }
+      }
+
+      setFormError('Unable to submit request right now. Please try again shortly.');
+      showSnackbar({
+        message: 'Unable to submit request right now',
+        tone: 'danger',
+        dedupeKey: 'visitor-request-submit-failed',
+        minIntervalMs: 20_000,
+      });
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmissionPending(false);
     }
   };
 
@@ -293,8 +365,8 @@ export function VisitorRequestScreen() {
           <PrimaryButton
             label="Submit access request"
             onPress={() => void submitRequest()}
-            loading={requestVisitMutation.isPending || uploadPhotoMutation.isPending}
-            disabled={!photoAsset}
+            loading={submissionPending || requestVisitMutation.isPending || uploadPhotoMutation.isPending}
+            disabled={!photoAsset || submissionPending}
           />
         </SurfaceCard>
       </AppScreen>

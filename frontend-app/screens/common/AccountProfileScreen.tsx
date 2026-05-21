@@ -6,14 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { apiConfig } from '../../api/apiConfig';
 import {
-  authenticateDeviceUnlock,
-  bindTrustedDeviceLocally,
   clearLocalDeviceTrustProfile,
-  collectDeviceIntegritySignals,
   getCurrentDeviceDescriptor,
-  readLocalDeviceTrustProfile,
-  writeLocalDeviceTrustProfile,
-  type LocalDeviceTrustProfile,
 } from '../../auth/deviceTrust';
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
@@ -40,7 +34,6 @@ import type { UploadAsset } from '../../services/accountService';
 import {
   listTrustedDevices,
   logoutTrustedDevice,
-  registerTrustedDevice,
   revokeTrustedDevice,
   updateTrustedDevice,
 } from '../../services/operationalService';
@@ -101,7 +94,6 @@ export function AccountProfileScreen({
   const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
   const [trustedDevices, setTrustedDevices] = useState<TrustedDeviceRecord[]>([]);
   const [devicePolicyDrafts, setDevicePolicyDrafts] = useState<Record<string, { deviceName: string; checkpointName: string; operationalZone: string }>>({});
-  const [localTrustProfile, setLocalTrustProfile] = useState<LocalDeviceTrustProfile | null>(null);
   const [securityCenterBusy, setSecurityCenterBusy] = useState(false);
   const [observabilitySnapshot, setObservabilitySnapshot] = useState<Awaited<ReturnType<typeof getObservabilitySnapshot>> | null>(null);
 
@@ -138,11 +130,10 @@ export function AccountProfileScreen({
     }
 
     try {
-      const [profile, descriptor] = await Promise.all([
-        readLocalDeviceTrustProfile(),
+      const [, descriptor] = await Promise.all([
+        clearLocalDeviceTrustProfile(),
         getCurrentDeviceDescriptor(),
       ]);
-      setLocalTrustProfile(profile);
       const response = await listTrustedDevices(descriptor.deviceId);
       setTrustedDevices(response.devices);
     } catch {
@@ -188,47 +179,6 @@ export function AccountProfileScreen({
     await refreshSession();
     await loadSecurityCenter();
     await Promise.resolve(onRefresh?.());
-  };
-
-  const setBiometricUnlock = async (enabled: boolean) => {
-    if (!session) {
-      return;
-    }
-
-    setSecurityCenterBusy(true);
-    try {
-      const currentProfile = localTrustProfile ?? await bindTrustedDeviceLocally(session, false);
-      if (enabled) {
-        const unlock = await authenticateDeviceUnlock('enable');
-        if (!unlock.success) {
-          Alert.alert('Biometric unlock unavailable', 'Enroll fingerprint, face unlock, or device PIN before enabling secure workspace unlock.');
-          return;
-        }
-      }
-
-      const nextProfile = {
-        ...currentProfile,
-        biometricEnabled: enabled,
-        trusted: true,
-      };
-      await writeLocalDeviceTrustProfile(nextProfile);
-
-      const [descriptor, integritySignals] = await Promise.all([
-        getCurrentDeviceDescriptor(),
-        collectDeviceIntegritySignals(),
-      ]);
-      await registerTrustedDevice({
-        ...descriptor,
-        biometricEnabled: enabled,
-        integritySignals,
-      });
-      await loadSecurityCenter();
-      Alert.alert('Security updated', enabled ? 'Biometric unlock is enabled for this trusted device.' : 'Biometric unlock was disabled for this device.');
-    } catch (error) {
-      Alert.alert('Security update failed', error instanceof Error ? error.message : 'AccessFlow could not update trusted-device settings.');
-    } finally {
-      setSecurityCenterBusy(false);
-    }
   };
 
   const revokeDeviceAccess = (device: TrustedDeviceRecord) => {
@@ -642,17 +592,11 @@ export function AccountProfileScreen({
         {securityCenterOpen ? (
           <View style={styles.securityCenter}>
             <View style={styles.securityGrid}>
-              <SecurityStatusTile label="Current device" value={localTrustProfile?.trusted ? 'Trusted' : 'Not trusted'} tone={localTrustProfile?.trusted ? 'success' : 'warning'} />
-              <SecurityStatusTile label="Biometric unlock" value={localTrustProfile?.biometricEnabled ? 'Enabled' : 'Disabled'} tone={localTrustProfile?.biometricEnabled ? 'success' : 'default'} />
+              <SecurityStatusTile label="Current device" value="Standard session" tone="info" />
+              <SecurityStatusTile label="Trusted-device flow" value="Paused" tone="warning" />
               <SecurityStatusTile label="Protected resume" value={`${Math.max(5, Math.round(runtime.sessionLock.inactivityTimeoutMs / 60000))} min`} tone="info" />
               <SecurityStatusTile label="Active devices" value={String(trustedDevices.filter((device) => device.active).length)} tone="info" />
             </View>
-            <PreferenceSwitchRow
-              label="Biometric unlock"
-              helperText="Use fingerprint, face unlock, or device PIN to unlock this trusted AccessFlow session after app restarts or inactivity."
-              value={Boolean(localTrustProfile?.biometricEnabled)}
-              onValueChange={(enabled) => void setBiometricUnlock(enabled)}
-            />
             <View style={styles.securityActions}>
               <PrimaryButton label="Refresh security status" tone="secondary" onPress={() => void loadSecurityCenter()} loading={securityCenterBusy} />
               <PrimaryButton label="Sign out safely" tone="danger" onPress={() => void logout()} disabled={isBusy || securityCenterBusy} />

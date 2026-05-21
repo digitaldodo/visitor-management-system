@@ -17,7 +17,12 @@ import type { ApiEnvelope } from '../types/api';
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _authRetry?: boolean;
   _networkRetryCount?: number;
+  accessFlowMaxNetworkRetries?: number;
   _startedAt?: number;
+};
+
+type AccessFlowRequestConfig = AxiosRequestConfig & {
+  accessFlowMaxNetworkRetries?: number;
 };
 
 type SessionProvider = () => AuthSession | null;
@@ -31,7 +36,7 @@ let refreshPromise: Promise<AuthSession> | null = null;
 
 const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
 const RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
-const MAX_NETWORK_RETRIES = 2;
+const MAX_NETWORK_RETRIES = 4;
 
 function createClient(baseURL: string) {
   return axios.create({
@@ -196,12 +201,13 @@ function shouldRetryRequest(error: AxiosError, config?: RetryableRequestConfig) 
   }
 
   const retryCount = config._networkRetryCount ?? 0;
-  if (retryCount >= MAX_NETWORK_RETRIES) {
+  const maxRetries = config.accessFlowMaxNetworkRetries ?? MAX_NETWORK_RETRIES;
+  if (retryCount >= maxRetries) {
     return false;
   }
 
   const method = String(config.method || 'get').toLowerCase();
-  const canReplay = IDEMPOTENT_METHODS.has(method);
+  const canReplay = IDEMPOTENT_METHODS.has(method) || hasIdempotencyKey(config);
   if (!canReplay) {
     return false;
   }
@@ -217,12 +223,22 @@ function getRetryDelayMs(error: AxiosError, retryCount: number) {
   const retryAfterHeader = error.response?.headers?.['retry-after'];
   const retryAfterSeconds = Number(Array.isArray(retryAfterHeader) ? retryAfterHeader[0] : retryAfterHeader);
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-    return Math.min(5_000, retryAfterSeconds * 1_000);
+    return Math.min(30_000, retryAfterSeconds * 1_000);
   }
 
-  const exponentialDelay = 350 * 2 ** Math.max(0, retryCount - 1);
-  const jitter = Math.floor(Math.random() * 180);
-  return Math.min(3_000, exponentialDelay + jitter);
+  const exponentialDelay = 650 * 2 ** Math.max(0, retryCount - 1);
+  const jitter = Math.floor(Math.random() * 300);
+  return Math.min(12_000, exponentialDelay + jitter);
+}
+
+function hasIdempotencyKey(config: RetryableRequestConfig) {
+  const headers = config.headers as Record<string, unknown> | undefined;
+  return Boolean(
+    headers?.['Idempotency-Key']
+      || headers?.['idempotency-key']
+      || headers?.['X-AccessFlow-Operation-Id']
+      || headers?.['x-accessflow-operation-id'],
+  );
 }
 
 async function refreshSession() {
@@ -296,13 +312,13 @@ export function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
   return payload as T;
 }
 
-export async function request<T>(config: AxiosRequestConfig) {
+export async function request<T>(config: AccessFlowRequestConfig) {
   assertApiConfigured();
   const response = await privateApi.request<T | ApiEnvelope<T>>(config);
   return unwrapApiResponse<T>(response.data);
 }
 
-export async function publicRequest<T>(config: AxiosRequestConfig) {
+export async function publicRequest<T>(config: AccessFlowRequestConfig) {
   assertApiConfigured();
   const response = await publicApi.request<T | ApiEnvelope<T>>(config);
   return unwrapApiResponse<T>(response.data);

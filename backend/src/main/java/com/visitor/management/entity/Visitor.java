@@ -142,6 +142,9 @@ public class Visitor {
     @Indexed
     private VisitorStatus status = VisitorStatus.PENDING;
 
+    @Indexed(unique = true, sparse = true)
+    private String clientRequestId;
+
     private String photoUrl;
 
     private String photoPublicId;
@@ -622,6 +625,14 @@ public class Visitor {
 
     public void setStatus(VisitorStatus status) {
         this.status = status;
+    }
+
+    public String getClientRequestId() {
+        return clientRequestId;
+    }
+
+    public void setClientRequestId(String clientRequestId) {
+        this.clientRequestId = clientRequestId;
     }
 
     public String getPhotoUrl() {

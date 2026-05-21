@@ -14,6 +14,8 @@ public interface VisitorRepository extends MongoRepository<Visitor, String> {
     Optional<Visitor> findByQrCode(String qrCode);
     Optional<Visitor> findByPassTokenId(String passTokenId);
 
+    Optional<Visitor> findByClientRequestIdAndEmailIgnoreCase(String clientRequestId, String email);
+
     Page<Visitor> findAllByHostEmployeeId(String hostEmployeeId, Pageable pageable);
 
     List<Visitor> findAllByEmailIgnoreCaseOrderByCreatedAtDesc(String email);

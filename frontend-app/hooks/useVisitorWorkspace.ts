@@ -71,7 +71,7 @@ export function useRegisterVisitorAccountMutation() {
 
 export function useRequestVisitorVisitMutation() {
   return useMutation({
-    mutationFn: requestVisitorVisit,
+    mutationFn: (payload: Parameters<typeof requestVisitorVisit>[0]) => requestVisitorVisit(payload),
   });
 }
 

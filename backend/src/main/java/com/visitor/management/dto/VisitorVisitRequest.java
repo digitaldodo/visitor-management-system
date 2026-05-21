@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 
 public record VisitorVisitRequest(
+        @Size(max = 120) String clientRequestId,
         @Size(max = 6) String phoneCountryCode,
         @Size(min = 7, max = 32) String phone,
         @Size(max = 120) String companyName,

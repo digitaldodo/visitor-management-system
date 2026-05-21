@@ -17,6 +17,8 @@ type SnackbarInput = {
   message: string;
   tone?: SnackbarTone;
   durationMs?: number;
+  dedupeKey?: string;
+  minIntervalMs?: number;
 };
 
 type SnackbarContextValue = {
@@ -29,25 +31,47 @@ const SnackbarContext = createContext<SnackbarContextValue>({
 
 const DEFAULT_DURATION_MS = 2800;
 const MAX_QUEUE_SIZE = 3;
+const DEFAULT_DEDUPE_INTERVAL_MS = 9_000;
+const INFRASTRUCTURE_MESSAGE_PATTERN = /(syncing securely|retrying request|restoring connection|connection restored|reconnecting)/i;
 
 export function OperationalSnackbarProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const nextIdRef = useRef(1);
+  const lastShownRef = useRef<Record<string, number>>({});
   const translateY = useRef(new Animated.Value(88)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const [queue, setQueue] = useState<SnackbarItem[]>([]);
   const [current, setCurrent] = useState<SnackbarItem | null>(null);
 
   const showSnackbar = useCallback((input: SnackbarInput | string) => {
+    const message = typeof input === 'string' ? input : input.message;
+    const dedupeKey = typeof input === 'string' ? message : input.dedupeKey ?? message;
+    const minIntervalMs = typeof input === 'string' ? DEFAULT_DEDUPE_INTERVAL_MS : input.minIntervalMs ?? DEFAULT_DEDUPE_INTERVAL_MS;
+    const now = Date.now();
+
+    if (INFRASTRUCTURE_MESSAGE_PATTERN.test(message)) {
+      return;
+    }
+
+    if (now - (lastShownRef.current[dedupeKey] ?? 0) < minIntervalMs) {
+      return;
+    }
+    lastShownRef.current[dedupeKey] = now;
+
     const item: SnackbarItem = {
       id: nextIdRef.current,
-      message: typeof input === 'string' ? input : input.message,
+      message,
       tone: typeof input === 'string' ? 'info' : input.tone ?? 'info',
       durationMs: typeof input === 'string' ? DEFAULT_DURATION_MS : input.durationMs ?? DEFAULT_DURATION_MS,
     };
     nextIdRef.current += 1;
 
-    setQueue((existing) => [...existing.slice(-(MAX_QUEUE_SIZE - 1)), item]);
+    setQueue((existing) => {
+      if (existing.some((queued) => queued.message === item.message && queued.tone === item.tone)) {
+        return existing;
+      }
+      return [...existing.slice(-(MAX_QUEUE_SIZE - 1)), item];
+    });
   }, []);
 
   useEffect(() => {

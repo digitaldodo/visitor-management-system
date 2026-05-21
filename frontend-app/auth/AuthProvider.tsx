@@ -4,22 +4,13 @@ import { apiConfig } from '../api/apiConfig';
 import { configureApiClient } from '../api/apiClient';
 import { createAppError, normalizeApiError, sanitizeUserFacingErrorMessage } from '../api/error';
 import {
-  authenticateDeviceUnlock,
-  bindTrustedDeviceLocally,
   clearLocalDeviceTrustProfile,
-  collectDeviceIntegritySignals,
-  getCurrentDeviceDescriptor,
-  isEnterpriseTrustAudience,
   isSoftDeviceUnlockInterruption,
-  markDeviceUnlocked,
-  promptForDeviceTrust,
-  readLocalDeviceTrustProfile,
 } from './deviceTrust';
 import { resetNavigationToAuth, resetNavigationToRoleHome } from '../navigation/navigationRef';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { clearFirebaseUserContext, recordFirebaseError, setFirebaseUserContext, trackFirebaseEvent } from '../runtime/firebaseRuntime';
 import { login as loginRequest, logout as logoutRequest, restoreSession } from '../services/authService';
-import { registerTrustedDevice } from '../services/operationalService';
 import { getApiVersions } from '../services/systemService';
 import {
   clearPersistedSession,
@@ -88,10 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rememberSessionRef.current = shouldPersist;
       sessionRef.current = session;
       if (shouldPersist) {
-        const trustProfile = await readLocalDeviceTrustProfile();
-        await writePersistedSession(session, {
-          requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
-        });
+        await writePersistedSession(session);
       } else {
         await clearPersistedSession();
       }
@@ -243,12 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       runtimeRecoveryPromiseRef.current = (async () => {
-        const trustProfile = await readLocalDeviceTrustProfile();
         let persistedSession: AuthSession | null = null;
         try {
-          persistedSession = sessionRef.current ?? (await readPersistedSession({
-            requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
-          }));
+          persistedSession = sessionRef.current ?? (await readPersistedSession());
         } catch (error) {
           if (isSecureSessionAuthInterruption(error)) {
             await showAuthInterruptedState({
@@ -290,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           await persistAuthenticatedSession(session, versions, {
-            rememberSession: rememberSessionRef.current || Boolean(trustProfile?.trusted) || Boolean(persistedSession),
+            rememberSession: rememberSessionRef.current || Boolean(persistedSession),
           });
           await recordDiagnosticEvent({
             level: 'info',
@@ -380,16 +365,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const trustProfile = await readLocalDeviceTrustProfile();
+    await clearLocalDeviceTrustProfile().catch(() => undefined);
 
     let persistedSession: AuthSession | null = null;
     try {
-      persistedSession = await readPersistedSession({
-        requireAuthentication: Boolean(trustProfile?.trusted && trustProfile.biometricEnabled),
-      });
-      if (persistedSession && trustProfile?.trusted && trustProfile.biometricEnabled) {
-        await markDeviceUnlocked(trustProfile);
-      }
+      persistedSession = await readPersistedSession();
     } catch (error) {
       if (isSecureSessionAuthInterruption(error)) {
         await showAuthInterruptedState({
@@ -743,50 +723,19 @@ function isTransientRecoveryFailure(error: AppError) {
 }
 
 async function establishTrustedDevice(session: AuthSession, rememberRequested: boolean) {
-  const enterpriseAudience = isEnterpriseTrustAudience(session.audience);
-  if (!enterpriseAudience && !rememberRequested) {
-    return { persistSession: false };
-  }
-
-  const decision = enterpriseAudience
-    ? await promptForDeviceTrust(session)
-    : { trusted: rememberRequested, biometricEnabled: false };
-
-  if (!decision.trusted) {
-    await clearLocalDeviceTrustProfile();
-    return { persistSession: !enterpriseAudience && rememberRequested };
-  }
-
-  let biometricEnabled = decision.biometricEnabled;
-  if (biometricEnabled) {
-    const unlock = await authenticateDeviceUnlock('enable');
-    biometricEnabled = unlock.success;
-  }
-
-  const profile = await bindTrustedDeviceLocally(session, biometricEnabled);
-  const [descriptor, integritySignals] = await Promise.all([
-    getCurrentDeviceDescriptor(),
-    collectDeviceIntegritySignals(),
-  ]);
-
-  await registerTrustedDevice({
-    ...descriptor,
-    biometricEnabled,
-    integritySignals,
-  }).catch(async (error) => {
-    await recordDiagnosticEvent({
-      level: 'warn',
-      scope: 'security',
-      code: 'TRUSTED_DEVICE_REGISTRATION_FAILED',
-      message: error instanceof Error ? error.message : 'Trusted device registration failed.',
-      context: {
-        role: session.user.activeRole,
-        deviceId: profile.deviceId,
-      },
-    });
+  await clearLocalDeviceTrustProfile().catch(() => undefined);
+  await recordDiagnosticEvent({
+    level: 'info',
+    scope: 'security',
+    code: 'TRUSTED_DEVICE_FLOW_DISABLED',
+    message: 'Trusted-device binding is disabled while mobile session persistence is stabilized.',
+    context: {
+      role: session.user.activeRole,
+      audience: session.audience,
+      rememberRequested,
+    },
   });
-
-  return { persistSession: true };
+  return { persistSession: rememberRequested };
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {

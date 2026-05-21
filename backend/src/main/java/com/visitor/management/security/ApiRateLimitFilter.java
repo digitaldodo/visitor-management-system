@@ -13,7 +13,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
@@ -47,6 +51,7 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         } catch (TooManyRequestsException ex) {
             response.setStatus(429);
             response.setContentType("application/json");
+            response.setHeader("Retry-After", "30");
             response.getWriter().write("{\"success\":false,\"message\":\"Too many requests. Please wait before trying again.\"}");
             return;
         }
@@ -57,6 +62,28 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         String ip = forwardedFor == null || forwardedFor.isBlank() ? request.getRemoteAddr() : forwardedFor.split(",")[0].trim();
         String user = request.getUserPrincipal() == null ? "anonymous" : request.getUserPrincipal().getName();
+        if ("anonymous".equals(user)) {
+            String tokenFingerprint = bearerTokenFingerprint(request.getHeader("Authorization"));
+            if (tokenFingerprint != null) {
+                user = "token:" + tokenFingerprint;
+            }
+        }
         return ip + ":" + user;
+    }
+
+    private String bearerTokenFingerprint(String authorizationHeader) {
+        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+            return null;
+        }
+        String value = authorizationHeader.trim();
+        if (!value.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.substring(7).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest).substring(0, 24);
+        } catch (NoSuchAlgorithmException ex) {
+            return Integer.toUnsignedString(value.substring(7).hashCode(), 36);
+        }
     }
 }

@@ -62,6 +62,7 @@ export type VisitorPass = {
 };
 
 export type VisitorVisitPayload = {
+  clientRequestId?: string | null;
   phoneCountryCode?: string | null;
   phone?: string | null;
   companyName?: string | null;
@@ -131,11 +132,17 @@ export async function getVisitorHosts(query?: string, companyCode?: string, sign
   });
 }
 
-export async function requestVisitorVisit(payload: VisitorVisitPayload) {
+export async function requestVisitorVisit(payload: VisitorVisitPayload, clientRequestId?: string) {
+  const operationId = clientRequestId || payload.clientRequestId || undefined;
   return request<VisitorRecord>({
     url: '/visitor/visits',
     method: 'POST',
-    data: payload,
+    accessFlowMaxNetworkRetries: 1,
+    data: {
+      ...payload,
+      clientRequestId: operationId,
+    },
+    headers: idempotencyHeaders(operationId),
   });
 }
 
@@ -185,4 +192,13 @@ function createUploadFormData(asset: UploadAsset) {
     type: asset.type ?? 'image/jpeg',
   } as unknown as Blob);
   return formData;
+}
+
+function idempotencyHeaders(clientOperationId?: string) {
+  return clientOperationId
+    ? {
+        'X-AccessFlow-Operation-Id': clientOperationId,
+        'Idempotency-Key': clientOperationId,
+      }
+    : undefined;
 }
