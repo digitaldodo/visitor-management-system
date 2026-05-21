@@ -1,11 +1,8 @@
 import { request } from '../api/apiClient';
+import { uploadImage, type UploadAsset } from './uploadService';
 import type { SecurityPhotoUpload, UserProfile } from '../types/domain';
 
-export type UploadAsset = {
-  uri: string;
-  name?: string;
-  type?: string;
-};
+export type { UploadAsset };
 
 export type AccountProfileUpdatePayload = {
   username?: string | null;
@@ -47,22 +44,9 @@ export async function updateAccountPassword(payload: AccountPasswordUpdatePayloa
 }
 
 export async function uploadAccountProfilePhoto(asset: UploadAsset) {
-  return request<SecurityPhotoUpload>({
+  return uploadImage<SecurityPhotoUpload>({
     url: '/auth/profile/photo',
-    method: 'POST',
-    data: createUploadFormData(asset),
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    asset,
+    fallbackName: 'account-photo.jpg',
   });
-}
-
-function createUploadFormData(asset: UploadAsset) {
-  const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    name: asset.name ?? 'account-photo.jpg',
-    type: asset.type ?? 'image/jpeg',
-  } as unknown as Blob);
-  return formData;
 }

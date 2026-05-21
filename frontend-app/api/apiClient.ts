@@ -18,11 +18,13 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _authRetry?: boolean;
   _networkRetryCount?: number;
   accessFlowMaxNetworkRetries?: number;
+  accessFlowSkipAuthRefresh?: boolean;
   _startedAt?: number;
 };
 
-type AccessFlowRequestConfig = AxiosRequestConfig & {
+export type AccessFlowRequestConfig = AxiosRequestConfig & {
   accessFlowMaxNetworkRetries?: number;
+  accessFlowSkipAuthRefresh?: boolean;
 };
 
 type SessionProvider = () => AuthSession | null;
@@ -132,6 +134,9 @@ privateApi.interceptors.response.use(
         config._authRetry = true;
         return privateApi(config);
       } catch (refreshError) {
+        if (config?.accessFlowSkipAuthRefresh) {
+          return Promise.reject(normalizeApiError(error));
+        }
         return Promise.reject(normalizeApiError(refreshError));
       }
     }
@@ -152,6 +157,7 @@ function shouldRefreshToken(error: AxiosError, config?: RetryableRequestConfig) 
   return Boolean(
     config
       && error.response?.status === 401
+      && !config.accessFlowSkipAuthRefresh
       && !config._authRetry
       && !String(config.url || '').includes('/auth/refresh')
       && !String(config.url || '').includes('/auth/login')

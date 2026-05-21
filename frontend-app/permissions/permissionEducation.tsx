@@ -8,6 +8,7 @@ import { PrimaryButton } from '../components/buttons/PrimaryButton';
 import { theme } from '../theme';
 
 export type PermissionEducationKind = 'camera' | 'notifications' | 'files' | 'biometric';
+export type PermissionLifecycleStatus = 'not-requested' | 'granted' | 'denied' | 'permanently-denied';
 
 type PermissionCopy = {
   title: string;
@@ -18,6 +19,7 @@ type PermissionCopy = {
 };
 
 const STORAGE_PREFIX = 'accessflow.mobile.permission-education.v1.';
+const LIFECYCLE_PREFIX = 'accessflow.mobile.permission-lifecycle.v1.';
 const PermissionEducationContext = createContext<null>(null);
 
 let presentPermissionEducation: ((kind: PermissionEducationKind) => Promise<boolean>) | null = null;
@@ -43,7 +45,7 @@ const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
       'You can continue with in-app alerts if you decline.',
     ],
     icon: 'notifications-outline',
-    actionLabel: 'Continue',
+    actionLabel: 'Enable notifications',
   },
   files: {
     title: 'Files access for trusted uploads',
@@ -71,6 +73,11 @@ const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
 
 export async function showPermissionEducation(kind: PermissionEducationKind) {
   const key = `${STORAGE_PREFIX}${kind}`;
+  const lifecycle = await readPermissionLifecycle(kind);
+  if (kind === 'notifications' && (lifecycle.status === 'denied' || lifecycle.status === 'permanently-denied')) {
+    return false;
+  }
+
   const alreadyShown = await AsyncStorage.getItem(key).catch(() => null);
   if (alreadyShown === 'true') {
     return true;
@@ -90,7 +97,7 @@ export async function showPermissionEducation(kind: PermissionEducationKind) {
       copy.title,
       copy.body,
       [
-        { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+        { text: kind === 'notifications' ? 'Enable later' : 'Not now', style: 'cancel', onPress: () => resolve(false) },
         { text: copy.actionLabel, onPress: () => resolve(true) },
       ],
     );
@@ -98,9 +105,33 @@ export async function showPermissionEducation(kind: PermissionEducationKind) {
 
   if (accepted) {
     await AsyncStorage.setItem(key, 'true').catch(() => undefined);
+  } else if (kind === 'notifications') {
+    await writePermissionLifecycle(kind, 'denied');
   }
 
   return accepted;
+}
+
+export async function readPermissionLifecycle(kind: PermissionEducationKind) {
+  const value = await AsyncStorage.getItem(`${LIFECYCLE_PREFIX}${kind}`).catch(() => null);
+  if (value === 'granted' || value === 'denied' || value === 'permanently-denied' || value === 'not-requested') {
+    return { status: value as PermissionLifecycleStatus };
+  }
+  return { status: 'not-requested' as PermissionLifecycleStatus };
+}
+
+export async function writePermissionLifecycle(kind: PermissionEducationKind, status: PermissionLifecycleStatus) {
+  await AsyncStorage.setItem(`${LIFECYCLE_PREFIX}${kind}`, status).catch(() => undefined);
+  if (status === 'granted') {
+    await AsyncStorage.setItem(`${STORAGE_PREFIX}${kind}`, 'true').catch(() => undefined);
+  }
+}
+
+export async function resetPermissionLifecycleForManualEnable(kind: PermissionEducationKind) {
+  await Promise.all([
+    AsyncStorage.removeItem(`${LIFECYCLE_PREFIX}${kind}`).catch(() => undefined),
+    AsyncStorage.removeItem(`${STORAGE_PREFIX}${kind}`).catch(() => undefined),
+  ]);
 }
 
 export function PermissionEducationProvider({ children }: { children: ReactNode }) {
@@ -169,7 +200,7 @@ export function PermissionEducationProvider({ children }: { children: ReactNode 
                   onPress={() => complete(false)}
                   style={styles.declineButton}
                 >
-                  <Text style={styles.declineText}>Not now</Text>
+                  <Text style={styles.declineText}>{activeKind === 'notifications' ? 'Enable later' : 'Not now'}</Text>
                 </Pressable>
               </View>
             </View>

@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Keyboard,
   LayoutAnimation,
   Platform,
@@ -11,7 +10,6 @@ import {
   Text,
   UIManager,
   View,
-  type ListRenderItem,
 } from 'react-native';
 
 import { theme } from '../../theme';
@@ -81,11 +79,12 @@ export function AutocompleteDropdown<T>({
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, []);
 
-  const renderResult = useCallback<ListRenderItem<T>>(({ item }) => {
+  const renderResult = useCallback((item: T) => {
     const meta = getMeta?.(item);
 
     return (
       <Pressable
+        key={getKey(item)}
         accessibilityRole="button"
         onPress={() => {
           animate();
@@ -104,7 +103,7 @@ export function AutocompleteDropdown<T>({
         </View>
       </Pressable>
     );
-  }, [animate, getMeta, getTitle, onSelect, resultIconName]);
+  }, [animate, getKey, getMeta, getTitle, onSelect, resultIconName]);
 
   return (
     <View style={styles.container}>
@@ -169,21 +168,10 @@ export function AutocompleteDropdown<T>({
                 </Pressable>
               ) : null}
             </View>
-          ) : results.length ? (
-            <FlatList
-              data={visibleResults}
-              keyExtractor={getKey}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled
-              initialNumToRender={6}
-              maxToRenderPerBatch={6}
-              removeClippedSubviews={Platform.OS === 'android'}
-              updateCellsBatchingPeriod={40}
-              windowSize={3}
-              getItemLayout={(_, index) => ({ length: RESULT_ROW_HEIGHT, offset: RESULT_ROW_HEIGHT * index, index })}
-              style={styles.resultsScroll}
-              renderItem={renderResult}
-            />
+          ) : visibleResults.length ? (
+            <View style={styles.resultsList}>
+              {visibleResults.map((item) => renderResult(item))}
+            </View>
           ) : (
             <StateRow icon="file-tray-outline" title={emptyText} body={emptyBody} />
           )}
@@ -192,8 +180,6 @@ export function AutocompleteDropdown<T>({
     </View>
   );
 }
-
-const RESULT_ROW_HEIGHT = 62;
 
 function StateRow({
   icon,
@@ -284,7 +270,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
   },
-  resultsScroll: {
+  resultsList: {
     maxHeight: 292,
   },
   resultRow: {

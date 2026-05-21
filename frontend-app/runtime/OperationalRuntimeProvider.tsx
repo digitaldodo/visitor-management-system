@@ -21,7 +21,12 @@ import { authenticateDeviceUnlock } from '../auth/deviceTrust';
 import { getWorkspaceConfig, isNotificationAllowedForRole } from '../auth/workspaceConfig';
 import { apiConfig } from '../api/apiConfig';
 import { navigateToWorkspace, resetNavigationToRoleHome } from '../navigation/navigationRef';
-import { showPermissionEducation } from '../permissions/permissionEducation';
+import {
+  readPermissionLifecycle,
+  resetPermissionLifecycleForManualEnable,
+  showPermissionEducation,
+  writePermissionLifecycle,
+} from '../permissions/permissionEducation';
 import { openOperationalDeepLink } from './operationalDeepLinks';
 import { operationalSyncRuntime } from './operationalSyncRuntime';
 import { clearDiagnosticEvents, readDiagnosticEvents, recordDiagnosticEvent } from './diagnostics';
@@ -91,7 +96,7 @@ type OperationalRuntimeContextValue = {
   isUnlocking: boolean;
   authInterruptionMessage: string | null;
   markLocalNotificationRead: (notificationId: string) => void;
-  requestPushRegistration: () => Promise<void>;
+  requestPushRegistration: (options?: { forcePrompt?: boolean }) => Promise<void>;
   syncNow: () => Promise<void>;
   unlockSession: () => Promise<void>;
   applyPendingUpdate: () => Promise<void>;
@@ -438,7 +443,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     });
   }, [activeRole, queryClient]);
 
-  const registerCurrentDevice = useCallback(async () => {
+  const registerCurrentDevice = useCallback(async (options?: { forcePrompt?: boolean }) => {
     if (auth.status !== 'authenticated') {
       return;
     }
@@ -455,13 +460,44 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         current.deviceId === deviceId ? current : { ...current, deviceId }
       ));
 
-      let permissions = await Notifications.getPermissionsAsync();
-      if (permissions.status !== 'granted') {
-        const accepted = await showPermissionEducation('notifications');
-        permissions = accepted ? await Notifications.requestPermissionsAsync() : permissions;
+      if (options?.forcePrompt) {
+        await resetPermissionLifecycleForManualEnable('notifications');
       }
 
-      const nextStatus = String(permissions.status || 'unknown').toUpperCase();
+      let permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status !== 'granted') {
+        const lifecycle = await readPermissionLifecycle('notifications');
+        const status = notificationLifecycleStatus(permissions.status, permissions.canAskAgain);
+        if (status === 'permanently-denied') {
+          await writePermissionLifecycle('notifications', 'permanently-denied');
+        } else if (status === 'denied') {
+          await writePermissionLifecycle('notifications', 'denied');
+        }
+
+        const canPrompt = options?.forcePrompt
+          || (status === 'not-requested' && lifecycle.status === 'not-requested');
+
+        if (canPrompt) {
+          const accepted = await showPermissionEducation('notifications');
+          permissions = accepted ? await Notifications.requestPermissionsAsync() : permissions;
+          await writePermissionLifecycle(
+            'notifications',
+            notificationLifecycleStatus(permissions.status, permissions.canAskAgain),
+          );
+        }
+      } else {
+        await writePermissionLifecycle('notifications', 'granted');
+      }
+
+      const persistedLifecycle = await readPermissionLifecycle('notifications');
+      const lifecycleStatus = notificationLifecycleStatus(permissions.status, permissions.canAskAgain);
+      const effectiveStatus =
+        permissions.status === 'granted'
+          ? 'GRANTED'
+          : persistedLifecycle.status === 'denied' || persistedLifecycle.status === 'permanently-denied'
+            ? persistedLifecycle.status.toUpperCase()
+            : lifecycleStatus.toUpperCase();
+      const nextStatus = effectiveStatus.replace('-', '_');
       setPushPermissionStatus(nextStatus);
 
       const fcmToken = nextStatus === 'GRANTED' ? await getFirebaseMessagingToken() : null;
@@ -1684,6 +1720,19 @@ function isOfflineNetworkState(state: NetworkReachabilityState) {
   return state.isConnected === false
     || state.isInternetReachable === false
     || (!state.isApiReachable && state.consecutiveFailures >= 2);
+}
+
+function notificationLifecycleStatus(status?: string | null, canAskAgain?: boolean | null) {
+  if (status === 'granted') {
+    return 'granted' as const;
+  }
+  if (canAskAgain === false) {
+    return 'permanently-denied' as const;
+  }
+  if (status === 'denied') {
+    return 'denied' as const;
+  }
+  return 'not-requested' as const;
 }
 
 function getSessionLockThresholdMs(policySeconds?: number | null) {

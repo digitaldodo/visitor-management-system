@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/feedback/EmptyState';
 import { OperationalLoadingState, SkeletonCard } from '../../components/feedback/LoadingState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppScreen } from '../../components/layout/AppScreen';
+import { AppListScreen } from '../../components/layout/AppListScreen';
 import { useAuth } from '../../auth/AuthProvider';
 import { useOperationalActivityFeed, type OperationalFeedCategory, type OperationalFeedItem, type OperationalFeedSeverity } from '../../hooks/useOperationalActivityFeed';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -34,8 +35,9 @@ export function OperationalFeedScreen() {
   const visitorCount = feed.items.filter((item) => item.category === 'visitor').length;
   const approvalCount = feed.items.filter((item) => item.category === 'approval').length;
   const workforceCount = feed.items.filter((item) => item.category === 'workforce').length;
+  const listMaxWidth = layout.isLargeTablet ? 1180 : layout.contentMaxWidth;
 
-  const openItem = (item: OperationalFeedItem) => {
+  const openItem = useCallback((item: OperationalFeedItem) => {
     if (!role) {
       return;
     }
@@ -64,7 +66,7 @@ export function OperationalFeedScreen() {
       return;
     }
     navigation.navigate(role === 'VISITOR' ? 'Notifications' : role === 'SECURITY_GUARD' ? 'Alerts' : 'Notifications');
-  };
+  }, [navigation, role]);
 
   if (role !== 'ADMIN') {
     return (
@@ -79,79 +81,70 @@ export function OperationalFeedScreen() {
   }
 
   return (
-    <AppScreen
+    <AppListScreen
       title={t('feed.title')}
       subtitle={t('feed.subtitle')}
+      data={feed.isLoading ? [] : filteredItems}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item, index }) => (
+        <View style={{ width: '100%', maxWidth: listMaxWidth }}>
+          <FeedRow
+            item={item}
+            first={index === 0}
+            last={index === filteredItems.length - 1}
+            onPress={() => openItem(item)}
+          />
+        </View>
+      )}
       refreshing={feed.isRefetching}
       onRefresh={feed.refetch}
       contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
-    >
-      <View style={[styles.summaryGrid, layout.isTablet ? styles.summaryGridWide : null]}>
-        <SummaryTile
-          icon="pulse-outline"
-          label="Org activity"
-          value={feed.items.length}
-          tone="info"
-        />
-        <SummaryTile
-          icon="warning-outline"
-          label={t('feed.summaryAlerts')}
-          value={priorityCount}
-          tone={priorityCount ? 'warning' : 'success'}
-        />
-        <SummaryTile
-          icon="people-outline"
-          label="Visitors"
-          value={visitorCount}
-          tone="info"
-        />
-        <SummaryTile
-          icon={approvalCount ? 'checkmark-done-outline' : 'id-card-outline'}
-          label={approvalCount ? 'Approvals' : 'Workforce'}
-          value={approvalCount || workforceCount}
-          tone={approvalCount ? 'warning' : 'success'}
-        />
-      </View>
-
-      <SurfaceCard title={t('feed.streamTitle')} subtitle={t('feed.streamSubtitle')}>
-        <View style={styles.filterRow}>
-          {filterOptions(t).map((option) => (
-            <Pressable
-              key={option.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: filter === option.value }}
-              onPress={() => setFilter(option.value)}
-              style={[styles.filterChip, filter === option.value ? styles.filterChipActive : null]}
+      emptyComponent={(
+        <View style={{ width: '100%', maxWidth: listMaxWidth }}>
+          {feed.isLoading ? (
+            <OperationalLoadingState
+              title="Loading organization activity"
+              body="Preparing visitor, workforce, approval, notification, and incident activity."
             >
-              <Text numberOfLines={1} style={[styles.filterText, filter === option.value ? styles.filterTextActive : null]}>{option.label}</Text>
-            </Pressable>
-          ))}
+              <SkeletonCard rows={3} />
+            </OperationalLoadingState>
+          ) : (
+            <EmptyState icon="pulse-outline" title={t('feed.emptyTitle')} body={t('feed.emptyBody')} />
+          )}
         </View>
-
-        {feed.isLoading ? (
-          <OperationalLoadingState
-            title="Loading organization activity"
-            body="Preparing visitor, workforce, approval, notification, and incident activity."
-          >
-            <SkeletonCard rows={3} />
-          </OperationalLoadingState>
-        ) : filteredItems.length ? (
-          <View style={styles.timeline}>
-            {filteredItems.map((item, index) => (
-              <FeedRow
-                key={item.id}
-                item={item}
-                first={index === 0}
-                last={index === filteredItems.length - 1}
-                onPress={() => openItem(item)}
-              />
-            ))}
+      )}
+      headerContent={(
+        <>
+          <View style={[styles.summaryGrid, layout.isTablet ? styles.summaryGridWide : null]}>
+            <SummaryTile icon="pulse-outline" label="Org activity" value={feed.items.length} tone="info" />
+            <SummaryTile icon="warning-outline" label={t('feed.summaryAlerts')} value={priorityCount} tone={priorityCount ? 'warning' : 'success'} />
+            <SummaryTile icon="people-outline" label="Visitors" value={visitorCount} tone="info" />
+            <SummaryTile
+              icon={approvalCount ? 'checkmark-done-outline' : 'id-card-outline'}
+              label={approvalCount ? 'Approvals' : 'Workforce'}
+              value={approvalCount || workforceCount}
+              tone={approvalCount ? 'warning' : 'success'}
+            />
           </View>
-        ) : (
-          <EmptyState icon="pulse-outline" title={t('feed.emptyTitle')} body={t('feed.emptyBody')} />
-        )}
-      </SurfaceCard>
-    </AppScreen>
+
+          <SurfaceCard title={t('feed.streamTitle')} subtitle={t('feed.streamSubtitle')}>
+            <View style={styles.filterRow}>
+              {filterOptions(t).map((option) => (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: filter === option.value }}
+                  onPress={() => setFilter(option.value)}
+                  style={[styles.filterChip, filter === option.value ? styles.filterChipActive : null]}
+                >
+                  <Text numberOfLines={1} style={[styles.filterText, filter === option.value ? styles.filterTextActive : null]}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </SurfaceCard>
+        </>
+      )}
+    />
   );
 }
 

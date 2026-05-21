@@ -21,9 +21,15 @@ export function NotificationsScreen() {
   const markReadMutation = useMarkEmployeeNotificationReadMutation();
   const markAllReadMutation = useMarkAllEmployeeNotificationsReadMutation();
 
-  const backendItems = notifications.data?.items ?? [];
-  const localWorkspaceNotifications = localNotifications.filter((item) => String(item.category || '').toUpperCase() !== 'SYSTEM');
-  const unreadCount = (notifications.data?.unreadCount ?? 0) + localWorkspaceNotifications.filter((item) => !item.read).length;
+  const backendItems = useMemo(() => notifications.data?.items ?? [], [notifications.data?.items]);
+  const localWorkspaceNotifications = useMemo(
+    () => localNotifications.filter((item) => String(item.category || '').toUpperCase() !== 'SYSTEM'),
+    [localNotifications],
+  );
+  const unreadCount = useMemo(
+    () => (notifications.data?.unreadCount ?? 0) + localWorkspaceNotifications.filter((item) => !item.read).length,
+    [localWorkspaceNotifications, notifications.data?.unreadCount],
+  );
   const criticalCount = useMemo(
     () => [...backendItems, ...localWorkspaceNotifications].filter((item) => String(item.priority || '').toUpperCase() === 'CRITICAL').length,
     [backendItems, localWorkspaceNotifications],

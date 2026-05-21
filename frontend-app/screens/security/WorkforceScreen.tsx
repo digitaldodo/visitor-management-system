@@ -172,30 +172,36 @@ export function WorkforceScreen() {
 
     setFormError(null);
 
-    let employeePhotoUrl: string | null = null;
-    if (workerPhoto) {
-      const photo = await uploadWorkforcePhotoMutation.mutateAsync(workerPhoto);
-      employeePhotoUrl = photo.url;
+    try {
+      let employeePhotoUrl: string | null = null;
+      if (workerPhoto) {
+        const photo = await uploadWorkforcePhotoMutation.mutateAsync(workerPhoto);
+        employeePhotoUrl = photo.url;
+      }
+
+      const worker = await createWorkforceMutation.mutateAsync({
+        fullName: fullName.trim(),
+        username: username.trim() || null,
+        email: email.trim() || null,
+        department: department.trim() || null,
+        phoneCountryCode: phoneCountryCode.trim() || null,
+        phone: phone.trim(),
+        designation: designation.trim(),
+        employeeType,
+        employeePhotoUrl,
+        shiftName: shiftName.trim() || null,
+        shiftStartTime: shiftStartTime.trim() || null,
+        shiftEndTime: shiftEndTime.trim() || null,
+      });
+
+      setActionMessage(`${worker.fullName} queued for admin approval. Security-assisted onboarding is recorded and access stays inactive until approval.`);
+      resetForm();
+      await refreshWorkspace();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Workforce onboarding could not be completed. Retry when the connection is stable.';
+      setFormError(message);
+      showSnackbar({ message, tone: 'danger', dedupeKey: 'workforce-onboarding-failed' });
     }
-
-    const worker = await createWorkforceMutation.mutateAsync({
-      fullName: fullName.trim(),
-      username: username.trim() || null,
-      email: email.trim() || null,
-      department: department.trim() || null,
-      phoneCountryCode: phoneCountryCode.trim() || null,
-      phone: phone.trim(),
-      designation: designation.trim(),
-      employeeType,
-      employeePhotoUrl,
-      shiftName: shiftName.trim() || null,
-      shiftStartTime: shiftStartTime.trim() || null,
-      shiftEndTime: shiftEndTime.trim() || null,
-    });
-
-    setActionMessage(`${worker.fullName} queued for admin approval. Security-assisted onboarding is recorded and access stays inactive until approval.`);
-    resetForm();
-    await refreshWorkspace();
   };
 
   const executeWorkforceAction = async (reason: string) => {

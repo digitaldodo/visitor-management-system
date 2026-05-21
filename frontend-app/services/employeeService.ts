@@ -1,5 +1,6 @@
 import { request } from '../api/apiClient';
 import { trackFirebaseEvent } from '../runtime/firebaseRuntime';
+import { uploadImage, type UploadAsset } from './uploadService';
 import type { PageResponse } from '../types/api';
 import type {
   EmployeeAttendanceRecord,
@@ -12,12 +13,6 @@ import type {
   VisitorInviteRecord,
   VisitorRecord,
 } from '../types/domain';
-
-type UploadAsset = {
-  uri: string;
-  name?: string;
-  type?: string;
-};
 
 export type EmployeeProfileUpdatePayload = {
   phone?: string | null;
@@ -159,14 +154,10 @@ export async function updateEmployeePassword(payload: EmployeePasswordUpdatePayl
 }
 
 export async function uploadEmployeeProfilePhoto(asset: UploadAsset) {
-  const formData = createUploadFormData(asset);
-  return request<SecurityPhotoUpload>({
+  return uploadImage<SecurityPhotoUpload>({
     url: '/employee/profile/photo',
-    method: 'POST',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    asset,
+    fallbackName: 'employee-photo.jpg',
   });
 }
 
@@ -210,14 +201,4 @@ export async function markAllEmployeeNotificationsRead() {
     url: '/notifications/read-all',
     method: 'PATCH',
   });
-}
-
-function createUploadFormData(asset: UploadAsset) {
-  const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    name: asset.name ?? 'employee-photo.jpg',
-    type: asset.type ?? 'image/jpeg',
-  } as unknown as Blob);
-  return formData;
 }

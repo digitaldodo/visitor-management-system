@@ -1,4 +1,5 @@
 import { publicRequest, request } from '../api/apiClient';
+import { uploadImage, type UploadAsset } from './uploadService';
 import type { VisitorRegisterPayload } from '../types/auth';
 import type { HostDirectoryEntry, NotificationInbox, SecurityPhotoUpload, VisitorRecord } from '../types/domain';
 
@@ -78,12 +79,6 @@ export type VisitorVisitPayload = {
   photoPublicId: string;
 };
 
-type UploadAsset = {
-  uri: string;
-  name?: string;
-  type?: string;
-};
-
 export async function registerVisitorAccount(payload: VisitorRegisterPayload) {
   return publicRequest<{ verificationId?: string; email?: string }>({
     url: '/auth/register',
@@ -147,14 +142,10 @@ export async function requestVisitorVisit(payload: VisitorVisitPayload, clientRe
 }
 
 export async function uploadVisitorVisitPhoto(asset: UploadAsset) {
-  const formData = createUploadFormData(asset);
-  return request<SecurityPhotoUpload>({
+  return uploadImage<SecurityPhotoUpload>({
     url: '/visitor/visits/photo',
-    method: 'POST',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    asset,
+    fallbackName: 'visitor-visit-photo.jpg',
   });
 }
 
@@ -182,16 +173,6 @@ export async function getVisitorNotifications(limit = 25) {
     method: 'GET',
     params: { limit },
   });
-}
-
-function createUploadFormData(asset: UploadAsset) {
-  const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    name: asset.name ?? 'visitor-visit-photo.jpg',
-    type: asset.type ?? 'image/jpeg',
-  } as unknown as Blob);
-  return formData;
 }
 
 function idempotencyHeaders(clientOperationId?: string) {

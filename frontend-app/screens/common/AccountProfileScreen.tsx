@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { apiConfig } from '../../api/apiConfig';
@@ -532,6 +532,19 @@ export function AccountProfileScreen({
           value={notificationEmailEnabled}
           onValueChange={setNotificationEmailEnabled}
         />
+        {runtime.pushPermissionStatus === 'DENIED' || runtime.pushPermissionStatus === 'PERMANENTLY_DENIED' ? (
+          <PrimaryButton
+            label={runtime.pushPermissionStatus === 'PERMANENTLY_DENIED' ? 'Open Android notification settings' : 'Enable notifications'}
+            tone="secondary"
+            onPress={() => {
+              if (runtime.pushPermissionStatus === 'PERMANENTLY_DENIED') {
+                void Linking.openSettings();
+                return;
+              }
+              void runtime.requestPushRegistration({ forcePrompt: true });
+            }}
+          />
+        ) : null}
         <PrimaryButton label="Save account changes" onPress={() => void saveProfile()} loading={updateProfileMutation.isPending} />
       </SurfaceCard>
 

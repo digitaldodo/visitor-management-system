@@ -454,8 +454,11 @@ export function VisitorNotificationsScreen() {
   const markReadMutation = useMutation({ mutationFn: markNotificationRead });
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
 
-  const visitorLocalNotifications = localNotifications.filter((item) =>
-    ['VISITOR', 'SYSTEM'].includes(String(item.category || '').toUpperCase()),
+  const visitorLocalNotifications = useMemo(
+    () => localNotifications.filter((item) =>
+      ['VISITOR', 'SYSTEM'].includes(String(item.category || '').toUpperCase()),
+    ),
+    [localNotifications],
   );
 
   const refreshWorkspace = async () => {

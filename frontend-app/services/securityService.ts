@@ -1,4 +1,5 @@
 import { request } from '../api/apiClient';
+import { uploadImage, type UploadAsset } from './uploadService';
 import {
   cacheEmployeeScan,
   cacheQrVerification,
@@ -22,12 +23,6 @@ import type {
 } from '../types/domain';
 import type { PageResponse } from '../types/api';
 import type { VisitorPass } from './visitorService';
-
-type UploadAsset = {
-  uri: string;
-  name?: string;
-  type?: string;
-};
 
 type SecurityIncidentPayload = {
   visitorId: string;
@@ -236,26 +231,18 @@ export async function createVisitorRegistration(payload: VisitorRegistrationPayl
 }
 
 export async function uploadVisitorPhoto(asset: UploadAsset) {
-  const formData = createUploadFormData(asset);
-  return request<SecurityPhotoUpload>({
+  return uploadImage<SecurityPhotoUpload>({
     url: '/security/visitors/photo',
-    method: 'POST',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    asset,
+    fallbackName: 'capture.jpg',
   });
 }
 
 export async function uploadWorkforcePhoto(asset: UploadAsset) {
-  const formData = createUploadFormData(asset);
-  return request<SecurityPhotoUpload>({
+  return uploadImage<SecurityPhotoUpload>({
     url: '/security/workforce-onboarding/photo',
-    method: 'POST',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    asset,
+    fallbackName: 'workforce-photo.jpg',
   });
 }
 
@@ -353,16 +340,6 @@ export async function reportVisitorMismatch({ visitorId, reason }: SecurityIncid
   });
   await upsertCachedVisitors([visitor], 'security-mismatch').catch(() => undefined);
   return visitor;
-}
-
-function createUploadFormData(asset: UploadAsset) {
-  const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    name: asset.name ?? 'capture.jpg',
-    type: asset.type ?? 'image/jpeg',
-  } as unknown as Blob);
-  return formData;
 }
 
 function idempotencyHeaders(clientOperationId?: string) {
