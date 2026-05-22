@@ -91,6 +91,18 @@ services:
       - path: /verify-email
         name: Cache-Control
         value: no-store
+      - path: /visitor-invite
+        name: Cache-Control
+        value: no-store
+      - path: /visitor-invite/*
+        name: Cache-Control
+        value: no-store
+      - path: /pre-registration
+        name: Cache-Control
+        value: no-store
+      - path: /pre-registration/*
+        name: Cache-Control
+        value: no-store
       - path: /pass/*
         name: Cache-Control
         value: no-store
@@ -107,6 +119,12 @@ services:
         name: Cache-Control
         value: no-store
       - path: /assets/js/boot.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /css/invite/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /js/invite/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
       - path: /css/*
@@ -149,6 +167,18 @@ services:
       - type: rewrite
         source: /verify-email
         destination: /pages/verify-email/index.html
+      - type: rewrite
+        source: /visitor-invite
+        destination: /pages/invite/index.html
+      - type: rewrite
+        source: /visitor-invite/*
+        destination: /pages/invite/index.html
+      - type: rewrite
+        source: /pre-registration
+        destination: /pages/invite/index.html
+      - type: rewrite
+        source: /pre-registration/*
+        destination: /pages/invite/index.html
       - type: rewrite
         source: /pass/*
         destination: /pages/pass/index.html

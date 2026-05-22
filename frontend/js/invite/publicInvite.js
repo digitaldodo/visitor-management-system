@@ -1,0 +1,427 @@
+import { bootstrapApplication } from "../shared/appRuntime.js";
+import { formatDate, formatDurationMinutes, setDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
+import {
+  completeVisitorInviteRegistration,
+  getPublicVisitorInvite,
+  uploadVisitorInvitePhoto,
+} from "../shared/accessService.js";
+import { showToast } from "../shared/toast.js";
+
+const state = {
+  invite: null,
+  token: "",
+  photoFile: null,
+  photoPreviewUrl: "",
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  void bootstrapApplication("public-invite", async () => {
+    document.querySelector("[data-invite-year]")?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
+    await initInvitePage();
+  }, {
+    failureMessage: "AccessFlow had trouble restoring this invite. Refreshing...",
+  });
+});
+
+async function initInvitePage() {
+  state.token = readInviteToken();
+  if (!state.token) {
+    renderError("Invalid invite link", "This pre-registration link is incomplete. Ask your host to send a fresh AccessFlow invite.");
+    return;
+  }
+
+  renderLoading();
+  try {
+    const response = await getPublicVisitorInvite(state.token);
+    state.invite = response.data || null;
+    if (!state.invite) {
+      throw new Error("Invite details were not returned.");
+    }
+    setDefaultTimezone(state.invite.timezone || state.invite.organizationTimezone || "");
+    renderInvite(state.invite);
+  } catch (error) {
+    renderError("Invite unavailable", error.message || "AccessFlow could not load this visitor invite.");
+  }
+}
+
+function renderLoading() {
+  updateHeaderStatus("Secure invite loading", "neutral");
+  renderSummary(null);
+  stage().innerHTML = `
+    <article class="invite-panel">
+      <span class="invite-chip invite-chip--neutral">Loading</span>
+      <h2>Preparing invite</h2>
+      <p class="muted">AccessFlow is checking the invite record and loading your pre-registration workspace.</p>
+    </article>
+  `;
+}
+
+function renderInvite(invite) {
+  const completed = Boolean(invite.pass?.qrImageDataUri || invite.registrationCompletedAt);
+  const blocked = isBlocked(invite.status);
+  updateHeaderStatus(completed ? "Registration complete" : blocked ? "Invite needs attention" : "Secure invite ready", completed ? "success" : blocked ? "danger" : "success");
+  renderSummary(invite);
+  document.title = `${invite.visitorName || "Visitor Invite"} | AccessFlow`;
+
+  if (completed) {
+    renderCompleted(invite);
+    return;
+  }
+
+  if (blocked) {
+    renderError("Invite no longer active", `This invite is ${statusLabel(invite.status).toLowerCase()}. Ask your host to send a fresh AccessFlow invite.`);
+    renderSummary(invite);
+    return;
+  }
+
+  const startValue = toDatetimeLocal(futureDate(invite.scheduledStartTime), invite.timezone || invite.organizationTimezone);
+  stage().innerHTML = `
+    <article class="invite-panel invite-panel--split">
+      <form class="invite-form" id="invite-form" novalidate>
+        <div class="invite-panel__header">
+          <span class="invite-chip invite-chip--success">${escapeHtml(statusLabel(invite.status))}</span>
+          <h2>Confirm visitor details</h2>
+          <p class="muted">Your host has prepared the invite. Complete these details so security can verify your arrival cleanly.</p>
+        </div>
+
+        <div class="invite-form__grid">
+          ${field("Full name", "fullName", invite.visitorName || "", "Full name", "text", true)}
+          <label class="form-field">
+            <span>Phone country code</span>
+            <input name="phoneCountryCode" type="text" autocomplete="tel-country-code" value="${escapeHtml(invite.phoneCountryCode || "+1")}" required />
+          </label>
+          ${field("Phone", "phone", invite.visitorPhone || "", "Phone number", "tel", true)}
+          ${field("Email", "email", invite.visitorEmail || "", "visitor@company.com", "email", false)}
+          ${field("Company", "companyName", invite.companyName || "", "Company name", "text", false)}
+          ${field("Purpose", "purposeOfVisit", invite.purposeOfVisit || "", "Purpose of visit", "text", true)}
+          <label class="form-field">
+            <span>Arrival time</span>
+            <input name="scheduledStartTime" type="datetime-local" value="${escapeHtml(startValue)}" required />
+          </label>
+          <label class="form-field">
+            <span>Expected duration</span>
+            <select name="expectedDurationMinutes">
+              ${durationOption(30, invite.expectedDurationMinutes)}
+              ${durationOption(60, invite.expectedDurationMinutes)}
+              ${durationOption(90, invite.expectedDurationMinutes)}
+              ${durationOption(120, invite.expectedDurationMinutes)}
+              ${durationOption(240, invite.expectedDurationMinutes)}
+              ${durationOption(480, invite.expectedDurationMinutes)}
+            </select>
+          </label>
+          <div class="form-field form-field--wide">
+            <span>Visitor photo</span>
+            <div class="invite-photo-row">
+              <div class="invite-photo-preview" id="photo-preview">Photo required</div>
+              <label class="form-field">
+                <span>Capture or upload photo</span>
+                <input name="photoFile" type="file" accept="image/*" capture="user" required />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <p class="invite-hint">Access window uses ${escapeHtml(timezoneLabel(invite.timezone || invite.organizationTimezone))}. Security will validate the QR pass against the live invite record.</p>
+        <div class="invite-actions">
+          <button class="button button--primary" type="submit">Complete pre-registration</button>
+          <button class="button button--ghost" type="button" data-refresh-invite>Refresh invite</button>
+        </div>
+      </form>
+
+      <aside class="invite-pass">
+        <span class="invite-chip invite-chip--neutral">QR pending</span>
+        <h3>Temporary QR pass</h3>
+        <p class="muted">${escapeHtml(invite.approvalRequired ? "Your host must approve before a QR pass is issued." : "A temporary QR pass is issued after pre-registration is complete.")}</p>
+        <div class="invite-detail-grid">
+          ${detail("Host", invite.hostEmployeeName || "Assigned host")}
+          ${detail("Organization", invite.organizationName || invite.organizationCode || "AccessFlow site")}
+          ${detail("Schedule", accessWindow(invite))}
+          ${detail("Duration", formatDurationMinutes(invite.expectedDurationMinutes || 60))}
+        </div>
+      </aside>
+    </article>
+  `;
+
+  bindInviteForm();
+}
+
+function bindInviteForm() {
+  const form = document.querySelector("#invite-form");
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitInviteRegistration(form);
+  });
+  form?.querySelector("[data-refresh-invite]")?.addEventListener("click", () => {
+    void initInvitePage();
+  });
+  form?.elements.photoFile?.addEventListener("change", (event) => {
+    const [file] = event.target.files || [];
+    state.photoFile = file || null;
+    renderPhotoPreview(file || null);
+  });
+}
+
+async function submitInviteRegistration(form) {
+  if (!state.invite || !state.token) {
+    renderError("Invite unavailable", "Refresh this link and try again.");
+    return;
+  }
+  if (!state.photoFile) {
+    showToast("Photo required", "Capture or upload a visitor photo before submitting.");
+    form.elements.photoFile?.focus();
+    return;
+  }
+  if (!form.reportValidity()) {
+    showToast("Check the form", "Complete the required invite fields before submitting.");
+    return;
+  }
+
+  const submitButton = form.querySelector("button[type='submit']");
+  setSubmitting(submitButton, true);
+  try {
+    const data = new FormData(form);
+    const duration = Number(data.get("expectedDurationMinutes")) || state.invite.expectedDurationMinutes || 60;
+    const timezone = state.invite.timezone || state.invite.organizationTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const scheduledStartTime = toIsoInstant(data.get("scheduledStartTime"), timezone);
+    if (!scheduledStartTime) {
+      throw new Error("Choose a valid arrival date and time.");
+    }
+    const scheduledEndTime = new Date(new Date(scheduledStartTime).getTime() + duration * 60_000).toISOString();
+    const photoResponse = await uploadVisitorInvitePhoto(state.token, state.photoFile);
+    const photo = photoResponse.data || {};
+    const completedResponse = await completeVisitorInviteRegistration(state.token, {
+      fullName: normalize(data.get("fullName")),
+      phoneCountryCode: normalize(data.get("phoneCountryCode")),
+      phone: normalize(data.get("phone")),
+      email: normalize(data.get("email")) || null,
+      companyName: normalize(data.get("companyName")) || null,
+      purposeOfVisit: normalize(data.get("purposeOfVisit")),
+      scheduledStartTime,
+      scheduledEndTime,
+      expectedDurationMinutes: duration,
+      timezone,
+      photoUrl: photo.url,
+      photoPublicId: photo.publicId,
+    });
+    state.invite = completedResponse.data || state.invite;
+    showToast("Pre-registration complete", state.invite.pass?.qrImageDataUri ? "Your temporary QR pass is ready." : "Your host has been notified.");
+    renderInvite(state.invite);
+  } catch (error) {
+    showToast("Registration failed", error.message || "Unable to complete this invite.");
+  } finally {
+    setSubmitting(submitButton, false);
+  }
+}
+
+function renderCompleted(invite) {
+  stage().innerHTML = `
+    <article class="invite-panel invite-panel--split">
+      <section class="invite-panel__header">
+        <span class="invite-chip invite-chip--success">Registration complete</span>
+        <h2>${escapeHtml(invite.pass?.qrImageDataUri ? "Your QR pass is ready" : "Registration sent to your host")}</h2>
+        <p class="muted">${escapeHtml(invite.pass?.qrImageDataUri ? "Show this pass at arrival. Security will scan it and verify your live AccessFlow record." : "Your host will approve this visit before a QR pass is issued.")}</p>
+        <div class="invite-detail-grid">
+          ${detail("Visitor", invite.visitorName || "Visitor")}
+          ${detail("Host", invite.hostEmployeeName || "Assigned host")}
+          ${detail("Organization", invite.organizationName || invite.organizationCode || "AccessFlow site")}
+          ${detail("Arrival", accessWindow(invite))}
+          ${detail("Status", statusLabel(invite.status))}
+          ${detail("Timezone", timezoneLabel(invite.timezone || invite.organizationTimezone))}
+        </div>
+        <div class="invite-actions">
+          <button class="button button--ghost" type="button" data-refresh-invite>Refresh status</button>
+          <a class="button button--ghost" href="/">AccessFlow home</a>
+        </div>
+      </section>
+      <aside class="invite-pass">
+        ${invite.pass?.qrImageDataUri ? `
+          <span class="invite-chip invite-chip--success">${escapeHtml(invite.pass.valid ? "Valid pass" : invite.pass.statusLabel || "Pass issued")}</span>
+          <div class="invite-pass__qr">
+            <img src="${escapeHtml(invite.pass.qrImageDataUri)}" alt="AccessFlow visitor QR pass" />
+          </div>
+          <p class="muted">Expires ${escapeHtml(invite.pass.expiresAt ? formatDate(invite.pass.expiresAt) : "after the approved access window")}.</p>
+        ` : `
+          <span class="invite-chip invite-chip--warning">QR pending</span>
+          <h3>Approval required</h3>
+          <p class="muted">Your host and security team can now review the completed pre-registration.</p>
+        `}
+      </aside>
+    </article>
+  `;
+
+  stage().querySelector("[data-refresh-invite]")?.addEventListener("click", () => {
+    void initInvitePage();
+  });
+}
+
+function renderError(title, message) {
+  updateHeaderStatus(title, "danger");
+  stage().innerHTML = `
+    <article class="invite-panel">
+      <span class="invite-chip invite-chip--danger">Attention</span>
+      <h2>${escapeHtml(title)}</h2>
+      <p class="muted">${escapeHtml(message)}</p>
+      <div class="invite-actions">
+        <button class="button button--primary" type="button" data-refresh-invite>Try again</button>
+        <a class="button button--ghost" href="/">AccessFlow home</a>
+      </div>
+    </article>
+  `;
+  stage().querySelector("[data-refresh-invite]")?.addEventListener("click", () => {
+    void initInvitePage();
+  });
+}
+
+function renderSummary(invite) {
+  const summary = document.querySelector("#invite-summary");
+  if (!summary) {
+    return;
+  }
+  if (!invite) {
+    summary.innerHTML = `
+      <span class="invite-chip invite-chip--neutral">Loading invite</span>
+      <strong>Secure visitor workflow</strong>
+      <p>AccessFlow is checking this invite against the live workplace record.</p>
+    `;
+    return;
+  }
+
+  summary.innerHTML = `
+    <span class="invite-chip invite-chip--${chipTone(invite.status)}">${escapeHtml(statusLabel(invite.status))}</span>
+    <strong>${escapeHtml(invite.organizationName || invite.organizationCode || "AccessFlow workplace")}</strong>
+    <p>${escapeHtml(invite.purposeOfVisit || "Visitor pre-registration")}</p>
+    <div class="invite-summary-grid">
+      ${detail("Visitor", invite.visitorName || "Visitor")}
+      ${detail("Host", invite.hostEmployeeName || "Assigned host")}
+      ${detail("Arrival", accessWindow(invite))}
+      ${detail("Invite expires", formatDate(invite.expiresAt))}
+    </div>
+  `;
+}
+
+function renderPhotoPreview(file) {
+  const preview = document.querySelector("#photo-preview");
+  if (!preview) {
+    return;
+  }
+  if (state.photoPreviewUrl) {
+    URL.revokeObjectURL(state.photoPreviewUrl);
+    state.photoPreviewUrl = "";
+  }
+  if (!file) {
+    preview.textContent = "Photo required";
+    return;
+  }
+  state.photoPreviewUrl = URL.createObjectURL(file);
+  preview.innerHTML = `<img src="${escapeHtml(state.photoPreviewUrl)}" alt="Selected visitor photo preview" />`;
+}
+
+function updateHeaderStatus(label, tone) {
+  const text = document.querySelector("#api-status-text");
+  const dot = document.querySelector("#api-status-dot");
+  text?.replaceChildren(document.createTextNode(label));
+  dot?.classList.toggle("is-online", tone === "success");
+  dot?.classList.toggle("is-offline", tone === "danger");
+}
+
+function readInviteToken() {
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  const routeIndex = segments.findIndex((segment) => ["visitor-invite", "pre-registration", "invite"].includes(segment));
+  if (routeIndex !== -1 && segments[routeIndex + 1]) {
+    return decodeURIComponent(segments[routeIndex + 1]).trim();
+  }
+  return new URLSearchParams(window.location.search).get("token")?.trim() || "";
+}
+
+function isBlocked(status) {
+  return ["EXPIRED", "REVOKED", "ARRIVED"].includes(String(status || "").toUpperCase());
+}
+
+function statusLabel(status) {
+  const normalized = String(status || "SENT").replaceAll("_", " ").toLowerCase();
+  return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
+}
+
+function chipTone(status) {
+  const normalized = String(status || "").toUpperCase();
+  if (["QR_ISSUED", "REGISTRATION_COMPLETED", "ARRIVED"].includes(normalized)) {
+    return "success";
+  }
+  if (["EXPIRED", "REVOKED"].includes(normalized)) {
+    return "danger";
+  }
+  if (["VIEWED", "SENT"].includes(normalized)) {
+    return "neutral";
+  }
+  return "warning";
+}
+
+function accessWindow(invite) {
+  if (!invite.scheduledStartTime && !invite.scheduledEndTime) {
+    return "Schedule pending";
+  }
+  if (invite.scheduledStartTime && invite.scheduledEndTime) {
+    return `${formatDate(invite.scheduledStartTime)} to ${formatDate(invite.scheduledEndTime)}`;
+  }
+  return formatDate(invite.scheduledStartTime || invite.scheduledEndTime);
+}
+
+function futureDate(value) {
+  const parsed = value ? new Date(value) : null;
+  if (parsed && !Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+    return parsed;
+  }
+  const next = new Date();
+  next.setMinutes(next.getMinutes() + 30);
+  next.setSeconds(0, 0);
+  return next;
+}
+
+function field(label, name, value, placeholder, type, required) {
+  return `
+    <label class="form-field">
+      <span>${escapeHtml(label)}</span>
+      <input name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"${required ? " required" : ""} />
+    </label>
+  `;
+}
+
+function durationOption(minutes, selectedMinutes) {
+  const selected = Number(selectedMinutes || 60) === minutes ? " selected" : "";
+  return `<option value="${minutes}"${selected}>${escapeHtml(formatDurationMinutes(minutes))}</option>`;
+}
+
+function detail(label, value) {
+  return `
+    <div class="invite-detail">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value || "Not recorded")}</strong>
+    </div>
+  `;
+}
+
+function stage() {
+  return document.querySelector("#invite-stage");
+}
+
+function normalize(value) {
+  return String(value || "").trim();
+}
+
+function setSubmitting(button, loading) {
+  if (!button) {
+    return;
+  }
+  button.disabled = loading;
+  button.classList.toggle("is-loading", loading);
+  button.textContent = loading ? "Submitting..." : "Complete pre-registration";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}

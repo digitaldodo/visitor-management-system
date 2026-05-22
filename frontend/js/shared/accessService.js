@@ -165,6 +165,30 @@ export function getPublicPassVerification(passToken) {
   });
 }
 
+export function getPublicVisitorInvite(inviteToken) {
+  return request(`/public/visitor-invites/${encodeURIComponent(inviteToken)}`, {
+    auth: false,
+  });
+}
+
+export function uploadVisitorInvitePhoto(inviteToken, file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`/public/visitor-invites/${encodeURIComponent(inviteToken)}/photo`, {
+    method: "POST",
+    body: formData,
+    auth: false,
+  });
+}
+
+export function completeVisitorInviteRegistration(inviteToken, payload) {
+  return request(`/public/visitor-invites/${encodeURIComponent(inviteToken)}/registration`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    auth: false,
+  });
+}
+
 export function getSecurityMonitoring(query = "") {
   const suffix = query ? `?query=${encodeURIComponent(query)}` : "";
   return request(`/security/monitoring${suffix}`);
