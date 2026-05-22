@@ -11,9 +11,10 @@ type ArrivalTimeSelectorProps = {
   timezone: string;
   onChange: (value: Date) => void;
   onDurationChange: (value: string) => void;
+  durationOptions?: string[];
 };
 
-const durationOptions = ['30', '60', '90'];
+const defaultDurationOptions = ['30', '60', '90'];
 
 export function ArrivalTimeSelector({
   value,
@@ -21,6 +22,7 @@ export function ArrivalTimeSelector({
   timezone,
   onChange,
   onDurationChange,
+  durationOptions = defaultDurationOptions,
 }: ArrivalTimeSelectorProps) {
   const duration = Number(durationMinutes) || 60;
   const accessEndsAt = new Date(value.getTime() + duration * 60_000);
@@ -101,7 +103,7 @@ export function ArrivalTimeSelector({
                 onPress={() => onDurationChange(option)}
                 style={[styles.durationChip, selected ? styles.durationChipSelected : null]}
               >
-                <Text style={[styles.durationChipText, selected ? styles.durationChipTextSelected : null]}>{option} min</Text>
+                <Text style={[styles.durationChipText, selected ? styles.durationChipTextSelected : null]}>{formatDurationLabel(option)}</Text>
               </Pressable>
             );
           })}
@@ -152,6 +154,15 @@ function quickOptions() {
   }
 
   return options;
+}
+
+function formatDurationLabel(value: string) {
+  const minutes = Number(value);
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  return `${value} min`;
 }
 
 function sameMinute(left: Date, right: Date) {

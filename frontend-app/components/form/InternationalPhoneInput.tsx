@@ -45,6 +45,7 @@ type InternationalPhoneInputProps = {
   label?: string;
   phoneLabel?: string;
   helperText?: string;
+  errorText?: string | null;
   required?: boolean;
 };
 
@@ -56,11 +57,15 @@ export function InternationalPhoneInput({
   label = 'Country',
   phoneLabel = 'Phone number',
   helperText = 'Search country, then enter the local number.',
+  errorText,
 }: InternationalPhoneInputProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState('');
+  const [selectedIso2, setSelectedIso2] = useState<string | null>(null);
   const debouncedCountryQuery = useDebouncedValue(countryQuery.trim(), 120);
-  const selectedCountry = COUNTRIES.find((country) => country.dialCode === countryCode) ?? COUNTRIES[0];
+  const selectedCountry = COUNTRIES.find((country) => country.iso2 === selectedIso2 && country.dialCode === countryCode)
+    ?? COUNTRIES.find((country) => country.dialCode === countryCode)
+    ?? COUNTRIES[0];
 
   const countryResults = useMemo(() => {
     const normalized = debouncedCountryQuery.toLowerCase();
@@ -107,6 +112,7 @@ export function InternationalPhoneInput({
           selectedTitle={null}
           onSelect={(country) => {
             onCountryCodeChange(country.dialCode);
+            setSelectedIso2(country.iso2);
             setCountryQuery(country.name);
             setPickerOpen(false);
           }}
@@ -118,21 +124,87 @@ export function InternationalPhoneInput({
 
       <AppTextField
         label={phoneLabel}
-        value={formatPhoneForDisplay(phone)}
-        onChangeText={(value) => onPhoneChange(value.replace(/[^\d\s()-]/g, '').slice(0, 24))}
+        value={formatPhoneForDisplay(phone, selectedCountry.iso2)}
+        onChangeText={(value) => onPhoneChange(value.replace(/\D/g, '').slice(0, 15))}
         placeholder={selectedCountry.example}
         keyboardType="phone-pad"
         textContentType="telephoneNumber"
         autoComplete="tel"
         helperText={`${selectedCountry.flag} ${selectedCountry.dialCode} selected`}
+        errorText={errorText ?? undefined}
       />
     </View>
   );
 }
 
-function formatPhoneForDisplay(value: string) {
-  return value.replace(/\s{2,}/g, ' ');
+export function validateInternationalPhone(countryCode: string, phone: string, required = false) {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) {
+    return required ? 'Enter a reachable phone number.' : null;
+  }
+
+  const selectedCountry = COUNTRIES.find((country) => country.dialCode === countryCode) ?? COUNTRIES[0];
+  const rule = PHONE_RULES[selectedCountry.iso2] ?? { min: 7, max: 15 };
+  if (digits.length < rule.min || digits.length > rule.max) {
+    return `${selectedCountry.name} phone numbers should be ${rule.min === rule.max ? rule.min : `${rule.min}-${rule.max}`} digits.`;
+  }
+
+  return null;
 }
+
+function formatPhoneForDisplay(value: string, iso2: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+
+  if (['US', 'CA'].includes(iso2)) {
+    if (digits.length <= 3) {
+      return digits;
+    }
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  if (iso2 === 'IN') {
+    return [digits.slice(0, 5), digits.slice(5, 10)].filter(Boolean).join(' ');
+  }
+
+  if (['AE', 'SA', 'PH', 'ZA'].includes(iso2)) {
+    return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 9), digits.slice(9, 12)].filter(Boolean).join(' ');
+  }
+
+  if (['SG', 'QA', 'OM', 'KW', 'BH'].includes(iso2)) {
+    return [digits.slice(0, 4), digits.slice(4, 8)].filter(Boolean).join(' ');
+  }
+
+  return digits.match(/.{1,3}/g)?.join(' ') ?? digits;
+}
+
+const PHONE_RULES: Record<string, { min: number; max: number }> = {
+  IN: { min: 10, max: 10 },
+  US: { min: 10, max: 10 },
+  CA: { min: 10, max: 10 },
+  AE: { min: 8, max: 9 },
+  GB: { min: 10, max: 10 },
+  AU: { min: 9, max: 9 },
+  SG: { min: 8, max: 8 },
+  SA: { min: 9, max: 9 },
+  QA: { min: 8, max: 8 },
+  OM: { min: 8, max: 8 },
+  KW: { min: 8, max: 8 },
+  BH: { min: 8, max: 8 },
+  DE: { min: 10, max: 11 },
+  FR: { min: 9, max: 9 },
+  JP: { min: 10, max: 10 },
+  KR: { min: 9, max: 10 },
+  MY: { min: 9, max: 10 },
+  ID: { min: 9, max: 12 },
+  PH: { min: 10, max: 10 },
+  ZA: { min: 9, max: 9 },
+};
 
 const styles = StyleSheet.create({
   container: {

@@ -10,6 +10,8 @@ import { EmployeeRescheduleModal } from '../../components/employee/EmployeeResch
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { ArrivalTimeSelector, nearestArrivalTime } from '../../components/form/ArrivalTimeSelector';
+import { InternationalPhoneInput, validateInternationalPhone } from '../../components/form/InternationalPhoneInput';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { OperationalFieldList } from '../../components/security/OperationalFieldList';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
@@ -55,12 +57,14 @@ export function RequestsScreen() {
   const rescheduleMutation = useRescheduleEmployeeVisitorMutation();
   const createInviteMutation = useCreateEmployeeVisitorInviteMutation();
   const revokeInviteMutation = useRevokeEmployeeVisitorInviteMutation();
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [inviteForm, setInviteForm] = useState({
     visitorName: '',
     visitorEmail: '',
     visitorPhone: '',
+    phoneCountryCode: '+1',
     purposeOfVisit: '',
-    scheduledStartTime: '',
+    scheduledStartAt: nearestArrivalTime(),
     expectedDurationMinutes: '60',
     approvalRequired: false,
     note: '',
@@ -104,22 +108,41 @@ export function RequestsScreen() {
   };
 
   const createInvite = async () => {
-    if (!inviteForm.visitorName.trim() || !inviteForm.purposeOfVisit.trim() || !inviteForm.scheduledStartTime.trim()) {
-      setInviteError('Visitor name, purpose, and arrival time are required.');
+    if (!inviteForm.visitorName.trim() || !inviteForm.purposeOfVisit.trim()) {
+      setInviteError('Visitor name and purpose are required.');
+      return;
+    }
+
+    const phoneError = validateInternationalPhone(inviteForm.phoneCountryCode, inviteForm.visitorPhone, false);
+    if (phoneError) {
+      setInviteError(phoneError);
+      return;
+    }
+
+    if (Number.isNaN(inviteForm.scheduledStartAt.getTime())) {
+      setInviteError('Choose a valid arrival date and time.');
+      return;
+    }
+
+    if (inviteForm.scheduledStartAt.getTime() <= Date.now()) {
+      setInviteError('Choose a future arrival date and time.');
       return;
     }
 
     try {
       setInviteError(null);
-      const scheduledStartTime = new Date(inviteForm.scheduledStartTime).toISOString();
+      const duration = Number(inviteForm.expectedDurationMinutes) || 60;
+      const scheduledEndAt = new Date(inviteForm.scheduledStartAt.getTime() + duration * 60_000);
       const invite = await createInviteMutation.mutateAsync({
         visitorName: inviteForm.visitorName.trim(),
         visitorEmail: inviteForm.visitorEmail.trim() || null,
+        phoneCountryCode: inviteForm.visitorPhone.trim() ? inviteForm.phoneCountryCode.trim() || null : null,
         visitorPhone: inviteForm.visitorPhone.trim() || null,
         purposeOfVisit: inviteForm.purposeOfVisit.trim(),
-        scheduledStartTime,
-        expectedDurationMinutes: Number(inviteForm.expectedDurationMinutes) || 60,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        scheduledStartTime: inviteForm.scheduledStartAt.toISOString(),
+        scheduledEndTime: scheduledEndAt.toISOString(),
+        expectedDurationMinutes: duration,
+        timezone: localTimezone,
         approvalRequired: inviteForm.approvalRequired,
         expiresInHours: 72,
         note: inviteForm.note.trim() || null,
@@ -129,8 +152,9 @@ export function RequestsScreen() {
         visitorName: '',
         visitorEmail: '',
         visitorPhone: '',
+        phoneCountryCode: '+1',
         purposeOfVisit: '',
-        scheduledStartTime: '',
+        scheduledStartAt: nearestArrivalTime(),
         expectedDurationMinutes: '60',
         approvalRequired: false,
         note: '',
@@ -143,6 +167,8 @@ export function RequestsScreen() {
       setInviteError(error instanceof Error ? error.message : 'Unable to create invite.');
     }
   };
+
+  const invitePhoneError = validateInternationalPhone(inviteForm.phoneCountryCode, inviteForm.visitorPhone, false);
 
   const revokeInvite = async (reason: string) => {
     if (!revokeInviteId) {
@@ -266,9 +292,28 @@ export function RequestsScreen() {
         >
           <AppTextField label="Visitor name" value={inviteForm.visitorName} onChangeText={(visitorName) => setInviteForm((current) => ({ ...current, visitorName }))} placeholder="Full name" />
           <AppTextField label="Visitor email" value={inviteForm.visitorEmail} onChangeText={(visitorEmail) => setInviteForm((current) => ({ ...current, visitorEmail }))} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
-          <AppTextField label="Phone" value={inviteForm.visitorPhone} onChangeText={(visitorPhone) => setInviteForm((current) => ({ ...current, visitorPhone }))} placeholder="Optional phone" keyboardType="phone-pad" />
+          <InternationalPhoneInput
+            countryCode={inviteForm.phoneCountryCode}
+            phone={inviteForm.visitorPhone}
+            phoneLabel="Visitor phone"
+            helperText="Search country, then enter the visitor's local number."
+            errorText={invitePhoneError}
+            onCountryCodeChange={(phoneCountryCode) => setInviteForm((current) => ({ ...current, phoneCountryCode }))}
+            onPhoneChange={(visitorPhone) => setInviteForm((current) => ({ ...current, visitorPhone }))}
+          />
           <AppTextField label="Purpose" value={inviteForm.purposeOfVisit} onChangeText={(purposeOfVisit) => setInviteForm((current) => ({ ...current, purposeOfVisit }))} placeholder="Meeting, contractor visit, interview" />
-          <AppTextField label="Arrival time" value={inviteForm.scheduledStartTime} onChangeText={(scheduledStartTime) => setInviteForm((current) => ({ ...current, scheduledStartTime }))} placeholder="2026-05-20T14:30" />
+          <ArrivalTimeSelector
+            value={inviteForm.scheduledStartAt}
+            durationMinutes={inviteForm.expectedDurationMinutes}
+            timezone={localTimezone}
+            durationOptions={['30', '60', '120', '240']}
+            onChange={(scheduledStartAt) => setInviteForm((current) => ({ ...current, scheduledStartAt }))}
+            onDurationChange={(expectedDurationMinutes) => setInviteForm((current) => ({ ...current, expectedDurationMinutes }))}
+          />
+          <View style={styles.scheduleSummary}>
+            <Text style={styles.scheduleSummaryLabel}>Invite schedule</Text>
+            <Text style={styles.scheduleSummaryValue}>{formatDateTime(inviteForm.scheduledStartAt.toISOString(), localTimezone)}</Text>
+          </View>
           <AppTextField
             label="Additional Note for Visitor"
             value={inviteForm.note}
@@ -277,19 +322,6 @@ export function RequestsScreen() {
             multiline
             maxLength={500}
           />
-          <View style={styles.segmentRow}>
-            {['30', '60', '120', '240'].map((duration) => (
-              <Pressable
-                key={duration}
-                onPress={() => setInviteForm((current) => ({ ...current, expectedDurationMinutes: duration }))}
-                style={[styles.segment, inviteForm.expectedDurationMinutes === duration ? styles.segmentActive : null]}
-              >
-                <Text style={[styles.segmentLabel, inviteForm.expectedDurationMinutes === duration ? styles.segmentLabelActive : null]}>
-                  {duration === '60' ? '1 hour' : duration === '120' ? '2 hours' : duration === '240' ? '4 hours' : '30 min'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
           <Pressable
             accessibilityRole="switch"
             accessibilityState={{ checked: inviteForm.approvalRequired }}
@@ -452,32 +484,26 @@ const styles = StyleSheet.create({
   actionRow: {
     gap: theme.spacing.sm,
   },
-  segmentRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  segment: {
-    minHeight: 44,
-    borderRadius: theme.radii.pill,
+  scheduleSummary: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
-    paddingHorizontal: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: theme.spacing.md,
   },
-  segmentActive: {
-    borderColor: theme.colors.primaryLine,
-    backgroundColor: theme.colors.primarySoft,
+  scheduleSummaryLabel: {
+    color: theme.colors.textMuted,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  segmentLabel: {
+  scheduleSummaryValue: {
     color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
+    fontSize: theme.typography.bodyStrong.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
-  },
-  segmentLabelActive: {
-    color: theme.colors.textPrimary,
+    lineHeight: 22,
   },
   toggleRow: {
     flexDirection: 'row',

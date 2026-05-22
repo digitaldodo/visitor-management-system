@@ -7,6 +7,8 @@ import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
+import { ArrivalTimeSelector, nearestArrivalTime } from '../../components/form/ArrivalTimeSelector';
+import { InternationalPhoneInput, validateInternationalPhone } from '../../components/form/InternationalPhoneInput';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import {
@@ -37,7 +39,8 @@ export function VisitorInviteRegistrationScreen() {
     email: '',
     companyName: '',
     purposeOfVisit: '',
-    scheduledStartTime: '',
+    scheduledStartAt: nearestArrivalTime(),
+    expectedDurationMinutes: '60',
   });
 
   useEffect(() => {
@@ -57,7 +60,8 @@ export function VisitorInviteRegistrationScreen() {
           email: nextInvite.visitorEmail ?? '',
           companyName: nextInvite.companyName ?? '',
           purposeOfVisit: nextInvite.purposeOfVisit ?? '',
-          scheduledStartTime: nextInvite.scheduledStartTime ?? '',
+          scheduledStartAt: parseInviteStart(nextInvite.scheduledStartTime),
+          expectedDurationMinutes: String(nextInvite.expectedDurationMinutes ?? 60),
         });
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load invite.'))
@@ -73,11 +77,26 @@ export function VisitorInviteRegistrationScreen() {
       setError('Name, phone, and purpose are required.');
       return;
     }
+    const phoneError = validateInternationalPhone(form.phoneCountryCode, form.phone, true);
+    if (phoneError) {
+      setError(phoneError);
+      return;
+    }
+    if (Number.isNaN(form.scheduledStartAt.getTime())) {
+      setError('Choose a valid arrival date and time.');
+      return;
+    }
+    if (form.scheduledStartAt.getTime() <= Date.now()) {
+      setError('Choose a future arrival date and time.');
+      return;
+    }
 
     setSubmitting(true);
     try {
       setError(null);
       const photo = await uploadVisitorInvitePhoto(token, photoAsset);
+      const duration = Number(form.expectedDurationMinutes) || invite.expectedDurationMinutes || 60;
+      const scheduledEndAt = new Date(form.scheduledStartAt.getTime() + duration * 60_000);
       const completed = await completeVisitorInviteRegistration(token, {
         fullName: form.fullName.trim(),
         phoneCountryCode: form.phoneCountryCode.trim() || null,
@@ -85,8 +104,9 @@ export function VisitorInviteRegistrationScreen() {
         email: form.email.trim() || null,
         companyName: form.companyName.trim() || null,
         purposeOfVisit: form.purposeOfVisit.trim(),
-        scheduledStartTime: form.scheduledStartTime ? new Date(form.scheduledStartTime).toISOString() : invite.scheduledStartTime,
-        expectedDurationMinutes: invite.expectedDurationMinutes ?? 60,
+        scheduledStartTime: form.scheduledStartAt.toISOString(),
+        scheduledEndTime: scheduledEndAt.toISOString(),
+        expectedDurationMinutes: duration,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         photoUrl: photo.url,
         photoPublicId: photo.publicId,
@@ -98,6 +118,9 @@ export function VisitorInviteRegistrationScreen() {
       setSubmitting(false);
     }
   };
+
+  const timezone = invite?.timezone || invite?.organizationTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const phoneError = validateInternationalPhone(form.phoneCountryCode, form.phone, true);
 
   return (
     <>
@@ -125,12 +148,24 @@ export function VisitorInviteRegistrationScreen() {
                 </View>
               ) : null}
               <AppTextField label="Full name" value={form.fullName} onChangeText={(fullName) => setForm((current) => ({ ...current, fullName }))} placeholder="Full name" />
-              <AppTextField label="Phone country code" value={form.phoneCountryCode} onChangeText={(phoneCountryCode) => setForm((current) => ({ ...current, phoneCountryCode }))} placeholder="+1" keyboardType="phone-pad" />
-              <AppTextField label="Phone" value={form.phone} onChangeText={(phone) => setForm((current) => ({ ...current, phone }))} placeholder="Phone number" keyboardType="phone-pad" />
+              <InternationalPhoneInput
+                countryCode={form.phoneCountryCode}
+                phone={form.phone}
+                errorText={form.phone.trim() ? phoneError : null}
+                onCountryCodeChange={(phoneCountryCode) => setForm((current) => ({ ...current, phoneCountryCode }))}
+                onPhoneChange={(phone) => setForm((current) => ({ ...current, phone }))}
+              />
               <AppTextField label="Email" value={form.email} onChangeText={(email) => setForm((current) => ({ ...current, email }))} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
               <AppTextField label="Organization" value={form.companyName} onChangeText={(companyName) => setForm((current) => ({ ...current, companyName }))} placeholder="Company name" />
               <AppTextField label="Purpose" value={form.purposeOfVisit} onChangeText={(purposeOfVisit) => setForm((current) => ({ ...current, purposeOfVisit }))} placeholder="Purpose of visit" />
-              <AppTextField label="Arrival time" value={form.scheduledStartTime} onChangeText={(scheduledStartTime) => setForm((current) => ({ ...current, scheduledStartTime }))} placeholder="2026-05-20T14:30" />
+              <ArrivalTimeSelector
+                value={form.scheduledStartAt}
+                durationMinutes={form.expectedDurationMinutes}
+                timezone={timezone}
+                durationOptions={['30', '60', '120', '240']}
+                onChange={(scheduledStartAt) => setForm((current) => ({ ...current, scheduledStartAt }))}
+                onDurationChange={(expectedDurationMinutes) => setForm((current) => ({ ...current, expectedDurationMinutes }))}
+              />
               <View style={styles.photoRow}>
                 {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.bodyText}>Photo required</Text></View>}
                 <View style={styles.photoActions}>
@@ -175,6 +210,16 @@ export function VisitorInviteRegistrationScreen() {
       />
     </>
   );
+}
+
+function parseInviteStart(value?: string | null) {
+  if (value) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+      return parsed;
+    }
+  }
+  return nearestArrivalTime();
 }
 
 const styles = StyleSheet.create({
