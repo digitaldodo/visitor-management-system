@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface VisitorInviteRepository extends MongoRepository<VisitorInvite, String> {
     Optional<VisitorInvite> findByTokenHash(String tokenHash);
 
+    Optional<VisitorInvite> findByVisitorId(String visitorId);
+
     List<VisitorInvite> findTop50ByHostEmployeeIdOrderByCreatedAtDesc(String hostEmployeeId);
 
     List<VisitorInvite> findTop50ByOrganizationIdOrderByCreatedAtDesc(String organizationId);

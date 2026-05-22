@@ -162,11 +162,14 @@ public class VisitorInviteService {
                     "/pages/employee/#requests"
             );
         }
-        return toResponse(invite, passIfReady(invite));
+        return toResponse(invite, null);
     }
 
     public VisitorInviteResponse completeRegistration(String token, VisitorInviteRegistrationRequest request) {
-        VisitorInvite invite = requireUsableInvite(token);
+        VisitorInvite invite = requireCompletableInvite(token);
+        if (invite.getVisitorId() != null) {
+            return toResponse(invite, null);
+        }
         VisitorResponse visitor = visitorService.create(new VisitorCreateRequest(
                 required(request.fullName(), "Full name is required."),
                 firstNonBlank(request.phoneCountryCode(), invite.getPhoneCountryCode()),
@@ -227,7 +230,7 @@ public class VisitorInviteService {
                 invite.getHostEmployeeName()
         );
 
-        return toResponse(saved, passIfReady(saved));
+        return toResponse(saved, null);
     }
 
     public VisitorInviteResponse revoke(String inviteId, String actorId, String reason) {
@@ -276,6 +279,24 @@ public class VisitorInviteService {
         }
         if (invite.getVisitorId() != null) {
             throw new BadRequestException("This visitor invite has already been completed.");
+        }
+        return invite;
+    }
+
+    private VisitorInvite requireCompletableInvite(String token) {
+        VisitorInvite invite = requireByToken(token);
+        Instant now = Instant.now();
+        if (invite.getStatus() == VisitorInviteStatus.REVOKED) {
+            throw new BadRequestException("This visitor invite has been revoked.");
+        }
+        if (isExpired(invite, now)) {
+            invite.setStatus(VisitorInviteStatus.EXPIRED);
+            invite.setUpdatedAt(now);
+            visitorInviteRepository.save(invite);
+            throw new BadRequestException("This visitor invite has expired.");
+        }
+        if (invite.getVisitorId() != null) {
+            return invite;
         }
         return invite;
     }

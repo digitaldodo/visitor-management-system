@@ -161,6 +161,54 @@ body {
   overflow-wrap: anywhere;
 }
 
+.invite-timeline {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  margin: 0.35rem 0 0.4rem;
+}
+
+.invite-timeline__step {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.85rem;
+}
+
+.invite-timeline__step > span {
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  border-radius: 999px;
+  height: 0.85rem;
+  width: 0.85rem;
+}
+
+.invite-timeline__step strong {
+  font-size: 0.9rem;
+}
+
+.invite-timeline__step small {
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
+.invite-timeline__step--done > span {
+  background: #34d399;
+  border-color: #34d399;
+}
+
+.invite-timeline__step--current {
+  border-color: rgba(251, 191, 36, 0.32);
+}
+
+.invite-timeline__step--current > span {
+  background: #fbbf24;
+  border-color: #fde68a;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.16);
+}
+
 .invite-stage {
   display: grid;
   gap: 1rem;

@@ -2,6 +2,8 @@ package com.visitor.management.service;
 
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Visitor;
+import com.visitor.management.entity.VisitorInviteStatus;
+import com.visitor.management.repository.VisitorInviteRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -11,9 +13,17 @@ import java.time.Instant;
 public class VisitorLifecycleNotificationService implements VisitorNotificationService {
 
     private final NotificationService notificationService;
+    private final VisitorInviteRepository visitorInviteRepository;
+    private final VisitorBadgeEmailDispatcher visitorBadgeEmailDispatcher;
 
-    public VisitorLifecycleNotificationService(NotificationService notificationService) {
+    public VisitorLifecycleNotificationService(
+            NotificationService notificationService,
+            VisitorInviteRepository visitorInviteRepository,
+            VisitorBadgeEmailDispatcher visitorBadgeEmailDispatcher
+    ) {
         this.notificationService = notificationService;
+        this.visitorInviteRepository = visitorInviteRepository;
+        this.visitorBadgeEmailDispatcher = visitorBadgeEmailDispatcher;
     }
 
     @Override
@@ -38,6 +48,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 visitor,
                 "/pages/employee/#scheduled"
         );
+        sendApprovedBadgeEmail(visitor);
     }
 
     @Override
@@ -46,6 +57,8 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 ? "%s has been approved.".formatted(visitor.getFullName())
                 : "%s has been approved. The visitor badge is ready.".formatted(visitor.getFullName());
         notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/pages/employee/#scheduled", null);
+        markInviteQrIssued(visitor);
+        sendApprovedBadgeEmail(visitor);
     }
 
     @Override
@@ -56,6 +69,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
     @Override
     public void visitorCheckedIn(Visitor visitor) {
         notifyHost(visitor, NotificationType.VISITOR_CHECKED_IN, "Visitor checked in", "%s has checked in at reception.".formatted(visitor.getFullName()));
+        markInviteArrived(visitor);
     }
 
     @Override
@@ -135,5 +149,47 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 "VISITOR",
                 visitor.getId()
         );
+    }
+
+    private void sendApprovedBadgeEmail(Visitor visitor) {
+        if (visitor.getQrIssuedAt() == null || visitor.getPassTokenId() == null || isBlank(visitor.getEmail())) {
+            return;
+        }
+        visitorBadgeEmailDispatcher.deliverApprovedBadgeEmailAsync(visitor);
+    }
+
+    private void markInviteQrIssued(Visitor visitor) {
+        if (visitor.getQrIssuedAt() == null || visitor.getId() == null) {
+            return;
+        }
+        visitorInviteRepository.findByVisitorId(visitor.getId()).ifPresent(invite -> {
+            if (invite.getStatus() == VisitorInviteStatus.REVOKED || invite.getStatus() == VisitorInviteStatus.ARRIVED) {
+                return;
+            }
+            invite.setStatus(VisitorInviteStatus.QR_ISSUED);
+            invite.setQrIssuedAt(visitor.getQrIssuedAt());
+            invite.setUpdatedAt(Instant.now());
+            visitorInviteRepository.save(invite);
+        });
+    }
+
+    private void markInviteArrived(Visitor visitor) {
+        if (visitor.getId() == null) {
+            return;
+        }
+        visitorInviteRepository.findByVisitorId(visitor.getId()).ifPresent(invite -> {
+            if (invite.getStatus() == VisitorInviteStatus.REVOKED) {
+                return;
+            }
+            Instant now = Instant.now();
+            invite.setStatus(VisitorInviteStatus.ARRIVED);
+            invite.setArrivedAt(now);
+            invite.setUpdatedAt(now);
+            visitorInviteRepository.save(invite);
+        });
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

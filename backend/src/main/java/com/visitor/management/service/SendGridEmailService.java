@@ -1,22 +1,18 @@
 package com.visitor.management.service;
 
 import com.visitor.management.config.AppProperties;
+import com.visitor.management.config.CorsOriginResolver;
+import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorInvite;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.WriterException;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +23,19 @@ public class SendGridEmailService implements EmailService {
     private static final DateTimeFormatter INVITE_DATE_FORMATTER = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy h:mm a z");
 
     private final AppProperties.SendGrid properties;
+    private final CorsOriginResolver corsOriginResolver;
+    private final QrCodeService qrCodeService;
     private final RestClient restClient;
 
-    public SendGridEmailService(AppProperties appProperties, RestClient.Builder restClientBuilder) {
+    public SendGridEmailService(
+            AppProperties appProperties,
+            CorsOriginResolver corsOriginResolver,
+            QrCodeService qrCodeService,
+            RestClient.Builder restClientBuilder
+    ) {
         this.properties = appProperties.getSendgrid();
+        this.corsOriginResolver = corsOriginResolver;
+        this.qrCodeService = qrCodeService;
         this.restClient = restClientBuilder
                 .baseUrl("https://api.sendgrid.com")
                 .build();
@@ -75,21 +80,35 @@ public class SendGridEmailService implements EmailService {
     @Override
     public void sendVisitorInvite(VisitorInvite invite) {
         String visitorEmail = required(invite.getVisitorEmail(), "Visitor invite email address is required.");
-        String inviteUrl = required(invite.getInviteUrl(), "Visitor invite URL is required.");
-        String qrContentId = "accessflow-invite-qr";
-        InlineAttachment qrAttachment = new InlineAttachment(
-                qrContentId,
-                "accessflow-invite-qr.png",
-                "image/png",
-                inviteQrBase64(inviteUrl)
-        );
+        required(invite.getInviteUrl(), "Visitor invite URL is required.");
         sendEmail(
                 visitorEmail,
                 safeName(invite.getVisitorName()),
                 "%s invited you to pre-register for %s".formatted(safeName(invite.getHostEmployeeName()), safeOrganization(invite)),
                 visitorInvitePlainTextBody(invite),
-                visitorInviteHtmlBody(invite, qrContentId),
-                "Visitor pre-registration invite",
+                visitorInviteHtmlBody(invite),
+                "Visitor pre-registration invite"
+        );
+    }
+
+    @Override
+    public void sendVisitorApprovedBadge(Visitor visitor) {
+        String visitorEmail = required(visitor.getEmail(), "Visitor badge email address is required.");
+        String verificationUrl = visitorBadgeVerificationUrl(visitor);
+        String qrContentId = "accessflow-approved-visitor-badge";
+        InlineAttachment qrAttachment = new InlineAttachment(
+                qrContentId,
+                "accessflow-approved-visitor-badge.png",
+                "image/png",
+                qrImageBase64(verificationUrl)
+        );
+        sendEmail(
+                visitorEmail,
+                safeName(visitor.getFullName()),
+                "Your AccessFlow visitor badge is approved for %s".formatted(safeOrganization(visitor)),
+                visitorBadgePlainTextBody(visitor, verificationUrl),
+                visitorBadgeHtmlBody(visitor, verificationUrl, qrContentId),
+                "Approved visitor QR badge",
                 List.of(qrAttachment)
         );
     }
@@ -246,7 +265,7 @@ public class SendGridEmailService implements EmailService {
                 Complete pre-registration:
                 %s
 
-                Use the QR in this email or the link above to open your invite. Your temporary access QR is issued after pre-registration%s.
+                Your access badge is not included in this invite. After pre-registration is reviewed and approved, AccessFlow will send a second email with the approved QR badge and access instructions.
 
                 This invite expires %s.%s
                 """.formatted(
@@ -260,7 +279,6 @@ public class SendGridEmailService implements EmailService {
                 locationText(invite),
                 approvalStatus(invite),
                 invite.getInviteUrl(),
-                invite.isApprovalRequired() ? " and host approval" : "",
                 inviteExpiry(invite),
                 note
         );
@@ -338,7 +356,7 @@ public class SendGridEmailService implements EmailService {
                 """.formatted(escapedName, escapedUrl, expiryHours, escapedUrl, escapedUrl);
     }
 
-    private String visitorInviteHtmlBody(VisitorInvite invite, String qrContentId) {
+    private String visitorInviteHtmlBody(VisitorInvite invite) {
         String escapedVisitor = escapeHtml(safeName(invite.getVisitorName()));
         String escapedHost = escapeHtml(safeName(invite.getHostEmployeeName()));
         String escapedOrganization = escapeHtml(safeOrganization(invite));
@@ -387,12 +405,9 @@ public class SendGridEmailService implements EmailService {
                                 %s
                                 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border:1px solid #d0d5dd;border-radius:8px;margin:0 0 22px;">
                                   <tr>
-                                    <td style="padding:18px;vertical-align:middle;">
-                                      <p style="margin:0 0 10px;color:#344054;font-size:13px;font-weight:800;letter-spacing:0;text-transform:uppercase;">Secure invite QR</p>
-                                      <p style="margin:0;color:#475467;font-size:14px;line-height:1.5;">Scan this QR or use the button below to open your pre-registration invite. Your access QR is issued after pre-registration%s.</p>
-                                    </td>
-                                    <td align="right" style="padding:18px;width:132px;">
-                                      <img src="cid:%s" width="116" height="116" alt="AccessFlow invite QR" style="display:block;border:1px solid #d0d5dd;border-radius:8px;background:#ffffff;padding:8px;">
+                                    <td style="padding:18px;">
+                                      <p style="margin:0 0 10px;color:#344054;font-size:13px;font-weight:800;letter-spacing:0;text-transform:uppercase;">Access badge pending approval</p>
+                                      <p style="margin:0;color:#475467;font-size:14px;line-height:1.5;">This invite does not contain an operational QR badge. Complete pre-registration first; AccessFlow will send a separate approved badge email after host or workplace approval.</p>
                                     </td>
                                   </tr>
                                 </table>
@@ -423,12 +438,126 @@ public class SendGridEmailService implements EmailService {
                 detailRow("Location", locationText(invite)),
                 detailRow("Approval status", approvalStatus(invite)),
                 noteHtml,
-                invite.isApprovalRequired() ? " and host approval" : "",
-                qrContentId,
                 escapedInviteUrl,
                 escapedInviteUrl,
                 escapedInviteUrl,
                 escapeHtml(inviteExpiry(invite))
+        );
+    }
+
+    private String visitorBadgePlainTextBody(Visitor visitor, String verificationUrl) {
+        return """
+                AccessFlow approved visitor badge
+
+                Hi %s,
+
+                Your visit to %s has been approved. Your AccessFlow QR badge is ready for the scheduled access window.
+
+                Badge details
+                Visitor: %s
+                Organization: %s
+                Host: %s
+                Visit timing: %s
+                Badge ID: %s
+                QR valid until: %s
+
+                Open approved badge:
+                %s
+
+                Security instructions:
+                Present this badge at reception. Do not forward it. Security will scan the QR and verify it against the live AccessFlow approval record before check-in.
+                """.formatted(
+                safeName(visitor.getFullName()),
+                safeOrganization(visitor),
+                safeName(visitor.getFullName()),
+                safeOrganization(visitor),
+                safeName(visitor.getHostEmployee()),
+                visitorSchedule(visitor),
+                safeFallback(visitor.getBadgeId(), "Badge pending"),
+                visitorBadgeExpiry(visitor),
+                verificationUrl
+        );
+    }
+
+    private String visitorBadgeHtmlBody(Visitor visitor, String verificationUrl, String qrContentId) {
+        String escapedName = escapeHtml(safeName(visitor.getFullName()));
+        String escapedOrganization = escapeHtml(safeOrganization(visitor));
+        String escapedUrl = escapeHtml(verificationUrl);
+        return """
+                <!doctype html>
+                <html>
+                  <head>
+                    <meta name="color-scheme" content="light dark">
+                    <meta name="supported-color-schemes" content="light dark">
+                  </head>
+                  <body style="margin:0;background:#eef2f6;font-family:Arial,Helvetica,sans-serif;color:#101828;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#eef2f6;padding:24px 12px;">
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #d0d5dd;border-radius:8px;overflow:hidden;">
+                            <tr>
+                              <td style="background:#0f172a;color:#ffffff;padding:26px 28px;">
+                                <div style="font-size:13px;font-weight:800;letter-spacing:0;text-transform:uppercase;color:#86efac;">AccessFlow badge approved</div>
+                                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">Your visitor QR badge is ready</h1>
+                                <p style="margin:10px 0 0;color:#dbeafe;font-size:15px;line-height:1.5;">%s has approved your visit for the scheduled access window.</p>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:28px;">
+                                <p style="margin:0 0 18px;font-size:16px;line-height:1.55;">Hi %s,</p>
+                                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border:1px solid #d0d5dd;border-radius:8px;margin:0 0 22px;">
+                                  <tr>
+                                    <td style="padding:18px;vertical-align:top;">
+                                      <p style="margin:0 0 8px;color:#475467;font-size:12px;font-weight:800;letter-spacing:0;text-transform:uppercase;">Approved access pass</p>
+                                      <h2 style="margin:0 0 8px;color:#101828;font-size:22px;line-height:1.2;">%s</h2>
+                                      <p style="margin:0 0 14px;color:#475467;font-size:14px;line-height:1.5;">Present this QR at reception. Security will verify the live badge record before check-in.</p>
+                                      <p style="margin:0;color:#067647;font-size:13px;font-weight:800;">Status: Approved and QR issued</p>
+                                    </td>
+                                    <td align="right" style="padding:18px;width:168px;">
+                                      <div style="background:#ffffff;border:1px solid #d0d5dd;border-radius:8px;padding:10px;">
+                                        <img src="cid:%s" width="140" height="140" alt="Approved AccessFlow visitor QR badge" style="display:block;width:140px;height:140px;">
+                                      </div>
+                                    </td>
+                                  </tr>
+                                </table>
+                                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px;">
+                                  %s
+                                  %s
+                                  %s
+                                  %s
+                                  %s
+                                  %s
+                                </table>
+                                <p style="margin:0 0 18px;"><a href="%s" style="background:#1d4ed8;border-radius:8px;color:#ffffff;display:inline-block;font-size:15px;font-weight:800;padding:14px 18px;text-decoration:none;">Open approved badge</a></p>
+                                <p style="margin:0 0 8px;color:#475467;font-size:13px;line-height:1.6;">If the button does not open, copy and paste this secure badge link into your browser:</p>
+                                <p style="margin:0;color:#1d4ed8;font-size:13px;line-height:1.6;word-break:break-word;"><a href="%s" style="color:#1d4ed8;text-decoration:none;">%s</a></p>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="background:#f8fafc;border-top:1px solid #e4e7ec;padding:18px 28px;">
+                                <p style="margin:0;color:#667085;font-size:12px;line-height:1.5;">Security note: Do not forward this badge. AccessFlow validates the QR against organization, host, schedule, approval, and expiry state at scan time.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </body>
+                </html>
+                """.formatted(
+                escapedOrganization,
+                escapedName,
+                escapedName,
+                qrContentId,
+                detailRow("Organization", safeOrganization(visitor)),
+                detailRow("Host", safeName(visitor.getHostEmployee())),
+                detailRow("Visit timing", visitorSchedule(visitor)),
+                detailRow("Badge ID", safeFallback(visitor.getBadgeId(), "Badge pending")),
+                detailRow("QR valid until", visitorBadgeExpiry(visitor)),
+                detailRow("Location", locationText(visitor)),
+                escapedUrl,
+                escapedUrl,
+                escapedUrl
         );
     }
 
@@ -488,15 +617,13 @@ public class SendGridEmailService implements EmailService {
                 """.formatted(escapeHtml(label), escapeHtml(value));
     }
 
-    private String inviteQrBase64(String inviteUrl) {
-        try {
-            BitMatrix matrix = new QRCodeWriter().encode(inviteUrl, BarcodeFormat.QR_CODE, 320, 320);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            MatrixToImageWriter.writeToStream(matrix, "PNG", output);
-            return Base64.getEncoder().encodeToString(output.toByteArray());
-        } catch (WriterException | IOException ex) {
-            throw new IllegalStateException("Unable to render invite QR for email.", ex);
+    private String qrImageBase64(String payload) {
+        String dataUri = qrCodeService.dataUri(payload);
+        String prefix = "data:image/png;base64,";
+        if (!dataUri.startsWith(prefix)) {
+            throw new IllegalStateException("Unable to render approved badge QR for email.");
         }
+        return dataUri.substring(prefix.length());
     }
 
     private String inviteSchedule(VisitorInvite invite) {
@@ -519,6 +646,28 @@ public class SendGridEmailService implements EmailService {
         return INVITE_DATE_FORMATTER.withZone(safeZone(invite.getTimezone(), invite.getOrganizationTimezone())).format(invite.getExpiresAt());
     }
 
+    private String visitorSchedule(Visitor visitor) {
+        Instant start = visitor.getScheduledStartTime() != null ? visitor.getScheduledStartTime() : visitor.getAccessWindowStartTime();
+        Instant end = visitor.getScheduledEndTime() != null ? visitor.getScheduledEndTime() : visitor.getAccessWindowEndTime();
+        if (start == null) {
+            return "Scheduled access window";
+        }
+        ZoneId zone = safeZone(visitor.getScheduledTimezone(), visitor.getOrganizationTimezone());
+        String formattedStart = INVITE_DATE_FORMATTER.withZone(zone).format(start);
+        if (end == null) {
+            return formattedStart;
+        }
+        return formattedStart + " to " + INVITE_DATE_FORMATTER.withZone(zone).format(end);
+    }
+
+    private String visitorBadgeExpiry(Visitor visitor) {
+        Instant expiry = visitor.getQrExpiresAt() != null ? visitor.getQrExpiresAt() : visitor.getAccessWindowEndTime();
+        if (expiry == null) {
+            return "after the approved access window";
+        }
+        return INVITE_DATE_FORMATTER.withZone(safeZone(visitor.getScheduledTimezone(), visitor.getOrganizationTimezone())).format(expiry);
+    }
+
     private ZoneId safeZone(String preferred, String fallback) {
         try {
             return ZoneId.of(isBlank(preferred) ? blankToDefault(fallback, "UTC") : preferred.trim());
@@ -539,8 +688,27 @@ public class SendGridEmailService implements EmailService {
         return organization + code;
     }
 
+    private String locationText(Visitor visitor) {
+        String organization = safeOrganization(visitor);
+        String code = isBlank(visitor.getOrganizationCode()) ? "" : " (" + visitor.getOrganizationCode().trim() + ")";
+        return organization + code;
+    }
+
     private String safeOrganization(VisitorInvite invite) {
         return safeFallback(invite.getOrganizationName(), safeFallback(invite.getOrganizationCode(), "AccessFlow site"));
+    }
+
+    private String safeOrganization(Visitor visitor) {
+        return safeFallback(visitor.getOrganizationName(), safeFallback(visitor.getOrganizationCode(), "AccessFlow site"));
+    }
+
+    private String visitorBadgeVerificationUrl(Visitor visitor) {
+        String frontendUrl = required(corsOriginResolver.resolvePublicOrigin(), "Public frontend URL is not configured for visitor badge delivery.");
+        return UriComponentsBuilder.fromUriString(frontendUrl)
+                .replacePath(null)
+                .pathSegment("pass", required(visitor.getPassTokenId(), "Visitor pass token is required."))
+                .build()
+                .toUriString();
     }
 
     private String safeFallback(String value, String fallback) {

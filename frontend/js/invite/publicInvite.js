@@ -59,7 +59,7 @@ function renderLoading() {
 function renderInvite(invite) {
   const completed = Boolean(invite.pass?.qrImageDataUri || invite.registrationCompletedAt);
   const blocked = isBlocked(invite.status);
-  updateHeaderStatus(completed ? "Registration complete" : blocked ? "Invite needs attention" : "Secure invite ready", completed ? "success" : blocked ? "danger" : "success");
+  updateHeaderStatus(completed ? lifecycleHeader(invite) : blocked ? "Invite needs attention" : "Secure invite ready", completed ? "success" : blocked ? "danger" : "success");
   renderSummary(invite);
   document.title = `${invite.visitorName || "Visitor Invite"} | AccessFlow`;
 
@@ -121,7 +121,7 @@ function renderInvite(invite) {
           </div>
         </div>
 
-        <p class="invite-hint">Access window uses ${escapeHtml(timezoneLabel(invite.timezone || invite.organizationTimezone))}. Security will validate the QR pass against the live invite record.</p>
+        <p class="invite-hint">Access window uses ${escapeHtml(timezoneLabel(invite.timezone || invite.organizationTimezone))}. The final QR badge is issued only after this pre-registration is reviewed and approved.</p>
         <div class="invite-actions">
           <button class="button button--primary" type="submit">Complete pre-registration</button>
           <button class="button button--ghost" type="button" data-refresh-invite>Refresh invite</button>
@@ -130,8 +130,8 @@ function renderInvite(invite) {
 
       <aside class="invite-pass">
         <span class="invite-chip invite-chip--neutral">QR pending</span>
-        <h3>Temporary QR pass</h3>
-        <p class="muted">${escapeHtml(invite.approvalRequired ? "Your host must approve before a QR pass is issued." : "A temporary QR pass is issued after pre-registration is complete.")}</p>
+        <h3>Approved badge delivery</h3>
+        <p class="muted">This invite is not an access pass. AccessFlow sends the approved QR badge by email after host or workplace approval.</p>
         <div class="invite-detail-grid">
           ${detail("Host", invite.hostEmployeeName || "Assigned host")}
           ${detail("Organization", invite.organizationName || invite.organizationCode || "AccessFlow site")}
@@ -204,9 +204,14 @@ async function submitInviteRegistration(form) {
       photoPublicId: photo.publicId,
     });
     state.invite = completedResponse.data || state.invite;
-    showToast("Pre-registration complete", state.invite.pass?.qrImageDataUri ? "Your temporary QR pass is ready." : "Your host has been notified.");
+    showToast("Pre-registration complete", state.invite.pass?.qrImageDataUri ? "Your approved badge is ready." : "Your host has been notified for approval.");
     renderInvite(state.invite);
   } catch (error) {
+    if (isCompletionConflict(error)) {
+      showToast("Pre-registration already complete", "This invite is already waiting on the next approval step.");
+      await initInvitePage();
+      return;
+    }
     showToast("Registration failed", error.message || "Unable to complete this invite.");
   } finally {
     setSubmitting(submitButton, false);
@@ -214,12 +219,16 @@ async function submitInviteRegistration(form) {
 }
 
 function renderCompleted(invite) {
+  const approved = isBadgeIssued(invite);
   stage().innerHTML = `
     <article class="invite-panel invite-panel--split">
       <section class="invite-panel__header">
         <span class="invite-chip invite-chip--success">Registration complete</span>
-        <h2>${escapeHtml(invite.pass?.qrImageDataUri ? "Your QR pass is ready" : "Registration sent to your host")}</h2>
-        <p class="muted">${escapeHtml(invite.pass?.qrImageDataUri ? "Show this pass at arrival. Security will scan it and verify your live AccessFlow record." : "Your host will approve this visit before a QR pass is issued.")}</p>
+        <h2>Pre-registration completed successfully</h2>
+        <p class="muted">${escapeHtml(approved ? "Your visit is approved and the operational QR badge has been issued by email." : "Your details are locked in. Your host or workplace team will review the visit before AccessFlow issues the final QR badge.")}</p>
+        <div class="invite-timeline" aria-label="Visitor approval progress">
+          ${lifecycleTimeline(invite)}
+        </div>
         <div class="invite-detail-grid">
           ${detail("Visitor", invite.visitorName || "Visitor")}
           ${detail("Host", invite.hostEmployeeName || "Assigned host")}
@@ -234,17 +243,14 @@ function renderCompleted(invite) {
         </div>
       </section>
       <aside class="invite-pass">
-        ${invite.pass?.qrImageDataUri ? `
-          <span class="invite-chip invite-chip--success">${escapeHtml(invite.pass.valid ? "Valid pass" : invite.pass.statusLabel || "Pass issued")}</span>
-          <div class="invite-pass__qr">
-            <img src="${escapeHtml(invite.pass.qrImageDataUri)}" alt="AccessFlow visitor QR pass" />
-          </div>
-          <p class="muted">Expires ${escapeHtml(invite.pass.expiresAt ? formatDate(invite.pass.expiresAt) : "after the approved access window")}.</p>
-        ` : `
-          <span class="invite-chip invite-chip--warning">QR pending</span>
-          <h3>Approval required</h3>
-          <p class="muted">Your host and security team can now review the completed pre-registration.</p>
-        `}
+        <span class="invite-chip invite-chip--${approved ? "success" : "warning"}">${escapeHtml(approved ? "QR issued" : "Approval pending")}</span>
+        <h3>${escapeHtml(approved ? "Badge delivered by email" : "Badge pending")}</h3>
+        <p class="muted">${escapeHtml(approved ? "Use the approved badge email when you arrive. Security will scan that QR against the live AccessFlow record." : "No further action is needed on this page. Keep an eye on your inbox for the approved QR badge after review.")}</p>
+        <div class="invite-detail-grid">
+          ${detail("Current step", approved ? "QR issued" : "Pending approval")}
+          ${detail("Next step", approved ? "Present badge at reception" : "Host approval")}
+          ${detail("Delivery", "Approved badge email")}
+        </div>
       </aside>
     </article>
   `;
@@ -354,6 +360,44 @@ function chipTone(status) {
     return "neutral";
   }
   return "warning";
+}
+
+function lifecycleHeader(invite) {
+  if (String(invite?.status || "").toUpperCase() === "ARRIVED") {
+    return "Visitor arrived";
+  }
+  if (isBadgeIssued(invite)) {
+    return "QR badge issued";
+  }
+  return "Awaiting approval";
+}
+
+function lifecycleTimeline(invite) {
+  const issued = isBadgeIssued(invite);
+  const arrived = String(invite?.status || "").toUpperCase() === "ARRIVED";
+  const steps = [
+    { label: "Invited", state: "done", detail: "Invite sent by host" },
+    { label: "Pre-registered", state: "done", detail: invite.registrationCompletedAt ? formatDate(invite.registrationCompletedAt) : "Completed" },
+    { label: "Pending approval", state: issued || arrived ? "done" : "current", detail: issued || arrived ? "Approved" : "Host review in progress" },
+    { label: "QR issued", state: issued || arrived ? "done" : "pending", detail: issued ? "Badge delivered by email" : "Sent after approval" },
+    { label: "Arrival", state: arrived ? "done" : "pending", detail: arrived ? "Checked at reception" : "Present approved badge" },
+  ];
+  return steps.map((step) => `
+    <div class="invite-timeline__step invite-timeline__step--${step.state}">
+      <span aria-hidden="true"></span>
+      <strong>${escapeHtml(step.label)}</strong>
+      <small>${escapeHtml(step.detail)}</small>
+    </div>
+  `).join("");
+}
+
+function isBadgeIssued(invite) {
+  return Boolean(invite?.qrIssuedAt || invite?.pass?.qrImageDataUri || String(invite?.status || "").toUpperCase() === "QR_ISSUED");
+}
+
+function isCompletionConflict(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("already") || message.includes("completed") || message.includes("registered");
 }
 
 function accessWindow(invite) {
