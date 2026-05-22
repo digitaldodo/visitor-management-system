@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { getWorkspaceConfig } from '../auth/workspaceConfig';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { useLocalization, type TranslationKey } from '../localization/LocalizationProvider';
 import { navigationRef } from './navigationRef';
 import { recordObservedError, trackScreenContext } from '../runtime/observability';
 import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
@@ -239,7 +240,7 @@ function AdminNavigator() {
       <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
       <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
       <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
-      <AdminTabs.Screen name="More" component={AdminMoreScreen} options={{ tabBarLabel: 'More' }} />
+      <AdminTabs.Screen name="More" component={AdminMoreScreen} />
       <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} options={{ tabBarButton: () => null }} />
@@ -253,6 +254,7 @@ function AdminNavigator() {
 function useMobileTabOptions() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
+  const { t } = useLocalization();
 
   return ({ route }: { route: { name: string } }) => ({
     headerShown: false,
@@ -279,11 +281,40 @@ function useMobileTabOptions() {
     tabBarLabelStyle: {
       fontSize: layout.isSmallPhone ? 10 : 11,
       fontWeight: '700' as const,
+      lineHeight: layout.isSmallPhone ? 12 : 13,
+      textAlign: 'center' as const,
     },
+    tabBarLabel: t(navLabelKeyForRoute(route.name)),
     tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
       <Ionicons color={color} name={iconForRoute(route.name)} size={focused ? 23 : 21} />
     ),
   });
+}
+
+function navLabelKeyForRoute(routeName: string): TranslationKey {
+  const labelMap: Record<string, TranslationKey> = {
+    Scan: 'nav.qr',
+    Visitors: 'nav.visitors',
+    Workforce: 'nav.workforce',
+    Register: 'nav.register',
+    Alerts: 'nav.alerts',
+    Emergency: 'nav.emergency',
+    Profile: 'nav.profile',
+    Badge: 'nav.badge',
+    Requests: 'nav.requests',
+    Presence: 'nav.presence',
+    Notifications: 'nav.notifications',
+    Home: 'nav.home',
+    Request: 'nav.request',
+    Pass: 'nav.pass',
+    Dashboard: 'nav.dashboard',
+    Approvals: 'nav.approvals',
+    Employees: 'nav.employees',
+    Live: 'nav.activity',
+    More: 'nav.more',
+  };
+
+  return labelMap[routeName] || 'nav.more';
 }
 
 function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {

@@ -15,7 +15,7 @@ export function DetailRow({ label, value, muted }: Props) {
   return (
     <View style={styles.row}>
       <Text style={styles.label}>{tText(label)}</Text>
-      <Text style={[styles.value, muted ? styles.valueMuted : null]}>{value}</Text>
+      <Text style={[styles.value, muted ? styles.valueMuted : null]}>{tText(value)}</Text>
     </View>
   );
 }

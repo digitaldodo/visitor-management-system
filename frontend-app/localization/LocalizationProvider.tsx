@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-type SupportedLanguage = 'en' | 'hi';
+import { enterpriseStaticTextTranslations } from './locales/enterpriseText';
+
+export type SupportedLanguage = 'en' | 'hi';
 type LanguagePreference = '' | SupportedLanguage;
 type TranslationParams = Record<string, string | number | null | undefined>;
 
@@ -26,6 +28,27 @@ type StoredLanguagePreference = {
 const translations = {
   en: {
     'app.brandMeta': 'Operational workspace',
+    'nav.qr': 'QR',
+    'nav.pending': 'Pending',
+    'nav.approvalStatus': 'Approval Status',
+    'nav.dashboard': 'Dashboard',
+    'nav.approvals': 'Approvals',
+    'nav.visitors': 'Visitors',
+    'nav.workforce': 'Workforce',
+    'nav.register': 'Register',
+    'nav.alerts': 'Alerts',
+    'nav.emergency': 'Emergency',
+    'nav.profile': 'Profile',
+    'nav.badge': 'Badge',
+    'nav.requests': 'Requests',
+    'nav.presence': 'Presence',
+    'nav.notifications': 'Notifications',
+    'nav.home': 'Home',
+    'nav.request': 'Request',
+    'nav.pass': 'Pass',
+    'nav.employees': 'Employees',
+    'nav.activity': 'Activity',
+    'nav.more': 'More',
     'common.live': 'Ready',
     'common.english': 'English',
     'common.hindi': 'Hindi',
@@ -137,6 +160,27 @@ const translations = {
   },
   hi: {
     'app.brandMeta': 'ऑपरेशनल कार्यक्षेत्र',
+    'nav.qr': 'QR',
+    'nav.pending': 'लंबित',
+    'nav.approvalStatus': 'स्वीकृति स्थिति',
+    'nav.dashboard': 'डैशबोर्ड',
+    'nav.approvals': 'स्वीकृतियां',
+    'nav.visitors': 'आगंतुक',
+    'nav.workforce': 'कार्यबल',
+    'nav.register': 'रजिस्टर',
+    'nav.alerts': 'अलर्ट',
+    'nav.emergency': 'आपातकाल',
+    'nav.profile': 'प्रोफाइल',
+    'nav.badge': 'बैज',
+    'nav.requests': 'अनुरोध',
+    'nav.presence': 'उपस्थिति',
+    'nav.notifications': 'सूचनाएं',
+    'nav.home': 'होम',
+    'nav.request': 'अनुरोध',
+    'nav.pass': 'पास',
+    'nav.employees': 'कर्मचारी',
+    'nav.activity': 'गतिविधि',
+    'nav.more': 'अधिक',
     'common.live': 'तैयार',
     'common.english': 'अंग्रेजी',
     'common.hindi': 'हिंदी',
@@ -248,7 +292,7 @@ const translations = {
   },
 } as const;
 
-type TranslationKey = keyof typeof translations.en;
+export type TranslationKey = keyof typeof translations.en;
 
 const staticTextTranslations = {
   hi: {
@@ -504,7 +548,9 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
         return '';
       }
       const translated = language === 'hi'
-        ? staticTextTranslations.hi[text as keyof typeof staticTextTranslations.hi] ?? text
+        ? enterpriseStaticTextTranslations.hi[text as keyof typeof enterpriseStaticTextTranslations.hi]
+          ?? staticTextTranslations.hi[text as keyof typeof staticTextTranslations.hi]
+          ?? text
         : text;
       return interpolate(translated, params);
     },

@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { LogBox, Platform } from 'react-native';
 
 const EXPO_GO_NOTIFICATION_WARNING = 'expo-notifications: Android Push notifications functionality was removed from Expo Go';
+const loggedExpoGoNotificationScopes = new Set<string>();
 
 export function isExpoGoRuntime() {
   const executionEnvironment = String(Constants.executionEnvironment ?? '').toLowerCase();
@@ -21,6 +22,10 @@ export function suppressExpoGoNotificationWarnings() {
 
 export function logExpoGoNotificationBypass(scope: string) {
   if (__DEV__ && isExpoGoRuntime()) {
-    console.info(`[AccessFlow] Native push notifications skipped in Expo Go (${scope}). Use a development, preview, or production build to test push delivery.`);
+    if (loggedExpoGoNotificationScopes.size > 0 || loggedExpoGoNotificationScopes.has(scope)) {
+      return;
+    }
+    loggedExpoGoNotificationScopes.add(scope);
+    console.info('[AccessFlow] Native push notifications skipped in Expo Go. Use a development, preview, or production build to test push delivery.');
   }
 }

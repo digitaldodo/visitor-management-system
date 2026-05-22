@@ -4,20 +4,15 @@ import {
   ActivityIndicator,
   Keyboard,
   LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { theme } from '../../theme';
 import { AppTextField } from './AppTextField';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 type AutocompleteDropdownProps<T> = {
   label: string;
@@ -70,6 +65,7 @@ export function AutocompleteDropdown<T>({
   keyboardType = 'default',
   autoCapitalize = 'none',
 }: AutocompleteDropdownProps<T>) {
+  const { tText } = useLocalization();
   const hasSelection = Boolean(selectedTitle);
   const queryReady = value.trim().length >= minQueryLength;
   const showResults = !hasSelection && queryReady;
@@ -109,7 +105,7 @@ export function AutocompleteDropdown<T>({
     <View style={styles.container}>
       {hasSelection ? (
         <>
-          <Text maxFontSizeMultiplier={1.1} style={styles.label}>{label}</Text>
+          <Text maxFontSizeMultiplier={1.1} style={styles.label}>{tText(label)}</Text>
           <View style={styles.selectedPanel}>
             <View style={styles.selectedIcon}>
               {selectedAvatarText ? (
@@ -125,7 +121,7 @@ export function AutocompleteDropdown<T>({
             {onClearSelection ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Clear ${label}`}
+                accessibilityLabel={tText('Clear {label}', { label: tText(label) })}
                 hitSlop={8}
                 onPress={() => {
                   animate();
@@ -164,7 +160,7 @@ export function AutocompleteDropdown<T>({
               {onRetry ? (
                 <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
                   <Ionicons name="refresh" size={17} color={theme.colors.textPrimary} />
-                  <Text style={styles.retryText}>Retry</Text>
+                  <Text style={styles.retryText}>{tText('Retry')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -192,6 +188,8 @@ function StateRow({
   body: string;
   tone?: 'default' | 'danger';
 }) {
+  const { tText } = useLocalization();
+
   return (
     <View style={styles.stateRow}>
       {icon === 'sync-outline' ? (
@@ -200,8 +198,8 @@ function StateRow({
         <Ionicons name={icon} size={18} color={tone === 'danger' ? theme.colors.danger : theme.colors.textSecondary} />
       )}
       <View style={styles.resultCopy}>
-        <Text style={styles.resultTitle}>{title}</Text>
-        <Text style={styles.metaText}>{body}</Text>
+        <Text style={styles.resultTitle}>{tText(title)}</Text>
+        <Text style={styles.metaText}>{tText(body)}</Text>
       </View>
     </View>
   );
