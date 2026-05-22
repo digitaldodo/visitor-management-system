@@ -318,6 +318,16 @@ public class AdminController {
         return ApiResponse.ok("Workforce onboarding rejected.", workforceOnboardingService.reject(id, request, authentication.getName()));
     }
 
+    @PatchMapping("/workforce-onboarding/{id}/request-modification")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<AdminUserResponse> requestWorkforceOnboardingModification(
+            @PathVariable String id,
+            @Valid @RequestBody WorkforceRejectionRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce onboarding returned for modification.", workforceOnboardingService.requestModification(id, request, authentication.getName()));
+    }
+
     @GetMapping("/workforce-attendance/analytics")
     public ApiResponse<Map<String, Object>> workforceAttendanceAnalytics(Authentication authentication) {
         return ApiResponse.ok("Workforce presence analytics loaded.", employeeAttendanceService.analytics(authentication.getName()));

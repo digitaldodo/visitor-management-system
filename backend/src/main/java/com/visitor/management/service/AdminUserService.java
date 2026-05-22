@@ -525,6 +525,8 @@ public class AdminUserService {
         long active = workforce.stream().filter(user -> user.isActive() && user.getAccountStatus() == AccountStatus.ACTIVE).count();
         long inactive = workforce.stream().filter(user -> !user.isActive() || user.getAccountStatus() == AccountStatus.DISABLED).count();
         long pending = workforce.stream().filter(this::isPendingInvite).count();
+        long pendingApproval = workforce.stream().filter(user -> user.getAccountStatus() == AccountStatus.PENDING_APPROVAL).count();
+        long changesRequested = workforce.stream().filter(user -> user.getAccountStatus() == AccountStatus.CHANGES_REQUESTED).count();
         long security = workforce.stream().filter(user -> user.getRoles().contains(Role.SECURITY_GUARD) && user.isActive()).count();
         long managers = workforce.stream().filter(user -> user.getRoles().contains(Role.MANAGER) && user.isActive()).count();
         Map<String, Long> byDepartment = new LinkedHashMap<>();
@@ -534,6 +536,8 @@ public class AdminUserService {
                 "active", active,
                 "inactive", inactive,
                 "pendingInvites", pending,
+                "pendingApprovals", pendingApproval,
+                "changesRequested", changesRequested,
                 "securityStaffAvailable", security,
                 "managersActive", managers,
                 "attendanceAnomalies", 0,
@@ -881,7 +885,9 @@ public class AdminUserService {
     }
 
     private void applyAccountStatus(User user, AccountStatus accountStatus) {
-        if (accountStatus == AccountStatus.PENDING_APPROVAL || accountStatus == AccountStatus.REJECTED) {
+        if (accountStatus == AccountStatus.PENDING_APPROVAL
+                || accountStatus == AccountStatus.CHANGES_REQUESTED
+                || accountStatus == AccountStatus.REJECTED) {
             throw new BadRequestException("Onboarding approval states are managed by the approval workflow.");
         }
         user.setAccountStatus(accountStatus);

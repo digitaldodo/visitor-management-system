@@ -170,6 +170,11 @@ class VisitorManagementApplicationTests {
         when(userRepository.findByUsernameIgnoreCase("security-id")).thenReturn(Optional.of(user("security-id", Role.SECURITY_GUARD)));
         when(userRepository.findByUsernameIgnoreCase("visitor-id")).thenReturn(Optional.of(visitorAccount("visitor-id", "visitor@example.com", "org-acme", "Acme Corp", "ACME")));
         when(userRepository.findByEmailIgnoreCase("employee-id@example.com")).thenReturn(Optional.of(user("employee-id", Role.EMPLOYEE)));
+        when(userRepository.findAllByOrganizationIdAndRolesIn(eq("org-acme"), any())).thenReturn(List.of(user("employee-target-id", Role.EMPLOYEE)));
+        when(userRepository.findAllByRolesIn(any())).thenReturn(List.of(user("employee-target-id", Role.EMPLOYEE)));
+        when(userRepository.findAllByOrganizationIdAndRolesInAndAccountStatus(eq("org-acme"), any(), eq(AccountStatus.PENDING_APPROVAL))).thenReturn(List.of());
+        when(userRepository.findAllByRolesInAndAccountStatus(any(), eq(AccountStatus.PENDING_APPROVAL))).thenReturn(List.of());
+        when(userRepository.findAllByOrganizationIdAndWorkforceOnboardingCreatedById(eq("org-acme"), eq("security-id"))).thenReturn(List.of());
         when(visitorRepository.findByQrCode(any())).thenReturn(Optional.empty());
         when(employeeAttendanceLogRepository.findTopByEmployeeUserIdAndStateOrderByCheckInTimeDesc(any(), any(EmployeeAttendanceState.class))).thenReturn(Optional.empty());
         when(employeeAttendanceLogRepository.findTopByEmployeeUserIdAndAttendanceDateOrderByCreatedAtDesc(any(), any())).thenReturn(Optional.empty());
@@ -1185,6 +1190,38 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void securityCanProposeWorkforceRoleButNotPrivilegedRole() throws Exception {
+        mockMvc.perform(post("/api/v1/security/workforce-onboarding")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Reception Agent",
+                                  "role": "RECEPTION",
+                                  "department": "Reception",
+                                  "employeeType": "RECEPTION",
+                                  "designation": "Front desk"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.roles[0]").value("RECEPTION"))
+                .andExpect(jsonPath("$.data.accountStatus").value("PENDING_APPROVAL"))
+                .andExpect(jsonPath("$.data.active").value(false));
+
+        mockMvc.perform(post("/api/v1/security/workforce-onboarding")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("security-id", Role.SECURITY_GUARD))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Bad Actor",
+                                  "role": "SUPER_ADMIN",
+                                  "department": "Platform"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void pendingWorkerQrCannotBeScannedBeforeAdminApproval() throws Exception {
         User worker = user("worker-pending-id", Role.EMPLOYEE);
         worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
@@ -1232,6 +1269,45 @@ class VisitorManagementApplicationTests {
                 .andExpect(jsonPath("$.data.employeeId").value(org.hamcrest.Matchers.startsWith("ACME-")))
                 .andExpect(jsonPath("$.data.department").value("Facilities"))
                 .andExpect(jsonPath("$.data.workforceApprovedById").value("admin-id"));
+    }
+
+    @Test
+    void orgAdminCannotApproveCrossOrganizationWorkforceRequest() throws Exception {
+        User worker = user("worker-beta-id", Role.EMPLOYEE);
+        worker.setOrganizationId("org-beta");
+        worker.setOrganizationName("Beta Corp");
+        worker.setOrganizationCode("BETA");
+        worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
+        worker.setActive(false);
+        when(userRepository.findById("worker-beta-id")).thenReturn(Optional.of(worker));
+
+        mockMvc.perform(patch("/api/v1/admin/workforce-onboarding/worker-beta-id/approve")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void orgAdminCanRequestWorkforceModification() throws Exception {
+        User worker = user("worker-pending-id", Role.OPERATOR);
+        worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
+        worker.setActive(false);
+        worker.setWorkforceOnboardingCreatedById("security-id");
+        when(userRepository.findById("worker-pending-id")).thenReturn(Optional.of(worker));
+
+        mockMvc.perform(patch("/api/v1/admin/workforce-onboarding/worker-pending-id/request-modification")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("admin-id", Role.ADMIN))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "reason": "Add verified department and shift timing."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountStatus").value("CHANGES_REQUESTED"))
+                .andExpect(jsonPath("$.data.active").value(false))
+                .andExpect(jsonPath("$.data.workforceRejectionReason").value("Add verified department and shift timing."));
     }
 
     @Test

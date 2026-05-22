@@ -1,8 +1,10 @@
 package com.visitor.management.dto;
 
 import jakarta.validation.constraints.Size;
+import com.visitor.management.entity.Role;
 
 public record WorkforceApprovalRequest(
+        Role role,
         @Size(max = 80) String department,
         @Size(max = 80) String designation,
         @Size(max = 40) String employeeType,

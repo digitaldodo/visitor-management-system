@@ -36,6 +36,7 @@ import {
   useReactivateAdminVisitorMutation,
   useRejectAdminVisitorMutation,
   useRejectAdminWorkforceMutation,
+  useRequestAdminWorkforceModificationMutation,
   useSuspendAdminVisitorMutation,
 } from '../../hooks/useAdminWorkspace';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -88,6 +89,16 @@ const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
   { label: 'Expired', value: 'EXPIRED' },
   { label: 'Suspended', value: 'SUSPENDED' },
 ];
+
+const WORKFORCE_STATUSES = [
+  { label: 'All', value: 'ALL' },
+  { label: 'Active', value: 'ACTIVE' },
+  { label: 'Inactive', value: 'INACTIVE' },
+  { label: 'Pending approval', value: 'PENDING_APPROVAL' },
+  { label: 'Pending invite', value: 'UNVERIFIED' },
+  { label: 'Suspended', value: 'DISABLED' },
+  { label: 'Changes', value: 'CHANGES_REQUESTED' },
+] as const;
 
 export function AdminDashboardScreen() {
   return <AdminOperationalScreen section="dashboard" />;
@@ -173,6 +184,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
   const [search, setSearch] = useState('');
   const [visitorStatus, setVisitorStatus] = useState<'ALL' | VisitorStatus>('ALL');
+  const [workforceStatus, setWorkforceStatus] = useState<(typeof WORKFORCE_STATUSES)[number]['value']>('ALL');
   const [page, setPage] = useState(0);
   const [actionState, setActionState] = useState<AdminAction | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -200,6 +212,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
   const approveWorkforceMutation = useApproveAdminWorkforceMutation();
   const rejectWorkforceMutation = useRejectAdminWorkforceMutation();
+  const requestWorkforceModificationMutation = useRequestAdminWorkforceModificationMutation();
   const approveVisitorMutation = useApproveAdminVisitorMutation();
   const rejectVisitorMutation = useRejectAdminVisitorMutation();
   const checkInVisitorMutation = useCheckInAdminVisitorMutation();
@@ -219,19 +232,30 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   );
   const filteredEmployees = useMemo(() => {
     const query = deferredSearch.toLowerCase();
-    if (!query) {
-      return employees;
-    }
-    return employees.filter((user) => [
-      user.fullName,
-      user.email,
-      user.employeeId,
-      user.department,
-      user.designation,
-      user.employeeType,
-      user.accountStatus,
-    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query)));
-  }, [deferredSearch, employees]);
+    return employees.filter((user) => {
+      const status = String(user.accountStatus || (user.active ? 'ACTIVE' : 'DISABLED')).toUpperCase();
+      const matchesStatus = workforceStatus === 'ALL'
+        || (workforceStatus === 'ACTIVE' && user.active && status === 'ACTIVE')
+        || (workforceStatus === 'INACTIVE' && (!user.active || ['DISABLED', 'LOCKED', 'REJECTED'].includes(status)))
+        || status === workforceStatus;
+      if (!matchesStatus) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [
+        user.fullName,
+        user.email,
+        user.employeeId,
+        user.department,
+        user.designation,
+        user.employeeType,
+        user.accountStatus,
+        roleLabel(user.roles?.[0]),
+      ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [deferredSearch, employees, workforceStatus]);
   const securityNotifications = useMemo(
     () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'SYSTEM', 'WORKFORCE', 'VISITOR'].includes(String(item.category || '').toUpperCase())),
     [notifications.data?.items],
@@ -279,6 +303,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
         shiftStartTime: worker.shiftStartTime ?? null,
         shiftEndTime: worker.shiftEndTime ?? null,
         note: 'Approved from AccessFlow Android admin workspace.',
+        role: worker.roles?.[0] ?? 'EMPLOYEE',
       },
     });
     setActionMessage(`${updated.fullName} approved and access activated.`);
@@ -381,7 +406,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
         break;
       }
       case 'changes-workforce': {
-        const updated = await rejectWorkforceMutation.mutateAsync({ id: actionState.worker.id, reason: `Changes requested: ${reason}` });
+        const updated = await requestWorkforceModificationMutation.mutateAsync({ id: actionState.worker.id, reason });
         setActionMessage(`${updated.fullName} sent back for onboarding changes.`);
         break;
       }
@@ -669,6 +694,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 <MetricCard label="Security available" value={Number(workforceAnalytics.data?.securityStaffAvailable ?? filteredEmployees.filter((user) => (user.roles ?? []).includes('SECURITY_GUARD') && user.active).length)} tone="default" />
               </View>
               <AppTextField label="Search workforce" value={search} onChangeText={setSearch} placeholder="Name, email, role, department, status" />
+              <SegmentRow options={WORKFORCE_STATUSES} value={workforceStatus} onChange={setWorkforceStatus} />
             </SurfaceCard>
             <EmployeeList
               users={filteredEmployees.slice(0, 40)}
@@ -1147,6 +1173,7 @@ function WorkforceList({
               title={worker.fullName}
               subtitle={[worker.employeeType || 'Workforce', worker.department, worker.designation].filter(Boolean).join(' - ')}
               meta={[
+                `Role: ${roleLabel(worker.roles?.[0])}`,
                 worker.shiftName ? `Shift: ${worker.shiftName}` : null,
                 worker.shiftStartTime || worker.shiftEndTime ? `${worker.shiftStartTime || '--:--'}-${worker.shiftEndTime || '--:--'}` : null,
                 worker.workforceOnboardingCreatedByName ? `Submitted by ${worker.workforceOnboardingCreatedByName}` : null,
@@ -1159,6 +1186,7 @@ function WorkforceList({
               items={[
                 ['Photo', worker.employeePhotoUrl ? 'Submitted' : 'Missing'],
                 ['Department', worker.department || 'Unassigned'],
+                ['Proposed role', roleLabel(worker.roles?.[0])],
                 ['Shift', [worker.shiftName, worker.shiftStartTime, worker.shiftEndTime].filter(Boolean).join(' ') || 'Not assigned'],
                 ['Temporary', worker.employeeType?.includes('TEMP') ? 'Yes' : 'Review category'],
               ]}
@@ -1344,7 +1372,7 @@ function SegmentRow<T extends string>({
   value,
   onChange,
 }: {
-  options: { label: string; value: T }[];
+  options: readonly { label: string; value: T }[];
   value: T;
   onChange: (value: T) => void;
 }) {

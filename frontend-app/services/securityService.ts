@@ -62,6 +62,7 @@ type WorkforceOnboardingPayload = {
   fullName: string;
   username?: string | null;
   email?: string | null;
+  role?: string | null;
   department?: string | null;
   phoneCountryCode?: string | null;
   phone?: string | null;
@@ -251,6 +252,13 @@ export async function createWorkforceOnboarding(payload: WorkforceOnboardingPayl
     url: '/security/workforce-onboarding',
     method: 'POST',
     data: payload,
+  });
+}
+
+export async function getSecurityWorkforceOnboardingRequests() {
+  return request<WorkforceOnboardingRecord[]>({
+    url: '/security/workforce-onboarding',
+    method: 'GET',
   });
 }
 

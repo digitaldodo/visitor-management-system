@@ -21,6 +21,7 @@ import {
   getAdminWorkforceOnboarding,
   inviteAdminUser,
   reactivateAdminVisitor,
+  requestAdminWorkforceModification,
   rejectAdminVisitor,
   rejectAdminWorkforce,
   resendAdminUserInvite,
@@ -103,6 +104,10 @@ export function useApproveAdminWorkforceMutation() {
 
 export function useRejectAdminWorkforceMutation() {
   return useMutation({ mutationFn: rejectAdminWorkforce });
+}
+
+export function useRequestAdminWorkforceModificationMutation() {
+  return useMutation({ mutationFn: requestAdminWorkforceModification });
 }
 
 export function useApproveAdminVisitorMutation() {

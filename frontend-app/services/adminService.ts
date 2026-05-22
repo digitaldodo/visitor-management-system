@@ -20,6 +20,7 @@ type AdminVisitorParams = {
 };
 
 type WorkforceApprovalPayload = {
+  role?: string | null;
   department?: string | null;
   designation?: string | null;
   employeeType?: string | null;
@@ -145,6 +146,16 @@ export async function rejectAdminWorkforce({ id, reason }: ReasonPayload) {
     data: { reason },
   });
   await trackFirebaseEvent('workforce_approval_action', { action: 'reject', actor_role: 'ADMIN' });
+  return response;
+}
+
+export async function requestAdminWorkforceModification({ id, reason }: ReasonPayload) {
+  const response = await request<WorkforceOnboardingRecord>({
+    url: `/admin/workforce-onboarding/${encodeURIComponent(id)}/request-modification`,
+    method: 'PATCH',
+    data: { reason },
+  });
+  await trackFirebaseEvent('workforce_approval_action', { action: 'request_modification', actor_role: 'ADMIN' });
   return response;
 }
 

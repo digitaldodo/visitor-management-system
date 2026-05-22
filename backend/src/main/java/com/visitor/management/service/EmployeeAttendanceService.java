@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Base64;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -53,6 +54,13 @@ public class EmployeeAttendanceService {
     private static final int DYNAMIC_QR_TTL_SECONDS = 60;
     private static final int DYNAMIC_QR_GRACE_SECONDS = 20;
     private static final String ATTENDANCE_COLLECTION = "employee_attendance_logs";
+    private static final EnumSet<Role> WORKFORCE_ROLES = EnumSet.of(
+            Role.EMPLOYEE,
+            Role.SECURITY_GUARD,
+            Role.RECEPTION,
+            Role.OPERATOR,
+            Role.MANAGER
+    );
     private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -86,7 +94,7 @@ public class EmployeeAttendanceService {
     }
 
     public void provisionEmployeeCredential(User user) {
-        if (user == null || user.getRoles() == null || !user.getRoles().contains(Role.EMPLOYEE)) {
+        if (!isWorkforceUser(user)) {
             return;
         }
         if (trimToNull(user.getEmployeeId()) == null) {
@@ -118,7 +126,7 @@ public class EmployeeAttendanceService {
     }
 
     public void deactivateEmployeeCredential(User user) {
-        if (user == null || user.getRoles() == null || !user.getRoles().contains(Role.EMPLOYEE)) {
+        if (!isWorkforceUser(user)) {
             return;
         }
         if (trimToNull(user.getEmployeeQrToken()) != null && user.getEmployeeQrRevokedAt() == null) {
@@ -130,8 +138,8 @@ public class EmployeeAttendanceService {
         User actor = currentUser(actorId);
         String normalizedQuery = trimToNull(query);
         List<User> employees = actor.getRoles().contains(Role.SUPER_ADMIN)
-                ? userRepository.findAllByRolesContaining(Role.EMPLOYEE)
-                : userRepository.findAllByOrganizationIdAndRolesContaining(requiredOrganizationId(actor), Role.EMPLOYEE);
+                ? userRepository.findAllByRolesIn(WORKFORCE_ROLES)
+                : userRepository.findAllByOrganizationIdAndRolesIn(requiredOrganizationId(actor), WORKFORCE_ROLES);
         return employees.stream()
                 .filter(employee -> normalizedQuery == null || employeeMatches(employee, normalizedQuery))
                 .sorted(Comparator.comparing(user -> String.valueOf(user.getFullName()), String.CASE_INSENSITIVE_ORDER))
@@ -150,7 +158,7 @@ public class EmployeeAttendanceService {
 
     public EmployeeBadgeResponse ownBadge(String actorId) {
         User employee = currentUser(actorId);
-        if (!employee.getRoles().contains(Role.EMPLOYEE)) {
+        if (!isWorkforceUser(employee)) {
             throw new BadRequestException("Only employee accounts have workforce badges.");
         }
         provisionAndPersistIfNeeded(employee);
@@ -661,8 +669,8 @@ public class EmployeeAttendanceService {
     }
 
     private void validateEmployeeAccess(User employee) {
-        if (!employee.getRoles().contains(Role.EMPLOYEE)) {
-            throw new BadRequestException("QR credential does not belong to an employee account.");
+        if (!isWorkforceUser(employee)) {
+            throw new BadRequestException("QR credential does not belong to a workforce account.");
         }
         if (!employeeEnabled(employee)) {
             throw new BadRequestException("Employee account is disabled or suspended.");
@@ -856,10 +864,16 @@ public class EmployeeAttendanceService {
     private User requireEmployee(String employeeUserId) {
         User employee = userRepository.findById(employeeUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee account was not found."));
-        if (employee.getRoles() == null || !employee.getRoles().contains(Role.EMPLOYEE)) {
+        if (!isWorkforceUser(employee)) {
             throw new ResourceNotFoundException("Employee account was not found.");
         }
         return employee;
+    }
+
+    private boolean isWorkforceUser(User user) {
+        return user != null
+                && user.getRoles() != null
+                && user.getRoles().stream().anyMatch(WORKFORCE_ROLES::contains);
     }
 
     private User currentUser(String actorId) {

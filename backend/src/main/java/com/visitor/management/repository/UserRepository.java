@@ -30,13 +30,21 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     List<User> findAllByOrganizationIdAndRolesIn(String organizationId, Collection<Role> roles);
 
+    List<User> findAllByRolesIn(Collection<Role> roles);
+
     List<User> findAllByOrganizationIdAndRolesContaining(String organizationId, Role role);
 
     List<User> findAllByOrganizationIdAndRolesContainingAndAccountStatus(String organizationId, Role role, AccountStatus accountStatus);
 
+    List<User> findAllByOrganizationIdAndRolesInAndAccountStatus(String organizationId, Collection<Role> roles, AccountStatus accountStatus);
+
     List<User> findAllByRolesContaining(Role role);
 
     List<User> findAllByRolesContainingAndAccountStatus(Role role, AccountStatus accountStatus);
+
+    List<User> findAllByRolesInAndAccountStatus(Collection<Role> roles, AccountStatus accountStatus);
+
+    List<User> findAllByOrganizationIdAndWorkforceOnboardingCreatedById(String organizationId, String workforceOnboardingCreatedById);
 
     Optional<User> findByEmployeeQrToken(String employeeQrToken);
 

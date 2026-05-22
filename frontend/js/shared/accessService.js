@@ -81,6 +81,17 @@ export function rejectWorkforceOnboarding(id, reason) {
   });
 }
 
+export function requestWorkforceOnboardingModification(id, reason) {
+  return request(`/admin/workforce-onboarding/${encodeURIComponent(id)}/request-modification`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function listSecurityWorkforceOnboardingRequests() {
+  return request("/security/workforce-onboarding");
+}
+
 export function uploadVisitPhoto(file) {
   const formData = new FormData();
   formData.append("file", file);

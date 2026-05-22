@@ -7,7 +7,7 @@ import { createOrganization, getOrganizationWorkspace, listManagedOrganizations,
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, updateWorkforceOnboarding } from "../shared/accessService.js";
+import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, requestWorkforceOnboardingModification, updateWorkforceOnboarding } from "../shared/accessService.js";
 import { getNotifications } from "../shared/notificationApi.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
@@ -1580,6 +1580,15 @@ function initWorkforceApprovalsWorkspace() {
         await rejectWorkforceOnboarding(workerId, reason.trim());
         showToast("Worker request rejected", "The decision was audit logged.");
       }
+      if (action === "changes") {
+        const reason = window.prompt("Describe the workforce onboarding details that security must correct.");
+        if (!reason?.trim()) {
+          showToast("Details required", "Modification requests require an audit note.");
+          return;
+        }
+        await requestWorkforceOnboardingModification(workerId, reason.trim());
+        showToast("Changes requested", "Security can now track the requested correction.");
+      }
       await Promise.all([
         loadWorkforceApprovalsWorkspace(),
         currentRoute === "employees" ? loadUsersWorkspace() : Promise.resolve(),
@@ -2519,10 +2528,17 @@ function workforceApprovalCard(worker, canApprove) {
       <dl>
         <div><dt>Organization</dt><dd>${escapeHtml(worker.organizationName || worker.organizationCode || "Organization")}</dd></div>
         <div><dt>Worker ID</dt><dd>${escapeHtml(worker.employeeId || "Issued after approval")}</dd></div>
+        <div><dt>Proposed role</dt><dd>${escapeHtml(formatInternalRole((worker.roles || [])[0] || "EMPLOYEE"))}</dd></div>
         <div><dt>QR status</dt><dd>Inactive until approval</dd></div>
         <div><dt>Requested</dt><dd>${escapeHtml(formatDateTime(worker.workforceOnboardingCreatedAt || worker.createdAt))}</dd></div>
       </dl>
       <div class="workforce-approval-card__form">
+        <label class="form-field">
+          <span>Approved role</span>
+          <select name="role" ${disabled}>
+            ${internalRoleOptions((worker.roles || [])[0] || "EMPLOYEE")}
+          </select>
+        </label>
         <label class="form-field">
           <span>Department</span>
           <input name="department" type="text" value="${escapeHtml(worker.department || "")}" ${disabled} />
@@ -2553,6 +2569,7 @@ function workforceApprovalCard(worker, canApprove) {
       <div class="admin-user-card__actions">
         <button class="button button--ghost" type="button" data-workforce-action="save" ${disabled}>Save details</button>
         <button class="button button--primary" type="button" data-workforce-action="approve" ${disabled}>Approve and activate QR</button>
+        <button class="button button--ghost" type="button" data-workforce-action="changes" ${disabled}>Request changes</button>
         <button class="button button--ghost" type="button" data-workforce-action="reject" ${disabled}>Reject</button>
       </div>
     </article>
@@ -2579,6 +2596,7 @@ function workerCategoryOptions(selectedValue) {
 function workforcePayloadFromCard(card) {
   return {
     department: trim(card.querySelector("[name='department']")?.value),
+    role: trim(card.querySelector("[name='role']")?.value),
     employeeType: trim(card.querySelector("[name='employeeType']")?.value),
     designation: trim(card.querySelector("[name='designation']")?.value),
     shiftName: trim(card.querySelector("[name='shiftName']")?.value),

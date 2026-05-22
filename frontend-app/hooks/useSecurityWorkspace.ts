@@ -15,6 +15,7 @@ import {
   getSecurityVisitorPass,
   getSecurityVisitorById,
   getSecurityVisitors,
+  getSecurityWorkforceOnboardingRequests,
   manualEmployeeCheckIn,
   manualEmployeeCheckOut,
   overrideCheckInVisitor,
@@ -144,6 +145,14 @@ export function useUploadWorkforcePhotoMutation() {
 export function useCreateWorkforceOnboardingMutation() {
   return useMutation({
     mutationFn: createWorkforceOnboarding,
+  });
+}
+
+export function useSecurityWorkforceOnboardingRequests() {
+  return useQuery({
+    queryKey: ['security', 'workforce-onboarding'],
+    queryFn: getSecurityWorkforceOnboardingRequests,
+    placeholderData: (previous) => previous,
   });
 }
 

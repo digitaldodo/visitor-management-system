@@ -7,20 +7,26 @@ import com.visitor.management.dto.WorkforceRejectionRequest;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Organization;
+import com.visitor.management.entity.PasswordResetToken;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
+import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ConflictException;
 import com.visitor.management.exception.ResourceNotFoundException;
+import com.visitor.management.repository.PasswordResetTokenRepository;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.validation.UsernamePolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -30,8 +36,17 @@ import java.util.Set;
 public class WorkforceOnboardingService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Duration WORKFORCE_ACTIVATION_EXPIRY = Duration.ofDays(7);
+    private static final EnumSet<Role> APPROVABLE_WORKFORCE_ROLES = EnumSet.of(
+            Role.EMPLOYEE,
+            Role.SECURITY_GUARD,
+            Role.RECEPTION,
+            Role.OPERATOR,
+            Role.MANAGER
+    );
 
     private final UserRepository userRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationService organizationService;
     private final DepartmentService departmentService;
@@ -39,18 +54,26 @@ public class WorkforceOnboardingService {
     private final EmployeeAttendanceService employeeAttendanceService;
     private final AccessAuditService accessAuditService;
     private final NotificationService notificationService;
+    private final TokenService tokenService;
+    private final EmailService emailService;
+    private final CorsOriginResolver corsOriginResolver;
 
     public WorkforceOnboardingService(
             UserRepository userRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordEncoder passwordEncoder,
             OrganizationService organizationService,
             DepartmentService departmentService,
             PhoneNumberService phoneNumberService,
             EmployeeAttendanceService employeeAttendanceService,
             AccessAuditService accessAuditService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            TokenService tokenService,
+            EmailService emailService,
+            CorsOriginResolver corsOriginResolver
     ) {
         this.userRepository = userRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.organizationService = organizationService;
         this.departmentService = departmentService;
@@ -58,6 +81,9 @@ public class WorkforceOnboardingService {
         this.employeeAttendanceService = employeeAttendanceService;
         this.accessAuditService = accessAuditService;
         this.notificationService = notificationService;
+        this.tokenService = tokenService;
+        this.emailService = emailService;
+        this.corsOriginResolver = corsOriginResolver;
     }
 
     public AdminUserResponse createAssistedRequest(WorkforceOnboardingRequest request, String securityGuardId) {
@@ -84,7 +110,8 @@ public class WorkforceOnboardingService {
         worker.setUsername(username);
         worker.setEmail(email);
         worker.setPasswordHash(passwordEncoder.encode(randomPassword()));
-        worker.setRoles(Set.of(Role.EMPLOYEE));
+        Role requestedRole = resolveRequestedRole(request.role(), false);
+        worker.setRoles(Set.of(requestedRole));
         worker.setActive(false);
         worker.setAccountStatus(AccountStatus.PENDING_APPROVAL);
         applyOrganization(worker, organization);
@@ -119,8 +146,24 @@ public class WorkforceOnboardingService {
     public List<AdminUserResponse> pendingRequests(String actorId) {
         User actor = currentUser(actorId);
         List<User> workers = actor.getRoles().contains(Role.SUPER_ADMIN)
-                ? userRepository.findAllByRolesContainingAndAccountStatus(Role.EMPLOYEE, AccountStatus.PENDING_APPROVAL)
-                : userRepository.findAllByOrganizationIdAndRolesContainingAndAccountStatus(requiredOrganizationId(actor), Role.EMPLOYEE, AccountStatus.PENDING_APPROVAL);
+                ? userRepository.findAllByRolesInAndAccountStatus(APPROVABLE_WORKFORCE_ROLES, AccountStatus.PENDING_APPROVAL)
+                : userRepository.findAllByOrganizationIdAndRolesInAndAccountStatus(requiredOrganizationId(actor), APPROVABLE_WORKFORCE_ROLES, AccountStatus.PENDING_APPROVAL);
+        return sortedResponses(workers);
+    }
+
+    public List<AdminUserResponse> requestsForSecurityGuard(String securityGuardId) {
+        User guard = currentUser(securityGuardId);
+        if (guard.getRoles() == null || !guard.getRoles().contains(Role.SECURITY_GUARD)) {
+            throw new BadRequestException("Only security guards can view their submitted workforce requests.");
+        }
+        List<User> workers = userRepository.findAllByOrganizationIdAndWorkforceOnboardingCreatedById(
+                requiredOrganizationId(guard),
+                guard.getId()
+        );
+        return sortedResponses(workers);
+    }
+
+    private List<AdminUserResponse> sortedResponses(List<User> workers) {
         return workers.stream()
                 .sorted((left, right) -> String.valueOf(right.getWorkforceOnboardingCreatedAt()).compareTo(String.valueOf(left.getWorkforceOnboardingCreatedAt())))
                 .map(this::toResponse)
@@ -145,8 +188,15 @@ public class WorkforceOnboardingService {
         }
 
         applyWorkerFields(worker, request);
+        Role approvedRole = resolveRequestedRole(request == null ? null : request.role(), true);
+        if (approvedRole != null && !worker.getRoles().contains(approvedRole)) {
+            Set<Role> previousRoles = Set.copyOf(worker.getRoles());
+            worker.setRoles(Set.of(approvedRole));
+            accessAuditService.recordRoleChanged(admin, worker, previousRoles, worker.getRoles());
+        }
         worker.setActive(true);
         worker.setAccountStatus(AccountStatus.ACTIVE);
+        worker.setEmailVerified(Boolean.FALSE);
         worker.setWorkforceApprovedById(admin.getId());
         worker.setWorkforceApprovedByName(admin.getFullName());
         worker.setWorkforceApprovedAt(Instant.now());
@@ -157,6 +207,7 @@ public class WorkforceOnboardingService {
         employeeAttendanceService.activateEmployeeCredential(worker);
 
         User saved = userRepository.save(worker);
+        issueActivationInvite(saved, admin, request == null ? null : request.note());
         accessAuditService.recordWorkforceOnboarding(admin, saved, "WORKFORCE_ONBOARDING_APPROVED", "SUCCESS",
                 "Admin approved workforce onboarding and activated check-in/check-out access.");
         accessAuditService.recordWorkforceOnboarding(admin, saved, "WORKFORCE_QR_ACTIVATED", "SUCCESS",
@@ -170,6 +221,9 @@ public class WorkforceOnboardingService {
                 "/pages/employee/#badge",
                 admin.getFullName()
         );
+        notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_APPROVED, "Workforce request approved",
+                "%s approved the workforce request for %s.".formatted(admin.getFullName(), saved.getFullName()),
+                "/pages/security/#workforce");
         return toResponse(saved);
     }
 
@@ -200,6 +254,32 @@ public class WorkforceOnboardingService {
                 "/pages/employee/#notifications",
                 admin.getFullName()
         );
+        notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_REJECTED, "Workforce request rejected",
+                "%s rejected the workforce request for %s.".formatted(admin.getFullName(), saved.getFullName()),
+                "/pages/security/#workforce");
+        return toResponse(saved);
+    }
+
+    public AdminUserResponse requestModification(String workerId, WorkforceRejectionRequest request, String adminId) {
+        User admin = requireOrganizationAdmin(adminId);
+        User worker = requireManagedWorker(workerId, admin);
+        if (worker.getAccountStatus() != AccountStatus.PENDING_APPROVAL) {
+            throw new BadRequestException("Only pending workforce onboarding requests can be returned for modification.");
+        }
+        worker.setActive(false);
+        worker.setAccountStatus(AccountStatus.CHANGES_REQUESTED);
+        worker.setWorkforceRejectedById(admin.getId());
+        worker.setWorkforceRejectedByName(admin.getFullName());
+        worker.setWorkforceRejectedAt(Instant.now());
+        worker.setWorkforceRejectionReason(requireText(request.reason(), "Modification request details are required."));
+        employeeAttendanceService.deactivateEmployeeCredential(worker);
+
+        User saved = userRepository.save(worker);
+        accessAuditService.recordWorkforceOnboarding(admin, saved, "WORKFORCE_ONBOARDING_CHANGES_REQUESTED", "ACTION_REQUIRED",
+                "Admin requested workforce onboarding changes: " + saved.getWorkforceRejectionReason());
+        notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED, "Workforce request needs changes",
+                "%s requested changes for %s: %s".formatted(admin.getFullName(), saved.getFullName(), saved.getWorkforceRejectionReason()),
+                "/pages/security/#workforce");
         return toResponse(saved);
     }
 
@@ -216,6 +296,9 @@ public class WorkforceOnboardingService {
     }
 
     private void applyWorkerFields(User worker, WorkforceApprovalRequest request) {
+        if (request == null) {
+            return;
+        }
         DepartmentService.DepartmentAssignment department = departmentService.resolveAssignment(worker.getOrganizationId(), request.department());
         if (department != null || request.department() != null) {
             worker.setDepartmentId(department != null ? department.departmentId() : null);
@@ -244,7 +327,7 @@ public class WorkforceOnboardingService {
     private User requireManagedWorker(String workerId, User admin) {
         User worker = userRepository.findById(workerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workforce onboarding request was not found."));
-        if (worker.getRoles() == null || !worker.getRoles().contains(Role.EMPLOYEE)) {
+        if (worker.getRoles() == null || worker.getRoles().stream().noneMatch(APPROVABLE_WORKFORCE_ROLES::contains)) {
             throw new ResourceNotFoundException("Workforce onboarding request was not found.");
         }
         if (!requiredOrganizationId(admin).equals(worker.getOrganizationId())) {
@@ -322,6 +405,96 @@ public class WorkforceOnboardingService {
         byte[] bytes = new byte[18];
         RANDOM.nextBytes(bytes);
         return "Af!" + HexFormat.of().formatHex(bytes);
+    }
+
+    private Role resolveRequestedRole(Role requestedRole, boolean nullable) {
+        if (requestedRole == null) {
+            return nullable ? null : Role.EMPLOYEE;
+        }
+        if (!APPROVABLE_WORKFORCE_ROLES.contains(requestedRole)) {
+            throw new BadRequestException("Only organization workforce roles can be requested or approved.");
+        }
+        return requestedRole;
+    }
+
+    private void issueActivationInvite(User user, User actor, String note) {
+        try {
+            expirePasswordResetTokens(user.getId());
+            String resetToken = tokenService.generateOpaqueToken();
+            Instant now = Instant.now();
+            PasswordResetToken token = new PasswordResetToken();
+            token.setUserId(user.getId());
+            token.setTokenHash(tokenService.hash(tokenService.generateOpaqueToken()));
+            token.setResetTokenHash(tokenService.hash(resetToken));
+            token.setVerifiedAt(now);
+            token.setExpiresAt(now.plus(WORKFORCE_ACTIVATION_EXPIRY));
+            token.setResetTokenExpiresAt(now.plus(WORKFORCE_ACTIVATION_EXPIRY));
+            token.setCreatedAt(now);
+            passwordResetTokenRepository.save(token);
+
+            emailService.sendWorkforceInvite(
+                    user.getEmail(),
+                    user.getFullName(),
+                    user.getOrganizationName(),
+                    renderSingleRole(user.getRoles() == null || user.getRoles().isEmpty() ? null : user.getRoles().iterator().next()),
+                    workforceActivationUrl(resetToken, user.getEmail()),
+                    WORKFORCE_ACTIVATION_EXPIRY.toDays(),
+                    trimToNull(note),
+                    actor != null ? actor.getFullName() : null,
+                    false
+            );
+        } catch (RuntimeException ex) {
+            accessAuditService.recordWorkforceOnboarding(actor, user, "WORKFORCE_ACTIVATION_INVITE_FAILED", "FAILED",
+                    "Activation invite delivery failed: %s".formatted(ex.getMessage()));
+        }
+    }
+
+    private void expirePasswordResetTokens(String userId) {
+        passwordResetTokenRepository.findTopByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(userId)
+                .ifPresent(token -> {
+                    token.setUsedAt(Instant.now());
+                    passwordResetTokenRepository.save(token);
+                });
+    }
+
+    private String workforceActivationUrl(String resetToken, String email) {
+        String publicOrigin = corsOriginResolver.resolvePublicOrigin();
+        if (publicOrigin == null) {
+            throw new IllegalStateException("AccessFlow public frontend origin is not configured.");
+        }
+        return UriComponentsBuilder.fromUriString(publicOrigin)
+                .path("/reset-password")
+                .queryParam("token", resetToken)
+                .queryParam("email", email)
+                .build(true)
+                .toUriString();
+    }
+
+    private void notifyRequester(User worker, NotificationType type, String title, String message, String actionUrl) {
+        String requesterId = trimToNull(worker.getWorkforceOnboardingCreatedById());
+        if (requesterId == null || requesterId.equals(worker.getId())) {
+            return;
+        }
+        notificationService.notifyUser(
+                requesterId,
+                type,
+                title,
+                message,
+                null,
+                actionUrl,
+                worker.getWorkforceApprovedByName() != null ? worker.getWorkforceApprovedByName() : worker.getWorkforceRejectedByName(),
+                worker.getOrganizationId(),
+                "workforce-request-%s-%s".formatted(worker.getId(), type.name().toLowerCase(Locale.ROOT)),
+                "WORKFORCE_ONBOARDING",
+                worker.getId()
+        );
+    }
+
+    private String renderSingleRole(Role role) {
+        if (role == null) {
+            return "WORKFORCE";
+        }
+        return role.name().replace('_', ' ');
     }
 
     private User currentUser(String actorId) {

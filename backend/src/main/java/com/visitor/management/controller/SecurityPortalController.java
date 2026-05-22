@@ -210,6 +210,11 @@ public class SecurityPortalController {
         return ApiResponse.ok("Workforce onboarding request created for admin approval.", workforceOnboardingService.createAssistedRequest(request, authentication.getName()));
     }
 
+    @GetMapping("/workforce-onboarding")
+    public ApiResponse<List<AdminUserResponse>> workforceOnboardingRequests(Authentication authentication) {
+        return ApiResponse.ok("Submitted workforce onboarding requests loaded.", workforceOnboardingService.requestsForSecurityGuard(authentication.getName()));
+    }
+
     @PostMapping(value = "/workforce-onboarding/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<VisitorPhotoUploadResponse> uploadWorkforcePhoto(@RequestPart("file") MultipartFile file) {
         return ApiResponse.ok("Workforce photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));

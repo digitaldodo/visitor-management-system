@@ -401,6 +401,7 @@ public class NotificationService {
             case WORKFORCE_ONBOARDING_REQUESTED,
                     WORKFORCE_ONBOARDING_APPROVED,
                     WORKFORCE_ONBOARDING_REJECTED,
+                    WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED,
                     WORKFORCE_ACCESS_REVOKED,
                     WORKFORCE_CREDENTIAL_DISABLED -> NotificationCategory.WORKFORCE;
             case SYSTEM_SESSION_EXPIRED,
@@ -421,6 +422,7 @@ public class NotificationService {
                     VISITOR_INVITE_REVOKED,
                     WORKFORCE_ONBOARDING_REQUESTED,
                     WORKFORCE_ONBOARDING_REJECTED,
+                    WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED,
                     WORKFORCE_ACCESS_REVOKED,
                     WORKFORCE_CREDENTIAL_DISABLED,
                     SECURITY_DENIED_ENTRY,

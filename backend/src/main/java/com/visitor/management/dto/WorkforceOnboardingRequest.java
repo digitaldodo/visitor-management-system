@@ -3,11 +3,13 @@ package com.visitor.management.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import com.visitor.management.entity.Role;
 
 public record WorkforceOnboardingRequest(
         @Size(min = 2, max = 120) String fullName,
         @Size(min = 3, max = 32) @Pattern(regexp = "^[a-z0-9_]+$", message = "Username must use lowercase letters, numbers, or underscores.") String username,
         @Email @Size(max = 160) String email,
+        Role role,
         @Size(max = 80) String department,
         @Size(max = 6) String phoneCountryCode,
         @Size(max = 32) String phone,

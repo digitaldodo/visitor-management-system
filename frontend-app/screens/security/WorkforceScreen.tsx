@@ -22,12 +22,13 @@ import {
   useManualEmployeeCheckInMutation,
   useManualEmployeeCheckOutMutation,
   useSecurityAttendance,
+  useSecurityWorkforceOnboardingRequests,
   useUploadWorkforcePhotoMutation,
 } from '../../hooks/useSecurityWorkspace';
 import { getSecurityEmployees } from '../../services/securityService';
 import { readCachedAttendance, searchCachedEmployees } from '../../storage/offlineOperationalStore';
 import { theme } from '../../theme';
-import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry } from '../../types/domain';
+import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry, WorkforceOnboardingRecord } from '../../types/domain';
 import { employeePresenceLabel, formatDateTime, relativePresenceSummary, statusTone } from '../../utils/securityFormatting';
 
 type WorkforceAction =
@@ -40,6 +41,14 @@ const WORKER_TYPES = [
   { label: 'Gardener', value: 'GARDENER' },
   { label: 'Contract', value: 'CONTRACT_LABOR' },
   { label: 'Maintenance', value: 'MAINTENANCE' },
+];
+
+const REQUESTABLE_ROLES = [
+  { label: 'Employee', value: 'EMPLOYEE' },
+  { label: 'Security', value: 'SECURITY_GUARD' },
+  { label: 'Reception', value: 'RECEPTION' },
+  { label: 'Operator', value: 'OPERATOR' },
+  { label: 'Manager', value: 'MANAGER' },
 ];
 
 export function WorkforceScreen() {
@@ -60,6 +69,7 @@ export function WorkforceScreen() {
   const [phoneCountryCode, setPhoneCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [designation, setDesignation] = useState('');
+  const [requestedRole, setRequestedRole] = useState('EMPLOYEE');
   const [employeeType, setEmployeeType] = useState('SUPPORT_STAFF');
   const [shiftName, setShiftName] = useState('General Shift');
   const [shiftStartTime, setShiftStartTime] = useState('09:00');
@@ -69,6 +79,7 @@ export function WorkforceScreen() {
   const [cachedAttendance, setCachedAttendance] = useState<EmployeeAttendanceRecord[]>([]);
 
   const attendance = useSecurityAttendance();
+  const submittedRequests = useSecurityWorkforceOnboardingRequests();
   const normalizedSearch = search.trim();
   const searchEmployees = useCallback(
     (nextQuery: string, signal: AbortSignal) => getSecurityEmployees(nextQuery || undefined, signal),
@@ -137,6 +148,7 @@ export function WorkforceScreen() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['security', 'attendance'] }),
       queryClient.invalidateQueries({ queryKey: ['security', 'employees'] }),
+      queryClient.invalidateQueries({ queryKey: ['security', 'workforce-onboarding'] }),
     ]);
   };
 
@@ -148,6 +160,7 @@ export function WorkforceScreen() {
     setPhoneCountryCode('+1');
     setPhone('');
     setDesignation('');
+    setRequestedRole('EMPLOYEE');
     setEmployeeType('SUPPORT_STAFF');
     setShiftName('General Shift');
     setShiftStartTime('09:00');
@@ -183,6 +196,7 @@ export function WorkforceScreen() {
         fullName: fullName.trim(),
         username: username.trim() || null,
         email: email.trim() || null,
+        role: requestedRole,
         department: department.trim() || null,
         phoneCountryCode: phoneCountryCode.trim() || null,
         phone: phone.trim(),
@@ -240,9 +254,10 @@ export function WorkforceScreen() {
       <AppScreen
         title="Workforce Operations"
         subtitle="Security-led workforce verification, presence visibility, and assisted onboarding for support teams."
-        refreshing={attendance.isRefetching || employees.isLoading}
+        refreshing={attendance.isRefetching || employees.isLoading || submittedRequests.isRefetching}
         onRefresh={() => {
           employees.retry();
+          void submittedRequests.refetch();
           return attendance.refetch();
         }}
       >
@@ -264,6 +279,20 @@ export function WorkforceScreen() {
           />
           <AppTextField label="Designation" value={designation} onChangeText={setDesignation} placeholder="Cleaner, gardener, electrician, support staff" />
 
+          <Text style={styles.sectionLabel}>Proposed access role</Text>
+          <View style={styles.segmentRow}>
+            {REQUESTABLE_ROLES.map((role) => (
+              <Pressable
+                key={role.value}
+                onPress={() => setRequestedRole(role.value)}
+                style={[styles.segment, requestedRole === role.value ? styles.segmentActive : null]}
+              >
+                <Text style={[styles.segmentLabel, requestedRole === role.value ? styles.segmentLabelActive : null]}>{role.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.sectionLabel}>Worker category</Text>
           <View style={styles.segmentRow}>
             {WORKER_TYPES.map((type) => (
               <Pressable
@@ -318,6 +347,10 @@ export function WorkforceScreen() {
             loading={createWorkforceMutation.isPending || uploadWorkforcePhotoMutation.isPending}
             disabled={offlineLookupActive}
           />
+        </SurfaceCard>
+
+        <SurfaceCard title="Submitted requests" subtitle="Track requests you created. Admin approval is required before any workforce access activates.">
+          <SubmittedRequestList requests={submittedRequests.data ?? []} />
         </SurfaceCard>
 
         <SurfaceCard
@@ -433,6 +466,39 @@ export function WorkforceScreen() {
   );
 }
 
+function SubmittedRequestList({ requests }: { requests: WorkforceOnboardingRecord[] }) {
+  if (!requests.length) {
+    return <EmptyState title="No submitted requests" body="Workforce onboarding requests you create will appear here with admin decision status." />;
+  }
+  return (
+    <View style={styles.listStack}>
+      {requests.slice(0, 8).map((request) => (
+        <RecordCard
+          key={request.id}
+          title={request.fullName}
+          subtitle={[roleLabel(request.roles?.[0]), request.department, request.designation].filter(Boolean).join(' · ')}
+          meta={[
+            request.workforceOnboardingCreatedAt ? `Submitted ${formatDateTime(request.workforceOnboardingCreatedAt)}` : null,
+            request.workforceApprovedAt ? `Approved ${formatDateTime(request.workforceApprovedAt)}` : null,
+            request.workforceRejectedAt ? `Decision ${formatDateTime(request.workforceRejectedAt)}` : null,
+            request.workforceRejectionReason || null,
+          ].filter(Boolean).join(' · ')}
+          status={String(request.accountStatus || 'PENDING_APPROVAL').replaceAll('_', ' ')}
+          tone={statusTone(request.accountStatus)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function roleLabel(role?: string | null) {
+  return String(role || 'WORKFORCE')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 const styles = StyleSheet.create({
   inlineFields: {
     flexDirection: 'row',
@@ -453,6 +519,15 @@ const styles = StyleSheet.create({
   segmentRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  sectionLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+  },
+  listStack: {
     gap: theme.spacing.sm,
   },
   segment: {
