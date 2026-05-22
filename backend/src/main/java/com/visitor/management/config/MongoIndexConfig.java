@@ -67,6 +67,24 @@ public class MongoIndexConfig {
                         .on("read", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("notification_recipient_read_created_idx"));
+                mongoTemplate.indexOps(Notification.class).createIndex(new Index()
+                        .on("recipientUserId", Sort.Direction.ASC)
+                        .on("organizationId", Sort.Direction.ASC)
+                        .on("createdAt", Sort.Direction.DESC)
+                        .named("notification_recipient_org_created_idx"));
+                mongoTemplate.indexOps(Notification.class).createIndex(new Index()
+                        .on("dedupeKey", Sort.Direction.ASC)
+                        .unique()
+                        .sparse()
+                        .named("notification_dedupe_key_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("status", Sort.Direction.ASC)
+                        .on("scheduledStartTime", Sort.Direction.ASC)
+                        .named("visitor_status_scheduled_start_idx"));
+                mongoTemplate.indexOps(Visitor.class).createIndex(new Index()
+                        .on("status", Sort.Direction.ASC)
+                        .on("accessWindowStartTime", Sort.Direction.ASC)
+                        .named("visitor_status_access_start_idx"));
                 mongoTemplate.indexOps(VisitorInvite.class).createIndex(new Index()
                         .on("visitorEmail", Sort.Direction.ASC)
                         .on("emailStatus", Sort.Direction.ASC)

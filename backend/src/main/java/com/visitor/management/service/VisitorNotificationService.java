@@ -13,6 +13,8 @@ public interface VisitorNotificationService {
 
     void visitorCheckedIn(Visitor visitor);
 
+    void visitorWaitingAtReception(Visitor visitor);
+
     void visitorRescheduled(Visitor visitor);
 
     void visitorAccessWindowExpiring(Visitor visitor);

@@ -44,6 +44,15 @@ app:
     push-enabled: ${PUSH_NOTIFICATIONS_ENABLED:true}
     expo-push-url: ${EXPO_PUSH_URL:https://exp.host/--/api/v2/push/send}
     expo-access-token: ${EXPO_ACCESS_TOKEN:}
+    reminders:
+      enabled: ${VISITOR_OPERATIONAL_REMINDERS_ENABLED:true}
+      sweep-delay-ms: ${VISITOR_OPERATIONAL_REMINDER_SWEEP_DELAY_MS:60000}
+      before-start-minutes: ${VISITOR_OPERATIONAL_REMINDER_MINUTES:30,15,0}
+      check-in-window-minutes-before: ${VISITOR_CHECK_IN_WINDOW_REMINDER_MINUTES_BEFORE:15}
+      overdue-grace-minutes: ${VISITOR_OVERDUE_GRACE_MINUTES:10}
+      invite-registration-reminder-minutes-before: ${VISITOR_INVITE_REGISTRATION_REMINDER_MINUTES_BEFORE:60}
+      look-ahead-minutes: ${VISITOR_OPERATIONAL_REMINDER_LOOK_AHEAD_MINUTES:90}
+      max-dispatch-per-sweep: ${VISITOR_OPERATIONAL_REMINDER_MAX_DISPATCH_PER_SWEEP:250}
     firebase:
       enabled: ${FIREBASE_PUSH_ENABLED:false}
       project-id: ${FIREBASE_PROJECT_ID:}

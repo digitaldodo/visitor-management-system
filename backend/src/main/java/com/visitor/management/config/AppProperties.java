@@ -326,6 +326,8 @@ public class AppProperties {
         private String expoPushUrl = "https://exp.host/--/api/v2/push/send";
         private String expoAccessToken;
         @Valid
+        private Reminders reminders = new Reminders();
+        @Valid
         private Firebase firebase = new Firebase();
 
         public boolean isPushEnabled() {
@@ -350,6 +352,14 @@ public class AppProperties {
 
         public void setExpoAccessToken(String expoAccessToken) {
             this.expoAccessToken = expoAccessToken;
+        }
+
+        public Reminders getReminders() {
+            return reminders;
+        }
+
+        public void setReminders(Reminders reminders) {
+            this.reminders = reminders;
         }
 
         public Firebase getFirebase() {
@@ -405,6 +415,87 @@ public class AppProperties {
 
             public void setServiceAccountBase64(String serviceAccountBase64) {
                 this.serviceAccountBase64 = serviceAccountBase64;
+            }
+        }
+
+        public static class Reminders {
+            private boolean enabled = true;
+            @Min(10000)
+            private long sweepDelayMs = 60000;
+            private List<Integer> beforeStartMinutes = List.of(30, 15, 0);
+            @Min(0)
+            private int checkInWindowMinutesBefore = 15;
+            @Min(0)
+            private int overdueGraceMinutes = 10;
+            @Min(0)
+            private int inviteRegistrationReminderMinutesBefore = 60;
+            @Min(1)
+            private int lookAheadMinutes = 90;
+            @Min(1)
+            private int maxDispatchPerSweep = 250;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public long getSweepDelayMs() {
+                return sweepDelayMs;
+            }
+
+            public void setSweepDelayMs(long sweepDelayMs) {
+                this.sweepDelayMs = sweepDelayMs;
+            }
+
+            public List<Integer> getBeforeStartMinutes() {
+                return beforeStartMinutes;
+            }
+
+            public void setBeforeStartMinutes(List<Integer> beforeStartMinutes) {
+                this.beforeStartMinutes = beforeStartMinutes;
+            }
+
+            public int getCheckInWindowMinutesBefore() {
+                return checkInWindowMinutesBefore;
+            }
+
+            public void setCheckInWindowMinutesBefore(int checkInWindowMinutesBefore) {
+                this.checkInWindowMinutesBefore = checkInWindowMinutesBefore;
+            }
+
+            public int getOverdueGraceMinutes() {
+                return overdueGraceMinutes;
+            }
+
+            public void setOverdueGraceMinutes(int overdueGraceMinutes) {
+                this.overdueGraceMinutes = overdueGraceMinutes;
+            }
+
+            public int getInviteRegistrationReminderMinutesBefore() {
+                return inviteRegistrationReminderMinutesBefore;
+            }
+
+            public void setInviteRegistrationReminderMinutesBefore(int inviteRegistrationReminderMinutesBefore) {
+                this.inviteRegistrationReminderMinutesBefore = inviteRegistrationReminderMinutesBefore;
+            }
+
+            public int getLookAheadMinutes() {
+                return lookAheadMinutes;
+            }
+
+            public void setLookAheadMinutes(int lookAheadMinutes) {
+                this.lookAheadMinutes = lookAheadMinutes;
+            }
+
+            public int getMaxDispatchPerSweep() {
+                return maxDispatchPerSweep;
+            }
+
+            public void setMaxDispatchPerSweep(int maxDispatchPerSweep) {
+                this.maxDispatchPerSweep = maxDispatchPerSweep;
             }
         }
     }

@@ -806,7 +806,7 @@ public class VisitorService {
                     now
             );
         }
-        return evaluateVerification(visitor, actor, now);
+        return evaluateVerificationAndNotify(visitor, actor, now);
     }
 
     public QrVerificationResponse verifyPassToken(String passToken) {
@@ -2282,7 +2282,15 @@ public class VisitorService {
                     "Ask the visitor to reopen the latest badge or request a new approved pass."
             );
         }
-        return evaluateVerification(visitor, actor, now);
+        return evaluateVerificationAndNotify(visitor, actor, now);
+    }
+
+    private QrVerificationResponse evaluateVerificationAndNotify(Visitor visitor, User actor, Instant now) {
+        QrVerificationResponse response = evaluateVerification(visitor, actor, now);
+        if (response.valid() && response.canCheckIn() && actor != null && hasOrganizationAccess(visitor, actor)) {
+            visitorNotificationService.visitorWaitingAtReception(visitor);
+        }
+        return response;
     }
 
     private QrVerificationResponse evaluateVerification(Visitor visitor, User actor, Instant now) {

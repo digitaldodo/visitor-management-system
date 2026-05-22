@@ -42,17 +42,42 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
 
     @Override
     public void visitorApproved(Visitor visitor) {
-        notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", "%s has been approved.".formatted(visitor.getFullName()));
+        String message = visitor.getQrIssuedAt() == null
+                ? "%s has been approved.".formatted(visitor.getFullName())
+                : "%s has been approved. The visitor badge is ready.".formatted(visitor.getFullName());
+        notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/pages/employee/#scheduled", null);
     }
 
     @Override
     public void visitorRejected(Visitor visitor) {
-        notifyHost(visitor, NotificationType.VISITOR_REJECTED, "Visitor rejected", "%s has been rejected.".formatted(visitor.getFullName()));
+        notifyHost(visitor, NotificationType.VISITOR_REJECTED, "Visitor denied", "%s has been denied.".formatted(visitor.getFullName()));
     }
 
     @Override
     public void visitorCheckedIn(Visitor visitor) {
-        notifyHost(visitor, NotificationType.VISITOR_ARRIVED, "Visitor arrived onsite", "%s has arrived at reception and is ready for their visit.".formatted(visitor.getFullName()));
+        notifyHost(visitor, NotificationType.VISITOR_CHECKED_IN, "Visitor checked in", "%s has checked in at reception.".formatted(visitor.getFullName()));
+    }
+
+    @Override
+    public void visitorWaitingAtReception(Visitor visitor) {
+        Instant dedupeCutoff = Instant.now().minus(Duration.ofMinutes(20));
+        if (notificationService.hasRecentVisitorNotification(
+                visitor.getHostEmployeeId(),
+                NotificationType.VISITOR_WAITING_AT_RECEPTION,
+                visitor.getId(),
+                dedupeCutoff
+        )) {
+            return;
+        }
+
+        notifyHost(
+                visitor,
+                NotificationType.VISITOR_WAITING_AT_RECEPTION,
+                "Visitor waiting at reception",
+                "%s's badge was verified at reception and is awaiting check-in.".formatted(visitor.getFullName()),
+                "/pages/employee/#requests",
+                "visitor:%s:waiting:%d".formatted(visitor.getId(), Instant.now().getEpochSecond() / 1200)
+        );
     }
 
     @Override
@@ -93,13 +118,22 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
     }
 
     private void notifyHost(Visitor visitor, NotificationType type, String title, String message) {
+        notifyHost(visitor, type, title, message, "/pages/employee/#history", null);
+    }
+
+    private void notifyHost(Visitor visitor, NotificationType type, String title, String message, String actionUrl, String dedupeKey) {
         notificationService.notifyUser(
                 visitor.getHostEmployeeId(),
                 type,
                 title,
                 message,
                 visitor,
-                "/pages/employee/#history"
+                actionUrl,
+                null,
+                visitor.getOrganizationId(),
+                dedupeKey == null ? null : dedupeKey + ":recipient:" + visitor.getHostEmployeeId(),
+                "VISITOR",
+                visitor.getId()
         );
     }
 }

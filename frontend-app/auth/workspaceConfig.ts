@@ -77,7 +77,7 @@ export function isNotificationAllowedForRole(role: ActiveWorkspaceRole, type?: s
   }
 
   if (normalized.startsWith('VISITOR_')) {
-    return role === 'VISITOR' || role === 'EMPLOYEE' || isAdminRole(role);
+    return role === 'VISITOR' || role === 'EMPLOYEE' || role === 'SECURITY_GUARD' || isAdminRole(role);
   }
 
   if (normalized.startsWith('WORKFORCE_')) {

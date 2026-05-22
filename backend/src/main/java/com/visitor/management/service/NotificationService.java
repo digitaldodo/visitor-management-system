@@ -18,6 +18,7 @@ import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.MobileDeviceRegistrationRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.UserRepository;
+import org.springframework.dao.DuplicateKeyException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -78,16 +79,44 @@ public class NotificationService {
             String actionUrl,
             String actorName
     ) {
+        return notifyUser(recipientUserId, type, title, message, visitor, actionUrl, actorName, null, null, null, null);
+    }
+
+    public Notification notifyUser(
+            String recipientUserId,
+            NotificationType type,
+            String title,
+            String message,
+            Visitor visitor,
+            String actionUrl,
+            String actorName,
+            String organizationId,
+            String dedupeKey,
+            String targetType,
+            String targetId
+    ) {
+        String normalizedDedupeKey = trimToNull(dedupeKey);
+        if (normalizedDedupeKey != null && notificationRepository.existsByDedupeKey(normalizedDedupeKey)) {
+            return null;
+        }
+
         Optional<User> recipient = userRepository.findById(recipientUserId);
         if (recipient.isEmpty()) {
             log.warn("Notification recipient {} was not found for {}.", recipientUserId, type);
             return null;
         }
+        User recipientUser = recipient.get();
+        String resolvedOrganizationId = resolveOrganizationId(organizationId, visitor, recipientUser);
+        if (!isOrganizationSafe(recipientUser, visitor, resolvedOrganizationId)) {
+            log.warn("Skipped {} notification for user {} because organization scope did not match.", type, recipientUserId);
+            return null;
+        }
 
         Notification notification = new Notification();
         notification.setRecipientUserId(recipientUserId);
-        notification.setRecipientEmail(recipient.get().getEmail());
-        notification.setRecipientName(recipient.get().getFullName());
+        notification.setOrganizationId(resolvedOrganizationId);
+        notification.setRecipientEmail(recipientUser.getEmail());
+        notification.setRecipientName(recipientUser.getFullName());
         notification.setType(type);
         notification.setCategory(resolveCategory(type));
         notification.setPriority(resolvePriority(type));
@@ -96,18 +125,27 @@ public class NotificationService {
         notification.setVisitorId(visitor == null ? null : visitor.getId());
         notification.setVisitorName(visitor == null ? null : visitor.getFullName());
         notification.setActionUrl(actionUrl);
+        notification.setTargetType(resolveTargetType(targetType, visitor));
+        notification.setTargetId(resolveTargetId(targetId, visitor));
         notification.setActorName(trimToNull(actorName));
-        notification.setOrganizationTimezone(resolveTimezone(visitor, recipient.get()));
-        notification.setEmailEnabled(hasEmail(recipient.get()));
+        notification.setOrganizationTimezone(resolveTimezone(visitor, recipientUser));
+        notification.setDedupeKey(normalizedDedupeKey);
+        notification.setEmailEnabled(hasEmail(recipientUser));
         notification.setEmailStatus(notification.isEmailEnabled() ? NotificationStatus.PENDING : NotificationStatus.FAILED);
         notification.setCreatedAt(Instant.now());
         notification.setUpdatedAt(notification.getCreatedAt());
 
-        Notification saved = notificationRepository.save(notification);
+        Notification saved;
+        try {
+            saved = notificationRepository.save(notification);
+        } catch (DuplicateKeyException ex) {
+            log.debug("Skipped duplicate notification for dedupe key {}.", normalizedDedupeKey);
+            return null;
+        }
         if (saved.isEmailEnabled()) {
             notificationEmailDispatcher.deliverEmailAsync(saved.getId());
         }
-        if (!Boolean.FALSE.equals(recipient.get().getNotificationInAppEnabled())) {
+        if (!Boolean.FALSE.equals(recipientUser.getNotificationInAppEnabled())) {
             dispatchPushAsync(saved);
         }
         return saved;
@@ -124,6 +162,23 @@ public class NotificationService {
             String actionUrl,
             String actorName
     ) {
+        return notifyOrganizationRoles(organizationId, roles, actorUserIdToSkip, type, title, message, visitor, actionUrl, actorName, null, null, null);
+    }
+
+    public int notifyOrganizationRoles(
+            String organizationId,
+            Set<Role> roles,
+            String actorUserIdToSkip,
+            NotificationType type,
+            String title,
+            String message,
+            Visitor visitor,
+            String actionUrl,
+            String actorName,
+            String dedupeKey,
+            String targetType,
+            String targetId
+    ) {
         if (organizationId == null || organizationId.isBlank() || roles == null || roles.isEmpty()) {
             return 0;
         }
@@ -134,7 +189,19 @@ public class NotificationService {
                 .filter(user -> !Objects.equals(user.getId(), actorUserIdToSkip))
                 .map(User::getId)
                 .distinct()
-                .map(userId -> notifyUser(userId, type, title, message, visitor, actionUrl, actorName))
+                .map(userId -> notifyUser(
+                        userId,
+                        type,
+                        title,
+                        message,
+                        visitor,
+                        actionUrl,
+                        actorName,
+                        organizationId,
+                        scopedDedupeKey(dedupeKey, userId),
+                        targetType,
+                        targetId
+                ))
                 .filter(Objects::nonNull)
                 .count();
     }
@@ -145,12 +212,17 @@ public class NotificationService {
             return new NotificationListResponse(0, List.of());
         }
         int safeLimit = Math.max(1, Math.min(limit, 50));
+        String organizationId = user.map(User::getOrganizationId).map(this::trimToNull).orElse(null);
+        List<Notification> notifications = notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, safeLimit))
+                .stream()
+                .filter(notification -> organizationId == null
+                        || trimToNull(notification.getOrganizationId()) == null
+                        || organizationId.equals(trimToNull(notification.getOrganizationId())))
+                .toList();
+        long unreadCount = notifications.stream().filter(notification -> !notification.isRead()).count();
         return new NotificationListResponse(
-                notificationRepository.countByRecipientUserIdAndReadFalse(userId),
-                notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, safeLimit))
-                        .stream()
-                        .map(this::toResponse)
-                        .toList()
+                unreadCount,
+                notifications.stream().map(this::toResponse).toList()
         );
     }
 
@@ -158,6 +230,11 @@ public class NotificationService {
         Notification notification = notificationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification was not found."));
         if (!userId.equals(notification.getRecipientUserId())) {
+            throw new ResourceNotFoundException("Notification was not found.");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification was not found."));
+        if (!canAccessNotificationOrganization(user, notification)) {
             throw new ResourceNotFoundException("Notification was not found.");
         }
         if (!notification.isRead()) {
@@ -171,7 +248,15 @@ public class NotificationService {
 
     public NotificationListResponse markAllRead(String userId) {
         Instant now = Instant.now();
-        var notifications = notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, 50));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification user was not found."));
+        String organizationId = trimToNull(user.getOrganizationId());
+        var notifications = notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, 50))
+                .stream()
+                .filter(notification -> organizationId == null
+                        || trimToNull(notification.getOrganizationId()) == null
+                        || organizationId.equals(trimToNull(notification.getOrganizationId())))
+                .toList();
         notifications.stream()
                 .filter(notification -> !notification.isRead())
                 .forEach(notification -> {
@@ -269,11 +354,14 @@ public class NotificationService {
                 notification.getType(),
                 notification.getCategory(),
                 notification.getPriority(),
+                notification.getOrganizationId(),
                 notification.getTitle(),
                 notification.getMessage(),
                 notification.getVisitorId(),
                 notification.getVisitorName(),
                 notification.getActionUrl(),
+                notification.getTargetType(),
+                notification.getTargetId(),
                 notification.getActorName(),
                 notification.getOrganizationTimezone(),
                 notification.isRead(),
@@ -287,12 +375,17 @@ public class NotificationService {
             case VISITOR_APPROVAL_REQUEST,
                     VISITOR_APPROVED,
                     VISITOR_ARRIVED,
+                    VISITOR_ARRIVAL_REMINDER,
+                    VISITOR_CHECK_IN_WINDOW_REMINDER,
+                    VISITOR_OVERDUE,
+                    VISITOR_WAITING_AT_RECEPTION,
                     VISITOR_REJECTED,
                     VISITOR_RESCHEDULED,
                     VISITOR_ACCESS_WINDOW_EXPIRING,
                     VISITOR_INVITE_SENT,
                     VISITOR_INVITE_VIEWED,
                     VISITOR_PRE_REGISTRATION_COMPLETED,
+                    VISITOR_INVITE_REGISTRATION_REMINDER,
                     VISITOR_INVITE_REVOKED,
                     VISITOR_CHECKED_IN,
                     VISITOR_EXPIRED -> NotificationCategory.VISITOR;
@@ -320,6 +413,8 @@ public class NotificationService {
         return switch (type) {
             case VISITOR_APPROVAL_REQUEST,
                     VISITOR_ARRIVED,
+                    VISITOR_OVERDUE,
+                    VISITOR_WAITING_AT_RECEPTION,
                     VISITOR_RESCHEDULED,
                     VISITOR_ACCESS_WINDOW_EXPIRING,
                     VISITOR_PRE_REGISTRATION_COMPLETED,
@@ -341,9 +436,12 @@ public class NotificationService {
                     SYSTEM_RUNTIME_UPDATE_AVAILABLE,
                     SYSTEM_BACKEND_CONNECTIVITY_ISSUE -> NotificationPriority.CRITICAL;
             case VISITOR_APPROVED,
+                    VISITOR_ARRIVAL_REMINDER,
+                    VISITOR_CHECK_IN_WINDOW_REMINDER,
                     VISITOR_REJECTED,
                     VISITOR_INVITE_SENT,
                     VISITOR_INVITE_VIEWED,
+                    VISITOR_INVITE_REGISTRATION_REMINDER,
                     VISITOR_CHECKED_IN,
                     VISITOR_EXPIRED,
                     WORKFORCE_ONBOARDING_APPROVED -> NotificationPriority.MEDIUM;
@@ -435,7 +533,10 @@ public class NotificationService {
                 "type", notification.getType().name(),
                 "category", notification.getCategory().name(),
                 "priority", notification.getPriority().name(),
+                "organizationId", safeData(notification.getOrganizationId()),
                 "visitorId", safeData(notification.getVisitorId()),
+                "targetType", safeData(notification.getTargetType()),
+                "targetId", safeData(notification.getTargetId()),
                 "actionUrl", safeData(notification.getActionUrl())
         );
     }
@@ -452,6 +553,79 @@ public class NotificationService {
             return visitor.getOrganizationTimezone();
         }
         return trimToNull(recipient.getOrganizationTimezone());
+    }
+
+    private String resolveOrganizationId(String organizationId, Visitor visitor, User recipient) {
+        String explicitOrganizationId = trimToNull(organizationId);
+        if (explicitOrganizationId != null) {
+            return explicitOrganizationId;
+        }
+        if (visitor != null && trimToNull(visitor.getOrganizationId()) != null) {
+            return visitor.getOrganizationId();
+        }
+        return trimToNull(recipient.getOrganizationId());
+    }
+
+    private boolean isOrganizationSafe(User recipient, Visitor visitor, String organizationId) {
+        if (recipient.getRoles() != null && recipient.getRoles().contains(Role.SUPER_ADMIN)) {
+            return true;
+        }
+        String recipientOrganizationId = trimToNull(recipient.getOrganizationId());
+        if (recipientOrganizationId != null && organizationId != null && !recipientOrganizationId.equals(organizationId)) {
+            return false;
+        }
+        String visitorOrganizationId = visitor == null ? null : trimToNull(visitor.getOrganizationId());
+        if (visitorOrganizationId != null && organizationId != null && !visitorOrganizationId.equals(organizationId)) {
+            return false;
+        }
+        return canReceiveVisitorNotification(recipient, visitor);
+    }
+
+    private boolean canReceiveVisitorNotification(User recipient, Visitor visitor) {
+        if (visitor == null || recipient.getRoles() == null) {
+            return true;
+        }
+        if (recipient.getRoles().contains(Role.ADMIN)
+                || recipient.getRoles().contains(Role.SECURITY_GUARD)
+                || recipient.getRoles().contains(Role.SUPER_ADMIN)
+                || recipient.getRoles().contains(Role.VISITOR)) {
+            return true;
+        }
+        return !recipient.getRoles().contains(Role.EMPLOYEE)
+                || Objects.equals(recipient.getId(), visitor.getHostEmployeeId());
+    }
+
+    private boolean canAccessNotificationOrganization(User user, Notification notification) {
+        if (user.getRoles() != null && user.getRoles().contains(Role.SUPER_ADMIN)) {
+            return true;
+        }
+        String userOrganizationId = trimToNull(user.getOrganizationId());
+        String notificationOrganizationId = trimToNull(notification.getOrganizationId());
+        return notificationOrganizationId == null || userOrganizationId == null || notificationOrganizationId.equals(userOrganizationId);
+    }
+
+    private String resolveTargetType(String targetType, Visitor visitor) {
+        String normalized = trimToNull(targetType);
+        if (normalized != null) {
+            return normalized;
+        }
+        return visitor == null ? null : "VISITOR";
+    }
+
+    private String resolveTargetId(String targetId, Visitor visitor) {
+        String normalized = trimToNull(targetId);
+        if (normalized != null) {
+            return normalized;
+        }
+        return visitor == null ? null : visitor.getId();
+    }
+
+    private String scopedDedupeKey(String dedupeKey, String userId) {
+        String normalized = trimToNull(dedupeKey);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized + ":recipient:" + safeData(userId);
     }
 
     private Optional<MobileDeviceRegistration> findExistingDevice(String expoPushToken, String fcmToken) {

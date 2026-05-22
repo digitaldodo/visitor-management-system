@@ -108,10 +108,15 @@ public class VisitorInviteService {
         notificationService.notifyUser(
                 host.getId(),
                 NotificationType.VISITOR_INVITE_SENT,
-                "Visitor invite sent",
-                "%s was invited to pre-register before arrival.".formatted(saved.getVisitorName()),
+                "Visitor invite created",
+                inviteCreatedMessage(saved),
                 null,
-                "/pages/employee/#requests"
+                "/pages/employee/#requests",
+                null,
+                saved.getOrganizationId(),
+                "invite:%s:created:recipient:%s".formatted(saved.getId(), host.getId()),
+                "VISITOR_INVITE",
+                saved.getId()
         );
         if (saved.getVisitorEmail() != null) {
             visitorInviteEmailDispatcher.deliverInviteEmailAsync(saved.getId());
@@ -354,6 +359,15 @@ public class VisitorInviteService {
         return actor.getOrganizationId() != null
                 && actor.getOrganizationId().equals(invite.getOrganizationId())
                 && (actor.getRoles().contains(Role.ADMIN) || actor.getRoles().contains(Role.SUPER_ADMIN) || actor.getRoles().contains(Role.SECURITY_GUARD));
+    }
+
+    private String inviteCreatedMessage(VisitorInvite invite) {
+        String base = "%s was invited to pre-register before arrival.".formatted(invite.getVisitorName());
+        String note = trimToNull(invite.getNote());
+        if (note == null) {
+            return base;
+        }
+        return "%s Note: %s".formatted(base, note.length() > 120 ? note.substring(0, 120) : note);
     }
 
     private String inviteUrl(String token) {

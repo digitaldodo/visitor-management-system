@@ -5,6 +5,8 @@ import { PrimaryButton } from '../buttons/PrimaryButton';
 import { EmptyState } from '../feedback/EmptyState';
 import { StatusPill } from '../feedback/StatusPill';
 import { SurfaceCard } from '../cards/SurfaceCard';
+import { useAuth } from '../../auth/AuthProvider';
+import { openOperationalDeepLink } from '../../runtime/operationalDeepLinks';
 import { theme } from '../../theme';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import type { NotificationInbox, NotificationRecord } from '../../types/domain';
@@ -33,6 +35,8 @@ export function NotificationCenter({
   loading,
 }: Props) {
   const { tText } = useLocalization();
+  const auth = useAuth();
+  const activeRole = auth.status === 'authenticated' ? auth.session.user.activeRole : null;
   const mergedItems = useMemo(() => {
     const combined = [...(localNotifications ?? []), ...(inbox?.items ?? [])];
     return combined
@@ -52,9 +56,15 @@ export function NotificationCenter({
   const handlePress = async (notification: NotificationRecord) => {
     if (notification.source === 'local') {
       onMarkLocalRead?.(notification.id);
+      if (activeRole) {
+        openOperationalDeepLink(activeRole, notification);
+      }
       return;
     }
     await onMarkRead?.(notification);
+    if (activeRole) {
+      openOperationalDeepLink(activeRole, notification);
+    }
   };
 
   return (

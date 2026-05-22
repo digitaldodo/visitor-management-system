@@ -305,11 +305,14 @@ export type NotificationRecord = {
   type?: string | null;
   category?: 'VISITOR' | 'SECURITY' | 'WORKFORCE' | 'SYSTEM' | null;
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
+  organizationId?: string | null;
   title: string;
   message: string;
   visitorId?: string | null;
   visitorName?: string | null;
   actionUrl?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
   actorName?: string | null;
   organizationTimezone?: string | null;
   read: boolean;

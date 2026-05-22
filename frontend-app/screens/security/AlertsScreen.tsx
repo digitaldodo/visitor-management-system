@@ -23,11 +23,11 @@ export function AlertsScreen() {
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
 
   const securityItems = useMemo(
-    () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
+    () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'VISITOR', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
     [notifications.data?.items],
   );
   const localSecurityItems = useMemo(
-    () => localNotifications.filter((item) => ['SECURITY', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
+    () => localNotifications.filter((item) => ['SECURITY', 'VISITOR', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
     [localNotifications],
   );
 

@@ -17,6 +17,9 @@ public class Notification {
     @Indexed
     private String recipientUserId;
 
+    @Indexed
+    private String organizationId;
+
     private String recipientEmail;
 
     private String recipientName;
@@ -38,9 +41,16 @@ public class Notification {
 
     private String actionUrl;
 
+    private String targetType;
+
+    private String targetId;
+
     private String actorName;
 
     private String organizationTimezone;
+
+    @Indexed(unique = true, sparse = true)
+    private String dedupeKey;
 
     @Indexed
     private boolean read;
@@ -78,6 +88,14 @@ public class Notification {
 
     public void setRecipientUserId(String recipientUserId) {
         this.recipientUserId = recipientUserId;
+    }
+
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
     }
 
     public String getRecipientEmail() {
@@ -160,6 +178,22 @@ public class Notification {
         this.actionUrl = actionUrl;
     }
 
+    public String getTargetType() {
+        return targetType;
+    }
+
+    public void setTargetType(String targetType) {
+        this.targetType = targetType;
+    }
+
+    public String getTargetId() {
+        return targetId;
+    }
+
+    public void setTargetId(String targetId) {
+        this.targetId = targetId;
+    }
+
     public String getActorName() {
         return actorName;
     }
@@ -174,6 +208,14 @@ public class Notification {
 
     public void setOrganizationTimezone(String organizationTimezone) {
         this.organizationTimezone = organizationTimezone;
+    }
+
+    public String getDedupeKey() {
+        return dedupeKey;
+    }
+
+    public void setDedupeKey(String dedupeKey) {
+        this.dedupeKey = dedupeKey;
     }
 
     public boolean isRead() {
