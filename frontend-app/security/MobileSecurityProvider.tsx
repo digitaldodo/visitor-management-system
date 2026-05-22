@@ -49,7 +49,7 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
         level: signals.rootedOrJailbroken || signals.tamperedRuntime ? 'error' : 'warn',
         scope: 'security',
         code: 'DEVICE_INTEGRITY_WARNING',
-        message: 'Untrusted environment detected.',
+        message: 'Device integrity issue detected.',
         context: {
           rootedOrJailbroken: signals.rootedOrJailbroken,
           emulator: signals.emulator,
@@ -182,12 +182,12 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
       return 'This device does not meet security requirements. Sensitive operations may be restricted.';
     }
     if (integrity.tamperedRuntime) {
-      return 'Untrusted environment detected. Sign in from an approved AccessFlow build.';
+      return 'Device integrity issue detected. Sign in from an approved AccessFlow build.';
     }
     if (integrity.emulator || integrity.debugBuild) {
       return 'This device needs organization review before sensitive actions are available.';
     }
-    return 'Untrusted environment detected.';
+    return 'Device integrity issue detected.';
   }, [integrity]);
 
   const sensitiveOperationsRestricted = Boolean(

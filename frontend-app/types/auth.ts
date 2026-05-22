@@ -9,7 +9,6 @@ export type LoginPayload = {
   password: string;
   companyCode?: string;
   audience: WorkspaceAudience;
-  rememberMe?: boolean;
 };
 
 export type ForgotPasswordPayload = {

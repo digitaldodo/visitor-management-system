@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isBusy, setIsBusy] = useState(false);
   const isMountedRef = useRef(true);
   const sessionRef = useRef<AuthSession | null>(null);
-  const rememberSessionRef = useRef(false);
+  const persistSessionRef = useRef(false);
   const runtimeRecoveryPromiseRef = useRef<Promise<boolean> | null>(null);
   const logoutPromiseRef = useRef<Promise<void> | null>(null);
 
@@ -66,10 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       session: AuthSession,
       versions?: VersionHandshakePayload | null,
-      options?: { rememberSession?: boolean },
+      options?: { persistSession?: boolean },
     ) => {
-      const shouldPersist = options?.rememberSession ?? rememberSessionRef.current;
-      rememberSessionRef.current = shouldPersist;
+      const shouldPersist = options?.persistSession ?? persistSessionRef.current;
+      persistSessionRef.current = shouldPersist;
       sessionRef.current = session;
       if (shouldPersist) {
         await writePersistedSession(session);
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearSessionState = useCallback(
     async (reason?: string) => {
       sessionRef.current = null;
-      rememberSessionRef.current = false;
+      persistSessionRef.current = false;
       await Promise.all([
         clearPersistedSession(),
         clearRuntimeSnapshot(),
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const keepPersistedSessionOnline = useCallback(
     async (persistedSession: AuthSession, reason: string) => {
       sessionRef.current = persistedSession;
-      rememberSessionRef.current = true;
+      persistSessionRef.current = true;
       setStateSafely({
         status: 'authenticated',
         session: persistedSession,
@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           await persistAuthenticatedSession(session, versions, {
-            rememberSession: rememberSessionRef.current || Boolean(persistedSession),
+            persistSession: persistSessionRef.current || Boolean(persistedSession),
           });
           await recordDiagnosticEvent({
             level: 'info',
@@ -329,7 +329,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const { session, versions } = await restoreRuntimeSessionSnapshot(persistedSession);
-      await persistAuthenticatedSession(session, versions, { rememberSession: true });
+      await persistAuthenticatedSession(session, versions, { persistSession: true });
     } catch (error) {
       const normalizedError = normalizeApiError(error);
       if (normalizedError.kind === 'auth' || normalizedError.status === 401 || normalizedError.status === 403) {
@@ -377,11 +377,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const session = await loginRequest(payload);
         sessionRef.current = session;
-        await persistAuthenticatedSession(session, null, { rememberSession: Boolean(payload.rememberMe) });
+        await persistAuthenticatedSession(session, null, { persistSession: true });
         await trackFirebaseEvent('login_success', {
           audience: session.audience,
           role: session.user.activeRole,
-          remember_session: Boolean(payload.rememberMe),
+          persistent_session: true,
         });
         resetNavigationToRoleHome(session.user.activeRole);
       } catch (error) {

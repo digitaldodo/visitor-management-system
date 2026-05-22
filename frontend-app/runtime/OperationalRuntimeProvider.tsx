@@ -916,7 +916,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         throw new Error('The backend health check reported a degraded state.');
       }
     } catch (error) {
-      setDegradedMessage('Restoring connection. Recent workspace data may be briefly stale.');
       setNetworkState((current) => {
         const next = {
           ...current,
@@ -1068,7 +1067,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
           ]);
         } catch (error) {
           if (isOfflineNetworkState(networkState)) {
-            setDegradedMessage('Restoring connection. Cached workspace data remains available where policy allows.');
             await refreshOfflineQueueSize();
             await recordDiagnosticEvent({
               level: 'warn',
@@ -1092,7 +1090,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
               elapsedMs,
             },
           });
-          setDegradedMessage('Restoring connection. Cached workspace data remains available where policy allows.');
         } finally {
           lifecycleRecoveryPromiseRef.current = null;
         }
@@ -1518,13 +1515,11 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     ? 'update-required'
     : sessionLock.isLocked
       ? 'locked'
-      : degradedMessage
-        ? 'degraded'
-        : 'healthy';
+      : 'healthy';
 
   const offlineOperationalMode: OfflineOperationalMode = isOfflineNetworkState(networkState)
     ? 'offline'
-    : runtimeHealth === 'degraded' || networkState.consecutiveFailures > 0
+    : networkState.consecutiveFailures >= 2
       ? 'degraded'
       : 'online';
 

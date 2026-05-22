@@ -7,7 +7,6 @@ import { useLocalization } from '../../localization/LocalizationProvider';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { useSensitiveScreenProtection } from '../../security/MobileSecurityProvider';
 import { EmergencyBanner } from '../feedback/EmergencyBanner';
-import { RuntimeBanner } from '../feedback/RuntimeBanner';
 import { FadeSlideView } from '../motion/FadeSlideView';
 import { theme } from '../../theme';
 
@@ -45,7 +44,7 @@ export function AppListScreen<T>({
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { t, tText } = useLocalization();
-  const { devicePosture, offlineOperationalMode } = useOperationalRuntime();
+  const { devicePosture } = useOperationalRuntime();
   const refreshInFlightRef = useRef(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
 
@@ -141,16 +140,8 @@ export function AppListScreen<T>({
                       <Text allowFontScaling={false} style={styles.operationalIndicatorText}>{devicePosture.checkpointName}</Text>
                     </View>
                   ) : null}
-                  <View style={styles.operationalIndicator}>
-                    <Text allowFontScaling={false} style={styles.operationalIndicatorText}>
-                      {offlineOperationalMode === 'online' ? t('common.ready') : t('common.reconnecting')}
-                    </Text>
-                  </View>
                 </View>
               ) : null}
-            </FadeSlideView>
-            <FadeSlideView delayMs={70}>
-              <RuntimeBanner />
             </FadeSlideView>
             <FadeSlideView delayMs={110}>
               <EmergencyBanner />

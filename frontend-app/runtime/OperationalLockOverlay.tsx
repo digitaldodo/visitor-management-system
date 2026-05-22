@@ -12,10 +12,10 @@ export function OperationalLockOverlay() {
     return null;
   }
 
-  const title = 'Update required';
+  const title = runtimeHealth === 'update-required' ? 'Update required' : 'Workspace locked';
   const body = runtimeHealth === 'update-required'
     ? 'This AccessFlow build is older than the backend allows. Update the app before resuming guard, employee, or admin operations.'
-    : 'AccessFlow is checking whether this workspace can resume.';
+    : 'This workspace is temporarily locked by policy.';
 
   return (
     <Modal animationType="fade" transparent visible onRequestClose={() => undefined}>
@@ -35,7 +35,7 @@ export function OperationalLockOverlay() {
               />
             ) : null}
             <PrimaryButton
-              label={runtimeHealth === 'update-required' ? 'Retry after update' : 'Resume session'}
+              label={runtimeHealth === 'update-required' ? 'Check update status' : 'Resume session'}
               onPress={() => void unlockSession()}
               loading={isUnlocking}
             />

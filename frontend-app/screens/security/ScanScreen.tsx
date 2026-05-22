@@ -623,7 +623,7 @@ export function ScanScreen() {
     <>
       <AppScreen
         title="Security Scan"
-        subtitle="Fast QR verification for visitors, employees, recurring badges, and manual checkpoint recovery."
+        subtitle="Fast QR verification for visitors, employees, recurring badges, and manual checkpoint workflows."
         sensitive
         sensitiveReason="security-scanner"
         contentMaxWidth={layout.isLargeTablet ? 1280 : undefined}
@@ -633,23 +633,21 @@ export function ScanScreen() {
           <SurfaceCard title="Checkpoint scanner" subtitle="Designed for reception desks, guard tablets, and one-hand Android workflows.">
               {operationalDevice ? (
                 <View style={styles.operationalContext}>
-                  <StatusPill label="Trusted operational device" tone="success" />
+                  <StatusPill label="Assigned checkpoint" tone="success" />
                   <Text style={styles.operationalContextTitle}>
                     {runtime.devicePosture.checkpointName || runtime.devicePosture.operationalZone || 'Assigned checkpoint'}
                   </Text>
                 </View>
               ) : null}
 
-              {runtime.offlineScanQueueSize > 0 || runtime.runtimeHealth === 'degraded' ? (
+              {runtime.offlineScanQueueSize > 0 ? (
                 <View style={styles.degradedState}>
                   <StatusPill
-                    label={runtime.offlineScanQueueSize > 0 ? `${runtime.offlineScanQueueSize} queued` : 'Reconnecting'}
+                    label={`${runtime.offlineScanQueueSize} queued`}
                     tone="warning"
                   />
                   <Text style={styles.helperText}>
-                    {runtime.offlineScanQueueSize > 0
-                      ? 'Offline scans are preserved for supervised retry. Backend validation is still required before access is granted.'
-                      : 'Network conditions are degraded. Scans remain online-validated whenever connectivity is available.'}
+                    Offline scans are saved for backend validation before access is granted.
                   </Text>
                 </View>
               ) : null}

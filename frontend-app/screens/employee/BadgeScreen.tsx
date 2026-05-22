@@ -177,7 +177,7 @@ export function BadgeScreen() {
               <DetailRow label="Designation" value={badge.data.designation || 'Assigned by admin'} muted={!badge.data.designation} />
               <DetailRow label="Shift" value={formatShift(badge.data.shiftName, badge.data.shiftStartTime, badge.data.shiftEndTime)} muted={!badge.data.shiftName} />
               <DetailRow label="Credential" value={badge.data.statusLabel || (badge.data.active ? 'Active' : 'Revoked or inactive')} muted={!badge.data.active} />
-              <DetailRow label="Validation mode" value={runtime.offlineOperationalMode === 'online' ? 'Online validation' : runtime.offlineOperationalMode === 'offline' ? 'Cached credential available' : 'Reconnecting'} muted={runtime.offlineOperationalMode !== 'online'} />
+              <DetailRow label="Validation mode" value={runtime.offlineOperationalMode === 'online' ? 'Online validation' : runtime.offlineOperationalMode === 'offline' ? 'Cached credential available' : 'Limited connectivity'} muted={runtime.offlineOperationalMode !== 'online'} />
               <DetailRow label="QR health" value={badge.data.qrExpiresAt ? `Rotates every ${badge.data.qrRefreshIntervalSeconds ?? 60}s` : 'Dynamic QR pending'} muted={!badge.data.qrExpiresAt} />
             </SurfaceCard>
 

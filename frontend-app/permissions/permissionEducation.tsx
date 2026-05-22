@@ -48,7 +48,7 @@ const permissionCopy: Record<PermissionEducationKind, PermissionCopy> = {
     actionLabel: 'Enable notifications',
   },
   files: {
-    title: 'Files access for trusted uploads',
+    title: 'Files access for verified uploads',
     body: 'Photo library access is used only when you choose a profile, visitor, or credential image.',
     bullets: [
       'Select verification photos for identity workflows.',

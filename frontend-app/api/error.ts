@@ -96,7 +96,7 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('system_cancel')
     || lower.includes('app_cancel')
   ) {
-    return 'Authentication interrupted. Please retry securely.';
+    return 'Authentication interrupted. Please try again.';
   }
 
   if (
@@ -109,7 +109,7 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('exception')
     || lower.includes('native module')
   ) {
-    return 'Unable to verify identity. Please retry securely.';
+    return 'Unable to verify identity. Please try again.';
   }
 
   if (
@@ -119,7 +119,7 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('pinning')
     || lower.includes('trust anchor')
   ) {
-    return 'Secure connection could not be verified. Some actions may be paused while AccessFlow checks again.';
+    return 'Secure connection could not be verified.';
   }
 
   if (
@@ -135,10 +135,9 @@ export function sanitizeUserFacingErrorMessage(message?: string | null, kind?: A
     || lower.includes('connection aborted')
     || lower.includes('failed to fetch')
   ) {
-    if (kind === 'network') {
-      return 'Restoring connection. Recent workspace data remains available while AccessFlow retries.';
-    }
-    return 'Restoring connection. AccessFlow will retry securely in the background.';
+    return kind === 'network'
+      ? 'Connection temporarily unavailable.'
+      : 'Unable to complete request.';
   }
 
   return normalized;

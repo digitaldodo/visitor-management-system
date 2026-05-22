@@ -48,9 +48,9 @@ export function BootScreen() {
           <Text style={styles.badgeLabel}>Mobile operations</Text>
         </View>
       </Animated.View>
-      <Text style={styles.title}>Restoring your operational workspace</Text>
+      <Text style={styles.title}>Preparing your workspace</Text>
       <Text style={styles.subtitle}>
-        Preparing your secure workspace and reconnecting to AccessFlow.
+        AccessFlow is loading your mobile session.
       </Text>
       <View style={styles.loadingBlock}>
         <ShimmerSkeleton rows={3} compact />

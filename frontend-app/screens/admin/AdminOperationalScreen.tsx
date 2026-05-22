@@ -608,7 +608,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
                 <AdminShortcut title="Organization activity" subtitle="Scoped visitor, workforce, approval, and incident updates" tone="info" onPress={() => navigation.navigate('Live')} />
                 <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
-                <AdminShortcut title="Profile" subtitle="Trusted devices and account security" tone="default" onPress={() => navigation.navigate('Profile')} />
+                <AdminShortcut title="Profile" subtitle="Account and access security" tone="default" onPress={() => navigation.navigate('Profile')} />
               </View>
             </SurfaceCard>
             <SurfaceCard title="Admin workspace focus" subtitle="Mobile admin prioritizes approvals, workforce, alerts, and quick intervention over desktop parity.">

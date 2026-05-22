@@ -26,7 +26,6 @@ const loginSchema = z.object({
   password: z.string().min(8, 'Enter your password.'),
   companyCode: z.string().trim().optional(),
   audience: z.enum(['visitor', 'security', 'employee', 'admin']),
-  rememberMe: z.boolean(),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -92,7 +91,6 @@ export function LoginScreen() {
       password: '',
       companyCode: '',
       audience: 'visitor',
-      rememberMe: true,
     },
   });
 
@@ -118,7 +116,6 @@ export function LoginScreen() {
 
   const selectedAudience = watch('audience');
   const selectedCompanyCode = watch('companyCode');
-  const rememberMe = watch('rememberMe');
   const registerPhoneCountryCode = watchRegister('phoneCountryCode') || '+1';
   const registerPhone = watchRegister('phone') || '';
   const isCompactLandscape = layout.isLandscape && layout.isCompactHeight;
@@ -305,8 +302,8 @@ export function LoginScreen() {
                 resizeMode="contain"
               />
               <View style={styles.brandBadge}>
-                <Ionicons name="lock-closed-outline" size={15} color={theme.colors.info} />
-                <Text style={styles.brandSubline}>{t('auth.secureWorkspace')}</Text>
+                <Ionicons name="business-outline" size={15} color={theme.colors.info} />
+                <Text style={styles.brandSubline}>{t('auth.workspace')}</Text>
               </View>
             </View>
             {!isCompactLandscape ? (
@@ -315,11 +312,11 @@ export function LoginScreen() {
                   {tText('Reliable access for every role')}
                 </Text>
                 <Text maxFontSizeMultiplier={1.08} style={styles.subtitle}>
-                  {tText('Sign in, recover access, or onboard as a visitor with role-aware routing, secure session restore, and operational Android ergonomics.')}
+                  {tText('Sign in, recover access, or onboard as a visitor with role-aware routing and smooth Android workflows.')}
                 </Text>
                 <View style={styles.proofRow}>
-                  <TrustChip icon="shield-checkmark-outline" label={tText('JWT protected')} />
-                  <TrustChip icon="refresh-circle-outline" label="Refresh-token safe" />
+                  <TrustChip icon="shield-checkmark-outline" label={tText('Protected access')} />
+                  <TrustChip icon="refresh-circle-outline" label="Session continuity" />
                   <TrustChip icon="business-outline" label="Enterprise roles" />
                 </View>
               </>
@@ -424,21 +421,6 @@ export function LoginScreen() {
                 />
 
                 <View style={[styles.authOptionsRow, layout.fieldStacked ? styles.authOptionsStacked : null]}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: rememberMe }}
-                    onPress={() => setValue('rememberMe', !rememberMe, { shouldDirty: true })}
-                    style={styles.rememberRow}
-                    hitSlop={8}
-                  >
-                    <View style={[styles.checkbox, rememberMe ? styles.checkboxSelected : null]}>
-                      {rememberMe ? <Ionicons name="checkmark" size={16} color={theme.colors.textInverse} /> : null}
-                    </View>
-                    <View style={styles.rememberCopy}>
-                      <Text style={styles.rememberLabel}>{t('auth.rememberDevice')}</Text>
-                      <Text style={styles.rememberHelp}>Stores only tokens in secure device storage.</Text>
-                    </View>
-                  </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('recovery')} hitSlop={8} style={styles.linkButton}>
                     <Text style={styles.linkText}>{t('auth.forgotPassword')}</Text>
                   </Pressable>
@@ -770,17 +752,16 @@ function RecoveryStepItem({ active, complete, label }: { active: boolean; comple
 function StatusPanel({ status }: { status: { tone: 'danger' | 'success' | 'warning' | 'info'; title: string; body: string } }) {
   const { tText } = useLocalization();
   const toneStyles = {
-    danger: { icon: 'alert-circle-outline' as const, color: theme.colors.danger, backgroundColor: theme.colors.dangerSoft },
-    success: { icon: 'checkmark-circle-outline' as const, color: theme.colors.success, backgroundColor: theme.colors.successSoft },
-    warning: { icon: 'warning-outline' as const, color: theme.colors.warning, backgroundColor: theme.colors.warningSoft },
-    info: { icon: 'information-circle-outline' as const, color: theme.colors.info, backgroundColor: theme.colors.infoSoft },
+    danger: { color: theme.colors.danger },
+    success: { color: theme.colors.success },
+    warning: { color: theme.colors.warning },
+    info: { color: theme.colors.info },
   }[status.tone];
 
   return (
-    <View style={[styles.statusPanel, { backgroundColor: toneStyles.backgroundColor }]}>
-      <Ionicons name={toneStyles.icon} size={22} color={toneStyles.color} />
+    <View style={styles.statusPanel}>
       <View style={styles.statusCopy}>
-        <Text style={styles.statusTitle}>{tText(status.title)}</Text>
+        <Text style={[styles.statusTitle, { color: toneStyles.color }]}>{tText(status.title)}</Text>
         <Text style={styles.statusBody}>{tText(status.body)}</Text>
       </View>
     </View>
@@ -800,7 +781,7 @@ function buildAuthStatus(
     return classifyError(submitError);
   }
   if (recoveryMessage) {
-    return { tone: 'info' as const, title: 'Recovery in progress', body: recoveryMessage };
+    return { tone: 'info' as const, title: 'Account recovery', body: recoveryMessage };
   }
   if (registerMessage) {
     return { tone: 'success' as const, title: 'Visitor onboarding started', body: registerMessage };
@@ -817,18 +798,18 @@ function classifyError(message: string) {
     return { tone: 'warning' as const, title: 'Session expired', body: message };
   }
   if (normalized.includes('network') || normalized.includes('could not reach') || normalized.includes('timeout')) {
-    return { tone: 'warning' as const, title: 'Connection issue', body: `${message} Check connectivity, then retry.` };
+    return { tone: 'warning' as const, title: 'Connection temporarily unavailable', body: message };
   }
   if (normalized.includes('server') || normalized.includes('backend') || normalized.includes('503') || normalized.includes('502')) {
-    return { tone: 'danger' as const, title: 'Service unavailable', body: `${message} Retry once the backend is reachable.` };
+    return { tone: 'danger' as const, title: 'Unable to complete request', body: message };
   }
   if (normalized.includes('super admin')) {
     return { tone: 'warning' as const, title: 'Mobile access unavailable', body: message };
   }
   if (normalized.includes('credential') || normalized.includes('password') || normalized.includes('unauthorized') || normalized.includes('invalid')) {
-    return { tone: 'danger' as const, title: 'Sign in was not accepted', body: `${message} You can retry or recover the account.` };
+    return { tone: 'danger' as const, title: 'Sign in was not accepted', body: message };
   }
-  return { tone: 'danger' as const, title: 'Action failed', body: message };
+  return { tone: 'danger' as const, title: 'Unable to complete request', body: message };
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -848,7 +829,7 @@ function titleForMode(mode: AuthMode, recoveryStep: RecoveryStep, t: ReturnType<
   if (mode === 'recovery') {
     return recoveryStep === 'done' ? 'Recovery complete' : t('auth.recovery');
   }
-  return t('auth.secureSignIn');
+  return t('auth.signIn');
 }
 
 function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep, compact = false) {
@@ -870,7 +851,7 @@ function subtitleForMode(mode: AuthMode, recoveryStep: RecoveryStep, compact = f
       ? 'Your password has been reset and previous sessions were cleared.'
       : 'Verify your email code, then set a new password without exposing saved credentials.';
   }
-  return 'Choose your workspace, authenticate, and optionally restore this session on future launches.';
+  return 'Choose your workspace and sign in.';
 }
 
 function formatExpiry(expiresAt?: string | null) {
@@ -1095,41 +1076,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     flexDirection: 'column',
   },
-  rememberRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    minHeight: 52,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.input,
-  },
-  checkboxSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  rememberCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  rememberLabel: {
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  rememberHelp: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
-  },
   linkButton: {
     minHeight: 44,
     justifyContent: 'center',
@@ -1151,20 +1097,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   statusPanel: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
   },
   statusCopy: {
-    flex: 1,
     gap: 3,
   },
   statusTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.bodyStrong.fontSize,
+    fontSize: 13,
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   statusBody: {
