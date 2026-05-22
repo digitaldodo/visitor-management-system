@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   getVisitorHistory,
   getVisitorHosts,
+  getVisitorInvites,
   getVisitorNotifications,
   getVisitorOverview,
   getVisitorPass,
@@ -25,6 +26,14 @@ export function useVisitorVisits() {
   return useQuery({
     queryKey: ['visitor', 'visits'],
     queryFn: getVisitorVisits,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useVisitorInvites() {
+  return useQuery({
+    queryKey: ['visitor', 'invites'],
+    queryFn: getVisitorInvites,
     placeholderData: (previous) => previous,
   });
 }

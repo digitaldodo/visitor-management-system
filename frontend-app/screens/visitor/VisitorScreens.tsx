@@ -27,6 +27,7 @@ import {
   useRequestVisitorVisitMutation,
   useUploadVisitorVisitPhotoMutation,
   useVisitorHistory,
+  useVisitorInvites,
   useVisitorNotifications,
   useVisitorOverview,
   useVisitorPass,
@@ -38,21 +39,23 @@ import { isTransientVisitorRequestFailure } from '../../services/visitorRequestQ
 import { enqueueVisitorRequest } from '../../storage/visitorRequestQueue';
 import { getVisitorHosts, type VisitorVisitPayload } from '../../services/visitorService';
 import { theme } from '../../theme';
-import type { HostDirectoryEntry, NotificationRecord, VisitorRecord } from '../../types/domain';
+import type { HostDirectoryEntry, NotificationRecord, VisitorInviteRecord, VisitorRecord } from '../../types/domain';
 import { formatDateTime } from '../../utils/employeeFormatting';
 import { formatVisitorWindow, statusTone, visitorStatusLabel } from '../../utils/securityFormatting';
 
 export function VisitorHomeScreen() {
   const overview = useVisitorOverview();
   const visits = useVisitorVisits();
+  const invites = useVisitorInvites();
   const activeVisit = useMemo(() => selectActiveVisit(visits.data ?? []), [visits.data]);
+  const pendingInvites = useMemo(() => (invites.data ?? []).filter(isActionableInvite).slice(0, 5), [invites.data]);
 
   return (
     <AppScreen
       title="Visitor Home"
       subtitle="Request access, track approval status, and keep your active pass ready for the checkpoint."
-      refreshing={overview.isRefetching || visits.isRefetching}
-      onRefresh={() => Promise.all([overview.refetch(), visits.refetch()])}
+      refreshing={overview.isRefetching || visits.isRefetching || invites.isRefetching}
+      onRefresh={() => Promise.all([overview.refetch(), visits.refetch(), invites.refetch()])}
     >
       <View style={styles.metricsGrid}>
         <MetricCard label="Pending" value={overview.data?.pending ?? 0} tone={(overview.data?.pending ?? 0) ? 'warning' : 'default'} />
@@ -75,6 +78,32 @@ export function VisitorHomeScreen() {
           </>
         ) : (
           <EmptyState title="No active pass" body="Approved visit passes will appear here when your host or workplace team approves a request." />
+        )}
+      </SurfaceCard>
+
+      <SurfaceCard title="Invite inbox" subtitle="Pre-registration invites sent to your visitor account. QR access appears only after approval.">
+        {pendingInvites.length ? (
+          pendingInvites.map((invite) => (
+            <View key={invite.id} style={styles.inviteInboxCard}>
+              <RecordCard
+                title={`${invite.hostEmployeeName || 'Your host'} invited you to ${invite.organizationName || 'AccessFlow'}`}
+                subtitle={invite.purposeOfVisit || 'Visitor pre-registration'}
+                meta={invite.scheduledStartTime ? formatDateTime(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Schedule pending'}
+                status={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')}
+                tone={inviteTone(invite)}
+              />
+              <Text style={styles.helperText}>{invite.nextAction || 'Complete your visitor registration.'}</Text>
+              {invite.mobileInviteUrl || invite.inviteUrl ? (
+                <PrimaryButton
+                  label="Complete pre-registration"
+                  onPress={() => void Linking.openURL(String(invite.mobileInviteUrl || invite.inviteUrl))}
+                  tone="secondary"
+                />
+              ) : null}
+            </View>
+          ))
+        ) : (
+          <EmptyState title="No pending invites" body="When an employee invites this account, the invite will appear here and in Notifications." />
         )}
       </SurfaceCard>
 
@@ -387,7 +416,8 @@ export function VisitorRequestScreen() {
 export function VisitorPassScreen() {
   const visits = useVisitorVisits();
   const selectedVisit = useMemo(() => selectActiveVisit(visits.data ?? []) ?? (visits.data ?? [])[0] ?? null, [visits.data]);
-  const pass = useVisitorPass(selectedVisit?.id);
+  const approvedVisit = selectedVisit && ['APPROVED', 'CHECKED_IN'].includes(String(selectedVisit.status)) && selectedVisit.qrIssuedAt ? selectedVisit : null;
+  const pass = useVisitorPass(approvedVisit?.id);
 
   return (
     <AppScreen
@@ -396,16 +426,28 @@ export function VisitorPassScreen() {
       sensitive
       sensitiveReason="visitor-pass"
       refreshing={visits.isRefetching || pass.isRefetching}
-      onRefresh={() => Promise.all([visits.refetch(), pass.refetch()])}
+      onRefresh={() => Promise.all([visits.refetch(), approvedVisit ? pass.refetch() : Promise.resolve()])}
     >
       <SurfaceCard title="Current badge" subtitle="Security can scan this QR after approval. Pending or denied requests do not expose valid entry access.">
         {pass.data?.qrImageDataUri ? (
-          <View style={styles.qrPanel}>
+          <View style={styles.walletBadge}>
+            <View style={styles.walletHeader}>
+              <View>
+                <Text style={styles.walletEyebrow}>Approved access badge</Text>
+                <Text style={styles.walletTitle}>{pass.data.organizationName || pass.data.organizationCode || 'AccessFlow'}</Text>
+              </View>
+              <StatusPill label={pass.data.valid ? 'Valid' : pass.data.statusLabel || 'Not valid'} tone={pass.data.valid ? 'success' : 'warning'} />
+            </View>
             <Image source={{ uri: pass.data.qrImageDataUri }} style={styles.qrImage} resizeMode="contain" />
-            <StatusPill label={pass.data.valid ? 'Valid pass' : pass.data.statusLabel || 'Not valid'} tone={pass.data.valid ? 'success' : 'warning'} />
+            <Text style={styles.helperText}>Expires {pass.data.expiresAt ? formatDateTime(pass.data.expiresAt, pass.data.organizationTimezone) : 'after the approved access window'}</Text>
           </View>
         ) : selectedVisit ? (
-          <EmptyState title="QR pending" body="The QR badge is generated after the visit is approved." />
+          <EmptyState
+            title={String(selectedVisit.status) === 'PENDING' ? 'Awaiting approval' : 'QR pending'}
+            body={String(selectedVisit.status) === 'PENDING'
+              ? 'Your pre-registration is with the host or workplace team. The badge will appear here after approval.'
+              : 'The QR badge is generated only after the visit is approved.'}
+          />
         ) : (
           <EmptyState title="No pass available" body="Submit an access request first, then approved QR details will appear here." />
         )}
@@ -426,6 +468,7 @@ export function VisitorPassScreen() {
             <DetailRow label="Host" value={pass.data.hostEmployee || 'Pending'} muted={!pass.data.hostEmployee} />
             <DetailRow label="Access window" value={formatPassWindow(pass.data)} />
             <DetailRow label="Expires" value={pass.data.expiresAt ? formatDateTime(pass.data.expiresAt, pass.data.organizationTimezone) : 'Pending'} muted={!pass.data.expiresAt} />
+            <DetailRow label="Guidance" value="Present this badge at reception. Security will verify the live approval record before check-in." />
           </>
         ) : null}
       </SurfaceCard>
@@ -467,6 +510,7 @@ export function VisitorNotificationsScreen() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       queryClient.invalidateQueries({ queryKey: ['visitor', 'overview'] }),
       queryClient.invalidateQueries({ queryKey: ['visitor', 'visits'] }),
+      queryClient.invalidateQueries({ queryKey: ['visitor', 'invites'] }),
     ]);
   };
 
@@ -539,6 +583,25 @@ function selectActiveVisit(visits: VisitorRecord[]) {
   return visits.find((visit) => ['APPROVED', 'CHECKED_IN'].includes(String(visit.status)))
     ?? visits.find((visit) => String(visit.status) === 'PENDING')
     ?? null;
+}
+
+function isActionableInvite(invite: VisitorInviteRecord) {
+  const stage = invite.lifecycleStage || invite.status;
+  return ['INVITED', 'PRE_REGISTRATION_PENDING', 'SENT', 'VIEWED'].includes(String(stage));
+}
+
+function inviteTone(invite: VisitorInviteRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const stage = invite.lifecycleStage || invite.status;
+  if (['BADGE_ISSUED', 'ARRIVED'].includes(String(stage))) {
+    return 'success';
+  }
+  if (['EXPIRED', 'REVOKED'].includes(String(stage))) {
+    return 'danger';
+  }
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED', 'REGISTRATION_COMPLETED'].includes(String(stage))) {
+    return 'warning';
+  }
+  return 'info';
 }
 
 function formatPassWindow(pass: { accessWindowStartTime?: string | null; scheduledStartTime?: string | null; accessWindowEndTime?: string | null; scheduledEndTime?: string | null; organizationTimezone?: string | null }) {
@@ -703,6 +766,38 @@ const styles = StyleSheet.create({
   qrPanel: {
     alignItems: 'center',
     gap: theme.spacing.md,
+  },
+  inviteInboxCard: {
+    gap: theme.spacing.sm,
+  },
+  walletBadge: {
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    padding: theme.spacing.md,
+  },
+  walletHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  walletEyebrow: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  walletTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+    lineHeight: 28,
   },
   qrImage: {
     width: 220,

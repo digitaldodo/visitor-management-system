@@ -59,9 +59,11 @@ public class VisitorInvite {
     private boolean approvalRequired;
 
     @Indexed
-    private VisitorInviteStatus status = VisitorInviteStatus.SENT;
+    private VisitorInviteStatus status = VisitorInviteStatus.INVITED;
 
     private String inviteUrl;
+
+    private String mobileInviteUrl;
 
     @Indexed
     private Instant expiresAt;
@@ -284,6 +286,14 @@ public class VisitorInvite {
 
     public void setInviteUrl(String inviteUrl) {
         this.inviteUrl = inviteUrl;
+    }
+
+    public String getMobileInviteUrl() {
+        return mobileInviteUrl;
+    }
+
+    public void setMobileInviteUrl(String mobileInviteUrl) {
+        this.mobileInviteUrl = mobileInviteUrl;
     }
 
     public Instant getExpiresAt() {

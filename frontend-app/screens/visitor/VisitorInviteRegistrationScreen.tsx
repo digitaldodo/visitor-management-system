@@ -121,12 +121,15 @@ export function VisitorInviteRegistrationScreen() {
 
   const timezone = invite?.timezone || invite?.organizationTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const phoneError = validateInternationalPhone(form.phoneCountryCode, form.phone, true);
+  const inviteStage = invite?.lifecycleStage || invite?.status;
+  const registrationSubmitted = Boolean(invite?.visitorId || invite?.registrationCompletedAt);
+  const canCompleteInvite = Boolean(invite && !registrationSubmitted && !['EXPIRED', 'REVOKED', 'BADGE_ISSUED', 'ARRIVED', 'QR_ISSUED'].includes(String(inviteStage)));
 
   return (
     <>
       <AppScreen
         title="Visitor Invite"
-        subtitle="Complete pre-registration before arrival and keep your temporary QR pass ready for security."
+        subtitle="Complete pre-registration before arrival. The QR badge is issued only after host or workplace approval."
         sensitive={Boolean(invite?.pass?.qrImageDataUri)}
         sensitiveReason="visitor-invite-pass"
         refreshing={loading}
@@ -140,6 +143,13 @@ export function VisitorInviteRegistrationScreen() {
 
         {invite ? (
           <>
+            <SurfaceCard title="Lifecycle status" subtitle={invite.nextAction || 'AccessFlow is keeping the invite, approval, and badge state synchronized.'}>
+              <StatusPill label={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')} tone={inviteStatusTone(invite)} />
+              {registrationSubmitted && !invite.pass?.qrImageDataUri ? (
+                <Text style={styles.bodyText}>Awaiting approval. You do not need to submit this form again; AccessFlow will notify you when the approved badge is issued.</Text>
+              ) : null}
+            </SurfaceCard>
+
             <SurfaceCard title="Visit details" subtitle={`${invite.organizationName ?? 'AccessFlow site'} · Host ${invite.hostEmployeeName ?? 'assigned'}`}>
               {invite.note ? (
                 <View style={styles.notePanel}>
@@ -173,14 +183,14 @@ export function VisitorInviteRegistrationScreen() {
                 </View>
               </View>
               <PrimaryButton
-                label={invite.pass?.qrImageDataUri ? 'Registration completed' : 'Complete pre-registration'}
+                label={registrationSubmitted ? 'Pre-registration submitted' : 'Complete pre-registration'}
                 onPress={() => void submitRegistration()}
                 loading={submitting}
-                disabled={Boolean(invite.pass?.qrImageDataUri)}
+                disabled={!canCompleteInvite}
               />
             </SurfaceCard>
 
-            <SurfaceCard title="Temporary QR pass" subtitle="Security validates the pass status and expiry at arrival.">
+            <SurfaceCard title="Approved QR badge" subtitle="Security validates the live badge status and expiry at arrival.">
               {invite.pass?.qrImageDataUri ? (
                 <View style={styles.qrPanel}>
                   <Image source={{ uri: invite.pass.qrImageDataUri }} style={styles.qrImage} resizeMode="contain" />
@@ -188,7 +198,7 @@ export function VisitorInviteRegistrationScreen() {
                   <Text style={styles.bodyText}>Expires {invite.pass.expiresAt ? new Date(invite.pass.expiresAt).toLocaleString() : 'after the approved access window'}</Text>
                 </View>
               ) : (
-                <EmptyState title="QR pending" body={invite.approvalRequired ? 'Your host must approve before a QR pass is issued.' : 'Submit registration to issue your temporary QR pass.'} />
+                <EmptyState title={registrationSubmitted ? 'Awaiting approval' : 'QR pending'} body={registrationSubmitted ? 'Your registration is submitted. The QR badge will be delivered after approval.' : 'Complete pre-registration first. AccessFlow will not issue a QR badge until approval is granted.'} />
               )}
             </SurfaceCard>
           </>
@@ -220,6 +230,20 @@ function parseInviteStart(value?: string | null) {
     }
   }
   return nearestArrivalTime();
+}
+
+function inviteStatusTone(invite: VisitorInviteRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const stage = invite.lifecycleStage || invite.status;
+  if (['BADGE_ISSUED', 'ARRIVED', 'QR_ISSUED'].includes(String(stage))) {
+    return 'success';
+  }
+  if (['EXPIRED', 'REVOKED'].includes(String(stage))) {
+    return 'danger';
+  }
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED', 'REGISTRATION_COMPLETED'].includes(String(stage))) {
+    return 'warning';
+  }
+  return 'info';
 }
 
 const styles = StyleSheet.create({

@@ -264,6 +264,7 @@ public class SendGridEmailService implements EmailService {
 
                 Complete pre-registration:
                 %s
+                %s
 
                 Your access badge is not included in this invite. After pre-registration is reviewed and approved, AccessFlow will send a second email with the approved QR badge and access instructions.
 
@@ -279,6 +280,7 @@ public class SendGridEmailService implements EmailService {
                 locationText(invite),
                 approvalStatus(invite),
                 invite.getInviteUrl(),
+                isBlank(invite.getMobileInviteUrl()) ? "" : "\nOpen in the AccessFlow app:\n" + invite.getMobileInviteUrl(),
                 inviteExpiry(invite),
                 note
         );
@@ -411,7 +413,7 @@ public class SendGridEmailService implements EmailService {
                                     </td>
                                   </tr>
                                 </table>
-                                <p style="margin:0 0 18px;"><a href="%s" style="background:#1d4ed8;border-radius:8px;color:#ffffff;display:inline-block;font-size:15px;font-weight:800;padding:14px 18px;text-decoration:none;">Complete pre-registration</a></p>
+                                <p style="margin:0 0 18px;"><a href="%s" style="background:#1d4ed8;border-radius:8px;color:#ffffff;display:inline-block;font-size:15px;font-weight:800;padding:14px 18px;text-decoration:none;">Complete pre-registration</a>%s</p>
                                 <p style="margin:0 0 8px;color:#475467;font-size:13px;line-height:1.6;">If the button does not open, copy and paste this link into your browser:</p>
                                 <p style="margin:0;color:#1d4ed8;font-size:13px;line-height:1.6;word-break:break-word;"><a href="%s" style="color:#1d4ed8;text-decoration:none;">%s</a></p>
                               </td>
@@ -439,6 +441,7 @@ public class SendGridEmailService implements EmailService {
                 detailRow("Approval status", approvalStatus(invite)),
                 noteHtml,
                 escapedInviteUrl,
+                appInviteLink(invite),
                 escapedInviteUrl,
                 escapedInviteUrl,
                 escapeHtml(inviteExpiry(invite))
@@ -677,9 +680,15 @@ public class SendGridEmailService implements EmailService {
     }
 
     private String approvalStatus(VisitorInvite invite) {
-        return invite.isApprovalRequired()
-                ? "Host approval required after pre-registration"
-                : "Pre-approved after registration";
+        return "Host or workplace approval required after pre-registration";
+    }
+
+    private String appInviteLink(VisitorInvite invite) {
+        if (isBlank(invite.getMobileInviteUrl())) {
+            return "";
+        }
+        return " <a href=\"%s\" style=\"color:#1d4ed8;display:inline-block;font-size:14px;font-weight:800;margin-left:12px;text-decoration:none;\">Open in app</a>"
+                .formatted(escapeHtml(invite.getMobileInviteUrl()));
     }
 
     private String locationText(VisitorInvite invite) {

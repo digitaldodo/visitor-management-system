@@ -7,6 +7,7 @@ import com.visitor.management.dto.VisitorInviteRegistrationRequest;
 import com.visitor.management.dto.VisitorInviteResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
+import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.NotificationStatus;
 import com.visitor.management.entity.Organization;
@@ -94,8 +95,8 @@ public class VisitorInviteService {
         invite.setScheduledEndTime(scheduledEnd);
         invite.setExpectedDurationMinutes(Duration.between(request.scheduledStartTime(), scheduledEnd).toMinutes());
         invite.setTimezone(trimToNull(request.timezone()) != null ? request.timezone() : organization.getTimezone());
-        invite.setApprovalRequired(Boolean.TRUE.equals(request.approvalRequired()));
-        invite.setStatus(VisitorInviteStatus.SENT);
+        invite.setApprovalRequired(true);
+        invite.setStatus(VisitorInviteStatus.INVITED);
         invite.setEmailStatus(trimToNull(request.visitorEmail()) == null ? NotificationStatus.FAILED : NotificationStatus.PENDING);
         invite.setLastEmailError(trimToNull(request.visitorEmail()) == null ? "Visitor email address was not provided." : null);
         invite.setExpiresAt(now.plus(Duration.ofHours(ttlHours)));
@@ -103,6 +104,7 @@ public class VisitorInviteService {
         invite.setCreatedAt(now);
         invite.setUpdatedAt(now);
         invite.setInviteUrl(inviteUrl(token));
+        invite.setMobileInviteUrl(mobileInviteUrl(token));
 
         VisitorInvite saved = visitorInviteRepository.save(invite);
         notificationService.notifyUser(
@@ -120,6 +122,7 @@ public class VisitorInviteService {
         );
         if (saved.getVisitorEmail() != null) {
             visitorInviteEmailDispatcher.deliverInviteEmailAsync(saved.getId());
+            notifyRegisteredVisitorInviteReceived(saved);
         }
         return toResponse(saved, null);
     }
@@ -141,6 +144,18 @@ public class VisitorInviteService {
                 .toList();
     }
 
+    public List<VisitorInviteResponse> listForVisitorAccount(User account) {
+        expireStaleInvites();
+        String email = required(account.getEmail(), "Visitor account email is required.");
+        String organizationId = trimToNull(account.getOrganizationId());
+        List<VisitorInvite> invites = organizationId == null
+                ? visitorInviteRepository.findTop50ByVisitorEmailIgnoreCaseOrderByCreatedAtDesc(email)
+                : visitorInviteRepository.findTop50ByVisitorEmailIgnoreCaseAndOrganizationIdOrderByCreatedAtDesc(email, organizationId);
+        return invites.stream()
+                .map(invite -> toResponse(invite, passIfReady(invite)))
+                .toList();
+    }
+
     public VisitorInviteResponse viewPublic(String token) {
         VisitorInvite invite = requireByToken(token);
         Instant now = Instant.now();
@@ -148,16 +163,16 @@ public class VisitorInviteService {
             invite.setStatus(VisitorInviteStatus.EXPIRED);
             invite.setUpdatedAt(now);
             invite = visitorInviteRepository.save(invite);
-        } else if (invite.getStatus() == VisitorInviteStatus.SENT) {
-            invite.setStatus(VisitorInviteStatus.VIEWED);
+        } else if (isInvited(invite.getStatus())) {
+            invite.setStatus(VisitorInviteStatus.PRE_REGISTRATION_PENDING);
             invite.setViewedAt(now);
             invite.setUpdatedAt(now);
             invite = visitorInviteRepository.save(invite);
             notificationService.notifyUser(
                     invite.getHostEmployeeId(),
-                    NotificationType.VISITOR_INVITE_VIEWED,
-                    "Visitor invite viewed",
-                    "%s opened the pre-registration invite.".formatted(invite.getVisitorName()),
+                NotificationType.VISITOR_INVITE_VIEWED,
+                "Visitor invite viewed",
+                "%s opened the pre-registration invite.".formatted(invite.getVisitorName()),
                     null,
                     "/pages/employee/#requests"
             );
@@ -198,15 +213,15 @@ public class VisitorInviteService {
                 null,
                 null,
                 invite.getNote(),
-                !invite.isApprovalRequired(),
+                false,
                 invite.getId()
         ), invite.getHostEmployeeId());
 
         Instant now = Instant.now();
         invite.setVisitorId(visitor.id());
         invite.setRegistrationCompletedAt(now);
-        invite.setQrIssuedAt(visitor.qrIssuedAt());
-        invite.setStatus(visitor.qrIssuedAt() != null ? VisitorInviteStatus.QR_ISSUED : VisitorInviteStatus.REGISTRATION_COMPLETED);
+        invite.setQrIssuedAt(null);
+        invite.setStatus(VisitorInviteStatus.PENDING_APPROVAL);
         invite.setUpdatedAt(now);
         VisitorInvite saved = visitorInviteRepository.save(invite);
 
@@ -214,7 +229,7 @@ public class VisitorInviteService {
                 invite.getHostEmployeeId(),
                 NotificationType.VISITOR_PRE_REGISTRATION_COMPLETED,
                 "Visitor pre-registration completed",
-                "%s completed pre-registration. %s".formatted(visitor.fullName(), visitor.qrIssuedAt() != null ? "A temporary QR pass is ready." : "Approval is pending."),
+                "%s completed pre-registration. Approval is pending; no badge has been issued yet.".formatted(visitor.fullName()),
                 null,
                 "/pages/employee/#requests"
         );
@@ -229,6 +244,7 @@ public class VisitorInviteService {
                 "/pages/security/#visitors",
                 invite.getHostEmployeeName()
         );
+        notifyRegisteredVisitorPreRegistrationPending(saved, visitor);
 
         return toResponse(saved, null);
     }
@@ -253,7 +269,7 @@ public class VisitorInviteService {
         notificationService.notifyUser(
                 invite.getHostEmployeeId(),
                 NotificationType.VISITOR_INVITE_REVOKED,
-                "QR invite revoked",
+                "Visitor invite revoked",
                 "%s's visitor invite was revoked. %s".formatted(invite.getVisitorName(), invite.getRevocationReason()),
                 null,
                 "/pages/employee/#requests"
@@ -307,7 +323,7 @@ public class VisitorInviteService {
     }
 
     private VisitorPassResponse passIfReady(VisitorInvite invite) {
-        if (invite.getVisitorId() == null || invite.getStatus() != VisitorInviteStatus.QR_ISSUED) {
+        if (invite.getVisitorId() == null || !isBadgeIssued(invite.getStatus())) {
             return null;
         }
         try {
@@ -320,7 +336,12 @@ public class VisitorInviteService {
     private void expireStaleInvites() {
         Instant now = Instant.now();
         List<VisitorInvite> stale = visitorInviteRepository.findAllByStatusInAndExpiresAtBefore(
-                List.of(VisitorInviteStatus.SENT, VisitorInviteStatus.VIEWED, VisitorInviteStatus.REGISTRATION_COMPLETED),
+                List.of(
+                        VisitorInviteStatus.INVITED,
+                        VisitorInviteStatus.PRE_REGISTRATION_PENDING,
+                        VisitorInviteStatus.SENT,
+                        VisitorInviteStatus.VIEWED
+                ),
                 now
         );
         stale.forEach(invite -> {
@@ -355,6 +376,10 @@ public class VisitorInviteService {
                 invite.isApprovalRequired(),
                 invite.getStatus(),
                 invite.getInviteUrl(),
+                invite.getMobileInviteUrl(),
+                lifecycleStage(invite),
+                lifecycleLabel(invite),
+                nextAction(invite),
                 invite.getNote(),
                 invite.getEmailStatus(),
                 invite.getEmailSentAt(),
@@ -382,6 +407,113 @@ public class VisitorInviteService {
                 && (actor.getRoles().contains(Role.ADMIN) || actor.getRoles().contains(Role.SUPER_ADMIN) || actor.getRoles().contains(Role.SECURITY_GUARD));
     }
 
+    private void notifyRegisteredVisitorInviteReceived(VisitorInvite invite) {
+        findRegisteredVisitor(invite).forEach(visitorAccount -> notificationService.notifyUser(
+                visitorAccount.getId(),
+                NotificationType.VISITOR_INVITE_SENT,
+                "%s invited you to %s".formatted(invite.getHostEmployeeName(), safeOrganization(invite)),
+                "Complete pre-registration before arrival. Your QR badge will be issued only after approval.",
+                null,
+                invite.getMobileInviteUrl() != null ? invite.getMobileInviteUrl() : invite.getInviteUrl(),
+                invite.getHostEmployeeName(),
+                invite.getOrganizationId(),
+                "invite:%s:received:recipient:%s".formatted(invite.getId(), visitorAccount.getId()),
+                "VISITOR_INVITE",
+                invite.getId()
+        ));
+    }
+
+    private void notifyRegisteredVisitorPreRegistrationPending(VisitorInvite invite, VisitorResponse visitor) {
+        findRegisteredVisitor(invite).forEach(visitorAccount -> notificationService.notifyUser(
+                visitorAccount.getId(),
+                NotificationType.VISITOR_PRE_REGISTRATION_COMPLETED,
+                "Pre-registration submitted",
+                "Your pre-registration for %s is awaiting host or workplace approval.".formatted(safeOrganization(invite)),
+                null,
+                "/visitor/pass",
+                invite.getHostEmployeeName(),
+                invite.getOrganizationId(),
+                "invite:%s:pending-approval:recipient:%s".formatted(invite.getId(), visitorAccount.getId()),
+                "VISITOR",
+                visitor.id()
+        ));
+    }
+
+    private List<User> findRegisteredVisitor(VisitorInvite invite) {
+        String visitorEmail = trimToNull(invite.getVisitorEmail());
+        if (visitorEmail == null) {
+            return List.of();
+        }
+        return userRepository.findByEmailIgnoreCase(visitorEmail)
+                .filter(user -> user.isActive())
+                .filter(user -> user.getRoles() != null && user.getRoles().contains(Role.VISITOR))
+                .filter(user -> user.getAccountStatus() == null || user.getAccountStatus() == AccountStatus.ACTIVE)
+                .filter(user -> {
+                    String userOrganizationId = trimToNull(user.getOrganizationId());
+                    return userOrganizationId == null || userOrganizationId.equals(invite.getOrganizationId());
+                })
+                .stream()
+                .toList();
+    }
+
+    private boolean isInvited(VisitorInviteStatus status) {
+        return status == VisitorInviteStatus.INVITED || status == VisitorInviteStatus.SENT;
+    }
+
+    private boolean isBadgeIssued(VisitorInviteStatus status) {
+        return status == VisitorInviteStatus.BADGE_ISSUED || status == VisitorInviteStatus.QR_ISSUED;
+    }
+
+    private String lifecycleStage(VisitorInvite invite) {
+        if (invite.getStatus() == VisitorInviteStatus.ARRIVED) {
+            return "CHECKED_IN";
+        }
+        if (invite.getArrivedAt() != null) {
+            return "CHECKED_IN";
+        }
+        if (isBadgeIssued(invite.getStatus()) || invite.getQrIssuedAt() != null) {
+            return "BADGE_ISSUED";
+        }
+        return switch (invite.getStatus()) {
+            case INVITED, SENT -> "INVITED";
+            case PRE_REGISTRATION_PENDING, VIEWED -> "PRE_REGISTRATION_PENDING";
+            case PRE_REGISTERED, REGISTRATION_COMPLETED -> "PRE_REGISTERED";
+            case PENDING_APPROVAL -> "PENDING_APPROVAL";
+            case APPROVED -> "APPROVED";
+            case EXPIRED -> "EXPIRED";
+            case REVOKED -> "REVOKED";
+            default -> "INVITED";
+        };
+    }
+
+    private String lifecycleLabel(VisitorInvite invite) {
+        return switch (lifecycleStage(invite)) {
+            case "INVITED" -> "Invited";
+            case "PRE_REGISTRATION_PENDING" -> "Pre-registration pending";
+            case "PRE_REGISTERED" -> "Pre-registered";
+            case "PENDING_APPROVAL" -> "Awaiting approval";
+            case "APPROVED" -> "Approved";
+            case "BADGE_ISSUED" -> "Badge issued";
+            case "CHECKED_IN" -> "Checked in";
+            case "EXPIRED" -> "Expired";
+            case "REVOKED" -> "Revoked";
+            default -> "Invite active";
+        };
+    }
+
+    private String nextAction(VisitorInvite invite) {
+        return switch (lifecycleStage(invite)) {
+            case "INVITED", "PRE_REGISTRATION_PENDING" -> "Complete visitor pre-registration.";
+            case "PRE_REGISTERED", "PENDING_APPROVAL" -> "Await host or workplace approval.";
+            case "APPROVED" -> "AccessFlow is preparing the approved badge.";
+            case "BADGE_ISSUED" -> "Open the badge in the visitor app and present it at reception.";
+            case "CHECKED_IN" -> "Follow site check-out instructions before leaving.";
+            case "EXPIRED" -> "Ask the host for a new invite.";
+            case "REVOKED" -> "Contact the host if this visit is still required.";
+            default -> "Review invite details.";
+        };
+    }
+
     private String inviteCreatedMessage(VisitorInvite invite) {
         String base = "%s was invited to pre-register before arrival.".formatted(invite.getVisitorName());
         String note = trimToNull(invite.getNote());
@@ -389,6 +521,15 @@ public class VisitorInviteService {
             return base;
         }
         return "%s Note: %s".formatted(base, note.length() > 120 ? note.substring(0, 120) : note);
+    }
+
+    private String safeOrganization(VisitorInvite invite) {
+        String organizationName = trimToNull(invite.getOrganizationName());
+        if (organizationName != null) {
+            return organizationName;
+        }
+        String organizationCode = trimToNull(invite.getOrganizationCode());
+        return organizationCode != null ? organizationCode : "AccessFlow";
     }
 
     private String inviteUrl(String token) {
@@ -401,6 +542,10 @@ public class VisitorInviteService {
                 .pathSegment("visitor-invite", token)
                 .build()
                 .toUriString();
+    }
+
+    private String mobileInviteUrl(String token) {
+        return "accessflow://visitor-invite/" + token;
     }
 
     private User currentUser(String userId) {

@@ -1,7 +1,7 @@
 import { publicRequest, request } from '../api/apiClient';
 import { uploadImage, type UploadAsset } from './uploadService';
 import type { VisitorRegisterPayload } from '../types/auth';
-import type { HostDirectoryEntry, NotificationInbox, SecurityPhotoUpload, VisitorRecord } from '../types/domain';
+import type { HostDirectoryEntry, NotificationInbox, SecurityPhotoUpload, VisitorInviteRecord, VisitorRecord } from '../types/domain';
 
 export type VisitorOverview = {
   name?: string | null;
@@ -104,6 +104,13 @@ export async function getVisitorOverview() {
 export async function getVisitorVisits() {
   return request<VisitorRecord[]>({
     url: '/visitor/visits',
+    method: 'GET',
+  });
+}
+
+export async function getVisitorInvites() {
+  return request<VisitorInviteRecord[]>({
+    url: '/visitor/invites',
     method: 'GET',
   });
 }

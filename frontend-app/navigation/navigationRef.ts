@@ -71,6 +71,14 @@ export function navigateToWorkspaceContext(target: WorkspaceNavigationTarget, pa
   }
 }
 
+export function navigateToVisitorInviteRegistration(token: string) {
+  if (!navigationRef.isReady() || !token.trim()) {
+    return;
+  }
+  const navigate = navigationRef.navigate as unknown as (name: string, params?: Record<string, unknown>) => void;
+  navigate('VisitorInviteRegistration', { token: token.trim() });
+}
+
 export function resetNavigationToRoleHome(role: ActiveWorkspaceRole) {
   if (!navigationRef.isReady()) {
     return;

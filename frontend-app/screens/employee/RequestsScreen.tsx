@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
@@ -66,7 +66,6 @@ export function RequestsScreen() {
     purposeOfVisit: '',
     scheduledStartAt: nearestArrivalTime(),
     expectedDurationMinutes: '60',
-    approvalRequired: false,
     note: '',
   });
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -143,7 +142,7 @@ export function RequestsScreen() {
         scheduledEndTime: scheduledEndAt.toISOString(),
         expectedDurationMinutes: duration,
         timezone: localTimezone,
-        approvalRequired: inviteForm.approvalRequired,
+        approvalRequired: true,
         expiresInHours: 72,
         note: inviteForm.note.trim() || null,
       });
@@ -156,7 +155,6 @@ export function RequestsScreen() {
         purposeOfVisit: '',
         scheduledStartAt: nearestArrivalTime(),
         expectedDurationMinutes: '60',
-        approvalRequired: false,
         note: '',
       });
       await refreshWorkspace();
@@ -288,7 +286,7 @@ export function RequestsScreen() {
 
         <SurfaceCard
           title="Pre-registration invites"
-          subtitle="Send a secure invite link so visitors complete details and receive their temporary QR before arrival."
+          subtitle="Send a secure invite link so visitors complete details before approval. Approved QR badges are issued only after host action."
         >
           <AppTextField label="Visitor name" value={inviteForm.visitorName} onChangeText={(visitorName) => setInviteForm((current) => ({ ...current, visitorName }))} placeholder="Full name" />
           <AppTextField label="Visitor email" value={inviteForm.visitorEmail} onChangeText={(visitorEmail) => setInviteForm((current) => ({ ...current, visitorEmail }))} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
@@ -322,20 +320,10 @@ export function RequestsScreen() {
             multiline
             maxLength={500}
           />
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: inviteForm.approvalRequired }}
-            onPress={() => setInviteForm((current) => ({ ...current, approvalRequired: !current.approvalRequired }))}
-            style={styles.toggleRow}
-          >
-            <View style={[styles.checkbox, inviteForm.approvalRequired ? styles.checkboxActive : null]}>
-              {inviteForm.approvalRequired ? <Text style={styles.checkboxMark}>OK</Text> : null}
-            </View>
-            <View style={styles.toggleCopy}>
-              <Text style={styles.toggleTitle}>Require approval after registration</Text>
-              <Text style={styles.toggleBody}>Leave off for automatic pre-approval and QR issuance after the visitor completes the invite.</Text>
-            </View>
-          </Pressable>
+          <View style={styles.policyPanel}>
+            <StatusPill label="Approval required" tone="warning" />
+            <Text style={styles.bodyText}>Visitors can pre-register from email or the app, then wait in the approval queue. AccessFlow will not issue the QR badge until you approve.</Text>
+          </View>
           {inviteError ? <Text style={styles.errorText}>{inviteError}</Text> : null}
           <PrimaryButton
             label="Create secure invite"
@@ -344,7 +332,7 @@ export function RequestsScreen() {
           />
         </SurfaceCard>
 
-        <SurfaceCard title="Invite lifecycle" subtitle="Track sent, viewed, completed, QR issued, expired, and revoked invite states.">
+        <SurfaceCard title="Invite lifecycle" subtitle="Track invited, pre-registration pending, awaiting approval, badge issued, expired, and revoked states.">
           {visitorInvites.data?.length ? (
             visitorInvites.data.slice(0, 10).map((invite) => (
               <View key={invite.id} style={styles.queueCard}>
@@ -352,15 +340,16 @@ export function RequestsScreen() {
                   title={invite.visitorName}
                   subtitle={[invite.companyName, invite.purposeOfVisit].filter(Boolean).join(' · ')}
                   meta={invite.scheduledStartTime ? formatDateTime(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Arrival time pending'}
-                  status={invite.status.replaceAll('_', ' ')}
-                  tone={invite.status === 'REVOKED' || invite.status === 'EXPIRED' ? 'danger' : invite.status === 'QR_ISSUED' ? 'success' : 'info'}
+                  status={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')}
+                  tone={invite.status === 'REVOKED' || invite.status === 'EXPIRED' ? 'danger' : ['QR_ISSUED', 'BADGE_ISSUED'].includes(invite.status) ? 'success' : invite.status === 'PENDING_APPROVAL' ? 'warning' : 'info'}
                 />
                 <OperationalFieldList
                   items={[
                     { label: 'Invite link', value: invite.inviteUrl || 'Link unavailable' },
                     { label: 'Expires', value: invite.expiresAt ? formatDateTime(invite.expiresAt, invite.timezone || invite.organizationTimezone) : 'No expiry recorded' },
                     { label: 'Viewed', value: invite.viewedAt ? formatDateTime(invite.viewedAt, invite.timezone || invite.organizationTimezone) : 'Not viewed yet' },
-                    { label: 'QR status', value: invite.qrIssuedAt ? `Issued ${formatDateTime(invite.qrIssuedAt, invite.timezone || invite.organizationTimezone)}` : invite.approvalRequired ? 'Approval required' : 'Pending registration' },
+                    { label: 'QR status', value: invite.qrIssuedAt ? `Issued ${formatDateTime(invite.qrIssuedAt, invite.timezone || invite.organizationTimezone)}` : 'Not issued before approval' },
+                    { label: 'Next step', value: invite.nextAction || 'Monitor invite lifecycle' },
                     { label: 'Email', value: invite.visitorEmail ? `${invite.emailStatus?.replaceAll('_', ' ') || 'Queued'}${invite.emailSentAt ? ` ${formatDateTime(invite.emailSentAt, invite.timezone || invite.organizationTimezone)}` : ''}` : 'No visitor email provided' },
                     { label: 'Visitor note', value: invite.note || 'No additional note' },
                   ]}
@@ -551,6 +540,14 @@ const styles = StyleSheet.create({
     color: theme.colors.danger,
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
+  },
+  policyPanel: {
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+    padding: theme.spacing.md,
   },
   upcomingFooter: {
     gap: theme.spacing.sm,

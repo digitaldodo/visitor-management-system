@@ -350,7 +350,7 @@ function statusLabel(status) {
 
 function chipTone(status) {
   const normalized = String(status || "").toUpperCase();
-  if (["QR_ISSUED", "REGISTRATION_COMPLETED", "ARRIVED"].includes(normalized)) {
+  if (["QR_ISSUED", "BADGE_ISSUED", "REGISTRATION_COMPLETED", "ARRIVED"].includes(normalized)) {
     return "success";
   }
   if (["EXPIRED", "REVOKED"].includes(normalized)) {
@@ -392,7 +392,7 @@ function lifecycleTimeline(invite) {
 }
 
 function isBadgeIssued(invite) {
-  return Boolean(invite?.qrIssuedAt || invite?.pass?.qrImageDataUri || String(invite?.status || "").toUpperCase() === "QR_ISSUED");
+  return Boolean(invite?.qrIssuedAt || invite?.pass?.qrImageDataUri || ["QR_ISSUED", "BADGE_ISSUED"].includes(String(invite?.status || "").toUpperCase()));
 }
 
 function isCompletionConflict(error) {

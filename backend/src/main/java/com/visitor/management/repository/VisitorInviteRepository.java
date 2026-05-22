@@ -18,6 +18,10 @@ public interface VisitorInviteRepository extends MongoRepository<VisitorInvite, 
 
     List<VisitorInvite> findTop50ByOrganizationIdOrderByCreatedAtDesc(String organizationId);
 
+    List<VisitorInvite> findTop50ByVisitorEmailIgnoreCaseOrderByCreatedAtDesc(String visitorEmail);
+
+    List<VisitorInvite> findTop50ByVisitorEmailIgnoreCaseAndOrganizationIdOrderByCreatedAtDesc(String visitorEmail, String organizationId);
+
     List<VisitorInvite> findAllByStatusInAndExpiresAtBefore(List<VisitorInviteStatus> statuses, Instant expiresAt);
 
     List<VisitorInvite> findByVisitorEmailIsNotNullAndEmailStatusAndEmailAttemptsLessThan(NotificationStatus status, int attempts);

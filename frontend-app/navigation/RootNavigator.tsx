@@ -127,6 +127,7 @@ export function RootNavigator() {
           ) : (
             <RootStack.Screen name="AdminStack" component={AdminNavigator} />
           )}
+          <RootStack.Screen name="VisitorInviteRegistration" component={VisitorInviteRegistrationScreen} options={{ animation: 'slide_from_right' }} />
         </RootStack.Navigator>
       )}
     </NavigationContainer>

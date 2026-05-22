@@ -1,5 +1,5 @@
 import { getWorkspaceConfig, isNotificationAllowedForRole, type WorkspaceNavigationTarget } from '../auth/workspaceConfig';
-import { navigateToWorkspace, navigateToWorkspaceContext } from '../navigation/navigationRef';
+import { navigateToVisitorInviteRegistration, navigateToWorkspace, navigateToWorkspaceContext } from '../navigation/navigationRef';
 import type { ActiveWorkspaceRole } from '../types/auth';
 import type { OperationalEvent } from '../types/operationalSync';
 
@@ -17,12 +17,31 @@ export type OperationalDeepLinkPayload = {
 };
 
 export function openOperationalDeepLink(role: ActiveWorkspaceRole, payload: OperationalDeepLinkPayload) {
+  const inviteToken = role === 'VISITOR' ? inviteTokenFromActionUrl(payload.actionUrl) : null;
+  if (inviteToken) {
+    navigateToVisitorInviteRegistration(inviteToken);
+    return true;
+  }
   const target = resolveOperationalDeepLink(role, payload);
   if (!target) {
     return false;
   }
   navigateToWorkspaceContext(target.target, target.params);
   return true;
+}
+
+function inviteTokenFromActionUrl(actionUrl?: string | null) {
+  const value = String(actionUrl || '');
+  const marker = '/visitor-invite/';
+  const markerIndex = value.indexOf(marker);
+  if (markerIndex >= 0) {
+    return value.slice(markerIndex + marker.length).split(/[?#]/)[0] || null;
+  }
+  const schemeMarker = 'accessflow://visitor-invite/';
+  if (value.startsWith(schemeMarker)) {
+    return value.slice(schemeMarker.length).split(/[?#]/)[0] || null;
+  }
+  return null;
 }
 
 export function resolveOperationalDeepLink(

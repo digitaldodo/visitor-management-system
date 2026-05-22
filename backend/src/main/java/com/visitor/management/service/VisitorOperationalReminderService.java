@@ -153,7 +153,12 @@ public class VisitorOperationalReminderService {
 
         Instant lookAhead = now.plus(Duration.ofMinutes(Math.max(reminders.getInviteRegistrationReminderMinutesBefore(), reminders.getLookAheadMinutes())));
         Query query = new Query()
-                .addCriteria(Criteria.where("status").in(VisitorInviteStatus.SENT, VisitorInviteStatus.VIEWED))
+                .addCriteria(Criteria.where("status").in(
+                        VisitorInviteStatus.INVITED,
+                        VisitorInviteStatus.PRE_REGISTRATION_PENDING,
+                        VisitorInviteStatus.SENT,
+                        VisitorInviteStatus.VIEWED
+                ))
                 .addCriteria(Criteria.where("scheduledStartTime").gte(now.minus(Duration.ofMinutes(1))).lte(lookAhead))
                 .addCriteria(Criteria.where("hostEmployeeId").ne(null))
                 .with(Sort.by(Sort.Direction.ASC, "scheduledStartTime"))

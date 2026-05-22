@@ -1,8 +1,12 @@
 package com.visitor.management.service;
 
 import com.visitor.management.entity.NotificationType;
+import com.visitor.management.entity.AccountStatus;
+import com.visitor.management.entity.Role;
+import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorInviteStatus;
+import com.visitor.management.repository.UserRepository;
 import com.visitor.management.repository.VisitorInviteRepository;
 import org.springframework.stereotype.Service;
 
@@ -15,15 +19,18 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
     private final NotificationService notificationService;
     private final VisitorInviteRepository visitorInviteRepository;
     private final VisitorBadgeEmailDispatcher visitorBadgeEmailDispatcher;
+    private final UserRepository userRepository;
 
     public VisitorLifecycleNotificationService(
             NotificationService notificationService,
             VisitorInviteRepository visitorInviteRepository,
-            VisitorBadgeEmailDispatcher visitorBadgeEmailDispatcher
+            VisitorBadgeEmailDispatcher visitorBadgeEmailDispatcher,
+            UserRepository userRepository
     ) {
         this.notificationService = notificationService;
         this.visitorInviteRepository = visitorInviteRepository;
         this.visitorBadgeEmailDispatcher = visitorBadgeEmailDispatcher;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -58,12 +65,14 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 : "%s has been approved. The visitor badge is ready.".formatted(visitor.getFullName());
         notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/pages/employee/#scheduled", null);
         markInviteQrIssued(visitor);
+        notifyVisitorAccount(visitor, NotificationType.VISITOR_APPROVED, "Badge issued", "Your visit has been approved and your QR badge is ready in AccessFlow.", "/visitor/pass", "badge-issued");
         sendApprovedBadgeEmail(visitor);
     }
 
     @Override
     public void visitorRejected(Visitor visitor) {
         notifyHost(visitor, NotificationType.VISITOR_REJECTED, "Visitor denied", "%s has been denied.".formatted(visitor.getFullName()));
+        notifyVisitorAccount(visitor, NotificationType.VISITOR_REJECTED, "Visit not approved", "Your visitor pre-registration was not approved. Contact your host if you still need access.", "/visitor/notifications", "rejected");
     }
 
     @Override
@@ -166,7 +175,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
             if (invite.getStatus() == VisitorInviteStatus.REVOKED || invite.getStatus() == VisitorInviteStatus.ARRIVED) {
                 return;
             }
-            invite.setStatus(VisitorInviteStatus.QR_ISSUED);
+            invite.setStatus(VisitorInviteStatus.BADGE_ISSUED);
             invite.setQrIssuedAt(visitor.getQrIssuedAt());
             invite.setUpdatedAt(Instant.now());
             visitorInviteRepository.save(invite);
@@ -191,5 +200,29 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void notifyVisitorAccount(Visitor visitor, NotificationType type, String title, String message, String actionUrl, String dedupeSuffix) {
+        if (isBlank(visitor.getEmail())) {
+            return;
+        }
+        userRepository.findByEmailIgnoreCase(visitor.getEmail())
+                .filter(user -> user.isActive())
+                .filter(user -> user.getRoles() != null && user.getRoles().contains(Role.VISITOR))
+                .filter(user -> user.getAccountStatus() == null || user.getAccountStatus() == AccountStatus.ACTIVE)
+                .filter(user -> isBlank(user.getOrganizationId()) || user.getOrganizationId().equals(visitor.getOrganizationId()))
+                .ifPresent(user -> notificationService.notifyUser(
+                        user.getId(),
+                        type,
+                        title,
+                        message,
+                        visitor,
+                        actionUrl,
+                        visitor.getHostEmployee(),
+                        visitor.getOrganizationId(),
+                        "visitor:%s:%s:recipient:%s".formatted(visitor.getId(), dedupeSuffix, user.getId()),
+                        "VISITOR",
+                        visitor.getId()
+                ));
     }
 }

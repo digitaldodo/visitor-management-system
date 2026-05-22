@@ -237,8 +237,9 @@ public class VisitorService {
         visitor.setHostEmployee(resolveHostEmployeeName(request.hostEmployee(), visitor.getHostEmployeeId()));
         visitor.setHostEmployeeDepartment(resolveHostDepartment(visitor.getHostEmployeeId()));
         applyVisitorTypeProfile(visitor, request, actor);
-        boolean preApprovedInvite = Boolean.TRUE.equals(request.preApprovedInvite()) && actor != null;
-        if (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor) || preApprovedInvite) {
+        boolean inviteRegistration = trimToNull(request.inviteId()) != null;
+        boolean preApprovedInvite = !inviteRegistration && Boolean.TRUE.equals(request.preApprovedInvite()) && actor != null;
+        if (!inviteRegistration && (isRecurringVisitor(visitor) || isImmediateAccessVisitor(visitor) || preApprovedInvite)) {
             requireNoEmergencyLockdown(organization.getId(), "Visitor approvals are suspended during emergency lockdown.");
         }
         applyOneTimeSchedule(
@@ -252,13 +253,13 @@ public class VisitorService {
         );
         visitor.setPhotoUrl(requiredTrim(request.photoUrl(), "Visitor photo is required."));
         visitor.setPhotoPublicId(requiredTrim(request.photoPublicId(), "Visitor photo is required."));
-        if (isRecurringVisitor(visitor)) {
+        if (!inviteRegistration && isRecurringVisitor(visitor)) {
             visitor.setPreApproved(true);
             visitor.setStatus(VisitorStatus.APPROVED);
             visitor.setApprovedAt(now);
             visitor.setApprovedBy(actorId);
             issuePassCredentials(visitor, now);
-        } else if (isImmediateAccessVisitor(visitor) || preApprovedInvite) {
+        } else if (!inviteRegistration && (isImmediateAccessVisitor(visitor) || preApprovedInvite)) {
             visitor.setPreApproved(preApprovedInvite);
             visitor.setStatus(VisitorStatus.APPROVED);
             visitor.setApprovedAt(now);
@@ -271,12 +272,24 @@ public class VisitorService {
         visitor.setCreatedAt(now);
         visitor.setUpdatedAt(now);
         enforceActiveVisitorRules(visitor);
-        String action = isRecurringVisitor(visitor) ? "RECURRING_PROFILE_CREATED" : preApprovedInvite ? "INVITE_PRE_REGISTERED" : isImmediateAccessVisitor(visitor) ? "IMMEDIATE_ACCESS_REGISTERED" : "REGISTERED";
-        String note = isRecurringVisitor(visitor) ? "Recurring visitor profile approved and reusable badge issued." : preApprovedInvite ? "Visitor completed a pre-registration invite and a temporary pass was issued." : isImmediateAccessVisitor(visitor) ? "Walk-in or emergency access approved at registration." : "Approval requested.";
+        String action = inviteRegistration
+                ? "INVITE_PRE_REGISTERED"
+                : isRecurringVisitor(visitor)
+                ? "RECURRING_PROFILE_CREATED"
+                : preApprovedInvite
+                        ? "INVITE_PRE_APPROVED"
+                        : isImmediateAccessVisitor(visitor) ? "IMMEDIATE_ACCESS_REGISTERED" : "REGISTERED";
+        String note = inviteRegistration
+                ? "Visitor completed pre-registration. Approval is pending and no badge has been issued."
+                : isRecurringVisitor(visitor)
+                ? "Recurring visitor profile approved and reusable badge issued."
+                : preApprovedInvite
+                        ? "Visitor invite was pre-approved and a temporary pass was issued."
+                        : isImmediateAccessVisitor(visitor) ? "Walk-in or emergency access approved at registration." : "Approval requested.";
         addHistory(visitor, visitor.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), null, saved.getStatus(), action, actorId != null ? actorId : visitor.getHostEmployeeId(), note, now);
-        if (isRecurringVisitor(saved) || preApprovedInvite) {
+        if (!inviteRegistration && (isRecurringVisitor(saved) || preApprovedInvite)) {
             visitorNotificationService.visitorApproved(saved);
         } else {
             visitorNotificationService.visitorApprovalRequested(saved);
@@ -2209,7 +2222,10 @@ public class VisitorService {
     }
 
     private String resolveBadgeId(Visitor visitor) {
-        return visitor.getBadgeId() != null ? visitor.getBadgeId() : "AFB-" + visitor.getQrCode();
+        if (visitor.getBadgeId() != null) {
+            return visitor.getBadgeId();
+        }
+        return visitor.getQrCode() == null ? null : "AFB-" + visitor.getQrCode();
     }
 
     private String hostDepartmentFor(Visitor visitor) {

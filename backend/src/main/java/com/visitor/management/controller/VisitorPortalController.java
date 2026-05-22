@@ -4,6 +4,7 @@ import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.EmployeeDirectoryEntryResponse;
 import com.visitor.management.dto.RescheduleRequest;
 import com.visitor.management.dto.VisitorHistorySummaryResponse;
+import com.visitor.management.dto.VisitorInviteResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorResponse;
@@ -13,6 +14,7 @@ import com.visitor.management.entity.User;
 import com.visitor.management.exception.UnauthorizedException;
 import com.visitor.management.repository.UserRepository;
 import com.visitor.management.service.CloudinaryUploadService;
+import com.visitor.management.service.VisitorInviteService;
 import com.visitor.management.service.VisitorService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -38,15 +40,18 @@ import java.util.Map;
 public class VisitorPortalController {
 
     private final VisitorService visitorService;
+    private final VisitorInviteService visitorInviteService;
     private final UserRepository userRepository;
     private final CloudinaryUploadService cloudinaryUploadService;
 
     public VisitorPortalController(
             VisitorService visitorService,
+            VisitorInviteService visitorInviteService,
             UserRepository userRepository,
             CloudinaryUploadService cloudinaryUploadService
     ) {
         this.visitorService = visitorService;
+        this.visitorInviteService = visitorInviteService;
         this.userRepository = userRepository;
         this.cloudinaryUploadService = cloudinaryUploadService;
     }
@@ -71,6 +76,11 @@ public class VisitorPortalController {
     @GetMapping("/visits")
     public ApiResponse<List<VisitorResponse>> visits(Authentication authentication) {
         return ApiResponse.ok("Visitor requests loaded.", visitorService.visitsForVisitorAccount(currentUser(authentication)));
+    }
+
+    @GetMapping("/invites")
+    public ApiResponse<List<VisitorInviteResponse>> invites(Authentication authentication) {
+        return ApiResponse.ok("Visitor invites loaded.", visitorInviteService.listForVisitorAccount(currentUser(authentication)));
     }
 
     @GetMapping("/history")
