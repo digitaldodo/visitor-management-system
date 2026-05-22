@@ -52,7 +52,9 @@ export function initVisitorModule(selector, options) {
   const pageSize = root.querySelector("[data-visitor-size]");
   initPhoneInput(form);
   initCamera(root, state);
-  initOrganizationSelectors(root, { prefetch: true });
+  if (options.showOrganizationCodeField) {
+    initOrganizationSelectors(root, { prefetch: true });
+  }
   if (options.showHostFields !== false) {
     initHostPicker(root, { basePath: options.basePath });
   }
@@ -262,6 +264,12 @@ function template(options) {
         <input name="companyCode" type="hidden" data-organization-selector data-organization-label="Visitor organization" value="${escapeHtml(options.organizationCode || "")}" />
       </label>
   ` : "";
+  const companyField = options.showCompanyField === false ? "" : `
+      <label class="form-field">
+        <span>Company Name</span>
+        <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
+      </label>
+  `;
   const recurringFields = options.enableRecurring ? `
       <label class="form-field">
         <span>Visitor Type</span>
@@ -365,10 +373,7 @@ function template(options) {
         <span>Email</span>
         <input name="email" type="email" autocomplete="email" placeholder="visitor@company.com" />
       </label>
-      <label class="form-field">
-        <span>Company Name</span>
-        <input name="companyName" type="text" autocomplete="organization" placeholder="Company name" />
-      </label>
+      ${companyField}
       ${recurringFields}
       ${scheduleFields}
       ${organizationCodeField}
@@ -661,10 +666,12 @@ function formPayload(form, options) {
     phoneCountryCode: phone.phoneCountryCode,
     phone: phone.phone,
     email: trim(data.email),
-    companyName: trim(data.companyName),
     companyCode: trim(data.companyCode) || options.organizationCode || null,
     purposeOfVisit: trim(data.purposeOfVisit),
   };
+  if (options.showCompanyField !== false) {
+    payload.companyName = trim(data.companyName);
+  }
   payload.scheduledStartTime = toIsoInstant(data.scheduledStartTime, getDefaultTimezone());
   payload.expectedDurationMinutes = data.expectedDurationMinutes ? Number(data.expectedDurationMinutes) : 60;
   payload.timezone = getDefaultTimezone();

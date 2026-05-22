@@ -27,6 +27,7 @@ import com.visitor.management.entity.Role;
 import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
+import com.visitor.management.entity.VisitorInvite;
 import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.security.JwtService;
 import com.visitor.management.service.EmailService;
@@ -181,6 +182,13 @@ class VisitorManagementApplicationTests {
             return department;
         });
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(visitorInviteRepository.save(any(VisitorInvite.class))).thenAnswer(invocation -> {
+            VisitorInvite invite = invocation.getArgument(0);
+            if (invite.getId() == null) {
+                invite.setId("invite-generated");
+            }
+            return invite;
+        });
         when(employeeAttendanceLogRepository.save(any(EmployeeAttendanceLog.class))).thenAnswer(invocation -> {
             EmployeeAttendanceLog log = invocation.getArgument(0);
             if (log.getId() == null) {
@@ -973,6 +981,55 @@ class VisitorManagementApplicationTests {
                 .andExpect(jsonPath("$.data.preApproved").value(true))
                 .andExpect(jsonPath("$.data.scheduledTimezone").value("Asia/Calcutta"))
                 .andExpect(jsonPath("$.data.qrCode").exists());
+    }
+
+    @Test
+    void employeePreApprovalIgnoresCrossOrganizationPayloadTampering() throws Exception {
+        mockMvc.perform(post("/api/v1/employee/pre-approvals")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "fullName": "Nina Cross",
+                                  "phone": "+919876543212",
+                                  "email": "nina@example.com",
+                                  "companyName": "Beta Corp",
+                                  "companyCode": "BETA",
+                                  "organizationId": "org-beta",
+                                  "purposeOfVisit": "Tenant validation",
+                                  "scheduledStartTime": "2099-05-12T04:30:00Z",
+                                  "scheduledEndTime": "2099-05-12T06:30:00Z",
+                                  "timezone": "Asia/Calcutta"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.organizationId").value("org-acme"))
+                .andExpect(jsonPath("$.data.organizationCode").value("ACME"));
+    }
+
+    @Test
+    void employeeVisitorInviteIgnoresCrossOrganizationPayloadTampering() throws Exception {
+        mockMvc.perform(post("/api/v1/employee/visitor-invites")
+                        .header(HttpHeaders.AUTHORIZATION, bearer("employee-id", Role.EMPLOYEE))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "visitorName": "Ravi Invite",
+                                  "visitorEmail": "ravi@example.com",
+                                  "visitorPhone": "+919876543213",
+                                  "companyName": "Beta Corp",
+                                  "companyCode": "BETA",
+                                  "organizationId": "org-beta",
+                                  "organizationName": "Beta Corp",
+                                  "purposeOfVisit": "Invite validation",
+                                  "scheduledStartTime": "2099-05-12T04:30:00Z",
+                                  "expectedDurationMinutes": 60,
+                                  "timezone": "Asia/Calcutta"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.organizationId").value("org-acme"))
+                .andExpect(jsonPath("$.data.organizationCode").value("ACME"));
     }
 
     @Test

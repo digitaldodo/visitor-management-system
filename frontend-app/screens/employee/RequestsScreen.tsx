@@ -59,7 +59,6 @@ export function RequestsScreen() {
     visitorName: '',
     visitorEmail: '',
     visitorPhone: '',
-    companyName: '',
     purposeOfVisit: '',
     scheduledStartTime: '',
     expectedDurationMinutes: '60',
@@ -116,7 +115,6 @@ export function RequestsScreen() {
         visitorName: inviteForm.visitorName.trim(),
         visitorEmail: inviteForm.visitorEmail.trim() || null,
         visitorPhone: inviteForm.visitorPhone.trim() || null,
-        companyName: inviteForm.companyName.trim() || null,
         purposeOfVisit: inviteForm.purposeOfVisit.trim(),
         scheduledStartTime,
         expectedDurationMinutes: Number(inviteForm.expectedDurationMinutes) || 60,
@@ -129,7 +127,6 @@ export function RequestsScreen() {
         visitorName: '',
         visitorEmail: '',
         visitorPhone: '',
-        companyName: '',
         purposeOfVisit: '',
         scheduledStartTime: '',
         expectedDurationMinutes: '60',
@@ -267,7 +264,6 @@ export function RequestsScreen() {
           <AppTextField label="Visitor name" value={inviteForm.visitorName} onChangeText={(visitorName) => setInviteForm((current) => ({ ...current, visitorName }))} placeholder="Full name" />
           <AppTextField label="Visitor email" value={inviteForm.visitorEmail} onChangeText={(visitorEmail) => setInviteForm((current) => ({ ...current, visitorEmail }))} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
           <AppTextField label="Phone" value={inviteForm.visitorPhone} onChangeText={(visitorPhone) => setInviteForm((current) => ({ ...current, visitorPhone }))} placeholder="Optional phone" keyboardType="phone-pad" />
-          <AppTextField label="Organization" value={inviteForm.companyName} onChangeText={(companyName) => setInviteForm((current) => ({ ...current, companyName }))} placeholder="Visitor company" />
           <AppTextField label="Purpose" value={inviteForm.purposeOfVisit} onChangeText={(purposeOfVisit) => setInviteForm((current) => ({ ...current, purposeOfVisit }))} placeholder="Meeting, contractor visit, interview" />
           <AppTextField label="Arrival time" value={inviteForm.scheduledStartTime} onChangeText={(scheduledStartTime) => setInviteForm((current) => ({ ...current, scheduledStartTime }))} placeholder="2026-05-20T14:30" />
           <View style={styles.segmentRow}>

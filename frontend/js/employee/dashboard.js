@@ -44,6 +44,7 @@ async function bootEmployeePortal() {
     title: "Visitor Registration and History",
     eyebrow: "Personal Records",
     showHostFields: false,
+    showCompanyField: false,
     canDelete: false,
   }), { toastTitle: "Visitor history unavailable" });
   initApprovalActions();
@@ -788,7 +789,6 @@ function preApprovalPayload(form, timezone) {
     phoneCountryCode: phone.phoneCountryCode,
     phone: phone.phone,
     email: trim(data.email),
-    companyName: trim(data.companyName),
     purposeOfVisit: trim(data.purposeOfVisit),
     scheduledStartTime: toIsoInstant(data.scheduledStartTime, timezone),
     scheduledEndTime: toIsoInstant(data.scheduledEndTime, timezone),

@@ -1568,8 +1568,9 @@ public class VisitorService {
     }
 
     private Organization organizationFor(User actor, String companyCode, String companyName) {
-        if (actor != null && actor.getOrganizationId() != null && !hasRole(actor, Role.SUPER_ADMIN)) {
-            return organizationService.requireActive(actor.getOrganizationId());
+        if (actor != null && !hasRole(actor, Role.SUPER_ADMIN)) {
+            String organizationId = requiredTrim(actor.getOrganizationId(), "Authenticated organization scope is required.");
+            return organizationService.requireActive(organizationId);
         }
         return organizationService.resolveRequired(companyCode, companyName);
     }
@@ -2030,8 +2031,9 @@ public class VisitorService {
     }
 
     private Organization resolveSearchOrganization(User actor, String companyCode) {
-        if (actor != null && actor.getOrganizationId() != null && !hasRole(actor, Role.SUPER_ADMIN)) {
-            return organizationService.requireActive(actor.getOrganizationId());
+        if (actor != null && !hasRole(actor, Role.SUPER_ADMIN)) {
+            String organizationId = requiredTrim(actor.getOrganizationId(), "Authenticated organization scope is required.");
+            return organizationService.requireActive(organizationId);
         }
         return organizationService.resolveRequired(companyCode, null);
     }
