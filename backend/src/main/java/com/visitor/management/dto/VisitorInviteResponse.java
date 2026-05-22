@@ -1,5 +1,6 @@
 package com.visitor.management.dto;
 
+import com.visitor.management.entity.NotificationStatus;
 import com.visitor.management.entity.VisitorInviteStatus;
 import com.visitor.management.entity.VisitorType;
 
@@ -27,6 +28,10 @@ public record VisitorInviteResponse(
         boolean approvalRequired,
         VisitorInviteStatus status,
         String inviteUrl,
+        String note,
+        NotificationStatus emailStatus,
+        Instant emailSentAt,
+        String lastEmailError,
         Instant expiresAt,
         Instant viewedAt,
         Instant registrationCompletedAt,

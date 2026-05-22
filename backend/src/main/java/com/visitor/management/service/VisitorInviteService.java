@@ -8,6 +8,7 @@ import com.visitor.management.dto.VisitorInviteResponse;
 import com.visitor.management.dto.VisitorPassResponse;
 import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.entity.NotificationType;
+import com.visitor.management.entity.NotificationStatus;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
@@ -42,6 +43,7 @@ public class VisitorInviteService {
     private final OrganizationService organizationService;
     private final VisitorService visitorService;
     private final NotificationService notificationService;
+    private final VisitorInviteEmailDispatcher visitorInviteEmailDispatcher;
     private final CorsOriginResolver corsOriginResolver;
 
     public VisitorInviteService(
@@ -50,6 +52,7 @@ public class VisitorInviteService {
             OrganizationService organizationService,
             VisitorService visitorService,
             NotificationService notificationService,
+            VisitorInviteEmailDispatcher visitorInviteEmailDispatcher,
             CorsOriginResolver corsOriginResolver
     ) {
         this.visitorInviteRepository = visitorInviteRepository;
@@ -57,6 +60,7 @@ public class VisitorInviteService {
         this.organizationService = organizationService;
         this.visitorService = visitorService;
         this.notificationService = notificationService;
+        this.visitorInviteEmailDispatcher = visitorInviteEmailDispatcher;
         this.corsOriginResolver = corsOriginResolver;
     }
 
@@ -92,6 +96,8 @@ public class VisitorInviteService {
         invite.setTimezone(trimToNull(request.timezone()) != null ? request.timezone() : organization.getTimezone());
         invite.setApprovalRequired(Boolean.TRUE.equals(request.approvalRequired()));
         invite.setStatus(VisitorInviteStatus.SENT);
+        invite.setEmailStatus(trimToNull(request.visitorEmail()) == null ? NotificationStatus.FAILED : NotificationStatus.PENDING);
+        invite.setLastEmailError(trimToNull(request.visitorEmail()) == null ? "Visitor email address was not provided." : null);
         invite.setExpiresAt(now.plus(Duration.ofHours(ttlHours)));
         invite.setNote(trimToNull(request.note()));
         invite.setCreatedAt(now);
@@ -107,6 +113,9 @@ public class VisitorInviteService {
                 null,
                 "/pages/employee/#requests"
         );
+        if (saved.getVisitorEmail() != null) {
+            visitorInviteEmailDispatcher.deliverInviteEmailAsync(saved.getId());
+        }
         return toResponse(saved, null);
     }
 
@@ -320,6 +329,10 @@ public class VisitorInviteService {
                 invite.isApprovalRequired(),
                 invite.getStatus(),
                 invite.getInviteUrl(),
+                invite.getNote(),
+                invite.getEmailStatus(),
+                invite.getEmailSentAt(),
+                invite.getLastEmailError(),
                 invite.getExpiresAt(),
                 invite.getViewedAt(),
                 invite.getRegistrationCompletedAt(),

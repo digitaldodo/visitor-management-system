@@ -118,6 +118,12 @@ export function VisitorInviteRegistrationScreen() {
         {invite ? (
           <>
             <SurfaceCard title="Visit details" subtitle={`${invite.organizationName ?? 'AccessFlow site'} · Host ${invite.hostEmployeeName ?? 'assigned'}`}>
+              {invite.note ? (
+                <View style={styles.notePanel}>
+                  <Text style={styles.noteLabel}>Additional note from host</Text>
+                  <Text style={styles.bodyText}>{invite.note}</Text>
+                </View>
+              ) : null}
               <AppTextField label="Full name" value={form.fullName} onChangeText={(fullName) => setForm((current) => ({ ...current, fullName }))} placeholder="Full name" />
               <AppTextField label="Phone country code" value={form.phoneCountryCode} onChangeText={(phoneCountryCode) => setForm((current) => ({ ...current, phoneCountryCode }))} placeholder="+1" keyboardType="phone-pad" />
               <AppTextField label="Phone" value={form.phone} onChangeText={(phone) => setForm((current) => ({ ...current, phone }))} placeholder="Phone number" keyboardType="phone-pad" />
@@ -176,6 +182,21 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
+  },
+  notePanel: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  noteLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   photoRow: {
     flexDirection: 'row',

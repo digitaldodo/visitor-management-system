@@ -84,6 +84,17 @@ public class VisitorInvite {
 
     private String note;
 
+    @Indexed
+    private NotificationStatus emailStatus = NotificationStatus.FAILED;
+
+    private int emailAttempts;
+
+    private Instant emailLastAttemptAt;
+
+    private Instant emailSentAt;
+
+    private String lastEmailError;
+
     @CreatedDate
     @Indexed
     private Instant createdAt;
@@ -353,6 +364,46 @@ public class VisitorInvite {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public NotificationStatus getEmailStatus() {
+        return emailStatus;
+    }
+
+    public void setEmailStatus(NotificationStatus emailStatus) {
+        this.emailStatus = emailStatus;
+    }
+
+    public int getEmailAttempts() {
+        return emailAttempts;
+    }
+
+    public void setEmailAttempts(int emailAttempts) {
+        this.emailAttempts = emailAttempts;
+    }
+
+    public Instant getEmailLastAttemptAt() {
+        return emailLastAttemptAt;
+    }
+
+    public void setEmailLastAttemptAt(Instant emailLastAttemptAt) {
+        this.emailLastAttemptAt = emailLastAttemptAt;
+    }
+
+    public Instant getEmailSentAt() {
+        return emailSentAt;
+    }
+
+    public void setEmailSentAt(Instant emailSentAt) {
+        this.emailSentAt = emailSentAt;
+    }
+
+    public String getLastEmailError() {
+        return lastEmailError;
+    }
+
+    public void setLastEmailError(String lastEmailError) {
+        this.lastEmailError = lastEmailError;
     }
 
     public Instant getCreatedAt() {

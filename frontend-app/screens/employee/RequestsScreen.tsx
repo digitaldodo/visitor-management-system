@@ -63,6 +63,7 @@ export function RequestsScreen() {
     scheduledStartTime: '',
     expectedDurationMinutes: '60',
     approvalRequired: false,
+    note: '',
   });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
@@ -121,8 +122,9 @@ export function RequestsScreen() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         approvalRequired: inviteForm.approvalRequired,
         expiresInHours: 72,
+        note: inviteForm.note.trim() || null,
       });
-      setActionMessage(`Invite created for ${invite.visitorName}. Secure link is ready to share.`);
+      setActionMessage(`Invite created for ${invite.visitorName}. ${invite.emailStatus === 'SENT' ? 'Email delivery is confirmed.' : invite.visitorEmail ? 'Email delivery is queued.' : 'Secure link is ready to share.'}`);
       setInviteForm({
         visitorName: '',
         visitorEmail: '',
@@ -131,9 +133,10 @@ export function RequestsScreen() {
         scheduledStartTime: '',
         expectedDurationMinutes: '60',
         approvalRequired: false,
+        note: '',
       });
       await refreshWorkspace();
-      if (invite.inviteUrl) {
+      if (invite.inviteUrl && !invite.visitorEmail) {
         await Share.share({ message: `AccessFlow visitor pre-registration: ${invite.inviteUrl}` }).catch(() => undefined);
       }
     } catch (error) {
@@ -266,6 +269,14 @@ export function RequestsScreen() {
           <AppTextField label="Phone" value={inviteForm.visitorPhone} onChangeText={(visitorPhone) => setInviteForm((current) => ({ ...current, visitorPhone }))} placeholder="Optional phone" keyboardType="phone-pad" />
           <AppTextField label="Purpose" value={inviteForm.purposeOfVisit} onChangeText={(purposeOfVisit) => setInviteForm((current) => ({ ...current, purposeOfVisit }))} placeholder="Meeting, contractor visit, interview" />
           <AppTextField label="Arrival time" value={inviteForm.scheduledStartTime} onChangeText={(scheduledStartTime) => setInviteForm((current) => ({ ...current, scheduledStartTime }))} placeholder="2026-05-20T14:30" />
+          <AppTextField
+            label="Additional Note for Visitor"
+            value={inviteForm.note}
+            onChangeText={(note) => setInviteForm((current) => ({ ...current, note }))}
+            placeholder="Parking, gate, reception, room, or personal instructions"
+            multiline
+            maxLength={500}
+          />
           <View style={styles.segmentRow}>
             {['30', '60', '120', '240'].map((duration) => (
               <Pressable
@@ -318,6 +329,8 @@ export function RequestsScreen() {
                     { label: 'Expires', value: invite.expiresAt ? formatDateTime(invite.expiresAt, invite.timezone || invite.organizationTimezone) : 'No expiry recorded' },
                     { label: 'Viewed', value: invite.viewedAt ? formatDateTime(invite.viewedAt, invite.timezone || invite.organizationTimezone) : 'Not viewed yet' },
                     { label: 'QR status', value: invite.qrIssuedAt ? `Issued ${formatDateTime(invite.qrIssuedAt, invite.timezone || invite.organizationTimezone)}` : invite.approvalRequired ? 'Approval required' : 'Pending registration' },
+                    { label: 'Email', value: invite.visitorEmail ? `${invite.emailStatus?.replaceAll('_', ' ') || 'Queued'}${invite.emailSentAt ? ` ${formatDateTime(invite.emailSentAt, invite.timezone || invite.organizationTimezone)}` : ''}` : 'No visitor email provided' },
+                    { label: 'Visitor note', value: invite.note || 'No additional note' },
                   ]}
                 />
                 <View style={styles.actionRow}>

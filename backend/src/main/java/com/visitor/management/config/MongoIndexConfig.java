@@ -6,6 +6,7 @@ import com.visitor.management.entity.EmployeeAttendanceLog;
 import com.visitor.management.entity.SuperAdminCreationOtp;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
+import com.visitor.management.entity.VisitorInvite;
 import com.visitor.management.entity.VisitorAuditLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +67,11 @@ public class MongoIndexConfig {
                         .on("read", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)
                         .named("notification_recipient_read_created_idx"));
+                mongoTemplate.indexOps(VisitorInvite.class).createIndex(new Index()
+                        .on("visitorEmail", Sort.Direction.ASC)
+                        .on("emailStatus", Sort.Direction.ASC)
+                        .on("emailAttempts", Sort.Direction.ASC)
+                        .named("visitor_invite_email_retry_idx"));
                 mongoTemplate.indexOps(VisitorAuditLog.class).createIndex(new Index()
                         .on("visitorId", Sort.Direction.ASC)
                         .on("createdAt", Sort.Direction.DESC)

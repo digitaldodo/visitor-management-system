@@ -5,6 +5,7 @@ export type VisitorType = 'ONE_TIME' | 'WALK_IN' | 'EMERGENCY' | 'RECURRING' | '
 
 export type VisitorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'EXPIRED' | 'SUSPENDED';
 export type VisitorInviteStatus = 'SENT' | 'VIEWED' | 'REGISTRATION_COMPLETED' | 'QR_ISSUED' | 'ARRIVED' | 'EXPIRED' | 'REVOKED';
+export type EmailDeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
 
 export type EmployeePresenceAction = 'CHECKED_IN' | 'CHECKED_OUT';
 
@@ -128,6 +129,10 @@ export type VisitorInviteRecord = {
   approvalRequired?: boolean;
   status: VisitorInviteStatus;
   inviteUrl?: string | null;
+  note?: string | null;
+  emailStatus?: EmailDeliveryStatus | null;
+  emailSentAt?: string | null;
+  lastEmailError?: string | null;
   expiresAt?: string | null;
   viewedAt?: string | null;
   registrationCompletedAt?: string | null;
