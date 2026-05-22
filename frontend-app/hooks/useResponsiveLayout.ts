@@ -19,6 +19,7 @@ export function useResponsiveLayout() {
   const cardPadding = isLargeTablet ? 22 : isTablet ? 20 : isSmallPhone ? 14 : 16;
   const cardSpacing = isTablet ? 18 : isSmallPhone ? 12 : 14;
   const touchTarget = isSmallPhone ? 48 : 52;
+  const tabBarHeight = isTablet ? 86 : isSmallPhone ? 72 : 78;
 
   return {
     width,
@@ -39,7 +40,9 @@ export function useResponsiveLayout() {
     cardSpacing,
     touchTarget,
     fieldStacked: width < 430,
-    tabBarHeight: isTablet ? 74 : 68,
+    tabBarHeight,
+    tabBarMaxWidth: isLargeTablet ? 980 : isTablet ? 880 : width,
+    tabBarHorizontalPadding: isLargeTablet ? 28 : isTablet ? 24 : isSmallPhone ? 8 : 10,
     scannerHeight: clamp(height * (isTablet && isLandscape ? 0.54 : 0.42), isSmallPhone ? 240 : 280, isTablet ? 460 : 360),
   };
 }

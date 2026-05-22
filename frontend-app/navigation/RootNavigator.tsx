@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Linking from 'expo-linking';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthProvider';
@@ -60,6 +61,16 @@ const EmployeeTabs = createBottomTabNavigator();
 const VisitorTabs = createBottomTabNavigator();
 const AdminTabs = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
+
+const adminPrimaryRoutes = ['Approvals', 'Workforce', 'Visitors', 'Alerts', 'Dashboard', 'More'];
+
+const adminRouteFocusMap: Record<string, string> = {
+  Live: 'Dashboard',
+  Employees: 'Workforce',
+  Emergency: 'Alerts',
+  Register: 'Visitors',
+  Profile: 'More',
+};
 
 export function RootNavigator() {
   const auth = useAuth();
@@ -235,14 +246,14 @@ function AdminNavigator() {
   const screenOptions = useMobileTabOptions();
 
   return (
-    <AdminTabs.Navigator backBehavior="history" screenOptions={screenOptions}>
-      <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
+    <AdminTabs.Navigator backBehavior="history" initialRouteName="Approvals" screenOptions={screenOptions} tabBar={(props) => <AdminBottomTabBar {...props} />}>
       <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
       <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
+      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
       <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
+      <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
       <AdminTabs.Screen name="More" component={AdminMoreScreen} />
       <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarButton: () => null }} />
-      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Register" component={AdminRegisterScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} options={{ tabBarButton: () => null }} />
@@ -250,6 +261,133 @@ function AdminNavigator() {
     </AdminTabs.Navigator>
   );
 }
+
+function AdminBottomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
+  const { t } = useLocalization();
+  const activeRouteName = state.routes[state.index]?.name;
+  const activePrimaryRoute = adminRouteFocusMap[activeRouteName] ?? activeRouteName;
+  const visibleRoutes = useMemo(
+    () => state.routes.filter((route) => adminPrimaryRoutes.includes(route.name)),
+    [state.routes],
+  );
+
+  return (
+    <View
+      style={[
+        adminTabStyles.host,
+        {
+          height: layout.tabBarHeight + Math.max(insets.bottom, 10),
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingHorizontal: layout.tabBarHorizontalPadding,
+        },
+      ]}
+    >
+      <View style={[adminTabStyles.rail, { maxWidth: layout.tabBarMaxWidth, minHeight: layout.tabBarHeight - 8 }]}>
+        {visibleRoutes.map((route) => {
+          const descriptor = descriptors[route.key];
+          const focused = activePrimaryRoute === route.name;
+          return (
+            <AdminTabItem
+              key={route.key}
+              focused={focused}
+              iconName={iconForRoute(route.name)}
+              label={typeof descriptor.options.tabBarLabel === 'string' ? descriptor.options.tabBarLabel : t(navLabelKeyForRoute(route.name))}
+              navigation={navigation}
+              routeParams={route.params}
+              routeKey={route.key}
+              routeName={route.name}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const AdminTabItem = memo(function AdminTabItem({
+  focused,
+  iconName,
+  label,
+  navigation,
+  routeParams,
+  routeKey,
+  routeName,
+}: {
+  focused: boolean;
+  iconName: keyof typeof Ionicons.glyphMap;
+  label: string;
+  navigation: BottomTabBarProps['navigation'];
+  routeParams?: object;
+  routeKey: string;
+  routeName: string;
+}) {
+  const progress = useRef(new Animated.Value(focused ? 1 : 0)).current;
+
+  const handleLongPress = useCallback(() => {
+    navigation.emit({ type: 'tabLongPress', target: routeKey });
+  }, [navigation, routeKey]);
+
+  const handlePress = useCallback(() => {
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: routeKey,
+      canPreventDefault: true,
+    });
+
+    if (!focused && !event.defaultPrevented) {
+      navigation.navigate(routeName, routeParams);
+    }
+  }, [focused, navigation, routeKey, routeName, routeParams]);
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: focused ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [focused, progress]);
+
+  const activeOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const inactiveOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const activeScale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] });
+
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="tab"
+      accessibilityState={focused ? { selected: true } : {}}
+      hitSlop={6}
+      testID={`admin-tab-${routeName}`}
+      onLongPress={handleLongPress}
+      onPress={handlePress}
+      style={({ pressed }) => [
+        adminTabStyles.item,
+        pressed ? adminTabStyles.itemPressed : null,
+      ]}
+    >
+      <View style={adminTabStyles.iconWrap}>
+        <Animated.View style={[adminTabStyles.activePill, { opacity: activeOpacity, transform: [{ scale: activeScale }] }]} />
+        <Animated.View style={[adminTabStyles.inactiveIconLayer, { opacity: inactiveOpacity }]}>
+          <Ionicons color={theme.colors.textMuted} name={iconName} size={21} />
+        </Animated.View>
+        <Animated.View style={[adminTabStyles.activeIconLayer, { opacity: activeOpacity, transform: [{ scale: activeScale }] }]}>
+          <Ionicons color={theme.colors.textPrimary} name={iconName} size={23} />
+        </Animated.View>
+      </View>
+      <Text
+        allowFontScaling
+        maxFontSizeMultiplier={1.12}
+        numberOfLines={1}
+        style={[adminTabStyles.label, focused ? adminTabStyles.labelActive : null]}
+      >
+        {label}
+      </Text>
+      <Animated.View style={[adminTabStyles.activeDot, { opacity: activeOpacity, transform: [{ scale: activeScale }] }]} />
+    </Pressable>
+  );
+});
 
 function useMobileTabOptions() {
   const insets = useSafeAreaInsets();
@@ -262,27 +400,31 @@ function useMobileTabOptions() {
     freezeOnBlur: true,
     tabBarActiveTintColor: theme.colors.primary,
     tabBarInactiveTintColor: theme.colors.textMuted,
-    tabBarActiveBackgroundColor: theme.colors.primarySoft,
     tabBarHideOnKeyboard: true,
+    tabBarLabelPosition: 'below-icon' as const,
     tabBarStyle: {
       height: layout.tabBarHeight + insets.bottom,
-      paddingTop: layout.isSmallPhone ? 5 : 7,
-      paddingBottom: Math.max(insets.bottom, 8),
+      paddingTop: layout.isSmallPhone ? 6 : 8,
+      paddingBottom: Math.max(insets.bottom, 10),
+      paddingHorizontal: layout.tabBarHorizontalPadding,
       backgroundColor: theme.colors.surfaceSubtle,
       borderTopColor: theme.colors.border,
       borderTopWidth: 1,
       elevation: 12,
     },
     tabBarItemStyle: {
-      minHeight: layout.isSmallPhone ? 52 : 58,
-      borderRadius: theme.radii.lg,
-      marginHorizontal: 3,
+      flex: 1,
+      minHeight: layout.isSmallPhone ? 56 : 62,
+      borderRadius: theme.radii.md,
+      marginHorizontal: 2,
+      paddingVertical: 4,
     },
     tabBarLabelStyle: {
-      fontSize: layout.isSmallPhone ? 10 : 11,
+      fontSize: layout.isSmallPhone ? 10 : 11.5,
       fontWeight: '700' as const,
-      lineHeight: layout.isSmallPhone ? 12 : 13,
+      lineHeight: layout.isSmallPhone ? 13 : 15,
       textAlign: 'center' as const,
+      marginTop: 2,
     },
     tabBarLabel: t(navLabelKeyForRoute(route.name)),
     tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
@@ -307,7 +449,7 @@ function navLabelKeyForRoute(routeName: string): TranslationKey {
     Home: 'nav.home',
     Request: 'nav.request',
     Pass: 'nav.pass',
-    Dashboard: 'nav.dashboard',
+    Dashboard: 'nav.analytics',
     Approvals: 'nav.approvals',
     Employees: 'nav.employees',
     Live: 'nav.activity',
@@ -334,7 +476,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Home: 'home-outline',
     Request: 'add-circle-outline',
     Pass: 'ticket-outline',
-    Dashboard: 'grid-outline',
+    Dashboard: 'analytics-outline',
     Approvals: 'checkmark-done-outline',
     Employees: 'id-card-outline',
     Live: 'pulse-outline',
@@ -343,3 +485,84 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
 
   return iconMap[routeName] || 'ellipse-outline';
 }
+
+const adminTabStyles = StyleSheet.create({
+  host: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surfaceSubtle,
+    borderTopColor: theme.colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    elevation: 18,
+  },
+  rail: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
+    gap: 4,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: 'rgba(9, 17, 30, 0.94)',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  item: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+  },
+  itemPressed: {
+    opacity: 0.82,
+  },
+  iconWrap: {
+    width: 38,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activePill: {
+    position: 'absolute',
+    width: 38,
+    height: 30,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
+  },
+  inactiveIconLayer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIconLayer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: {
+    width: '100%',
+    color: theme.colors.textMuted,
+    fontSize: 10.5,
+    fontWeight: '700',
+    lineHeight: 13,
+    textAlign: 'center',
+  },
+  labelActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '800',
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.primary,
+  },
+});
