@@ -83,11 +83,14 @@ export function requireRole(requiredRole) {
 }
 
 function hasEffectiveRole(roles, requiredRole) {
+  if (requiredRole === "EMPLOYEE" && roles.some((role) => ["RECEPTION", "OPERATOR", "MANAGER"].includes(role))) {
+    return true;
+  }
   return roles.includes(requiredRole) || (requiredRole === "ADMIN" && roles.includes("SUPER_ADMIN"));
 }
 
 function resolvePortalRole(roles = []) {
-  const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+  const priority = ["SUPER_ADMIN", "ADMIN", "MANAGER", "OPERATOR", "RECEPTION", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
   return priority.find((role) => roles.includes(role) && ROLE_PORTALS_FROM_PORTAL[role]) || null;
 }
 

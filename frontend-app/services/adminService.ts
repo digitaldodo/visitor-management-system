@@ -30,6 +30,28 @@ type WorkforceApprovalPayload = {
   note?: string | null;
 };
 
+type WorkforceUserPayload = {
+  fullName: string;
+  username: string;
+  email: string;
+  password?: string;
+  role: string;
+  department?: string | null;
+  phoneCountryCode?: string | null;
+  phone?: string | null;
+  designation?: string | null;
+  employeeType?: string | null;
+  employeePhotoUrl?: string | null;
+  shiftName?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
+};
+
+type WorkforceUpdatePayload = Partial<Omit<WorkforceUserPayload, 'password' | 'username'>> & {
+  active?: boolean;
+  accountStatus?: string;
+};
+
 type ReasonPayload = {
   id: string;
   reason: string;
@@ -88,6 +110,13 @@ export async function getAdminVisitors(params?: AdminVisitorParams) {
 export async function getAdminUsers() {
   return request<WorkforceOnboardingRecord[]>({
     url: '/admin/users',
+    method: 'GET',
+  });
+}
+
+export async function getAdminWorkforceAnalytics() {
+  return request<Record<string, unknown>>({
+    url: '/admin/workforce/analytics',
     method: 'GET',
   });
 }
@@ -194,6 +223,66 @@ export async function disableAdminUser(id: string) {
 export async function enableAdminUser(id: string) {
   return request<WorkforceOnboardingRecord>({
     url: `/admin/users/${encodeURIComponent(id)}/enable`,
+    method: 'PATCH',
+  });
+}
+
+export async function createAdminUser(payload: WorkforceUserPayload) {
+  return request<WorkforceOnboardingRecord>({
+    url: '/admin/users',
+    method: 'POST',
+    data: payload,
+  });
+}
+
+export async function inviteAdminUser(payload: Omit<WorkforceUserPayload, 'password'>) {
+  return request<WorkforceOnboardingRecord>({
+    url: '/admin/users/invite',
+    method: 'POST',
+    data: payload,
+  });
+}
+
+export async function updateAdminUser({ id, payload }: { id: string; payload: WorkforceUpdatePayload }) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}`,
+    method: 'PUT',
+    data: payload,
+  });
+}
+
+export async function resetAdminUserPassword({ id, newPassword }: { id: string; newPassword: string }) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}/reset-password`,
+    method: 'PATCH',
+    data: { newPassword },
+  });
+}
+
+export async function revokeAdminUserSessions(id: string) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}/revoke-sessions`,
+    method: 'PATCH',
+  });
+}
+
+export async function resendAdminUserInvite(id: string) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}/resend-invite`,
+    method: 'PATCH',
+  });
+}
+
+export async function revokeAdminUserInvite(id: string) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}/revoke-invite`,
+    method: 'PATCH',
+  });
+}
+
+export async function archiveAdminUser(id: string) {
+  return request<WorkforceOnboardingRecord>({
+    url: `/admin/users/${encodeURIComponent(id)}/archive`,
     method: 'PATCH',
   });
 }

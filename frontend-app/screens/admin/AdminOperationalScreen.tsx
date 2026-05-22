@@ -23,6 +23,7 @@ import {
   useAdminUsers,
   useAdminVisitors,
   useAdminWorkforceAttendance,
+  useAdminWorkforceAnalytics,
   useAdminWorkforceOnboarding,
   useApproveAdminVisitorMutation,
   useApproveAdminWorkforceMutation,
@@ -182,6 +183,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const reports = useAdminReports();
   const workforceOnboarding = useAdminWorkforceOnboarding();
   const users = useAdminUsers();
+  const workforceAnalytics = useAdminWorkforceAnalytics();
   const attendance = useAdminWorkforceAttendance();
   const visitors = useAdminVisitors(
     section === 'workforce' || section === 'employees' ? '' : deferredSearch,
@@ -212,7 +214,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
 
   const employees = useMemo(
-    () => (users.data ?? []).filter((user) => (user.roles ?? []).includes('EMPLOYEE')),
+    () => (users.data ?? []).filter((user) => (user.roles ?? []).some((role) => ['EMPLOYEE', 'SECURITY_GUARD', 'RECEPTION', 'OPERATOR', 'MANAGER'].includes(role))),
     [users.data],
   );
   const filteredEmployees = useMemo(() => {
@@ -254,6 +256,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     || deniedVisitors.isRefetching
     || suspendedVisitors.isRefetching
     || users.isRefetching
+    || workforceAnalytics.isRefetching
     || attendance.isRefetching
     || notifications.isRefetching;
 
@@ -419,7 +422,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     workforce: ['Workforce Control', 'Approve onboarding, verify worker details, and monitor employee presence.'],
     alerts: ['Alert Center', 'Acknowledge, escalate, and resolve operational events from mobile.'],
     register: ['Register', 'Searchable visitor, workforce, denied-entry, approval, and incident history.'],
-    employees: ['Employee Access', 'Search employees, verify badge status, and suspend or reactivate access.'],
+    employees: ['Workforce Directory', 'Search workforce, verify roles, badge status, presence, and operational access.'],
     settings: ['Admin Settings', 'Mobile role scope, session controls, and operational readiness.'],
     more: ['More', 'Secondary admin tools, profile controls, and operational shortcuts.'],
   }[section];
@@ -658,8 +661,14 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'employees' ? (
           <>
-            <SurfaceCard title="Employee lookup" subtitle="Limited to access, badge state, presence, and operational verification.">
-              <AppTextField label="Search employees" value={search} onChangeText={setSearch} placeholder="Name, employee ID, department, badge status" />
+            <SurfaceCard title="Workforce lookup" subtitle="Organization-scoped directory for employees, security, reception, operators, and managers.">
+              <View style={styles.metricsGrid}>
+                <MetricCard label="Active workforce" value={Number(workforceAnalytics.data?.active ?? filteredEmployees.filter((user) => user.active).length)} tone="success" />
+                <MetricCard label="Inactive" value={Number(workforceAnalytics.data?.inactive ?? filteredEmployees.filter((user) => !user.active).length)} tone="warning" />
+                <MetricCard label="Pending invites" value={Number(workforceAnalytics.data?.pendingInvites ?? filteredEmployees.filter((user) => String(user.accountStatus || '').toUpperCase() === 'UNVERIFIED').length)} tone="info" />
+                <MetricCard label="Security available" value={Number(workforceAnalytics.data?.securityStaffAvailable ?? filteredEmployees.filter((user) => (user.roles ?? []).includes('SECURITY_GUARD') && user.active).length)} tone="default" />
+              </View>
+              <AppTextField label="Search workforce" value={search} onChangeText={setSearch} placeholder="Name, email, role, department, status" />
             </SurfaceCard>
             <EmployeeList
               users={filteredEmployees.slice(0, 40)}
@@ -1277,7 +1286,7 @@ function EmployeeList({
 }) {
   const layout = useResponsiveLayout();
   if (!users.length) {
-    return <EmptyState title="No employees found" body="Try another name, employee ID, department, or badge status." />;
+    return <EmptyState title="No workforce found" body="Try another name, email, role, department, or access status." />;
   }
   return (
     <View style={[styles.employeeGrid, layout.isTwoColumn ? styles.employeeGridWide : null]}>
@@ -1289,7 +1298,7 @@ function EmployeeList({
             <View style={styles.cardBody}>
               <RecordCard
                 title={user.fullName}
-                subtitle={[user.employeeId ? `ID ${user.employeeId}` : null, user.department, user.designation].filter(Boolean).join(' - ')}
+                subtitle={[roleLabel(user.roles?.[0]), user.employeeId ? `ID ${user.employeeId}` : null, user.department, user.designation].filter(Boolean).join(' - ')}
                 meta={[
                   user.email,
                   latest?.checkInTime ? `Last in ${formatDateTime(latest.checkInTime)}` : 'No presence today',
@@ -1301,6 +1310,7 @@ function EmployeeList({
               <FieldGrid
                 items={[
                   ['Access', user.active ? 'Active' : 'Suspended'],
+                  ['Role', roleLabel(user.roles?.[0])],
                   ['Presence', latest ? employeePresenceLabel(latest) : 'Unknown'],
                   ['Shift', [user.shiftName, user.shiftStartTime, user.shiftEndTime].filter(Boolean).join(' ') || 'Not assigned'],
                   ['Badge', user.accountStatus || 'Not recorded'],
@@ -1319,6 +1329,14 @@ function EmployeeList({
       })}
     </View>
   );
+}
+
+function roleLabel(role?: string | null) {
+  return String(role || 'WORKFORCE')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 function SegmentRow<T extends string>({

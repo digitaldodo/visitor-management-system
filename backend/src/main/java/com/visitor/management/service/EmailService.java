@@ -10,6 +10,8 @@ public interface EmailService {
 
     void sendVisitorEmailVerification(String toEmail, String recipientName, String verificationUrl, long expiryHours);
 
+    void sendWorkforceInvite(String toEmail, String recipientName, String organizationName, String role, String activationUrl, long expiryDays, String note, String inviterName, boolean resend);
+
     void sendVisitorInvite(VisitorInvite invite);
 
     void sendVisitorApprovedBadge(Visitor visitor);

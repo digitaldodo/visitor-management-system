@@ -308,11 +308,17 @@ public class AuthService {
         }
 
         User user = userRepository.findById(resetToken.getUserId())
-                .filter(this::isActiveAccount)
+                .filter(candidate -> isActiveAccount(candidate) || isPendingWorkforceInvite(candidate))
                 .orElseThrow(() -> new UnauthorizedException("Password reset user is no longer active."));
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setPasswordChangedAt(now);
+        if (isPendingWorkforceInvite(user)) {
+            user.setActive(true);
+            user.setAccountStatus(AccountStatus.ACTIVE);
+            user.setEmailVerified(Boolean.TRUE);
+            user.setEmailVerifiedAt(now);
+        }
         userRepository.save(user);
 
         resetToken.setUsedAt(now);
@@ -492,7 +498,10 @@ public class AuthService {
 
         boolean allowed = switch (audience) {
             case "admin" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.ADMIN);
-            case "employee" -> user.getRoles().contains(Role.EMPLOYEE);
+            case "employee" -> user.getRoles().contains(Role.EMPLOYEE)
+                    || user.getRoles().contains(Role.RECEPTION)
+                    || user.getRoles().contains(Role.OPERATOR)
+                    || user.getRoles().contains(Role.MANAGER);
             case "security" -> user.getRoles().contains(Role.SECURITY_GUARD);
             case "visitor" -> user.getRoles().contains(Role.VISITOR);
             default -> false;
@@ -646,6 +655,14 @@ public class AuthService {
         return user != null
                 && user.getRoles() != null
                 && user.getRoles().contains(Role.VISITOR)
+                && user.getAccountStatus() == AccountStatus.UNVERIFIED;
+    }
+
+    private boolean isPendingWorkforceInvite(User user) {
+        return user != null
+                && user.getRoles() != null
+                && !user.getRoles().contains(Role.VISITOR)
+                && !user.getRoles().contains(Role.SUPER_ADMIN)
                 && user.getAccountStatus() == AccountStatus.UNVERIFIED;
     }
 

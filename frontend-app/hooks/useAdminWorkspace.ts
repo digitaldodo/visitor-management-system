@@ -3,12 +3,15 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   approveAdminVisitor,
   approveAdminWorkforce,
+  archiveAdminUser,
   checkInAdminVisitor,
   checkOutAdminVisitor,
+  createAdminUser,
   denyAdminVisitor,
   disableAdminUser,
   enableAdminUser,
   getAdminAnalytics,
+  getAdminWorkforceAnalytics,
   escalateAdminVisitor,
   getAdminOverview,
   getAdminReports,
@@ -16,10 +19,16 @@ import {
   getAdminVisitors,
   getAdminWorkforceAttendance,
   getAdminWorkforceOnboarding,
+  inviteAdminUser,
   reactivateAdminVisitor,
   rejectAdminVisitor,
   rejectAdminWorkforce,
+  resendAdminUserInvite,
+  resetAdminUserPassword,
+  revokeAdminUserInvite,
+  revokeAdminUserSessions,
   suspendAdminVisitor,
+  updateAdminUser,
 } from '../services/adminService';
 
 export function useAdminOverview() {
@@ -67,6 +76,15 @@ export function useAdminUsers() {
   return useQuery({
     queryKey: ['admin', 'users'],
     queryFn: getAdminUsers,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useAdminWorkforceAnalytics() {
+  return useQuery({
+    queryKey: ['admin', 'workforce-analytics'],
+    queryFn: getAdminWorkforceAnalytics,
+    staleTime: 45_000,
     placeholderData: (previous) => previous,
   });
 }
@@ -125,4 +143,36 @@ export function useDisableAdminUserMutation() {
 
 export function useEnableAdminUserMutation() {
   return useMutation({ mutationFn: enableAdminUser });
+}
+
+export function useCreateAdminUserMutation() {
+  return useMutation({ mutationFn: createAdminUser });
+}
+
+export function useInviteAdminUserMutation() {
+  return useMutation({ mutationFn: inviteAdminUser });
+}
+
+export function useUpdateAdminUserMutation() {
+  return useMutation({ mutationFn: updateAdminUser });
+}
+
+export function useResetAdminUserPasswordMutation() {
+  return useMutation({ mutationFn: resetAdminUserPassword });
+}
+
+export function useRevokeAdminUserSessionsMutation() {
+  return useMutation({ mutationFn: revokeAdminUserSessions });
+}
+
+export function useResendAdminUserInviteMutation() {
+  return useMutation({ mutationFn: resendAdminUserInvite });
+}
+
+export function useRevokeAdminUserInviteMutation() {
+  return useMutation({ mutationFn: revokeAdminUserInvite });
+}
+
+export function useArchiveAdminUserMutation() {
+  return useMutation({ mutationFn: archiveAdminUser });
 }

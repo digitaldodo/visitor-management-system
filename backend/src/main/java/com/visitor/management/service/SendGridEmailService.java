@@ -78,6 +78,19 @@ public class SendGridEmailService implements EmailService {
     }
 
     @Override
+    public void sendWorkforceInvite(String toEmail, String recipientName, String organizationName, String role, String activationUrl, long expiryDays, String note, String inviterName, boolean resend) {
+        String subjectPrefix = resend ? "Reminder: activate" : "Activate";
+        sendEmail(
+                toEmail,
+                safeName(recipientName),
+                "%s your %s AccessFlow workforce account".formatted(subjectPrefix, safeFallback(organizationName, "organization")),
+                workforceInvitePlainTextBody(recipientName, organizationName, role, activationUrl, expiryDays, note, inviterName),
+                workforceInviteHtmlBody(recipientName, organizationName, role, activationUrl, expiryDays, note, inviterName),
+                "Workforce account invite"
+        );
+    }
+
+    @Override
     public void sendVisitorInvite(VisitorInvite invite) {
         String visitorEmail = required(invite.getVisitorEmail(), "Visitor invite email address is required.");
         required(invite.getInviteUrl(), "Visitor invite URL is required.");
@@ -283,6 +296,93 @@ public class SendGridEmailService implements EmailService {
                 isBlank(invite.getMobileInviteUrl()) ? "" : "\nOpen in the AccessFlow app:\n" + invite.getMobileInviteUrl(),
                 inviteExpiry(invite),
                 note
+        );
+    }
+
+    private String workforceInvitePlainTextBody(String recipientName, String organizationName, String role, String activationUrl, long expiryDays, String note, String inviterName) {
+        String noteBlock = isBlank(note) ? "" : "\n\nAdmin note:\n" + note.trim();
+        return """
+                AccessFlow workforce activation
+
+                Hi %s,
+
+                %s invited you to activate a workforce account for %s.
+
+                Organization: %s
+                Assigned role: %s
+
+                Create your password and activate access:
+                %s
+
+                This secure activation link expires in %d day(s). After activation, sign in with your organization code and assigned workspace.
+
+                Security notice: Do not forward this link. Contact your organization administrator if this invite is unexpected.%s
+                """.formatted(
+                safeName(recipientName),
+                safeName(inviterName),
+                safeFallback(organizationName, "your organization"),
+                safeFallback(organizationName, "AccessFlow organization"),
+                safeFallback(role, "WORKFORCE"),
+                activationUrl,
+                expiryDays,
+                noteBlock
+        );
+    }
+
+    private String workforceInviteHtmlBody(String recipientName, String organizationName, String role, String activationUrl, long expiryDays, String note, String inviterName) {
+        String escapedUrl = escapeHtml(activationUrl);
+        String noteHtml = isBlank(note) ? "" : """
+                                <div style="background:#f8fafc;border:1px solid #d0d5dd;border-radius:8px;margin:0 0 20px;padding:16px;">
+                                  <p style="margin:0 0 8px;color:#475467;font-size:12px;font-weight:800;letter-spacing:0;text-transform:uppercase;">Admin note</p>
+                                  <p style="margin:0;color:#101828;font-size:15px;line-height:1.6;white-space:pre-line;">%s</p>
+                                </div>
+                """.formatted(escapeHtml(note.trim()));
+        return """
+                <!doctype html>
+                <html>
+                  <body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#101828;">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;">
+                      <tr>
+                        <td align="center">
+                          <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border:1px solid #e4e7ec;border-radius:8px;overflow:hidden;">
+                            <tr>
+                              <td style="background:#101828;color:#ffffff;padding:24px 28px;">
+                                <div style="font-size:13px;font-weight:800;letter-spacing:0;text-transform:uppercase;color:#bfdbfe;">AccessFlow workforce</div>
+                                <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">Activate your organization account</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:28px;">
+                                <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Hi %s,</p>
+                                <p style="margin:0 0 18px;font-size:16px;line-height:1.5;">%s invited you to AccessFlow for %s.</p>
+                                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px;">
+                                  %s
+                                  %s
+                                </table>
+                                %s
+                                <p style="margin:0 0 18px;"><a href="%s" style="background:#1d4ed8;border-radius:8px;color:#ffffff;display:inline-block;font-size:15px;font-weight:800;padding:14px 18px;text-decoration:none;">Create password and activate</a></p>
+                                <p style="margin:0 0 8px;color:#475467;font-size:13px;line-height:1.6;">If the button does not open, copy and paste this link into your browser:</p>
+                                <p style="margin:0 0 18px;color:#1d4ed8;font-size:13px;line-height:1.6;word-break:break-word;"><a href="%s" style="color:#1d4ed8;text-decoration:none;">%s</a></p>
+                                <p style="margin:0;color:#b42318;font-size:13px;line-height:1.6;"><strong>Security notice:</strong> This link expires in %d day(s). Do not forward it.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </body>
+                </html>
+                """.formatted(
+                escapeHtml(safeName(recipientName)),
+                escapeHtml(safeName(inviterName)),
+                escapeHtml(safeFallback(organizationName, "your organization")),
+                detailRow("Organization", safeFallback(organizationName, "AccessFlow organization")),
+                detailRow("Assigned role", safeFallback(role, "WORKFORCE")),
+                noteHtml,
+                escapedUrl,
+                escapedUrl,
+                escapedUrl,
+                expiryDays
         );
     }
 

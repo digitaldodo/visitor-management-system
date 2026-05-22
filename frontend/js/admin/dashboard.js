@@ -75,6 +75,27 @@ const INTERNAL_ROLE_DEPARTMENT_RULES = {
     placeholder: "Search or add a department",
     department: "",
   },
+  RECEPTION: {
+    mode: "manual",
+    label: "Department",
+    meta: "Reception users default to front desk but can be assigned to any organization team.",
+    placeholder: "Reception",
+    department: "Reception",
+  },
+  OPERATOR: {
+    mode: "manual",
+    label: "Department",
+    meta: "Operator users default to Operations but can be assigned to any organization team.",
+    placeholder: "Operations",
+    department: "Operations",
+  },
+  MANAGER: {
+    mode: "manual",
+    label: "Department",
+    meta: "Manager users default to Management but can be assigned to any organization team.",
+    placeholder: "Management",
+    department: "Management",
+  },
   SECURITY_GUARD: {
     mode: "locked",
     label: "Department",
@@ -701,6 +722,9 @@ function usersTemplate() {
             <select name="role" required>
               <option value="EMPLOYEE">Employee portal</option>
               <option value="SECURITY_GUARD">Security portal</option>
+              <option value="RECEPTION">Reception/front desk</option>
+              <option value="OPERATOR">Operator</option>
+              <option value="MANAGER">Manager</option>
               <option value="ADMIN">Administration portal</option>
             </select>
           </label>
@@ -741,8 +765,9 @@ function usersTemplate() {
             <input name="shiftEndTime" type="time" value="18:00" />
           </label>
           <div class="admin-user-form__footer">
-            <p>Visitor accounts are created through public onboarding. Workforce access is issued internally.</p>
-            <button class="button button--primary" type="submit">Create internal account</button>
+            <p>Visitor accounts are created through public onboarding. Workforce access is tenant-scoped and audited.</p>
+            <button class="button button--ghost" type="submit" data-provision-mode="invite">Send invite</button>
+            <button class="button button--primary" type="submit" data-provision-mode="create">Create internal account</button>
           </div>
         </form>
       </article>
@@ -1749,7 +1774,7 @@ function initAdminUserForm() {
   }
 
   roleSelect?.addEventListener("change", () => {
-    if (roleSelect.dataset.activeRole === "EMPLOYEE") {
+    if (isWorkforceOperationalRole(roleSelect.dataset.activeRole)) {
       employeeDepartmentDraft = departmentInput?.value || employeeDepartmentDraft;
     }
     updateInternalProvisioningRoleState(form, {
@@ -1767,7 +1792,7 @@ function initAdminUserForm() {
   });
 
   departmentInput?.addEventListener("input", () => {
-    if (roleSelect?.value === "EMPLOYEE") {
+    if (isWorkforceOperationalRole(roleSelect?.value)) {
       employeeDepartmentDraft = departmentInput.value;
     }
   });
@@ -1788,6 +1813,7 @@ function initAdminUserForm() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const provisionMode = event.submitter?.dataset?.provisionMode || "create";
     const data = Object.fromEntries(new FormData(form).entries());
     const department = normalizeDepartmentValue(data.department);
     const phone = phonePayload(data);
@@ -1807,7 +1833,7 @@ function initAdminUserForm() {
       shiftStartTime: trim(data.shiftStartTime),
       shiftEndTime: trim(data.shiftEndTime),
     };
-    const error = validateInternalUser(payload);
+    const error = validateInternalUser(payload, { invite: provisionMode === "invite" });
     if (error) {
       showToast("Check account", error);
       return;
@@ -1815,9 +1841,9 @@ function initAdminUserForm() {
 
     setFormLoading(form, true);
     try {
-      await request("/admin/users", {
+      await request(provisionMode === "invite" ? "/admin/users/invite" : "/admin/users", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(provisionMode === "invite" ? { ...payload, password: undefined } : payload),
       });
       const previousCompanyCode = trim(companyInput?.value) || currentSession?.organizationCode || null;
       form.reset();
@@ -1843,10 +1869,10 @@ function initAdminUserForm() {
       runUsernameValidation();
       runDepartmentValidation();
       await loadUserDepartmentOptions({ preserveSelection: false });
-      showToast("Account created", "Share the temporary password through your approved internal process.");
+      showToast(provisionMode === "invite" ? "Invite sent" : "Account created", provisionMode === "invite" ? "The workforce activation link was emailed to the user." : "Share the temporary password through your approved internal process.");
       await loadUsersWorkspace();
     } catch (error) {
-      showToast("Account creation failed", error.message);
+      showToast(provisionMode === "invite" ? "Invite failed" : "Account creation failed", error.message);
     } finally {
       setFormLoading(form, false);
     }
@@ -1868,7 +1894,9 @@ function initAdminUserForm() {
       ? { newPassword: password }
       : action === "role"
         ? { role: roleSelectField?.value }
-        : {};
+        : action === "resend-invite" || action === "revoke-invite" || action === "revoke-sessions" || action === "archive"
+          ? {}
+          : {};
 
     button.toggleAttribute("disabled", true);
     try {
@@ -2579,6 +2607,7 @@ function userCard(user) {
   const oversightOnly = currentRoute === "workforce-oversight";
   const pendingApproval = user.accountStatus === "PENDING_APPROVAL";
   const rejectedApproval = user.accountStatus === "REJECTED";
+  const pendingInvite = user.accountStatus === "UNVERIFIED";
   const disabled = !user.active || user.accountStatus === "DISABLED" || pendingApproval || rejectedApproval;
   const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
   const canManageAdmin = !(user.roles || []).includes("ADMIN") || hasRole("SUPER_ADMIN");
@@ -2623,8 +2652,12 @@ function userCard(user) {
       </dl>
       ${roleControls}
       <div class="admin-user-card__actions">
+        ${pendingInvite ? `<button class="button button--ghost" type="button" data-user-action="resend-invite" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Resend invite</button>` : ""}
+        ${pendingInvite ? `<button class="button button--ghost" type="button" data-user-action="revoke-invite" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Revoke invite</button>` : ""}
         <button class="button button--ghost" type="button" data-user-action="reset-password" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Reset password</button>
+        <button class="button button--ghost" type="button" data-user-action="revoke-sessions" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Revoke sessions</button>
         <button class="button ${disabled ? "button--primary" : "button--ghost"}" type="button" data-user-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>${disabled ? "Enable account" : "Disable account"}</button>
+        <button class="button button--ghost" type="button" data-user-action="archive" data-user-id="${escapeHtml(user.id)}" ${canManage ? "" : "disabled"}>Archive access</button>
       </div>
     </article>
   `;
@@ -2634,6 +2667,9 @@ function internalRoleOptions(selectedRole) {
   const roles = [
     ["EMPLOYEE", "Employee portal"],
     ["SECURITY_GUARD", "Security portal"],
+    ["RECEPTION", "Reception/front desk"],
+    ["OPERATOR", "Operator"],
+    ["MANAGER", "Manager"],
   ];
   if (hasRole("SUPER_ADMIN")) {
     roles.push(["ADMIN", "Administration portal"]);
@@ -4408,7 +4444,7 @@ function updateInternalProvisioningRoleState(form, context = {}) {
     return;
   }
 
-  if (roleSelect?.value === "EMPLOYEE" && typeof context.onManualDepartmentDraft === "function") {
+  if (isWorkforceOperationalRole(roleSelect?.value) && typeof context.onManualDepartmentDraft === "function") {
     context.onManualDepartmentDraft(departmentInput.value);
   }
 
@@ -4448,7 +4484,7 @@ function updateInternalProvisioningRoleState(form, context = {}) {
   }
 
   employeeWorkforceFields.forEach((field) => {
-    const enabled = roleSelect?.value === "EMPLOYEE";
+    const enabled = isWorkforceOperationalRole(roleSelect?.value);
     field.classList.toggle("is-hidden", !enabled);
     field.querySelectorAll("input, select").forEach((input) => {
       input.disabled = !enabled;
@@ -4458,6 +4494,10 @@ function updateInternalProvisioningRoleState(form, context = {}) {
 
 function provisioningRuleForRole(role) {
   return INTERNAL_ROLE_DEPARTMENT_RULES[role] || INTERNAL_ROLE_DEPARTMENT_RULES.EMPLOYEE;
+}
+
+function isWorkforceOperationalRole(role) {
+  return ["EMPLOYEE", "SECURITY_GUARD", "RECEPTION", "OPERATOR", "MANAGER"].includes(role);
 }
 
 function resetOrganizationDepartmentDraft(useDefaults) {
@@ -4613,7 +4653,7 @@ function validateOrganization(payload) {
   return "";
 }
 
-function validateInternalUser(payload) {
+function validateInternalUser(payload, options = {}) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the person's full name.";
   }
@@ -4628,7 +4668,7 @@ function validateInternalUser(payload) {
   if (phoneError) {
     return phoneError;
   }
-  if (!["EMPLOYEE", "SECURITY_GUARD", "ADMIN"].includes(payload.role)) {
+  if (!["EMPLOYEE", "SECURITY_GUARD", "RECEPTION", "OPERATOR", "MANAGER", "ADMIN"].includes(payload.role)) {
     return "Choose an internal access type.";
   }
   const rule = provisioningRuleForRole(payload.role);
@@ -4645,7 +4685,7 @@ function validateInternalUser(payload) {
       return departmentError;
     }
   }
-  if (payload.role === "EMPLOYEE") {
+  if (isWorkforceOperationalRole(payload.role)) {
     if (!payload.designation || payload.designation.length < 2) {
       return "Enter the employee designation.";
     }
@@ -4659,11 +4699,11 @@ function validateInternalUser(payload) {
       return "Choose shift start and end times.";
     }
   }
-  if (!/[a-z]/.test(payload.password || "")
+  if (!options.invite && (!/[a-z]/.test(payload.password || "")
       || !/[A-Z]/.test(payload.password || "")
       || !/\d/.test(payload.password || "")
       || !/[^A-Za-z0-9]/.test(payload.password || "")
-      || String(payload.password || "").length < 12) {
+      || String(payload.password || "").length < 12)) {
     return "Temporary password must be 12+ characters with uppercase, lowercase, number, and symbol.";
   }
   return "";

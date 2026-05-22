@@ -111,6 +111,19 @@ function initResetPasswordPage() {
     return;
   }
 
+  const params = new URLSearchParams(window.location.search);
+  const activationToken = params.get("token");
+  if (activationToken) {
+    sessionStorage.setItem(RESET_TOKEN_KEY, activationToken);
+    sessionStorage.setItem(RESET_TOKEN_EXPIRES_KEY, daysFromNow(7));
+    const email = params.get("email");
+    if (email) {
+      sessionStorage.setItem(RESET_IDENTIFIER_KEY, email);
+    }
+    const cleanUrl = `${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
   const resetToken = sessionStorage.getItem(RESET_TOKEN_KEY);
   const resetTokenExpiresAt = sessionStorage.getItem(RESET_TOKEN_EXPIRES_KEY);
   if (!resetToken || isPast(resetTokenExpiresAt)) {
@@ -247,6 +260,10 @@ function minutesFromNow(minutes) {
 
 function secondsFromNow(seconds) {
   return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+function daysFromNow(days) {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function isPast(value) {

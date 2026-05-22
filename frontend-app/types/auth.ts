@@ -1,4 +1,4 @@
-export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'VISITOR';
+export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'RECEPTION' | 'OPERATOR' | 'MANAGER' | 'VISITOR';
 
 export type WorkspaceAudience = 'admin' | 'employee' | 'security' | 'visitor';
 

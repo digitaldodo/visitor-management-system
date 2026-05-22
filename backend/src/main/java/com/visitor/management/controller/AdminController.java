@@ -2,9 +2,11 @@ package com.visitor.management.controller;
 
 import com.visitor.management.dto.ActionResponse;
 import com.visitor.management.dto.AdminPasswordResetRequest;
+import com.visitor.management.dto.AdminUserDetailResponse;
 import com.visitor.management.dto.AdminUserCreateRequest;
 import com.visitor.management.dto.AdminUserResponse;
 import com.visitor.management.dto.AdminUserRoleUpdateRequest;
+import com.visitor.management.dto.AdminUserUpdateRequest;
 import com.visitor.management.dto.ApiResponse;
 import com.visitor.management.dto.ApprovalDecisionRequest;
 import com.visitor.management.dto.DepartmentCreateRequest;
@@ -24,7 +26,9 @@ import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorPhotoUploadResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.dto.WorkforceApprovalRequest;
+import com.visitor.management.dto.WorkforceInviteRequest;
 import com.visitor.management.dto.WorkforceRejectionRequest;
+import com.visitor.management.entity.Role;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.service.AnalyticsService;
@@ -130,13 +134,39 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ApiResponse<List<AdminUserResponse>> users(Authentication authentication) {
-        return ApiResponse.ok("Admin user management loaded.", adminUserService.listUsers(authentication));
+    public ApiResponse<List<AdminUserResponse>> users(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Role role,
+            @RequestParam(defaultValue = "alphabetical") String sort,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Admin user management loaded.", adminUserService.listUsers(authentication, query, status, department, role, sort));
+    }
+
+    @GetMapping("/users/{id}")
+    public ApiResponse<AdminUserDetailResponse> user(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Workforce account loaded.", adminUserService.getUser(id, authentication));
     }
 
     @PostMapping("/users")
     public ApiResponse<AdminUserResponse> createUser(@Valid @RequestBody AdminUserCreateRequest request, Authentication authentication) {
         return ApiResponse.ok("Internal account created.", adminUserService.createUser(request, authentication));
+    }
+
+    @PostMapping("/users/invite")
+    public ApiResponse<AdminUserResponse> inviteUser(@Valid @RequestBody WorkforceInviteRequest request, Authentication authentication) {
+        return ApiResponse.ok("Workforce invite sent.", adminUserService.inviteUser(request, authentication));
+    }
+
+    @PutMapping("/users/{id}")
+    public ApiResponse<AdminUserResponse> updateUser(
+            @PathVariable String id,
+            @Valid @RequestBody AdminUserUpdateRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Workforce account updated.", adminUserService.updateUser(id, request, authentication));
     }
 
     @PostMapping("/super-admins/otp")
@@ -162,9 +192,29 @@ public class AdminController {
         return ApiResponse.ok("Account disabled.", adminUserService.disableUser(id, authentication));
     }
 
+    @PatchMapping("/users/{id}/archive")
+    public ApiResponse<AdminUserResponse> archiveUser(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Workforce access archived.", adminUserService.archiveUser(id, authentication));
+    }
+
     @PatchMapping("/users/{id}/enable")
     public ApiResponse<AdminUserResponse> enableUser(@PathVariable String id, Authentication authentication) {
         return ApiResponse.ok("Account enabled.", adminUserService.enableUser(id, authentication));
+    }
+
+    @PatchMapping("/users/{id}/revoke-sessions")
+    public ApiResponse<AdminUserResponse> revokeUserSessions(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Active sessions revoked.", adminUserService.revokeSessions(id, authentication));
+    }
+
+    @PatchMapping("/users/{id}/resend-invite")
+    public ApiResponse<AdminUserResponse> resendInvite(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Workforce invite resent.", adminUserService.resendInvite(id, authentication));
+    }
+
+    @PatchMapping("/users/{id}/revoke-invite")
+    public ApiResponse<AdminUserResponse> revokeInvite(@PathVariable String id, Authentication authentication) {
+        return ApiResponse.ok("Workforce invite revoked.", adminUserService.revokeInvite(id, authentication));
     }
 
     @PatchMapping("/users/{id}/reset-password")
@@ -273,6 +323,11 @@ public class AdminController {
         return ApiResponse.ok("Workforce presence analytics loaded.", employeeAttendanceService.analytics(authentication.getName()));
     }
 
+    @GetMapping("/workforce/analytics")
+    public ApiResponse<Map<String, Object>> workforceAnalytics(Authentication authentication) {
+        return ApiResponse.ok("Workforce management analytics loaded.", adminUserService.workforceAnalytics(authentication));
+    }
+
     @GetMapping("/monitoring")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ApiResponse<Map<String, Object>> monitoring(Authentication authentication) {
@@ -343,6 +398,12 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorPhotoUploadResponse> uploadVisitorPhoto(@RequestPart("file") MultipartFile file) {
         return ApiResponse.ok("Visitor photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));
+    }
+
+    @PostMapping(value = "/users/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    public ApiResponse<VisitorPhotoUploadResponse> uploadWorkforcePhoto(@RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok("Workforce profile photo uploaded.", cloudinaryUploadService.uploadVisitorPhoto(file));
     }
 
     @PutMapping("/visitors/{id}")

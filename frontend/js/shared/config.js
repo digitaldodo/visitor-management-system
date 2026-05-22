@@ -333,6 +333,9 @@ export const ROLE_PORTALS = {
   SUPER_ADMIN: "/admin/platform-analytics",
   ADMIN: "/admin/dashboard",
   EMPLOYEE: "/employee",
+  RECEPTION: "/employee",
+  OPERATOR: "/employee",
+  MANAGER: "/employee",
   SECURITY_GUARD: "/security",
   VISITOR: "/pages/visitor/index.html",
 };

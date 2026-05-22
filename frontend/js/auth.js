@@ -359,7 +359,7 @@ function hoursFromNow(hours) {
 }
 
 function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
-  const priority = ["SUPER_ADMIN", "ADMIN", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
+  const priority = ["SUPER_ADMIN", "ADMIN", "MANAGER", "OPERATOR", "RECEPTION", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
   const sessionRole = priority.find((role) => sessionRoles.includes(role)) || null;
   const tokenRole = priority.find((role) => tokenRoles.includes(role)) || null;
 
@@ -383,6 +383,9 @@ function roleAllowedForAudience(role, audience) {
   const allowedAudienceByRole = {
     ADMIN: "admin",
     EMPLOYEE: "employee",
+    RECEPTION: "employee",
+    OPERATOR: "employee",
+    MANAGER: "employee",
     SECURITY_GUARD: "security",
     VISITOR: "visitor",
   };
