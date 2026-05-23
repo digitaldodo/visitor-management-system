@@ -14,11 +14,13 @@ import { StatusPill } from '../../components/feedback/StatusPill';
 import { AppTextField } from '../../components/form/AppTextField';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
+import { PhotoCaptureModal } from '../../components/security/PhotoCaptureModal';
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
 import { AccountProfileScreen } from '../common/AccountProfileScreen';
 import {
   useAdminOverview,
   useAdminAnalytics,
+  useAdminDepartments,
   useAdminReports,
   useAdminUsers,
   useAdminVisitors,
@@ -29,15 +31,20 @@ import {
   useApproveAdminWorkforceMutation,
   useCheckInAdminVisitorMutation,
   useCheckOutAdminVisitorMutation,
+  useCreateAdminDepartmentMutation,
+  useCreateAdminVisitorMutation,
   useDenyAdminVisitorMutation,
   useDisableAdminUserMutation,
   useEnableAdminUserMutation,
   useEscalateAdminVisitorMutation,
+  useInviteAdminUserMutation,
   useReactivateAdminVisitorMutation,
   useRejectAdminVisitorMutation,
   useRejectAdminWorkforceMutation,
   useRequestAdminWorkforceModificationMutation,
   useSuspendAdminVisitorMutation,
+  useUpdateAdminDepartmentMutation,
+  useUploadAdminVisitorPhotoMutation,
 } from '../../hooks/useAdminWorkspace';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useNotificationsQuery } from '../../hooks/useNotificationsQuery';
@@ -51,6 +58,7 @@ import type {
   AnalyticsHeatmapRow,
   AnalyticsPoint,
   AnalyticsSnapshot,
+  DepartmentRecord,
   EmployeeAttendanceRecord,
   NotificationRecord,
   OperationalInsight,
@@ -77,7 +85,7 @@ type AdminAction =
   | { type: 'disable-user'; user: WorkforceOnboardingRecord };
 
 type SectionProps = {
-  section: 'dashboard' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'settings' | 'more';
+  section: 'dashboard' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'reports' | 'organization' | 'settings' | 'more';
 };
 
 const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
@@ -98,6 +106,14 @@ const WORKFORCE_STATUSES = [
   { label: 'Pending invite', value: 'UNVERIFIED' },
   { label: 'Suspended', value: 'DISABLED' },
   { label: 'Changes', value: 'CHANGES_REQUESTED' },
+] as const;
+
+const ADMIN_WORKFORCE_ROLES = [
+  { label: 'Employee', value: 'EMPLOYEE' },
+  { label: 'Security', value: 'SECURITY_GUARD' },
+  { label: 'Reception', value: 'RECEPTION' },
+  { label: 'Operator', value: 'OPERATOR' },
+  { label: 'Manager', value: 'MANAGER' },
 ] as const;
 
 export function AdminDashboardScreen() {
@@ -130,6 +146,14 @@ export function AdminRegisterScreen() {
 
 export function AdminEmployeesScreen() {
   return <AdminOperationalScreen section="employees" />;
+}
+
+export function AdminReportsScreen() {
+  return <AdminOperationalScreen section="reports" />;
+}
+
+export function AdminOrganizationScreen() {
+  return <AdminOperationalScreen section="organization" />;
 }
 
 export function AdminSettingsScreen() {
@@ -188,10 +212,41 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const [page, setPage] = useState(0);
   const [actionState, setActionState] = useState<AdminAction | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [departmentDraft, setDepartmentDraft] = useState('');
+  const [visitorPhotoModalVisible, setVisitorPhotoModalVisible] = useState(false);
+  const [visitorPhotoAsset, setVisitorPhotoAsset] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [visitorForm, setVisitorForm] = useState({
+    fullName: '',
+    phoneCountryCode: '+1',
+    phone: '',
+    email: '',
+    companyName: '',
+    purposeOfVisit: '',
+    hostEmployee: '',
+    department: '',
+    expectedDurationMinutes: '60',
+    notes: '',
+  });
+  const [workforceInviteForm, setWorkforceInviteForm] = useState({
+    fullName: '',
+    username: '',
+    email: '',
+    phoneCountryCode: '+1',
+    phone: '',
+    role: 'EMPLOYEE',
+    department: '',
+    designation: '',
+    employeeType: 'FULL_TIME',
+    shiftName: 'General Shift',
+    shiftStartTime: '09:00',
+    shiftEndTime: '18:00',
+  });
+  const [formError, setFormError] = useState<string | null>(null);
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const overview = useAdminOverview();
   const analytics = useAdminAnalytics();
+  const departments = useAdminDepartments();
   const reports = useAdminReports();
   const workforceOnboarding = useAdminWorkforceOnboarding();
   const users = useAdminUsers();
@@ -221,8 +276,13 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const suspendVisitorMutation = useSuspendAdminVisitorMutation();
   const reactivateVisitorMutation = useReactivateAdminVisitorMutation();
   const escalateVisitorMutation = useEscalateAdminVisitorMutation();
+  const createVisitorMutation = useCreateAdminVisitorMutation();
+  const uploadVisitorPhotoMutation = useUploadAdminVisitorPhotoMutation();
   const disableUserMutation = useDisableAdminUserMutation();
   const enableUserMutation = useEnableAdminUserMutation();
+  const inviteUserMutation = useInviteAdminUserMutation();
+  const createDepartmentMutation = useCreateAdminDepartmentMutation();
+  const updateDepartmentMutation = useUpdateAdminDepartmentMutation();
   const markReadMutation = useMutation({ mutationFn: markNotificationRead });
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
 
@@ -271,6 +331,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const activeVisitorCount = insideVisitors.data?.totalItems ?? Number(overview.data?.metrics?.checkedIn ?? 0);
   const isRefreshing = overview.isRefetching
     || analytics.isRefetching
+    || departments.isRefetching
     || reports.isRefetching
     || workforceOnboarding.isRefetching
     || visitors.isRefetching
@@ -344,6 +405,144 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     const updated = await disableUserMutation.mutateAsync(user.id);
     setActionMessage(`${updated.fullName} employee access suspended.`);
     await refreshWorkspace();
+  };
+
+  const updateVisitorForm = (key: keyof typeof visitorForm, value: string) => {
+    setVisitorForm((current) => ({ ...current, [key]: value }));
+    setFormError(null);
+  };
+
+  const updateWorkforceInviteForm = (key: keyof typeof workforceInviteForm, value: string) => {
+    setWorkforceInviteForm((current) => ({ ...current, [key]: value }));
+    setFormError(null);
+  };
+
+  const submitAdminVisitorRegistration = async () => {
+    const fullName = visitorForm.fullName.trim();
+    const phone = visitorForm.phone.trim();
+    const purposeOfVisit = visitorForm.purposeOfVisit.trim();
+    if (!fullName || !phone || !purposeOfVisit) {
+      setFormError('Visitor name, phone, and purpose are required.');
+      return;
+    }
+    if (!visitorPhotoAsset) {
+      setFormError('Capture or upload a visitor photo before registering the pass.');
+      return;
+    }
+    try {
+      const photo = await uploadVisitorPhotoMutation.mutateAsync(visitorPhotoAsset);
+      const duration = Number.parseInt(visitorForm.expectedDurationMinutes, 10);
+      const visitor = await createVisitorMutation.mutateAsync({
+        fullName,
+        phone,
+        phoneCountryCode: visitorForm.phoneCountryCode.trim() || null,
+        email: visitorForm.email.trim() || null,
+        companyName: visitorForm.companyName.trim() || null,
+        purposeOfVisit,
+        hostEmployee: visitorForm.hostEmployee.trim() || null,
+        department: visitorForm.department.trim() || null,
+        expectedDurationMinutes: Number.isFinite(duration) ? duration : 60,
+        photoUrl: photo.url,
+        photoPublicId: photo.publicId,
+        visitorType: 'WALK_IN',
+        timezone: session?.user.organizationTimezone ?? null,
+        notes: visitorForm.notes.trim() || null,
+      });
+      setActionMessage(`${visitor.fullName} registered through admin operations.`);
+      setVisitorForm({
+        fullName: '',
+        phoneCountryCode: '+1',
+        phone: '',
+        email: '',
+        companyName: '',
+        purposeOfVisit: '',
+        hostEmployee: '',
+        department: '',
+        expectedDurationMinutes: '60',
+        notes: '',
+      });
+      setVisitorPhotoAsset(null);
+      await refreshWorkspace();
+    } catch (error) {
+      setFormError(getErrorMessage(error, 'Visitor registration could not be completed.'));
+    }
+  };
+
+  const sendWorkforceInvite = async () => {
+    const fullName = workforceInviteForm.fullName.trim();
+    const username = workforceInviteForm.username.trim();
+    const email = workforceInviteForm.email.trim();
+    if (!fullName || !username || !email) {
+      setFormError('Worker name, username, and email are required.');
+      return;
+    }
+    try {
+      const invited = await inviteUserMutation.mutateAsync({
+        fullName,
+        username,
+        email,
+        role: workforceInviteForm.role,
+        department: workforceInviteForm.department.trim() || null,
+        phoneCountryCode: workforceInviteForm.phoneCountryCode.trim() || null,
+        phone: workforceInviteForm.phone.trim() || null,
+        designation: workforceInviteForm.designation.trim() || null,
+        employeeType: workforceInviteForm.employeeType.trim() || null,
+        shiftName: workforceInviteForm.shiftName.trim() || null,
+        shiftStartTime: workforceInviteForm.shiftStartTime.trim() || null,
+        shiftEndTime: workforceInviteForm.shiftEndTime.trim() || null,
+      });
+      setActionMessage(`${invited.fullName} workforce invite sent.`);
+      setWorkforceInviteForm({
+        fullName: '',
+        username: '',
+        email: '',
+        phoneCountryCode: '+1',
+        phone: '',
+        role: 'EMPLOYEE',
+        department: '',
+        designation: '',
+        employeeType: 'FULL_TIME',
+        shiftName: 'General Shift',
+        shiftStartTime: '09:00',
+        shiftEndTime: '18:00',
+      });
+      await refreshWorkspace();
+    } catch (error) {
+      setFormError(getErrorMessage(error, 'Workforce invite could not be sent.'));
+    }
+  };
+
+  const createDepartment = async () => {
+    const departmentName = departmentDraft.trim();
+    if (!departmentName) {
+      setFormError('Department name is required.');
+      return;
+    }
+    try {
+      const department = await createDepartmentMutation.mutateAsync({
+        departmentName,
+        organizationId: session?.user.organizationId ?? null,
+      });
+      setDepartmentDraft('');
+      setActionMessage(`${department.departmentName} department added.`);
+      await refreshWorkspace();
+    } catch (error) {
+      setFormError(getErrorMessage(error, 'Department could not be saved.'));
+    }
+  };
+
+  const toggleDepartment = async (department: DepartmentRecord) => {
+    try {
+      const updated = await updateDepartmentMutation.mutateAsync({
+        id: department.id,
+        departmentName: department.departmentName,
+        activeStatus: !department.activeStatus,
+      });
+      setActionMessage(`${updated.departmentName} ${updated.activeStatus ? 'activated' : 'paused'}.`);
+      await refreshWorkspace();
+    } catch (error) {
+      setFormError(getErrorMessage(error, 'Department could not be updated.'));
+    }
   };
 
   const markRead = async (notification: NotificationRecord) => {
@@ -448,6 +647,8 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     alerts: ['Alert Center', 'Acknowledge, escalate, and resolve operational events from mobile.'],
     register: ['Register', 'Searchable visitor, workforce, denied-entry, approval, and incident history.'],
     employees: ['Workforce Directory', 'Search workforce, verify roles, badge status, presence, and operational access.'],
+    reports: ['Reports', 'Audit oversight, lightweight exports, and operational reporting for mobile review.'],
+    organization: ['Organization Settings', 'Tenant identity, department options, and organization-scoped operating preferences.'],
     settings: ['Admin Settings', 'Mobile role scope, session controls, and operational readiness.'],
     more: ['More', 'Secondary admin tools, profile controls, and operational shortcuts.'],
   }[section];
@@ -636,6 +837,8 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
                 <AdminShortcut title="Organization activity" subtitle="Scoped visitor, workforce, approval, and incident updates" tone="info" onPress={() => navigation.navigate('Live')} />
                 <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
+                <AdminShortcut title="Reports" subtitle="Audit oversight, CSV/PDF snapshots, and share actions" tone="default" onPress={() => navigation.navigate('Reports')} />
+                <AdminShortcut title="Organization settings" subtitle="Tenant identity, departments, timezone, and scope" tone="default" onPress={() => navigation.navigate('Organization')} />
                 <AdminShortcut title="Profile" subtitle="Account and access security" tone="default" onPress={() => navigation.navigate('Profile')} />
               </View>
             </SurfaceCard>
@@ -654,6 +857,25 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'register' ? (
           <>
+            <SurfaceCard title="Visitor registration" subtitle="Admin-scoped walk-in creation uses the same backend lifecycle, photo upload, QR, approval, and audit rules as web.">
+              {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+              <View style={[styles.formGrid, layout.isTwoColumn ? styles.formGridWide : null]}>
+                <AppTextField label="Visitor name" value={visitorForm.fullName} onChangeText={(value) => updateVisitorForm('fullName', value)} placeholder="Full name" />
+                <AppTextField label="Phone code" value={visitorForm.phoneCountryCode} onChangeText={(value) => updateVisitorForm('phoneCountryCode', value)} placeholder="+1" keyboardType="phone-pad" />
+                <AppTextField label="Phone number" value={visitorForm.phone} onChangeText={(value) => updateVisitorForm('phone', value)} placeholder="Visitor phone" keyboardType="phone-pad" />
+                <AppTextField label="Visitor email" value={visitorForm.email} onChangeText={(value) => updateVisitorForm('email', value)} placeholder="Optional email" keyboardType="email-address" autoCapitalize="none" />
+                <AppTextField label="Company name" value={visitorForm.companyName} onChangeText={(value) => updateVisitorForm('companyName', value)} placeholder="Company or vendor" />
+                <AppTextField label="Host employee" value={visitorForm.hostEmployee} onChangeText={(value) => updateVisitorForm('hostEmployee', value)} placeholder="Host name" />
+                <AppTextField label="Department" value={visitorForm.department} onChangeText={(value) => updateVisitorForm('department', value)} placeholder="Destination department" />
+                <AppTextField label="Duration minutes" value={visitorForm.expectedDurationMinutes} onChangeText={(value) => updateVisitorForm('expectedDurationMinutes', value)} placeholder="60" keyboardType="number-pad" />
+              </View>
+              <AppTextField label="Purpose of visit" value={visitorForm.purposeOfVisit} onChangeText={(value) => updateVisitorForm('purposeOfVisit', value)} placeholder="Meeting, delivery, interview" />
+              <AppTextField label="Access note" value={visitorForm.notes} onChangeText={(value) => updateVisitorForm('notes', value)} placeholder="Optional operational note" multiline />
+              <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
+                <PrimaryButton label={visitorPhotoAsset ? 'Retake photo' : 'Capture visitor photo'} onPress={() => setVisitorPhotoModalVisible(true)} tone="secondary" />
+                <PrimaryButton label="Register visitor" onPress={() => void submitAdminVisitorRegistration()} loading={createVisitorMutation.isPending || uploadVisitorPhotoMutation.isPending} />
+              </View>
+            </SurfaceCard>
             <SurfaceCard title="Register filters" subtitle="Paged and searchable to avoid heavy mobile renders on operational tablets.">
               <AppTextField label="Search history" value={search} onChangeText={(value) => { setSearch(value); setPage(0); }} placeholder="Name, host, phone, badge, employee ID, incident" />
               <SegmentRow options={REGISTER_STATUSES} value={visitorStatus} onChange={(value) => { setVisitorStatus(value); setPage(0); }} />
@@ -686,6 +908,27 @@ export function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'employees' ? (
           <>
+            <SurfaceCard title="Create workforce invite" subtitle="Invite employees, security, reception, operators, and managers with the same organization-scoped backend role rules as web.">
+              {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+              <View style={[styles.formGrid, layout.isTwoColumn ? styles.formGridWide : null]}>
+                <AppTextField label="Worker name" value={workforceInviteForm.fullName} onChangeText={(value) => updateWorkforceInviteForm('fullName', value)} placeholder="Full name" />
+                <AppTextField label="Username" value={workforceInviteForm.username} onChangeText={(value) => updateWorkforceInviteForm('username', value)} placeholder="username" autoCapitalize="none" />
+                <AppTextField label="Email" value={workforceInviteForm.email} onChangeText={(value) => updateWorkforceInviteForm('email', value)} placeholder="worker@company.com" keyboardType="email-address" autoCapitalize="none" />
+                <AppTextField label="Department" value={workforceInviteForm.department} onChangeText={(value) => updateWorkforceInviteForm('department', value)} placeholder="Department" />
+                <AppTextField label="Designation" value={workforceInviteForm.designation} onChangeText={(value) => updateWorkforceInviteForm('designation', value)} placeholder="Role title" />
+                <AppTextField label="Employee type" value={workforceInviteForm.employeeType} onChangeText={(value) => updateWorkforceInviteForm('employeeType', value)} placeholder="FULL_TIME" />
+                <AppTextField label="Shift name" value={workforceInviteForm.shiftName} onChangeText={(value) => updateWorkforceInviteForm('shiftName', value)} placeholder="General Shift" />
+                <AppTextField label="Shift start" value={workforceInviteForm.shiftStartTime} onChangeText={(value) => updateWorkforceInviteForm('shiftStartTime', value)} placeholder="09:00" />
+                <AppTextField label="Shift end" value={workforceInviteForm.shiftEndTime} onChangeText={(value) => updateWorkforceInviteForm('shiftEndTime', value)} placeholder="18:00" />
+                <AppTextField label="Phone code" value={workforceInviteForm.phoneCountryCode} onChangeText={(value) => updateWorkforceInviteForm('phoneCountryCode', value)} placeholder="+1" keyboardType="phone-pad" />
+                <AppTextField label="Phone number" value={workforceInviteForm.phone} onChangeText={(value) => updateWorkforceInviteForm('phone', value)} placeholder="Optional phone" keyboardType="phone-pad" />
+              </View>
+              <Text style={styles.sectionLabel}>Access role</Text>
+              <SegmentRow options={ADMIN_WORKFORCE_ROLES} value={workforceInviteForm.role} onChange={(value) => updateWorkforceInviteForm('role', value)} />
+              <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
+                <PrimaryButton label="Send workforce invite" onPress={() => void sendWorkforceInvite()} loading={inviteUserMutation.isPending} />
+              </View>
+            </SurfaceCard>
             <SurfaceCard title="Workforce lookup" subtitle="Organization-scoped directory for employees, security, reception, operators, and managers.">
               <View style={styles.metricsGrid}>
                 <MetricCard label="Active workforce" value={Number(workforceAnalytics.data?.active ?? filteredEmployees.filter((user) => user.active).length)} tone="success" />
@@ -704,6 +947,50 @@ export function AdminOperationalScreen({ section }: SectionProps) {
               disableLoading={disableUserMutation.isPending}
               enableLoading={enableUserMutation.isPending}
             />
+          </>
+        ) : null}
+
+        {section === 'reports' ? (
+          <>
+            <SurfaceCard title="Operational exports" subtitle="Generate lightweight mobile reports while web keeps advanced dashboard exports.">
+              <SnapshotList items={analytics.data?.exportSnapshots ?? []} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
+            </SurfaceCard>
+            <SurfaceCard title="Audit history" subtitle="Recent organization-scoped access, approval, visitor, and workforce audit events.">
+              {(reports.data ?? []).length ? (
+                <View style={styles.listStack}>
+                  {(reports.data ?? []).map((report, index) => (
+                    <RecordCard key={`${report.title}-${index}`} title={report.title} subtitle={report.status} status="Audit" tone="default" />
+                  ))}
+                </View>
+              ) : (
+                <EmptyState title="No audit activity" body="Approval, visitor, workforce, and operational audit events will appear here." />
+              )}
+            </SurfaceCard>
+          </>
+        ) : null}
+
+        {section === 'organization' ? (
+          <>
+            <SurfaceCard title="Organization identity" subtitle="Mobile admin view mirrors web organization scope without exposing platform-owner controls.">
+              <FieldGrid
+                items={[
+                  ['Organization', session?.user.organizationName || 'Organization scope'],
+                  ['Company code', session?.user.organizationCode || 'Not assigned'],
+                  ['Timezone', session?.user.organizationTimezone || 'Not assigned'],
+                  ['Region', session?.user.organizationRegionCountry || 'Not assigned'],
+                ]}
+              />
+            </SurfaceCard>
+            <SurfaceCard title="Department management" subtitle="Create, pause, and reactivate tenant-scoped department options used by visitor and workforce workflows.">
+              {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+              <View style={[styles.inlineForm, layout.fieldStacked ? styles.inlineFormStacked : null]}>
+                <View style={styles.inlineFormField}>
+                  <AppTextField label="Department name" value={departmentDraft} onChangeText={(value) => { setDepartmentDraft(value); setFormError(null); }} placeholder="Operations, HR, Security" />
+                </View>
+                <PrimaryButton label="Add department" onPress={() => void createDepartment()} loading={createDepartmentMutation.isPending} />
+              </View>
+              <DepartmentList departments={departments.data ?? []} onToggle={(department) => void toggleDepartment(department)} loading={updateDepartmentMutation.isPending} />
+            </SurfaceCard>
           </>
         ) : null}
 
@@ -752,6 +1039,15 @@ export function AdminOperationalScreen({ section }: SectionProps) {
           || disableUserMutation.isPending}
         onCancel={() => setActionState(null)}
         onConfirm={executeReasonAction}
+      />
+      <PhotoCaptureModal
+        visible={visitorPhotoModalVisible}
+        title="Visitor identity photo"
+        onCancel={() => setVisitorPhotoModalVisible(false)}
+        onCapture={(asset) => {
+          setVisitorPhotoAsset(asset);
+          setFormError(null);
+        }}
       />
     </>
   );
@@ -1359,6 +1655,43 @@ function EmployeeList({
   );
 }
 
+function DepartmentList({
+  departments,
+  onToggle,
+  loading,
+}: {
+  departments: DepartmentRecord[];
+  onToggle: (department: DepartmentRecord) => void;
+  loading?: boolean;
+}) {
+  if (!departments.length) {
+    return <EmptyState title="No departments" body="Add departments so workforce, hosts, and visitor destination fields stay consistent." />;
+  }
+  return (
+    <View style={styles.listStack}>
+      {departments.map((department) => (
+        <View key={department.id} style={styles.departmentRow}>
+          <RecordCard
+            title={department.departmentName}
+            subtitle={[department.organizationName, department.organizationCode].filter(Boolean).join(' - ') || 'Organization scoped'}
+            meta={department.createdAt ? `Created ${formatDateTime(department.createdAt)}` : 'Department option'}
+            status={department.activeStatus ? 'Active' : 'Paused'}
+            tone={department.activeStatus ? 'success' : 'warning'}
+          />
+            <View style={styles.actionGrid}>
+              <PrimaryButton
+                label={department.activeStatus ? 'Pause department' : 'Reactivate department'}
+                onPress={() => onToggle(department)}
+                tone={department.activeStatus ? 'secondary' : undefined}
+                loading={loading}
+              />
+            </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function roleLabel(role?: string | null) {
   return String(role || 'WORKFORCE')
     .toLowerCase()
@@ -1475,6 +1808,13 @@ function reasonConfirm(action: AdminAction | null) {
     default:
       return 'Submit';
   }
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
 }
 
 const styles = StyleSheet.create({
@@ -1664,6 +2004,38 @@ const styles = StyleSheet.create({
   listStack: {
     gap: theme.spacing.md,
   },
+  formGrid: {
+    gap: theme.spacing.md,
+  },
+  formGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  inlineForm: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    alignItems: 'flex-end',
+  },
+  inlineFormStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  inlineFormField: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: theme.typography.caption.fontWeight,
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  errorText: {
+    color: theme.colors.danger,
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
   operationalCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1736,6 +2108,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  departmentRow: {
+    gap: theme.spacing.sm,
   },
   actionGrid: {
     gap: theme.spacing.sm,

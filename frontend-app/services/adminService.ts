@@ -4,11 +4,14 @@ import type { PageResponse } from '../types/api';
 import type {
   AdminOperationalReport,
   AdminOperationalAnalytics,
+  DepartmentRecord,
   EmployeeAttendanceRecord,
+  SecurityPhotoUpload,
   SecurityOverview,
   VisitorRecord,
   WorkforceOnboardingRecord,
 } from '../types/domain';
+import { uploadImage, type UploadAsset } from './uploadService';
 
 type AdminVisitorParams = {
   query?: string;
@@ -46,6 +49,39 @@ type WorkforceUserPayload = {
   shiftName?: string | null;
   shiftStartTime?: string | null;
   shiftEndTime?: string | null;
+};
+
+export type AdminVisitorRegistrationPayload = {
+  fullName: string;
+  phone: string;
+  phoneCountryCode?: string | null;
+  email?: string | null;
+  companyName?: string | null;
+  companyCode?: string | null;
+  purposeOfVisit: string;
+  hostEmployee?: string | null;
+  hostEmployeeId?: string | null;
+  photoUrl: string;
+  photoPublicId: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  expectedDurationMinutes?: number | null;
+  timezone?: string | null;
+  visitorType?: string | null;
+  department?: string | null;
+  emergencyContact?: string | null;
+  notes?: string | null;
+};
+
+export type DepartmentCreatePayload = {
+  organizationId?: string | null;
+  departmentName: string;
+};
+
+export type DepartmentUpdatePayload = {
+  id: string;
+  departmentName?: string | null;
+  activeStatus?: boolean;
 };
 
 type WorkforceUpdatePayload = Partial<Omit<WorkforceUserPayload, 'password' | 'username'>> & {
@@ -91,6 +127,16 @@ export async function getAdminReports() {
   });
 }
 
+export async function getAdminDepartments() {
+  return request<DepartmentRecord[]>({
+    url: '/admin/departments',
+    method: 'GET',
+    params: {
+      includeInactive: true,
+    },
+  });
+}
+
 export async function getAdminVisitors(params?: AdminVisitorParams) {
   return request<PageResponse<VisitorRecord>>({
     url: '/admin/visitors',
@@ -126,6 +172,40 @@ export async function getAdminWorkforceAttendance() {
   return request<EmployeeAttendanceRecord[]>({
     url: '/admin/workforce-attendance',
     method: 'GET',
+  });
+}
+
+export async function createAdminDepartment(payload: DepartmentCreatePayload) {
+  return request<DepartmentRecord>({
+    url: '/admin/departments',
+    method: 'POST',
+    data: payload,
+  });
+}
+
+export async function updateAdminDepartment({ id, ...payload }: DepartmentUpdatePayload) {
+  return request<DepartmentRecord>({
+    url: `/admin/departments/${encodeURIComponent(id)}`,
+    method: 'PATCH',
+    data: payload,
+  });
+}
+
+export async function createAdminVisitor(payload: AdminVisitorRegistrationPayload) {
+  const response = await request<VisitorRecord>({
+    url: '/admin/visitors',
+    method: 'POST',
+    data: payload,
+  });
+  await trackFirebaseEvent('visitor_registered', { actor_role: 'ADMIN', visitor_type: payload.visitorType ?? 'WALK_IN' });
+  return response;
+}
+
+export async function uploadAdminVisitorPhoto(asset: UploadAsset) {
+  return uploadImage<SecurityPhotoUpload>({
+    url: '/admin/visitors/photo',
+    asset,
+    fallbackName: 'admin-visitor-photo.jpg',
   });
 }
 

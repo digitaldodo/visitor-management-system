@@ -419,6 +419,16 @@ export type AdminOperationalReport = {
   status: string;
 };
 
+export type DepartmentRecord = {
+  id: string;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  organizationCode?: string | null;
+  departmentName: string;
+  activeStatus: boolean;
+  createdAt?: string | null;
+};
+
 export type AnalyticsPoint = {
   label: string;
   value: number;

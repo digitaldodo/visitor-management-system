@@ -23,6 +23,8 @@ const ROUTE_ALIASES = {
   organizations: "organizations",
   reports: "reports",
   monitoring: "system-monitoring",
+  emergency: "emergency-ops",
+  incidents: "emergency-ops",
   visitors: "visitor-access",
   "visitor-access": "visitor-access",
   "workforce-approvals": "workforce-approvals",
@@ -308,6 +310,8 @@ function workspaceTemplate(routeKey) {
       return reportsTemplate();
     case "attendance-presence":
       return attendancePresenceTemplate();
+    case "emergency-ops":
+      return emergencyOpsTemplate();
     case "notifications":
       return notificationsTemplate();
     case "organization-settings":
@@ -1156,6 +1160,73 @@ function attendancePresenceTemplate() {
   `;
 }
 
+function emergencyOpsTemplate() {
+  return `
+    <section class="workspace-stack">
+      <section class="metric-grid admin-metric-grid" id="emergency-summary"></section>
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Protected Control</p>
+              <h3>Lockdown</h3>
+            </div>
+          </div>
+          <form class="admin-user-form" id="emergency-lockdown-form">
+            <label>Reason <input name="reason" type="text" maxlength="180" placeholder="Operational reason" required /></label>
+            <label>Scope <input name="scope" type="text" maxlength="80" placeholder="Lobby, campus, all checkpoints" /></label>
+            <div class="admin-user-form__actions">
+              <button class="button button--primary" type="submit" data-emergency-action="start-lockdown">Start lockdown</button>
+              <button class="button button--ghost" type="button" data-emergency-action="clear-lockdown">Clear lockdown</button>
+            </div>
+          </form>
+        </article>
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Broadcast</p>
+              <h3>Emergency Message</h3>
+            </div>
+          </div>
+          <form class="admin-user-form" id="emergency-broadcast-form">
+            <label>Title <input name="title" type="text" maxlength="120" placeholder="Broadcast title" required /></label>
+            <label>Message <textarea name="message" maxlength="500" placeholder="Message to operational teams" required></textarea></label>
+            <label>Severity
+              <select name="severity">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </label>
+            <button class="button" type="submit">Send broadcast</button>
+          </form>
+        </article>
+      </section>
+      <section class="workspace-grid workspace-grid--split">
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Incidents</p>
+              <h3>Emergency Feed</h3>
+            </div>
+          </div>
+          <div class="work-list" id="emergency-feed-list"></div>
+        </article>
+        <article class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Evacuation</p>
+              <h3>People Inside</h3>
+            </div>
+          </div>
+          <div class="work-list" id="emergency-evacuation-list"></div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
 function notificationsTemplate() {
   return `
     <article class="panel">
@@ -1376,6 +1447,9 @@ function initWorkspace(routeKey) {
     case "workforce-approvals":
       initWorkforceApprovalsWorkspace();
       break;
+    case "emergency-ops":
+      initEmergencyOpsWorkspace();
+      break;
     default:
       break;
   }
@@ -1441,6 +1515,9 @@ async function loadWorkspace(routeKey, options = {}) {
         break;
       case "attendance-presence":
         await loadAttendancePresenceWorkspace();
+        break;
+      case "emergency-ops":
+        await loadEmergencyOpsWorkspace();
         break;
       case "notifications":
         await loadNotificationsWorkspace();
@@ -1700,6 +1777,102 @@ async function loadAttendancePresenceWorkspace() {
     renderWorkList("#attendance-presence-table", [], (item) => item, "Attendance unavailable", error.message);
     showToast("Attendance unavailable", error.message);
   }
+}
+
+async function loadEmergencyOpsWorkspace() {
+  renderEmergencySummary({});
+  renderLoadingList("#emergency-feed-list", 4);
+  renderLoadingList("#emergency-evacuation-list", 4);
+  try {
+    const [stateResponse, feedResponse, evacuationResponse] = await Promise.all([
+      request("/emergency/state"),
+      request("/emergency/feed"),
+      request("/emergency/evacuation-register"),
+    ]);
+    renderEmergencyOps(stateResponse?.data || {}, feedResponse?.data || [], evacuationResponse?.data || {});
+  } catch (error) {
+    renderEmergencySummary({});
+    renderWorkList("#emergency-feed-list", [], (item) => item, "Emergency feed unavailable", error.message);
+    renderWorkList("#emergency-evacuation-list", [], (item) => item, "Evacuation register unavailable", "Emergency state could not be loaded.");
+    showToast("Emergency workspace unavailable", error.message);
+  }
+}
+
+function initEmergencyOpsWorkspace() {
+  document.querySelector("#emergency-lockdown-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const reason = String(data.get("reason") || "").trim();
+    const scope = String(data.get("scope") || "").trim();
+    if (!reason) {
+      showToast("Reason required", "Emergency lockdown changes require an operational reason.");
+      return;
+    }
+    const button = event.submitter;
+    button?.toggleAttribute("disabled", true);
+    try {
+      await request("/emergency/lockdown", {
+        method: "POST",
+        body: JSON.stringify({ reason, scope: scope || null, confirmOperationalOnly: true }),
+      });
+      showToast("Lockdown started", "Check-ins are blocked according to emergency policy.");
+      await loadEmergencyOpsWorkspace();
+    } catch (error) {
+      showToast("Lockdown failed", error.message);
+    } finally {
+      button?.toggleAttribute("disabled", false);
+    }
+  });
+
+  document.querySelector("[data-emergency-action='clear-lockdown']")?.addEventListener("click", async (event) => {
+    const form = document.querySelector("#emergency-lockdown-form");
+    const data = new FormData(form);
+    const reason = String(data.get("reason") || "").trim() || "Cleared from web emergency operations.";
+    const scope = String(data.get("scope") || "").trim();
+    const button = event.currentTarget;
+    button.toggleAttribute("disabled", true);
+    try {
+      await request("/emergency/lockdown/clear", {
+        method: "PATCH",
+        body: JSON.stringify({ reason, scope: scope || null, confirmOperationalOnly: true }),
+      });
+      showToast("Lockdown cleared", "Emergency state has been updated.");
+      await loadEmergencyOpsWorkspace();
+    } catch (error) {
+      showToast("Clear lockdown failed", error.message);
+    } finally {
+      button.toggleAttribute("disabled", false);
+    }
+  });
+
+  document.querySelector("#emergency-broadcast-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const title = String(data.get("title") || "").trim();
+    const message = String(data.get("message") || "").trim();
+    const severity = String(data.get("severity") || "MEDIUM").trim();
+    if (!title || !message) {
+      showToast("Broadcast details required", "Title and message are required.");
+      return;
+    }
+    const button = event.submitter;
+    button?.toggleAttribute("disabled", true);
+    try {
+      await request("/emergency/broadcasts", {
+        method: "POST",
+        body: JSON.stringify({ title, message, severity, scope: null, evacuation: severity === "CRITICAL" }),
+      });
+      form.reset();
+      showToast("Broadcast sent", "Emergency notification was recorded for the organization.");
+      await loadEmergencyOpsWorkspace();
+    } catch (error) {
+      showToast("Broadcast failed", error.message);
+    } finally {
+      button?.toggleAttribute("disabled", false);
+    }
+  });
 }
 
 async function loadNotificationsWorkspace() {
@@ -3258,6 +3431,41 @@ function renderAttendancePresence(items) {
       <p>Employee check-in and check-out activity will appear here as workforce QR scans occur.</p>
     </article>
   `;
+}
+
+function renderEmergencyOps(state, feed, evacuation) {
+  renderEmergencySummary(state);
+  const incidents = Array.isArray(feed) ? feed : [];
+  const people = [
+    ...(Array.isArray(evacuation?.visitorsInside) ? evacuation.visitorsInside : []),
+    ...(Array.isArray(evacuation?.workforceInside) ? evacuation.workforceInside : []),
+    ...(Array.isArray(evacuation?.unaccounted) ? evacuation.unaccounted : []),
+  ];
+
+  renderWorkList("#emergency-feed-list", incidents, (item) => workCard(
+    item.title || formatStatusLabel(item.type || "Emergency incident"),
+    item.message || item.notes || "Incident recorded",
+    [formatStatusLabel(item.severity || "Signal"), item.actorName ? `By ${item.actorName}` : null, formatDateTime(item.createdAt)].filter(Boolean).join(" · "),
+  ), "No emergency incidents", "Lockdown, broadcast, suspicious activity, and escalation events will appear here.");
+
+  renderWorkList("#emergency-evacuation-list", people, (item) => workCard(
+    item.name || "Person",
+    [formatStatusLabel(item.personType || "Person"), item.department, item.evacuationStatus].filter(Boolean).join(" · "),
+    item.lastActivityAt ? `Last activity ${formatDateTime(item.lastActivityAt)}` : item.lastKnownCheckpoint || "Checkpoint unknown",
+  ), "No active evacuation list", "People currently inside will appear here during emergency review.");
+}
+
+function renderEmergencySummary(state = {}) {
+  const grid = document.querySelector("#emergency-summary");
+  if (!grid) {
+    return;
+  }
+  grid.innerHTML = [
+    { label: "Lockdown", value: state.lockdownActive ? "Active" : "Clear", note: state.lockdownReason || "Current emergency state" },
+    { label: "Check-ins", value: state.checkInsBlocked ? "Blocked" : "Allowed", note: "Backend emergency policy" },
+    { label: "Evacuation", value: state.evacuationActive ? "Active" : "Inactive", note: state.evacuationScope || "Organization scoped" },
+    { label: "Latest broadcast", value: state.latestBroadcastSeverity || "None", note: state.latestBroadcastTitle || "No recent broadcast" },
+  ].map(metricCard).join("");
 }
 
 function renderNotificationsWorkspace(data) {

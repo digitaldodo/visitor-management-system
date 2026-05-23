@@ -6,11 +6,14 @@ import {
   archiveAdminUser,
   checkInAdminVisitor,
   checkOutAdminVisitor,
+  createAdminDepartment,
   createAdminUser,
+  createAdminVisitor,
   denyAdminVisitor,
   disableAdminUser,
   enableAdminUser,
   getAdminAnalytics,
+  getAdminDepartments,
   getAdminWorkforceAnalytics,
   escalateAdminVisitor,
   getAdminOverview,
@@ -29,7 +32,9 @@ import {
   revokeAdminUserInvite,
   revokeAdminUserSessions,
   suspendAdminVisitor,
+  updateAdminDepartment,
   updateAdminUser,
+  uploadAdminVisitorPhoto,
 } from '../services/adminService';
 
 export function useAdminOverview() {
@@ -65,6 +70,14 @@ export function useAdminReports() {
   });
 }
 
+export function useAdminDepartments() {
+  return useQuery({
+    queryKey: ['admin', 'departments'],
+    queryFn: getAdminDepartments,
+    placeholderData: (previous) => previous,
+  });
+}
+
 export function useAdminVisitors(query?: string, status?: string, page = 0, size = 24, from?: string, to?: string) {
   return useQuery({
     queryKey: ['admin', 'visitors', query ?? '', status ?? 'ALL', page, size, from ?? '', to ?? ''],
@@ -96,6 +109,22 @@ export function useAdminWorkforceAttendance() {
     queryFn: getAdminWorkforceAttendance,
     placeholderData: (previous) => previous,
   });
+}
+
+export function useCreateAdminDepartmentMutation() {
+  return useMutation({ mutationFn: createAdminDepartment });
+}
+
+export function useUpdateAdminDepartmentMutation() {
+  return useMutation({ mutationFn: updateAdminDepartment });
+}
+
+export function useCreateAdminVisitorMutation() {
+  return useMutation({ mutationFn: createAdminVisitor });
+}
+
+export function useUploadAdminVisitorPhotoMutation() {
+  return useMutation({ mutationFn: uploadAdminVisitorPhoto });
 }
 
 export function useApproveAdminWorkforceMutation() {
