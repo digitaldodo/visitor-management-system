@@ -219,7 +219,9 @@ public class NotificationService {
                         || trimToNull(notification.getOrganizationId()) == null
                         || organizationId.equals(trimToNull(notification.getOrganizationId())))
                 .toList();
-        long unreadCount = notifications.stream().filter(notification -> !notification.isRead()).count();
+        long unreadCount = user
+                .map(value -> scopedUnreadCount(value, organizationId))
+                .orElseGet(() -> notifications.stream().filter(notification -> !notification.isRead()).count());
         return new NotificationListResponse(
                 unreadCount,
                 notifications.stream().map(this::toResponse).toList()
@@ -362,6 +364,7 @@ public class NotificationService {
                 notification.getActionUrl(),
                 notification.getTargetType(),
                 notification.getTargetId(),
+                operationalDeepLink(notification),
                 notification.getActorName(),
                 notification.getOrganizationTimezone(),
                 notification.isRead(),
@@ -529,25 +532,53 @@ public class NotificationService {
         return payload;
     }
 
+    private long scopedUnreadCount(User user, String organizationId) {
+        if (organizationId == null || user.getRoles() != null && user.getRoles().contains(Role.SUPER_ADMIN)) {
+            return notificationRepository.countByRecipientUserIdAndReadFalse(user.getId());
+        }
+        return notificationRepository.countByRecipientUserIdAndOrganizationIdAndReadFalse(user.getId(), organizationId);
+    }
+
     private Map<String, String> buildNotificationData(Notification notification) {
-        return Map.of(
-                "notificationId", safeData(notification.getId()),
-                "type", notification.getType().name(),
-                "category", notification.getCategory().name(),
-                "priority", notification.getPriority().name(),
-                "organizationId", safeData(notification.getOrganizationId()),
-                "visitorId", safeData(notification.getVisitorId()),
-                "targetType", safeData(notification.getTargetType()),
-                "targetId", safeData(notification.getTargetId()),
-                "actionUrl", safeData(notification.getActionUrl())
-        );
+        Map<String, String> data = new LinkedHashMap<>();
+        data.put("notificationId", safeData(notification.getId()));
+        data.put("eventType", notification.getType().name());
+        data.put("type", notification.getType().name());
+        data.put("category", notification.getCategory().name());
+        data.put("priority", notification.getPriority().name());
+        data.put("organizationId", safeData(notification.getOrganizationId()));
+        data.put("visitorId", safeData(notification.getVisitorId()));
+        data.put("targetType", safeData(notification.getTargetType()));
+        data.put("targetId", safeData(notification.getTargetId()));
+        data.put("actionUrl", safeData(notification.getActionUrl()));
+        data.put("deepLink", operationalDeepLink(notification));
+        return data;
     }
 
     private String categoryIdFor(NotificationType type) {
         return switch (type) {
             case VISITOR_APPROVAL_REQUEST -> "employee-approval";
+            case EMERGENCY_LOCKDOWN, EMERGENCY_PANIC, EMERGENCY_BROADCAST, EMERGENCY_EVACUATION -> "operational-critical";
+            case WORKFORCE_ONBOARDING_REQUESTED,
+                    WORKFORCE_ONBOARDING_APPROVED,
+                    WORKFORCE_ONBOARDING_REJECTED,
+                    WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED,
+                    WORKFORCE_ACCESS_REVOKED,
+                    WORKFORCE_CREDENTIAL_DISABLED -> "workforce-update";
             default -> null;
         };
+    }
+
+    private String operationalDeepLink(Notification notification) {
+        String targetType = trimToNull(notification.getTargetType());
+        String targetId = trimToNull(notification.getTargetId());
+        if (targetType == null || targetId == null) {
+            return "";
+        }
+        return "accessflow://operations/%s/%s".formatted(
+                targetType.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "-"),
+                safeData(targetId)
+        );
     }
 
     private String resolveTimezone(Visitor visitor, User recipient) {

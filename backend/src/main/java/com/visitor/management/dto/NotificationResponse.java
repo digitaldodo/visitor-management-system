@@ -20,6 +20,7 @@ public record NotificationResponse(
         String actionUrl,
         String targetType,
         String targetId,
+        String deepLink,
         String actorName,
         String organizationTimezone,
         boolean read,

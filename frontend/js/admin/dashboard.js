@@ -9,6 +9,7 @@ import { initPortalShell, renderLoadingList, renderWorkList, workCard, escapeHtm
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, requestWorkforceOnboardingModification, updateWorkforceOnboarding } from "../shared/accessService.js";
 import { getNotifications } from "../shared/notificationApi.js";
+import { getOperationalEvents } from "../shared/operationalEventApi.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -46,6 +47,11 @@ let userDepartmentOptions = [];
 let userDepartmentOrganizationId = "";
 let adminRouteState = null;
 let activeOrganizationWorkspace = null;
+let operationalEventCursor = "";
+let operationalEventPollTimer = 0;
+let operationalEventsHydrated = false;
+let recentOperationalEvents = [];
+const seenOperationalEventIds = new Set();
 
 const DEFAULT_DEPARTMENT_PRESETS = [
   "Operations",
@@ -158,6 +164,7 @@ async function bootAdminPortal() {
   await runSafely("admin portal activation", () => activateAdminRoute(currentRoute), {
     toastTitle: "Workspace unavailable",
   });
+  startOperationalEventPolling();
 }
 
 function resolveRouteContext(allowedRoutes) {
@@ -1229,15 +1236,26 @@ function emergencyOpsTemplate() {
 
 function notificationsTemplate() {
   return `
-    <article class="panel">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">Recent Alerts</p>
-          <h3>Notifications</h3>
+    <section class="workspace-grid workspace-grid--split">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Recent Alerts</p>
+            <h3>Notifications</h3>
+          </div>
         </div>
-      </div>
-      <div class="work-list" id="notifications-workspace-list"></div>
-    </article>
+        <div class="work-list" id="notifications-workspace-list"></div>
+      </article>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Realtime Feed</p>
+            <h3>Operational Stream</h3>
+          </div>
+        </div>
+        <div class="work-list" id="notifications-operational-feed-list"></div>
+      </article>
+    </section>
   `;
 }
 
@@ -1877,12 +1895,68 @@ function initEmergencyOpsWorkspace() {
 
 async function loadNotificationsWorkspace() {
   renderLoadingList("#notifications-workspace-list", 4);
+  renderOperationalFeedWorkspace(recentOperationalEvents);
   try {
     const response = await getNotifications(25);
     renderNotificationsWorkspace(response?.data || {});
   } catch (error) {
     renderWorkList("#notifications-workspace-list", [], (item) => item, "Notifications unavailable", error.message);
     showToast("Notifications unavailable", error.message);
+  }
+}
+
+function startOperationalEventPolling() {
+  if (!currentSession?.organizationId || operationalEventPollTimer) {
+    return;
+  }
+  pollOperationalEvents(false);
+  operationalEventPollTimer = window.setInterval(() => pollOperationalEvents(true), 12000);
+  window.addEventListener("beforeunload", () => window.clearInterval(operationalEventPollTimer), { once: true });
+}
+
+async function pollOperationalEvents(announceNew) {
+  try {
+    const response = await getOperationalEvents(operationalEventCursor, 80);
+    const batch = response?.data || {};
+    operationalEventCursor = batch.cursor || operationalEventCursor;
+    const events = Array.isArray(batch.events) ? batch.events : [];
+    const newEvents = events.filter((event) => event?.id && !seenOperationalEventIds.has(event.id));
+    events.forEach((event) => {
+      if (event?.id) {
+        seenOperationalEventIds.add(event.id);
+      }
+    });
+    if (newEvents.length) {
+      mergeOperationalEvents(newEvents);
+      if (operationalEventsHydrated && announceNew) {
+        announceOperationalEvents(newEvents);
+      }
+      if (currentRoute === "notifications" || currentRoute === "reports" || currentRoute === "dashboard") {
+        renderOperationalFeedWorkspace(recentOperationalEvents);
+      }
+    }
+    operationalEventsHydrated = true;
+  } catch {
+    operationalEventsHydrated = true;
+  }
+}
+
+function mergeOperationalEvents(events) {
+  const merged = new Map();
+  [...events, ...recentOperationalEvents].forEach((event) => {
+    if (event?.id) {
+      merged.set(event.id, event);
+    }
+  });
+  recentOperationalEvents = Array.from(merged.values())
+    .sort((left, right) => Date.parse(right.occurredAt || 0) - Date.parse(left.occurredAt || 0))
+    .slice(0, 80);
+}
+
+function announceOperationalEvents(events) {
+  const urgent = events.find((event) => ["emergency", "security"].includes(String(event.severity || "").toLowerCase()));
+  if (urgent) {
+    showToast(urgent.title || "Operational alert", urgent.detail || "New operational activity was recorded.");
   }
 }
 
@@ -3475,6 +3549,14 @@ function renderNotificationsWorkspace(data) {
     item.message || "No message available",
     `${item.read ? "Read" : "Unread"} · ${formatDateTime(item.createdAt)}`,
   ), "No notifications", "New visitor, approval, and workforce notifications will appear here.");
+}
+
+function renderOperationalFeedWorkspace(events = []) {
+  renderWorkList("#notifications-operational-feed-list", events.slice(0, 20), (event) => workCard(
+    event.title || formatStatusLabel(event.type || "Operational event"),
+    event.detail || [event.category, event.targetName].filter(Boolean).join(" · ") || "Operational activity recorded.",
+    [formatStatusLabel(event.severity || "info"), formatDateTime(event.occurredAt)].filter(Boolean).join(" · "),
+  ), "Operational stream idle", "Approval, visitor, workforce, badge, and emergency events will appear here.");
 }
 
 function renderOrganizationSettings(organizations, departments) {

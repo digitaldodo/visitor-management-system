@@ -750,6 +750,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         targetType: data.targetType,
         targetId: data.targetId,
         actionUrl: data.actionUrl,
+        deepLink: data.deepLink,
       })) {
         return;
       }
@@ -820,7 +821,8 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
   const handleFirebaseNotificationResponse = useCallback(async (message: FirebaseMessagePayload, source: 'foreground' | 'opened' | 'initial') => {
     const data = message.data ?? {};
-    const responseKey = `${message.messageId ?? data.notificationId ?? data.type ?? 'firebase'}:${source}`;
+    const interactionScope = source === 'foreground' ? 'received' : 'opened';
+    const responseKey = `${message.messageId ?? data.notificationId ?? data.type ?? 'firebase'}:${interactionScope}`;
     if (handledResponsesRef.current.has(responseKey)) {
       return;
     }
@@ -833,7 +835,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       priority: data.priority ?? null,
     });
 
-    if (data.notificationId) {
+    if (data.notificationId && source !== 'foreground') {
       await markNotificationRead(data.notificationId).catch(() => undefined);
     }
 
@@ -1264,6 +1266,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       await Notifications.setNotificationCategoryAsync('employee-approval', [
         { identifier: 'approve', buttonTitle: 'Approve' },
         { identifier: 'reject', buttonTitle: 'Reject', options: { isDestructive: true } },
+        { identifier: 'view_request', buttonTitle: 'View request' },
+      ]);
+      await Notifications.setNotificationCategoryAsync('operational-critical', [
+        { identifier: 'view_alert', buttonTitle: 'View alert' },
+      ]);
+      await Notifications.setNotificationCategoryAsync('workforce-update', [
         { identifier: 'view_request', buttonTitle: 'View request' },
       ]);
     })().catch(() => undefined);

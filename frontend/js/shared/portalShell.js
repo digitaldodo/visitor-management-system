@@ -8,7 +8,9 @@ import { getNotifications, markAllNotificationsRead, markNotificationRead } from
 import { formatDate, formatStatus, setDefaultTimezone, timezoneLabel } from "./formatters.js";
 
 let notificationPollTimer;
-let latestNotificationSeenAt = "";
+let notificationHydrated = false;
+const seenNotificationIds = new Set();
+const browserNotificationIds = new Set();
 
 export function initPortalShell(session, options = {}) {
   setDefaultTimezone(session.organizationTimezone || session.user?.organizationTimezone || "UTC");
@@ -337,6 +339,7 @@ function initNotifications() {
     try {
       const response = await markNotificationRead(button.dataset.notificationId);
       renderNotifications(response.data, false);
+      openNotificationTarget(button.dataset);
     } catch (error) {
       showToast("Notification update failed", error.message);
     }
@@ -351,13 +354,13 @@ function initNotifications() {
 
   loadNotifications(false);
   window.clearInterval(notificationPollTimer);
-  notificationPollTimer = window.setInterval(() => loadNotifications(true), 20000);
+  notificationPollTimer = window.setInterval(() => loadNotifications(true), 15000);
   window.addEventListener("beforeunload", () => window.clearInterval(notificationPollTimer), { once: true });
 }
 
 async function loadNotifications(showNewToast) {
   try {
-    const response = await getNotifications(10);
+    const response = await getNotifications(20);
     renderNotifications(response?.data, showNewToast);
   } catch {
     renderNotifications({ unreadCount: 0, items: [] }, false);
@@ -384,18 +387,32 @@ function renderNotifications(data, showNewToast) {
     `;
   }
 
-  const newest = items[0];
-  if (showNewToast && newest && newest.createdAt && newest.createdAt !== latestNotificationSeenAt && !newest.read) {
-    showToast(newest.title, newest.message);
+  const newUnreadItems = items.filter((item) => item?.id && !item.read && !seenNotificationIds.has(item.id));
+  if (notificationHydrated && showNewToast && newUnreadItems.length) {
+    announceNewNotifications(newUnreadItems);
   }
-  if (newest?.createdAt) {
-    latestNotificationSeenAt = newest.createdAt;
-  }
+  items.forEach((item) => {
+    if (item?.id) {
+      seenNotificationIds.add(item.id);
+    }
+  });
+  notificationHydrated = true;
 }
 
 function notificationItem(item) {
   return `
-    <button class="notification-item ${item.read ? "" : "is-unread"}" type="button" data-notification-id="${escapeHtml(item.id)}">
+    <button
+      class="notification-item ${item.read ? "" : "is-unread"}"
+      type="button"
+      data-notification-id="${escapeHtml(item.id)}"
+      data-notification-type="${escapeHtml(item.type || "")}"
+      data-notification-category="${escapeHtml(item.category || "")}"
+      data-notification-priority="${escapeHtml(item.priority || "")}"
+      data-notification-action-url="${escapeHtml(item.actionUrl || "")}"
+      data-notification-target-type="${escapeHtml(item.targetType || "")}"
+      data-notification-target-id="${escapeHtml(item.targetId || item.visitorId || "")}"
+      data-notification-deep-link="${escapeHtml(item.deepLink || "")}"
+    >
       <span>
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.message)}</small>
@@ -403,6 +420,151 @@ function notificationItem(item) {
       <time>${escapeHtml(formatDate(item.createdAt, { dateStyle: "short", timeStyle: "short" }))}</time>
     </button>
   `;
+}
+
+function announceNewNotifications(items) {
+  const actionableItems = items.filter(shouldAnnounceNotification);
+  const toastItem = actionableItems[0];
+  if (toastItem) {
+    showToast(toastItem.title, toastItem.message);
+  }
+
+  actionableItems.slice(0, 2).forEach((item) => {
+    maybeShowBrowserNotification(item);
+  });
+}
+
+function shouldAnnounceNotification(item) {
+  const priority = String(item.priority || "").toUpperCase();
+  const category = String(item.category || "").toUpperCase();
+  return priority === "CRITICAL" || priority === "HIGH" || category === "SECURITY";
+}
+
+function maybeShowBrowserNotification(item) {
+  if (!("Notification" in window) || Notification.permission !== "granted" || browserNotificationIds.has(item.id)) {
+    return;
+  }
+  browserNotificationIds.add(item.id);
+  try {
+    const notification = new Notification(item.title || "AccessFlow update", {
+      body: item.message || "Operational notification",
+      tag: item.id,
+      renotify: false,
+      silent: String(item.priority || "").toUpperCase() !== "CRITICAL",
+    });
+    notification.onclick = () => {
+      window.focus();
+      openNotificationTarget(item);
+      notification.close();
+    };
+  } catch {
+    // Browser notification support varies; the in-app center remains authoritative.
+  }
+}
+
+function openNotificationTarget(item) {
+  const actionUrl = item.actionUrl || item.notificationActionUrl || item.dataset?.notificationActionUrl;
+  const type = item.type || item.notificationType || item.dataset?.notificationType;
+  const targetType = item.targetType || item.notificationTargetType || item.dataset?.notificationTargetType;
+  const targetId = item.targetId || item.notificationTargetId || item.dataset?.notificationTargetId;
+  const deepLink = item.deepLink || item.notificationDeepLink || item.dataset?.notificationDeepLink;
+  const resolved = resolveNotificationTarget({ actionUrl, type, targetType, targetId, deepLink });
+  if (!resolved) {
+    return;
+  }
+  if (resolved.startsWith("#")) {
+    window.location.hash = resolved;
+    return;
+  }
+  window.location.assign(resolved);
+}
+
+function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deepLink }) {
+  const route = routeFromActionUrl(actionUrl);
+  if (route) {
+    return route;
+  }
+  const parsedDeepLink = parseOperationalDeepLink(deepLink);
+
+  const normalized = `${type || ""} ${targetType || parsedDeepLink.targetType || ""}`.toUpperCase();
+  const resolvedTargetId = targetId || parsedDeepLink.targetId;
+  const portalPath = window.location.pathname.toLowerCase();
+  if (normalized.includes("EMERGENCY") || normalized.includes("INCIDENT") || normalized.includes("SUSPICIOUS")) {
+    return portalPath.includes("/admin") ? adminTarget("emergency-ops") : "#monitoring";
+  }
+  if (normalized.includes("WORKFORCE") || normalized.includes("EMPLOYEE")) {
+    return portalPath.includes("/admin") ? adminTarget("workforce-approvals") : "#workforce-onboarding";
+  }
+  if (normalized.includes("APPROVAL")) {
+    return portalPath.includes("/admin") ? adminTarget("visitor-access") : "#visitor-requests";
+  }
+  if (normalized.includes("VISITOR") || normalized.includes("BADGE") || resolvedTargetId) {
+    if (portalPath.includes("/admin")) {
+      return adminTarget("visitor-access");
+    }
+    if (portalPath.includes("/security")) {
+      return "#badges";
+    }
+    if (portalPath.includes("/visitor")) {
+      return "#visits";
+    }
+    return "#visitor-requests";
+  }
+  return portalPath.includes("/admin") ? adminTarget("notifications") : "#notifications";
+}
+
+function adminTarget(route) {
+  return window.location.pathname.toLowerCase().includes("/pages/admin") ? `#${route}` : `/admin/${route}`;
+}
+
+function parseOperationalDeepLink(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized.startsWith("accessflow://operations/")) {
+    return { targetType: "", targetId: "" };
+  }
+  const [targetType, ...targetId] = normalized.replace("accessflow://operations/", "").split("/");
+  return {
+    targetType,
+    targetId: targetId.join("/"),
+  };
+}
+
+function routeFromActionUrl(actionUrl) {
+  const value = String(actionUrl || "").trim();
+  if (!value || value.startsWith("accessflow://")) {
+    return "";
+  }
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin) {
+      return "";
+    }
+    if (url.pathname.includes("/pages/admin")) {
+      const mapped = adminRouteFromLegacyHash(url.hash.replace("#", ""));
+      return mapped ? adminTarget(mapped) : adminTarget("notifications");
+    }
+    if (!url.pathname.includes("/pages/") && ["/visitor", "/employee", "/security"].some((prefix) => url.pathname.startsWith(prefix))) {
+      return "";
+    }
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "";
+  }
+}
+
+function adminRouteFromLegacyHash(hash) {
+  const normalized = String(hash || "").trim().toLowerCase();
+  const aliases = {
+    approvals: "visitor-access",
+    visitors: "visitor-access",
+    requests: "visitor-access",
+    workforce: "workforce-approvals",
+    "workforce-onboarding": "workforce-approvals",
+    emergency: "emergency-ops",
+    incidents: "emergency-ops",
+    notifications: "notifications",
+  };
+  return aliases[normalized] || normalized;
 }
 
 async function refreshHealth(showSuccessToast) {

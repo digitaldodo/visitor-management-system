@@ -317,6 +317,7 @@ export type NotificationRecord = {
   actionUrl?: string | null;
   targetType?: string | null;
   targetId?: string | null;
+  deepLink?: string | null;
   actorName?: string | null;
   organizationTimezone?: string | null;
   read: boolean;

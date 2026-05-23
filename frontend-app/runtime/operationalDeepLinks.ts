@@ -14,6 +14,7 @@ export type OperationalDeepLinkPayload = {
   targetType?: string | null;
   targetId?: string | null;
   actionUrl?: string | null;
+  deepLink?: string | null;
 };
 
 export function openOperationalDeepLink(role: ActiveWorkspaceRole, payload: OperationalDeepLinkPayload) {
@@ -53,8 +54,9 @@ export function resolveOperationalDeepLink(
   }
 
   const normalizedType = String(payload.type || payload.category || payload.targetType || payload.actionUrl || '').toUpperCase();
-  const targetId = payload.visitorId || payload.incidentId || payload.workforceId || payload.employeeId || payload.credentialId || payload.targetId || null;
-  const targetType = String(payload.targetType || '').toUpperCase();
+  const deepLinkTarget = parseOperationalDeepLink(payload.deepLink);
+  const targetId = payload.visitorId || payload.incidentId || payload.workforceId || payload.employeeId || payload.credentialId || payload.targetId || deepLinkTarget.targetId || null;
+  const targetType = String(payload.targetType || deepLinkTarget.targetType || '').toUpperCase();
 
   if (payload.visitorId || targetType.includes('VISITOR') || normalizedType.includes('VISITOR') || normalizedType.includes('BADGE')) {
     if (role === 'SECURITY_GUARD') {
@@ -92,6 +94,19 @@ export function resolveOperationalDeepLink(
   }
 
   return { target: getWorkspaceConfig(role).notificationTarget };
+}
+
+function parseOperationalDeepLink(value?: string | null) {
+  const fallback = { targetType: null as string | null, targetId: null as string | null };
+  const normalized = String(value || '').trim();
+  if (!normalized.startsWith('accessflow://operations/')) {
+    return fallback;
+  }
+  const [targetType, ...idParts] = normalized.replace('accessflow://operations/', '').split('/');
+  return {
+    targetType: targetType || null,
+    targetId: idParts.join('/') || null,
+  };
 }
 
 export function openOperationalEvent(role: ActiveWorkspaceRole, event: OperationalEvent) {
