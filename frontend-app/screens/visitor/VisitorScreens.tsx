@@ -40,6 +40,7 @@ import { enqueueVisitorRequest } from '../../storage/visitorRequestQueue';
 import { getVisitorHosts, type VisitorVisitPayload } from '../../services/visitorService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, NotificationRecord, VisitorInviteRecord, VisitorRecord } from '../../types/domain';
+import { canonicalVisitorInviteStage } from '../../types/workflow';
 import { formatDateTime } from '../../utils/employeeFormatting';
 import { formatVisitorWindow, statusTone, visitorStatusLabel } from '../../utils/securityFormatting';
 
@@ -586,19 +587,19 @@ function selectActiveVisit(visits: VisitorRecord[]) {
 }
 
 function isActionableInvite(invite: VisitorInviteRecord) {
-  const stage = invite.lifecycleStage || invite.status;
-  return ['INVITED', 'PRE_REGISTRATION_PENDING', 'SENT', 'VIEWED'].includes(String(stage));
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  return ['INVITED', 'PRE_REGISTRATION_PENDING'].includes(String(stage));
 }
 
 function inviteTone(invite: VisitorInviteRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
-  const stage = invite.lifecycleStage || invite.status;
-  if (['BADGE_ISSUED', 'ARRIVED'].includes(String(stage))) {
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  if (['BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT'].includes(String(stage))) {
     return 'success';
   }
-  if (['EXPIRED', 'REVOKED'].includes(String(stage))) {
+  if (['EXPIRED', 'REVOKED', 'REJECTED'].includes(String(stage))) {
     return 'danger';
   }
-  if (['PENDING_APPROVAL', 'PRE_REGISTERED', 'REGISTRATION_COMPLETED'].includes(String(stage))) {
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED'].includes(String(stage))) {
     return 'warning';
   }
   return 'info';

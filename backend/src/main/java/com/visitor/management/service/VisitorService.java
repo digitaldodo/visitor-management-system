@@ -113,6 +113,7 @@ public class VisitorService {
     private final PhoneNumberService phoneNumberService;
     private final AccessAuditService accessAuditService;
     private final EmergencyOperationsService emergencyOperationsService;
+    private final VisitorWorkflowService visitorWorkflowService;
 
     public VisitorService(
             VisitorRepository visitorRepository,
@@ -129,7 +130,8 @@ public class VisitorService {
             OrganizationService organizationService,
             PhoneNumberService phoneNumberService,
             AccessAuditService accessAuditService,
-            EmergencyOperationsService emergencyOperationsService
+            EmergencyOperationsService emergencyOperationsService,
+            VisitorWorkflowService visitorWorkflowService
     ) {
         this.visitorRepository = visitorRepository;
         this.userRepository = userRepository;
@@ -146,6 +148,7 @@ public class VisitorService {
         this.phoneNumberService = phoneNumberService;
         this.accessAuditService = accessAuditService;
         this.emergencyOperationsService = emergencyOperationsService;
+        this.visitorWorkflowService = visitorWorkflowService;
     }
 
     public VisitorResponse create(VisitorCreateRequest request) {
@@ -417,6 +420,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.APPROVED, "APPROVED", actorId, note, now);
+        visitorWorkflowService.syncInviteApproved(saved, now);
         visitorNotificationService.visitorApproved(saved);
         return toResponse(saved);
     }
@@ -441,6 +445,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.REJECTED, "REJECTED", actorId, note, now);
+        visitorWorkflowService.syncInviteRejected(saved, now);
         visitorNotificationService.visitorRejected(saved);
         return toResponse(saved);
     }
@@ -466,6 +471,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.REJECTED, "DENIED_AT_GATE", actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.REJECTED, "DENIED_AT_GATE", actorId, note, now);
+        visitorWorkflowService.syncInviteRejected(saved, now);
         accessAuditService.recordVisitorAccess(actor, saved, "DENIED_AT_GATE", "DENIED", note);
         visitorNotificationService.visitorRejected(saved);
         notifySecurityTeams(actor, NotificationType.SECURITY_DENIED_ENTRY, "Denied entry recorded",
@@ -664,6 +670,32 @@ public class VisitorService {
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), visitor.getStatus(), visitor.getStatus(), "BADGE_PRINTED", actorId, "Badge printed.", now);
         return toPassResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse revokeInviteLinkedVisit(String id, String reason, String actorId) {
+        Visitor visitor = find(id);
+        requireOrganizationAccess(visitor, currentUser(actorId));
+        if (visitor.getStatus() == VisitorStatus.CHECKED_IN || visitor.getStatus() == VisitorStatus.CHECKED_OUT) {
+            throw new BadRequestException("Checked-in or completed visitors cannot be revoked from the invite lifecycle.");
+        }
+        if (visitor.getStatus() == VisitorStatus.REJECTED || visitor.getStatus() == VisitorStatus.EXPIRED) {
+            return toResponse(visitor);
+        }
+
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        String note = requiredTrim(reason, "Revocation reason is required.");
+        visitor.setStatus(VisitorStatus.EXPIRED);
+        visitor.setRevokedAt(now);
+        visitor.setRevokedBy(actorId);
+        visitor.setRevocationReason(note);
+        clearPassCredentials(visitor);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.EXPIRED, "INVITE_REVOKED", actorId, note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.EXPIRED, "INVITE_REVOKED", actorId, note, now);
+        return toResponse(saved);
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
@@ -893,6 +925,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.CHECKED_IN, action, actorId, note, now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.CHECKED_IN, action, actorId, note, now);
+        visitorWorkflowService.syncInviteCheckedIn(saved, now);
         visitorNotificationService.visitorCheckedIn(saved);
         if ("MANUAL_OVERRIDE_CHECK_IN".equals(action) && actorId != null) {
             notifySecurityTeams(
@@ -932,6 +965,7 @@ public class VisitorService {
         addHistory(visitor, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", actorId, "Visitor checked out.", now);
         Visitor saved = visitorRepository.save(visitor);
         audit(saved.getId(), from, VisitorStatus.CHECKED_OUT, "CHECKED_OUT", actorId, "Visitor checked out.", now);
+        visitorWorkflowService.syncInviteCheckedOut(saved, now);
         return toResponse(saved);
     }
 

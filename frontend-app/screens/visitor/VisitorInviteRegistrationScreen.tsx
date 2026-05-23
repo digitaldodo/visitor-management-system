@@ -18,6 +18,7 @@ import {
 } from '../../services/visitorInviteService';
 import { theme } from '../../theme';
 import type { VisitorInviteRecord } from '../../types/domain';
+import { canonicalVisitorInviteStage } from '../../types/workflow';
 
 type RouteParams = {
   token?: string;
@@ -121,9 +122,9 @@ export function VisitorInviteRegistrationScreen() {
 
   const timezone = invite?.timezone || invite?.organizationTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const phoneError = validateInternationalPhone(form.phoneCountryCode, form.phone, true);
-  const inviteStage = invite?.lifecycleStage || invite?.status;
+  const inviteStage = canonicalVisitorInviteStage(invite?.lifecycleStage || invite?.status, invite?.qrIssuedAt, invite?.arrivedAt);
   const registrationSubmitted = Boolean(invite?.visitorId || invite?.registrationCompletedAt);
-  const canCompleteInvite = Boolean(invite && !registrationSubmitted && !['EXPIRED', 'REVOKED', 'BADGE_ISSUED', 'ARRIVED', 'QR_ISSUED'].includes(String(inviteStage)));
+  const canCompleteInvite = Boolean(invite && !registrationSubmitted && ['INVITED', 'PRE_REGISTRATION_PENDING'].includes(String(inviteStage)));
 
   return (
     <>
@@ -233,14 +234,14 @@ function parseInviteStart(value?: string | null) {
 }
 
 function inviteStatusTone(invite: VisitorInviteRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
-  const stage = invite.lifecycleStage || invite.status;
-  if (['BADGE_ISSUED', 'ARRIVED', 'QR_ISSUED'].includes(String(stage))) {
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  if (['BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT'].includes(String(stage))) {
     return 'success';
   }
-  if (['EXPIRED', 'REVOKED'].includes(String(stage))) {
+  if (['EXPIRED', 'REVOKED', 'REJECTED'].includes(String(stage))) {
     return 'danger';
   }
-  if (['PENDING_APPROVAL', 'PRE_REGISTERED', 'REGISTRATION_COMPLETED'].includes(String(stage))) {
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED'].includes(String(stage))) {
     return 'warning';
   }
   return 'info';

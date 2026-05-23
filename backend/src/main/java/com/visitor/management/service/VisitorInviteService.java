@@ -43,6 +43,7 @@ public class VisitorInviteService {
     private final UserRepository userRepository;
     private final OrganizationService organizationService;
     private final VisitorService visitorService;
+    private final VisitorWorkflowService visitorWorkflowService;
     private final NotificationService notificationService;
     private final VisitorInviteEmailDispatcher visitorInviteEmailDispatcher;
     private final CorsOriginResolver corsOriginResolver;
@@ -52,6 +53,7 @@ public class VisitorInviteService {
             UserRepository userRepository,
             OrganizationService organizationService,
             VisitorService visitorService,
+            VisitorWorkflowService visitorWorkflowService,
             NotificationService notificationService,
             VisitorInviteEmailDispatcher visitorInviteEmailDispatcher,
             CorsOriginResolver corsOriginResolver
@@ -60,6 +62,7 @@ public class VisitorInviteService {
         this.userRepository = userRepository;
         this.organizationService = organizationService;
         this.visitorService = visitorService;
+        this.visitorWorkflowService = visitorWorkflowService;
         this.notificationService = notificationService;
         this.visitorInviteEmailDispatcher = visitorInviteEmailDispatcher;
         this.corsOriginResolver = corsOriginResolver;
@@ -185,6 +188,7 @@ public class VisitorInviteService {
         if (invite.getVisitorId() != null) {
             return toResponse(invite, null);
         }
+        validateInviteRegistrationIdentity(invite, request);
         VisitorResponse visitor = visitorService.create(new VisitorCreateRequest(
                 required(request.fullName(), "Full name is required."),
                 firstNonBlank(request.phoneCountryCode(), invite.getPhoneCountryCode()),
@@ -256,10 +260,16 @@ public class VisitorInviteService {
         if (!hasInviteAccess(invite, actor)) {
             throw new ResourceNotFoundException("Visitor invite was not found.");
         }
-        if (invite.getStatus() == VisitorInviteStatus.REVOKED || invite.getStatus() == VisitorInviteStatus.ARRIVED) {
+        if (invite.getStatus() == VisitorInviteStatus.REVOKED
+                || invite.getStatus() == VisitorInviteStatus.ARRIVED
+                || invite.getStatus() == VisitorInviteStatus.CHECKED_IN
+                || invite.getStatus() == VisitorInviteStatus.CHECKED_OUT) {
             throw new BadRequestException("This invite can no longer be revoked.");
         }
         Instant now = Instant.now();
+        if (invite.getVisitorId() != null) {
+            visitorService.revokeInviteLinkedVisit(invite.getVisitorId(), reason, actorId);
+        }
         invite.setStatus(VisitorInviteStatus.REVOKED);
         invite.setRevokedAt(now);
         invite.setRevokedBy(actorId);
@@ -314,6 +324,9 @@ public class VisitorInviteService {
         if (invite.getVisitorId() != null) {
             return invite;
         }
+        if (!isPreRegistrationOpen(invite.getStatus())) {
+            throw new BadRequestException("This visitor invite can no longer be completed.");
+        }
         return invite;
     }
 
@@ -323,7 +336,7 @@ public class VisitorInviteService {
     }
 
     private VisitorPassResponse passIfReady(VisitorInvite invite) {
-        if (invite.getVisitorId() == null || !isBadgeIssued(invite.getStatus())) {
+        if (invite.getVisitorId() == null || !visitorWorkflowService.isBadgeVisible(invite)) {
             return null;
         }
         try {
@@ -334,23 +347,7 @@ public class VisitorInviteService {
     }
 
     private void expireStaleInvites() {
-        Instant now = Instant.now();
-        List<VisitorInvite> stale = visitorInviteRepository.findAllByStatusInAndExpiresAtBefore(
-                List.of(
-                        VisitorInviteStatus.INVITED,
-                        VisitorInviteStatus.PRE_REGISTRATION_PENDING,
-                        VisitorInviteStatus.SENT,
-                        VisitorInviteStatus.VIEWED
-                ),
-                now
-        );
-        stale.forEach(invite -> {
-            invite.setStatus(VisitorInviteStatus.EXPIRED);
-            invite.setUpdatedAt(now);
-        });
-        if (!stale.isEmpty()) {
-            visitorInviteRepository.saveAll(stale);
-        }
+        visitorWorkflowService.expireStaleInvites();
     }
 
     private VisitorInviteResponse toResponse(VisitorInvite invite, VisitorPassResponse pass) {
@@ -460,58 +457,31 @@ public class VisitorInviteService {
         return status == VisitorInviteStatus.INVITED || status == VisitorInviteStatus.SENT;
     }
 
-    private boolean isBadgeIssued(VisitorInviteStatus status) {
-        return status == VisitorInviteStatus.BADGE_ISSUED || status == VisitorInviteStatus.QR_ISSUED;
+    private boolean isPreRegistrationOpen(VisitorInviteStatus status) {
+        return status == VisitorInviteStatus.INVITED
+                || status == VisitorInviteStatus.SENT
+                || status == VisitorInviteStatus.PRE_REGISTRATION_PENDING
+                || status == VisitorInviteStatus.VIEWED;
+    }
+
+    private void validateInviteRegistrationIdentity(VisitorInvite invite, VisitorInviteRegistrationRequest request) {
+        String invitedEmail = trimToNull(invite.getVisitorEmail());
+        String submittedEmail = trimToNull(request.email());
+        if (invitedEmail != null && submittedEmail != null && !invitedEmail.equalsIgnoreCase(submittedEmail)) {
+            throw new BadRequestException("Registration email must match the invited visitor email.");
+        }
     }
 
     private String lifecycleStage(VisitorInvite invite) {
-        if (invite.getStatus() == VisitorInviteStatus.ARRIVED) {
-            return "CHECKED_IN";
-        }
-        if (invite.getArrivedAt() != null) {
-            return "CHECKED_IN";
-        }
-        if (isBadgeIssued(invite.getStatus()) || invite.getQrIssuedAt() != null) {
-            return "BADGE_ISSUED";
-        }
-        return switch (invite.getStatus()) {
-            case INVITED, SENT -> "INVITED";
-            case PRE_REGISTRATION_PENDING, VIEWED -> "PRE_REGISTRATION_PENDING";
-            case PRE_REGISTERED, REGISTRATION_COMPLETED -> "PRE_REGISTERED";
-            case PENDING_APPROVAL -> "PENDING_APPROVAL";
-            case APPROVED -> "APPROVED";
-            case EXPIRED -> "EXPIRED";
-            case REVOKED -> "REVOKED";
-            default -> "INVITED";
-        };
+        return visitorWorkflowService.canonicalStage(invite);
     }
 
     private String lifecycleLabel(VisitorInvite invite) {
-        return switch (lifecycleStage(invite)) {
-            case "INVITED" -> "Invited";
-            case "PRE_REGISTRATION_PENDING" -> "Pre-registration pending";
-            case "PRE_REGISTERED" -> "Pre-registered";
-            case "PENDING_APPROVAL" -> "Awaiting approval";
-            case "APPROVED" -> "Approved";
-            case "BADGE_ISSUED" -> "Badge issued";
-            case "CHECKED_IN" -> "Checked in";
-            case "EXPIRED" -> "Expired";
-            case "REVOKED" -> "Revoked";
-            default -> "Invite active";
-        };
+        return visitorWorkflowService.lifecycleLabel(invite);
     }
 
     private String nextAction(VisitorInvite invite) {
-        return switch (lifecycleStage(invite)) {
-            case "INVITED", "PRE_REGISTRATION_PENDING" -> "Complete visitor pre-registration.";
-            case "PRE_REGISTERED", "PENDING_APPROVAL" -> "Await host or workplace approval.";
-            case "APPROVED" -> "AccessFlow is preparing the approved badge.";
-            case "BADGE_ISSUED" -> "Open the badge in the visitor app and present it at reception.";
-            case "CHECKED_IN" -> "Follow site check-out instructions before leaving.";
-            case "EXPIRED" -> "Ask the host for a new invite.";
-            case "REVOKED" -> "Contact the host if this visit is still required.";
-            default -> "Review invite details.";
-        };
+        return visitorWorkflowService.nextAction(invite);
     }
 
     private String inviteCreatedMessage(VisitorInvite invite) {

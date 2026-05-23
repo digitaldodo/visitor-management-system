@@ -28,6 +28,7 @@ import {
 } from '../../hooks/useEmployeeWorkspace';
 import type { VisitorReschedulePayload } from '../../services/employeeService';
 import type { VisitorRecord } from '../../types/domain';
+import { canonicalVisitorInviteStage } from '../../types/workflow';
 import { theme } from '../../theme';
 import {
   accessWindowLabel,
@@ -341,7 +342,7 @@ export function RequestsScreen() {
                   subtitle={[invite.companyName, invite.purposeOfVisit].filter(Boolean).join(' · ')}
                   meta={invite.scheduledStartTime ? formatDateTime(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Arrival time pending'}
                   status={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')}
-                  tone={invite.status === 'REVOKED' || invite.status === 'EXPIRED' ? 'danger' : ['QR_ISSUED', 'BADGE_ISSUED'].includes(invite.status) ? 'success' : invite.status === 'PENDING_APPROVAL' ? 'warning' : 'info'}
+                  tone={inviteStatusTone(invite)}
                 />
                 <OperationalFieldList
                   items={[
@@ -362,7 +363,7 @@ export function RequestsScreen() {
                       tone="secondary"
                     />
                   ) : null}
-                  {!['REVOKED', 'EXPIRED', 'ARRIVED'].includes(invite.status) ? (
+                  {!['REVOKED', 'EXPIRED', 'CHECKED_IN', 'CHECKED_OUT'].includes(canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt)) ? (
                     <PrimaryButton
                       label="Revoke"
                       onPress={() => setRevokeInviteId(invite.id)}
@@ -459,6 +460,25 @@ export function RequestsScreen() {
       />
     </>
   );
+}
+
+function inviteStatusTone(invite: {
+  status?: string | null;
+  lifecycleStage?: string | null;
+  qrIssuedAt?: string | null;
+  arrivedAt?: string | null;
+}): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  if (['REVOKED', 'EXPIRED', 'REJECTED'].includes(stage)) {
+    return 'danger';
+  }
+  if (['BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT'].includes(stage)) {
+    return 'success';
+  }
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED'].includes(stage)) {
+    return 'warning';
+  }
+  return 'info';
 }
 
 const styles = StyleSheet.create({

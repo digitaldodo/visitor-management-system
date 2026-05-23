@@ -1,23 +1,10 @@
 import type { BackendRole } from './auth';
+import type { VisitorInviteStatus, VisitorStatus } from './workflow';
 import type { VersionHandshakePayload } from './runtime';
 
 export type VisitorType = 'ONE_TIME' | 'WALK_IN' | 'EMERGENCY' | 'RECURRING' | 'CONTRACTOR_VENDOR';
 
-export type VisitorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'EXPIRED' | 'SUSPENDED';
-export type VisitorInviteStatus =
-  | 'INVITED'
-  | 'PRE_REGISTRATION_PENDING'
-  | 'PRE_REGISTERED'
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'BADGE_ISSUED'
-  | 'SENT'
-  | 'VIEWED'
-  | 'REGISTRATION_COMPLETED'
-  | 'QR_ISSUED'
-  | 'ARRIVED'
-  | 'EXPIRED'
-  | 'REVOKED';
+export type { VisitorInviteStatus, VisitorStatus };
 export type EmailDeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
 
 export type EmployeePresenceAction = 'CHECKED_IN' | 'CHECKED_OUT';

@@ -88,6 +88,8 @@ export async function registerVisitorAccount(payload: VisitorRegisterPayload) {
       username: payload.username.trim(),
       email: payload.email.trim(),
       password: payload.password,
+      companyCode: payload.companyCode.trim(),
+      companyName: payload.companyName?.trim() || null,
       phone: payload.phone?.trim() || null,
       phoneCountryCode: payload.phoneCountryCode?.trim() || null,
     },

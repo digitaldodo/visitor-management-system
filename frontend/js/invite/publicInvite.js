@@ -6,6 +6,7 @@ import {
   uploadVisitorInvitePhoto,
 } from "../shared/accessService.js";
 import { showToast } from "../shared/toast.js";
+import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 
 const state = {
   invite: null,
@@ -58,7 +59,7 @@ function renderLoading() {
 
 function renderInvite(invite) {
   const completed = Boolean(invite.pass?.qrImageDataUri || invite.registrationCompletedAt);
-  const blocked = isBlocked(invite.status);
+  const blocked = isBlocked(invite);
   updateHeaderStatus(completed ? lifecycleHeader(invite) : blocked ? "Invite needs attention" : "Secure invite ready", completed ? "success" : blocked ? "danger" : "success");
   renderSummary(invite);
   document.title = `${invite.visitorName || "Visitor Invite"} | AccessFlow`;
@@ -69,7 +70,7 @@ function renderInvite(invite) {
   }
 
   if (blocked) {
-    renderError("Invite no longer active", `This invite is ${statusLabel(invite.status).toLowerCase()}. Ask your host to send a fresh AccessFlow invite.`);
+    renderError("Invite no longer active", `This invite is ${statusLabel(invite).toLowerCase()}. Ask your host to send a fresh AccessFlow invite.`);
     renderSummary(invite);
     return;
   }
@@ -79,7 +80,7 @@ function renderInvite(invite) {
     <article class="invite-panel invite-panel--split">
       <form class="invite-form" id="invite-form" novalidate>
         <div class="invite-panel__header">
-          <span class="invite-chip invite-chip--success">${escapeHtml(statusLabel(invite.status))}</span>
+          <span class="invite-chip invite-chip--success">${escapeHtml(statusLabel(invite))}</span>
           <h2>Confirm visitor details</h2>
           <p class="muted">Your host has prepared the invite. Complete these details so security can verify your arrival cleanly.</p>
         </div>
@@ -234,7 +235,7 @@ function renderCompleted(invite) {
           ${detail("Host", invite.hostEmployeeName || "Assigned host")}
           ${detail("Organization", invite.organizationName || invite.organizationCode || "AccessFlow site")}
           ${detail("Arrival", accessWindow(invite))}
-          ${detail("Status", statusLabel(invite.status))}
+          ${detail("Status", statusLabel(invite))}
           ${detail("Timezone", timezoneLabel(invite.timezone || invite.organizationTimezone))}
         </div>
         <div class="invite-actions">
@@ -293,7 +294,7 @@ function renderSummary(invite) {
   }
 
   summary.innerHTML = `
-    <span class="invite-chip invite-chip--${chipTone(invite.status)}">${escapeHtml(statusLabel(invite.status))}</span>
+    <span class="invite-chip invite-chip--${chipTone(invite)}">${escapeHtml(statusLabel(invite))}</span>
     <strong>${escapeHtml(invite.organizationName || invite.organizationCode || "AccessFlow workplace")}</strong>
     <p>${escapeHtml(invite.purposeOfVisit || "Visitor pre-registration")}</p>
     <div class="invite-summary-grid">
@@ -339,32 +340,35 @@ function readInviteToken() {
   return new URLSearchParams(window.location.search).get("token")?.trim() || "";
 }
 
-function isBlocked(status) {
-  return ["EXPIRED", "REVOKED", "ARRIVED"].includes(String(status || "").toUpperCase());
+function isBlocked(invite) {
+  return ["EXPIRED", "REVOKED", "REJECTED", "CHECKED_IN", "CHECKED_OUT"].includes(canonicalVisitorInviteStage(invite));
 }
 
-function statusLabel(status) {
-  const normalized = String(status || "SENT").replaceAll("_", " ").toLowerCase();
-  return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
+function statusLabel(invite) {
+  return visitorInviteStatusLabel(invite);
 }
 
-function chipTone(status) {
-  const normalized = String(status || "").toUpperCase();
-  if (["QR_ISSUED", "BADGE_ISSUED", "REGISTRATION_COMPLETED", "ARRIVED"].includes(normalized)) {
+function chipTone(invite) {
+  const normalized = canonicalVisitorInviteStage(invite);
+  if (["BADGE_ISSUED", "CHECKED_IN", "CHECKED_OUT"].includes(normalized)) {
     return "success";
   }
-  if (["EXPIRED", "REVOKED"].includes(normalized)) {
+  if (["EXPIRED", "REVOKED", "REJECTED"].includes(normalized)) {
     return "danger";
   }
-  if (["VIEWED", "SENT"].includes(normalized)) {
+  if (["INVITED", "PRE_REGISTRATION_PENDING"].includes(normalized)) {
     return "neutral";
   }
   return "warning";
 }
 
 function lifecycleHeader(invite) {
-  if (String(invite?.status || "").toUpperCase() === "ARRIVED") {
-    return "Visitor arrived";
+  const stage = canonicalVisitorInviteStage(invite);
+  if (stage === "CHECKED_OUT") {
+    return "Visit completed";
+  }
+  if (stage === "CHECKED_IN") {
+    return "Visitor checked in";
   }
   if (isBadgeIssued(invite)) {
     return "QR badge issued";
@@ -374,13 +378,14 @@ function lifecycleHeader(invite) {
 
 function lifecycleTimeline(invite) {
   const issued = isBadgeIssued(invite);
-  const arrived = String(invite?.status || "").toUpperCase() === "ARRIVED";
+  const stage = canonicalVisitorInviteStage(invite);
+  const arrived = stage === "CHECKED_IN" || stage === "CHECKED_OUT";
   const steps = [
     { label: "Invited", state: "done", detail: "Invite sent by host" },
     { label: "Pre-registered", state: "done", detail: invite.registrationCompletedAt ? formatDate(invite.registrationCompletedAt) : "Completed" },
     { label: "Pending approval", state: issued || arrived ? "done" : "current", detail: issued || arrived ? "Approved" : "Host review in progress" },
     { label: "QR issued", state: issued || arrived ? "done" : "pending", detail: issued ? "Badge delivered by email" : "Sent after approval" },
-    { label: "Arrival", state: arrived ? "done" : "pending", detail: arrived ? "Checked at reception" : "Present approved badge" },
+    { label: "Check-in", state: arrived ? "done" : "pending", detail: arrived ? "Checked at reception" : "Present approved badge" },
   ];
   return steps.map((step) => `
     <div class="invite-timeline__step invite-timeline__step--${step.state}">
@@ -392,7 +397,7 @@ function lifecycleTimeline(invite) {
 }
 
 function isBadgeIssued(invite) {
-  return Boolean(invite?.qrIssuedAt || invite?.pass?.qrImageDataUri || ["QR_ISSUED", "BADGE_ISSUED"].includes(String(invite?.status || "").toUpperCase()));
+  return ["BADGE_ISSUED", "CHECKED_IN", "CHECKED_OUT"].includes(canonicalVisitorInviteStage(invite));
 }
 
 function isCompletionConflict(error) {

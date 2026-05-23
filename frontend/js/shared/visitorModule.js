@@ -4,16 +4,7 @@ import { initHostPicker } from "./hostPicker.js";
 import { initOrganizationSelectors } from "./organizationSelector.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
-
-const STATUS_LABELS = {
-  PENDING: "Pending",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-  CHECKED_IN: "Checked in",
-  CHECKED_OUT: "Checked out",
-  EXPIRED: "Expired",
-  SUSPENDED: "Suspended",
-};
+import { VISITOR_STATUS_LABELS as STATUS_LABELS } from "./workflowEnums.js";
 
 const VISITOR_TYPE_LABELS = {
   ONE_TIME: "One-time visitor",

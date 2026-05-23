@@ -1,0 +1,94 @@
+export const ACCESSFLOW_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'EMPLOYEE',
+  'SECURITY_GUARD',
+  'RECEPTION',
+  'OPERATOR',
+  'MANAGER',
+  'VISITOR',
+] as const;
+
+export type BackendRole = typeof ACCESSFLOW_ROLES[number];
+
+export const VISITOR_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CHECKED_IN', 'CHECKED_OUT', 'EXPIRED', 'SUSPENDED'] as const;
+
+export type VisitorStatus = typeof VISITOR_STATUSES[number];
+
+export const VISITOR_INVITE_STATUSES = [
+  'INVITED',
+  'PRE_REGISTRATION_PENDING',
+  'PRE_REGISTERED',
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'BADGE_ISSUED',
+  'REJECTED',
+  'CHECKED_IN',
+  'CHECKED_OUT',
+  'SENT',
+  'VIEWED',
+  'REGISTRATION_COMPLETED',
+  'QR_ISSUED',
+  'ARRIVED',
+  'EXPIRED',
+  'REVOKED',
+] as const;
+
+export type VisitorInviteStatus = typeof VISITOR_INVITE_STATUSES[number];
+
+export const WORKFORCE_STATUSES = ['ACTIVE', 'UNVERIFIED', 'PENDING_APPROVAL', 'CHANGES_REQUESTED', 'REJECTED', 'DISABLED', 'LOCKED'] as const;
+
+export type WorkforceStatus = typeof WORKFORCE_STATUSES[number];
+
+export const BADGE_STATES = ['APPROVED', 'BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT', 'EXPIRED', 'REVOKED', 'SUSPENDED'] as const;
+
+export type BadgeState = typeof BADGE_STATES[number];
+
+export const APPROVAL_STATES = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'] as const;
+
+export type ApprovalState = typeof APPROVAL_STATES[number];
+
+export const NOTIFICATION_EVENT_TYPES = [
+  'VISITOR_APPROVAL_REQUEST',
+  'VISITOR_APPROVED',
+  'VISITOR_ARRIVED',
+  'VISITOR_INVITE_SENT',
+  'VISITOR_INVITE_VIEWED',
+  'VISITOR_PRE_REGISTRATION_COMPLETED',
+  'VISITOR_INVITE_REVOKED',
+  'VISITOR_CHECKED_IN',
+  'VISITOR_REJECTED',
+  'VISITOR_EXPIRED',
+  'WORKFORCE_ONBOARDING_REQUESTED',
+  'WORKFORCE_ONBOARDING_APPROVED',
+  'WORKFORCE_ONBOARDING_REJECTED',
+  'SECURITY_INVALID_QR_SCAN',
+  'SECURITY_DENIED_ENTRY',
+  'SECURITY_MANUAL_OVERRIDE',
+  'SYSTEM_SESSION_EXPIRED',
+] as const;
+
+export type NotificationEventType = typeof NOTIFICATION_EVENT_TYPES[number];
+
+export function canonicalVisitorInviteStage(status?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
+  const normalizedStatus = String(status || 'INVITED').toUpperCase();
+  if (normalizedStatus === 'CHECKED_OUT') {
+    return 'CHECKED_OUT';
+  }
+  if (normalizedStatus === 'CHECKED_IN' || normalizedStatus === 'ARRIVED' || arrivedAt) {
+    return 'CHECKED_IN';
+  }
+  if (normalizedStatus === 'BADGE_ISSUED' || normalizedStatus === 'QR_ISSUED' || qrIssuedAt) {
+    return 'BADGE_ISSUED';
+  }
+  if (normalizedStatus === 'SENT') {
+    return 'INVITED';
+  }
+  if (normalizedStatus === 'VIEWED') {
+    return 'PRE_REGISTRATION_PENDING';
+  }
+  if (normalizedStatus === 'REGISTRATION_COMPLETED') {
+    return 'PRE_REGISTERED';
+  }
+  return normalizedStatus;
+}

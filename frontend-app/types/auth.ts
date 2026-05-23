@@ -1,4 +1,6 @@
-export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE' | 'SECURITY_GUARD' | 'RECEPTION' | 'OPERATOR' | 'MANAGER' | 'VISITOR';
+import type { BackendRole } from './workflow';
+
+export type { BackendRole };
 
 export type WorkspaceAudience = 'admin' | 'employee' | 'security' | 'visitor';
 
@@ -40,6 +42,8 @@ export type VisitorRegisterPayload = {
   username: string;
   email: string;
   password: string;
+  companyCode: string;
+  companyName?: string | null;
   phone?: string | null;
   phoneCountryCode?: string | null;
 };

@@ -32,9 +32,11 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const visitorRegisterSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter your full name.'),
-  username: z.string().trim().min(4, 'Use at least 4 characters.'),
+  username: z.string().trim().min(3, 'Username must be 3-32 characters long.').max(32, 'Username must be 3-32 characters long.').regex(/^[a-z0-9_]{3,32}$/, 'Username can contain only lowercase letters, numbers, and underscores.'),
   email: z.string().trim().email('Enter a valid email.'),
-  password: z.string().min(12, 'Use at least 12 characters.'),
+  password: z.string().regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,128}$/, 'Password must be 12-128 characters and include uppercase, lowercase, number, and symbol.'),
+  companyCode: z.string().trim().min(2, 'Select the organization you are visiting.'),
+  companyName: z.string().trim().optional(),
   phoneCountryCode: z.string().trim().optional(),
   phone: z.string().trim().optional(),
 });
@@ -52,10 +54,11 @@ const audienceOptions: Array<{ value: WorkspaceAudience; label: string; descript
 
 const registerStepFields: Array<Array<keyof VisitorRegisterFormValues>> = [
   ['fullName', 'username', 'email', 'password'],
+  ['companyCode'],
   ['phoneCountryCode', 'phone'],
 ];
 
-const registerStepLabels = ['Identity', 'Contact'];
+const registerStepLabels = ['Identity', 'Organization', 'Contact'];
 
 export function LoginScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -109,6 +112,8 @@ export function LoginScreen() {
       username: '',
       email: '',
       password: '',
+      companyCode: '',
+      companyName: '',
       phoneCountryCode: '+1',
       phone: '',
     },
@@ -159,6 +164,8 @@ export function LoginScreen() {
         username: '',
         email: '',
         password: '',
+        companyCode: '',
+        companyName: '',
         phoneCountryCode: '+1',
         phone: '',
       });
@@ -466,6 +473,27 @@ export function LoginScreen() {
                       )}
                     />
                   </>
+                ) : registerStep === 1 ? (
+                  <Controller
+                    control={registerControl}
+                    name="companyCode"
+                    render={({ field: { value } }) => (
+                      <OrganizationSelector
+                        label="Visit organization"
+                        selectedCode={value}
+                        selectedName={watchRegister('companyName')}
+                        helperText="Choose the workplace for this visitor account. Your visits and invites stay scoped to this organization."
+                        onSelect={(organization) => {
+                          setRegisterValue('companyCode', organization.companyCode, { shouldValidate: true, shouldDirty: true });
+                          setRegisterValue('companyName', organization.companyName, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        onClear={() => {
+                          setRegisterValue('companyCode', '', { shouldValidate: true, shouldDirty: true });
+                          setRegisterValue('companyName', '', { shouldValidate: true, shouldDirty: true });
+                        }}
+                      />
+                    )}
+                  />
                 ) : (
                   <>
                     <Controller
@@ -482,7 +510,7 @@ export function LoginScreen() {
                     />
                     <View style={styles.onboardingNote}>
                       <Ionicons name="mail-unread-outline" size={20} color={theme.colors.info} />
-                      <Text style={styles.onboardingText}>After registration, AccessFlow sends a verification email. Organization and host selection happens later when you request access.</Text>
+                      <Text style={styles.onboardingText}>After registration, AccessFlow sends a verification email. Your visitor account is bound to the selected organization, and each QR badge appears only after approval.</Text>
                     </View>
                   </>
                 )}
