@@ -12,6 +12,7 @@ import com.visitor.management.entity.NotificationPriority;
 import com.visitor.management.entity.NotificationStatus;
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.exception.ResourceNotFoundException;
@@ -107,8 +108,8 @@ public class NotificationService {
         }
         User recipientUser = recipient.get();
         String resolvedOrganizationId = resolveOrganizationId(organizationId, visitor, recipientUser);
-        if (!isOrganizationSafe(recipientUser, visitor, resolvedOrganizationId)) {
-            log.warn("Skipped {} notification for user {} because organization scope did not match.", type, recipientUserId);
+        if (!isNotificationSafeForRecipient(recipientUser, type, visitor, resolvedOrganizationId)) {
+            log.warn("Skipped {} notification for user {} because role or organization scope did not match.", type, recipientUserId);
             return null;
         }
 
@@ -212,16 +213,11 @@ public class NotificationService {
             return new NotificationListResponse(0, List.of());
         }
         int safeLimit = Math.max(1, Math.min(limit, 50));
-        String organizationId = user.map(User::getOrganizationId).map(this::trimToNull).orElse(null);
         List<Notification> notifications = notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, safeLimit))
                 .stream()
-                .filter(notification -> organizationId == null
-                        || trimToNull(notification.getOrganizationId()) == null
-                        || organizationId.equals(trimToNull(notification.getOrganizationId())))
+                .filter(notification -> user.map(value -> canAccessNotification(value, notification)).orElse(false))
                 .toList();
-        long unreadCount = user
-                .map(value -> scopedUnreadCount(value, organizationId))
-                .orElseGet(() -> notifications.stream().filter(notification -> !notification.isRead()).count());
+        long unreadCount = notifications.stream().filter(notification -> !notification.isRead()).count();
         return new NotificationListResponse(
                 unreadCount,
                 notifications.stream().map(this::toResponse).toList()
@@ -236,7 +232,7 @@ public class NotificationService {
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification was not found."));
-        if (!canAccessNotificationOrganization(user, notification)) {
+        if (!canAccessNotification(user, notification)) {
             throw new ResourceNotFoundException("Notification was not found.");
         }
         if (!notification.isRead()) {
@@ -252,12 +248,9 @@ public class NotificationService {
         Instant now = Instant.now();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification user was not found."));
-        String organizationId = trimToNull(user.getOrganizationId());
         var notifications = notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, 50))
                 .stream()
-                .filter(notification -> organizationId == null
-                        || trimToNull(notification.getOrganizationId()) == null
-                        || organizationId.equals(trimToNull(notification.getOrganizationId())))
+                .filter(notification -> canAccessNotification(user, notification))
                 .toList();
         notifications.stream()
                 .filter(notification -> !notification.isRead())
@@ -532,13 +525,6 @@ public class NotificationService {
         return payload;
     }
 
-    private long scopedUnreadCount(User user, String organizationId) {
-        if (organizationId == null || user.getRoles() != null && user.getRoles().contains(Role.SUPER_ADMIN)) {
-            return notificationRepository.countByRecipientUserIdAndReadFalse(user.getId());
-        }
-        return notificationRepository.countByRecipientUserIdAndOrganizationIdAndReadFalse(user.getId(), organizationId);
-    }
-
     private Map<String, String> buildNotificationData(Notification notification) {
         Map<String, String> data = new LinkedHashMap<>();
         data.put("notificationId", safeData(notification.getId()));
@@ -599,7 +585,7 @@ public class NotificationService {
         return trimToNull(recipient.getOrganizationId());
     }
 
-    private boolean isOrganizationSafe(User recipient, Visitor visitor, String organizationId) {
+    private boolean isNotificationSafeForRecipient(User recipient, NotificationType type, Visitor visitor, String organizationId) {
         if (recipient.getRoles() != null && recipient.getRoles().contains(Role.SUPER_ADMIN)) {
             return true;
         }
@@ -607,11 +593,14 @@ public class NotificationService {
         if (recipientOrganizationId != null && organizationId != null && !recipientOrganizationId.equals(organizationId)) {
             return false;
         }
+        if (recipientOrganizationId == null && organizationId != null) {
+            return false;
+        }
         String visitorOrganizationId = visitor == null ? null : trimToNull(visitor.getOrganizationId());
         if (visitorOrganizationId != null && organizationId != null && !visitorOrganizationId.equals(organizationId)) {
             return false;
         }
-        return canReceiveVisitorNotification(recipient, visitor);
+        return canReceiveNotificationType(recipient, type) && canReceiveVisitorNotification(recipient, visitor);
     }
 
     private boolean canReceiveVisitorNotification(User recipient, Visitor visitor) {
@@ -624,17 +613,50 @@ public class NotificationService {
                 || recipient.getRoles().contains(Role.VISITOR)) {
             return true;
         }
-        return !recipient.getRoles().contains(Role.EMPLOYEE)
+        return !RoleGroups.hasEmployeeWorkspaceRole(recipient.getRoles())
                 || Objects.equals(recipient.getId(), visitor.getHostEmployeeId());
     }
 
-    private boolean canAccessNotificationOrganization(User user, Notification notification) {
+    private boolean canAccessNotification(User user, Notification notification) {
         if (user.getRoles() != null && user.getRoles().contains(Role.SUPER_ADMIN)) {
             return true;
         }
         String userOrganizationId = trimToNull(user.getOrganizationId());
         String notificationOrganizationId = trimToNull(notification.getOrganizationId());
-        return notificationOrganizationId == null || userOrganizationId == null || notificationOrganizationId.equals(userOrganizationId);
+        if (notificationOrganizationId != null && userOrganizationId == null) {
+            return false;
+        }
+        if (notificationOrganizationId != null && !notificationOrganizationId.equals(userOrganizationId)) {
+            return false;
+        }
+        return canReceiveNotificationType(user, notification.getType());
+    }
+
+    private boolean canReceiveNotificationType(User user, NotificationType type) {
+        if (user.getRoles() == null || type == null) {
+            return false;
+        }
+        if (user.getRoles().contains(Role.SUPER_ADMIN)) {
+            return true;
+        }
+        NotificationCategory category = resolveCategory(type);
+        return switch (category) {
+            case SECURITY -> user.getRoles().contains(Role.ADMIN) || user.getRoles().contains(Role.SECURITY_GUARD);
+            case SYSTEM -> true;
+            case VISITOR -> user.getRoles().contains(Role.ADMIN)
+                    || user.getRoles().contains(Role.SECURITY_GUARD)
+                    || user.getRoles().contains(Role.VISITOR)
+                    || RoleGroups.hasEmployeeWorkspaceRole(user.getRoles());
+            case WORKFORCE -> switch (type) {
+                case WORKFORCE_ONBOARDING_REQUESTED ->
+                        user.getRoles().contains(Role.ADMIN);
+                case WORKFORCE_CREDENTIAL_DISABLED ->
+                        user.getRoles().contains(Role.ADMIN) || user.getRoles().contains(Role.SECURITY_GUARD);
+                default -> user.getRoles().contains(Role.ADMIN)
+                        || user.getRoles().contains(Role.SECURITY_GUARD)
+                        || RoleGroups.hasEmployeeWorkspaceRole(user.getRoles());
+            };
+        };
     }
 
     private String resolveTargetType(String targetType, Visitor visitor) {

@@ -27,6 +27,10 @@ export type ResetPasswordPayload = {
   newPassword: string;
 };
 
+export type ResendEmailVerificationPayload = {
+  identifier: string;
+};
+
 export type ForgotPasswordResponseDto = {
   accepted: boolean;
   expiresAt?: string | null;
@@ -35,6 +39,21 @@ export type ForgotPasswordResponseDto = {
 export type VerifyPasswordResetOtpResponseDto = {
   resetToken: string;
   expiresAt?: string | null;
+};
+
+export type EmailVerificationDispatchResponseDto = {
+  email?: string | null;
+  verificationRequired: boolean;
+  expiresAt?: string | null;
+  sentAt?: string | null;
+  resendAvailableAt?: string | null;
+  roles?: BackendRole[] | null;
+};
+
+export type EmailVerificationStatusResponseDto = {
+  email?: string | null;
+  emailVerified: boolean;
+  verifiedAt?: string | null;
 };
 
 export type VisitorRegisterPayload = {

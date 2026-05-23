@@ -11,12 +11,6 @@ import java.time.Instant;
 public interface NotificationRepository extends MongoRepository<Notification, String> {
     List<Notification> findByRecipientUserIdOrderByCreatedAtDesc(String recipientUserId, Pageable pageable);
 
-    List<Notification> findByRecipientUserIdAndOrganizationIdOrderByCreatedAtDesc(String recipientUserId, String organizationId, Pageable pageable);
-
-    long countByRecipientUserIdAndReadFalse(String recipientUserId);
-
-    long countByRecipientUserIdAndOrganizationIdAndReadFalse(String recipientUserId, String organizationId);
-
     List<Notification> findByEmailEnabledTrueAndEmailStatusAndEmailAttemptsLessThan(NotificationStatus status, int attempts, Pageable pageable);
 
     boolean existsByRecipientUserIdAndTypeAndVisitorIdAndCreatedAtAfter(String recipientUserId, com.visitor.management.entity.NotificationType type, String visitorId, Instant createdAt);

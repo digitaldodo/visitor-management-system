@@ -21,6 +21,7 @@ import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.PasswordResetToken;
 import com.visitor.management.entity.RefreshToken;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ConflictException;
@@ -498,10 +499,7 @@ public class AuthService {
 
         boolean allowed = switch (audience) {
             case "admin" -> user.getRoles().contains(Role.SUPER_ADMIN) || user.getRoles().contains(Role.ADMIN);
-            case "employee" -> user.getRoles().contains(Role.EMPLOYEE)
-                    || user.getRoles().contains(Role.RECEPTION)
-                    || user.getRoles().contains(Role.OPERATOR)
-                    || user.getRoles().contains(Role.MANAGER);
+            case "employee" -> RoleGroups.hasEmployeeWorkspaceRole(user.getRoles());
             case "security" -> user.getRoles().contains(Role.SECURITY_GUARD);
             case "visitor" -> user.getRoles().contains(Role.VISITOR);
             default -> false;

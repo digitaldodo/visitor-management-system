@@ -48,7 +48,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/employee")
-@PreAuthorize("hasRole('EMPLOYEE')")
+@PreAuthorize("hasAnyRole('EMPLOYEE', 'RECEPTION', 'OPERATOR', 'MANAGER')")
 public class EmployeeController {
 
     private final VisitorService visitorService;

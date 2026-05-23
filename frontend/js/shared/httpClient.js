@@ -3,6 +3,7 @@ import { handleUnauthorizedSession, reportRuntimeError } from "./appRuntime.js";
 import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, setSession } from "./session.js";
 
 const REQUEST_TIMEOUT_MS = 20000;
+let refreshPromise = null;
 
 export async function request(path, options = {}) {
   const { auth = true, retry = true, headers: customHeaders = {}, timeoutMs = REQUEST_TIMEOUT_MS, ...fetchOptions } = options;
@@ -40,7 +41,7 @@ export async function request(path, options = {}) {
   }
 
   if (response.status === 401 && auth && retry) {
-    const refreshed = await refreshAccessToken();
+    const refreshed = await refreshAccessTokenOnce();
     if (refreshed) {
       return request(path, { ...options, retry: false });
     }
@@ -64,6 +65,18 @@ export async function request(path, options = {}) {
   }
 
   return normalizeApiResponse(payload, response);
+}
+
+async function refreshAccessTokenOnce() {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessToken();
+  }
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
 }
 
 async function refreshAccessToken() {

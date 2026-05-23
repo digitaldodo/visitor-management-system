@@ -1,6 +1,6 @@
 import { publicRequest, request } from '../api/apiClient';
 import { uploadImage, type UploadAsset } from './uploadService';
-import type { VisitorRegisterPayload } from '../types/auth';
+import type { EmailVerificationDispatchResponseDto, VisitorRegisterPayload } from '../types/auth';
 import type { HostDirectoryEntry, NotificationInbox, SecurityPhotoUpload, VisitorInviteRecord, VisitorRecord } from '../types/domain';
 
 export type VisitorOverview = {
@@ -80,7 +80,7 @@ export type VisitorVisitPayload = {
 };
 
 export async function registerVisitorAccount(payload: VisitorRegisterPayload) {
-  return publicRequest<{ verificationId?: string; email?: string }>({
+  return publicRequest<EmailVerificationDispatchResponseDto>({
     url: '/auth/register',
     method: 'POST',
     data: {

@@ -13,6 +13,7 @@ import com.visitor.management.entity.AccessAuditLog;
 import com.visitor.management.entity.Department;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
@@ -352,7 +353,7 @@ public class OrganizationService {
     }
 
     private boolean isWorkforceRole(Role role) {
-        return role == Role.EMPLOYEE || role == Role.SECURITY_GUARD;
+        return RoleGroups.isWorkforceRole(role);
     }
 
     private String normalizeCode(String value) {

@@ -10,7 +10,7 @@ const audienceRoleMap: Record<WorkspaceAudience, ActiveWorkspaceRole[]> = {
 
 const mobileWorkspaceRoles: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
 const defaultRoleOrder: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
-const employeeWorkspaceAliases: BackendRole[] = ['RECEPTION', 'OPERATOR', 'MANAGER'];
+export const employeeWorkspaceRoles: BackendRole[] = ['EMPLOYEE', 'RECEPTION', 'OPERATOR', 'MANAGER'];
 
 export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudience): ActiveWorkspaceRole {
   if (roles.includes('SUPER_ADMIN')) {
@@ -24,7 +24,7 @@ export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudi
     return 'ADMIN';
   }
 
-  const expandedRoles = roles.some((role) => employeeWorkspaceAliases.includes(role)) && !roles.includes('EMPLOYEE')
+  const expandedRoles = roles.some((role) => employeeWorkspaceRoles.includes(role)) && !roles.includes('EMPLOYEE')
     ? [...roles, 'EMPLOYEE' as BackendRole]
     : roles;
   const normalizedRoles = expandedRoles.filter((role): role is ActiveWorkspaceRole =>
@@ -45,7 +45,7 @@ export function canAccessAudience(roles: BackendRole[], audience: WorkspaceAudie
   if (roles.includes('ADMIN')) {
     return audience === 'admin';
   }
-  if (audience === 'employee' && roles.some((role) => employeeWorkspaceAliases.includes(role))) {
+  if (audience === 'employee' && roles.some((role) => employeeWorkspaceRoles.includes(role))) {
     return true;
   }
   return audienceRoleMap[audience].some((role) => roles.includes(role));

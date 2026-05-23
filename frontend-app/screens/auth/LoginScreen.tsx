@@ -158,7 +158,7 @@ export function LoginScreen() {
     setRegisterMessage(null);
 
     try {
-      await registerVisitorMutation.mutateAsync(values as VisitorRegisterPayload);
+      const response = await registerVisitorMutation.mutateAsync(values as VisitorRegisterPayload);
       resetRegister({
         fullName: '',
         username: '',
@@ -173,6 +173,7 @@ export function LoginScreen() {
       setAuthMode('login');
       setValue('audience', 'visitor', { shouldValidate: true });
       setRegisterMessage('Visitor account created. Verify your email, then sign in.');
+      navigation.navigate('VerifyEmail', { email: response.email || values.email });
     } catch (error) {
       setSubmitError(getErrorMessage(error, 'Visitor registration failed.'));
     }
@@ -430,6 +431,9 @@ export function LoginScreen() {
                 <View style={[styles.authOptionsRow, layout.fieldStacked ? styles.authOptionsStacked : null]}>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('recovery')} hitSlop={8} style={styles.linkButton}>
                     <Text style={styles.linkText}>{t('auth.forgotPassword')}</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => navigation.navigate('VerifyEmail', { identifier: watch('identifier') })} hitSlop={8} style={styles.linkButton}>
+                    <Text style={styles.linkText}>Verify email</Text>
                   </Pressable>
                 </View>
 

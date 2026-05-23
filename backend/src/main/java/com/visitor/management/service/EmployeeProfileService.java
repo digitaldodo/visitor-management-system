@@ -5,7 +5,7 @@ import com.visitor.management.dto.EmployeePasswordUpdateRequest;
 import com.visitor.management.dto.EmployeeProfileUpdateRequest;
 import com.visitor.management.dto.UserProfileResponse;
 import com.visitor.management.entity.AccountStatus;
-import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.exception.BadRequestException;
 import com.visitor.management.exception.ResourceNotFoundException;
@@ -93,7 +93,7 @@ public class EmployeeProfileService {
     private User currentEmployee(String actorId) {
         User user = userRepository.findById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee account was not found."));
-        if (user.getRoles() == null || !user.getRoles().contains(Role.EMPLOYEE)) {
+        if (!RoleGroups.hasEmployeeWorkspaceRole(user.getRoles())) {
             throw new BadRequestException("Only employee accounts can manage employee profile settings.");
         }
         if (!user.isActive() || (user.getAccountStatus() != null && user.getAccountStatus() != AccountStatus.ACTIVE)) {

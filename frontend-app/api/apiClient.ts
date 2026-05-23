@@ -10,9 +10,11 @@ import { createAppError, createPayloadError, normalizeApiError } from './error';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
 import { recordApiFailure } from '../runtime/observability';
 import { recordOperationalMetric } from '../runtime/telemetry';
+import { resolveActiveRole } from '../auth/roleResolver';
 import type { AppError } from '../types/api';
 import type { AuthResponseDto, AuthSession } from '../types/auth';
 import type { ApiEnvelope } from '../types/api';
+import type { UserProfile } from '../types/domain';
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _authRetry?: boolean;
@@ -270,13 +272,41 @@ async function executeRefresh() {
       refreshToken: session.refreshToken,
     });
     const payload = unwrapApiResponse<AuthResponseDto>(response.data);
+    const tokenType = payload.tokenType || session.tokenType;
+    const profileResponse = await publicApi.get<ApiEnvelope<UserProfile>>('/auth/me', {
+      headers: {
+        Authorization: `${tokenType} ${payload.accessToken}`,
+      },
+    });
+    const profile = unwrapApiResponse<UserProfile>(profileResponse.data);
+    const roles = sanitizeRoles(payload.roles ?? payload.user?.roles ?? profile.roles ?? session.user.roles);
     const nextSession = {
       ...session,
       accessToken: payload.accessToken,
       refreshToken: payload.refreshToken,
-      tokenType: payload.tokenType || session.tokenType,
+      tokenType,
       expiresAt: payload.expiresAt,
       lastSyncedAt: new Date().toISOString(),
+      user: {
+        ...session.user,
+        id: profile.id || payload.user?.id || payload.userId || session.user.id,
+        username: profile.username || payload.user?.username || payload.username || session.user.username,
+        email: profile.email || payload.user?.email || payload.email || session.user.email,
+        fullName: profile.fullName || payload.user?.fullName || payload.fullName || session.user.fullName,
+        organizationId: profile.organizationId ?? payload.user?.organizationId ?? payload.organizationId ?? session.user.organizationId,
+        organizationName: profile.organizationName ?? payload.user?.organizationName ?? payload.organizationName ?? session.user.organizationName,
+        organizationCode: profile.organizationCode ?? payload.user?.organizationCode ?? payload.organizationCode ?? session.user.organizationCode,
+        organizationTimezone: profile.organizationTimezone ?? payload.user?.organizationTimezone ?? payload.organizationTimezone ?? session.user.organizationTimezone,
+        organizationRegionCountry:
+          profile.organizationRegionCountry ?? payload.user?.organizationRegionCountry ?? payload.organizationRegionCountry ?? session.user.organizationRegionCountry,
+        roles,
+        activeRole: resolveActiveRole(roles, session.audience),
+        department: profile.department,
+        designation: profile.designation,
+        employeeId: profile.employeeId,
+        employeePhotoUrl: profile.employeePhotoUrl,
+        accountStatus: profile.accountStatus,
+      },
     } satisfies AuthSession;
 
     await handleSessionUpdate(nextSession);
@@ -288,6 +318,10 @@ async function executeRefresh() {
     }
     throw normalizedError;
   }
+}
+
+function sanitizeRoles(roles: string[] | undefined) {
+  return Array.from(new Set((roles ?? []).filter(Boolean))) as AuthSession['user']['roles'];
 }
 
 export function assertApiConfigured() {

@@ -17,6 +17,7 @@ import com.visitor.management.entity.EmergencyIncidentType;
 import com.visitor.management.entity.EmergencyOperationalState;
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
 import com.visitor.management.entity.VisitorStatus;
@@ -43,7 +44,7 @@ import java.util.stream.Stream;
 @Service
 public class EmergencyOperationsService {
 
-    private static final Set<Role> EVERY_ORG_ROLE = Set.of(Role.ADMIN, Role.SECURITY_GUARD, Role.EMPLOYEE, Role.VISITOR);
+    private static final Set<Role> EVERY_ORG_ROLE = RoleGroups.ORGANIZATION_ROLES;
     private static final Set<Role> OPERATIONS_ROLES = Set.of(Role.ADMIN, Role.SECURITY_GUARD);
 
     private final EmergencyOperationalStateRepository stateRepository;

@@ -62,8 +62,25 @@ export function isAdminRole(role: ActiveWorkspaceRole) {
   return role === 'ADMIN';
 }
 
-export function isNotificationAllowedForRole(role: ActiveWorkspaceRole, type?: string | null) {
+export function isNotificationAllowedForRole(role: ActiveWorkspaceRole, type?: string | null, category?: string | null) {
   const normalized = String(type || '').trim().toUpperCase();
+  const normalizedCategory = String(category || '').trim().toUpperCase();
+  if (normalizedCategory === 'SECURITY') {
+    return role === 'SECURITY_GUARD' || isAdminRole(role);
+  }
+  if (normalizedCategory === 'WORKFORCE') {
+    if (normalized === 'WORKFORCE_ONBOARDING_REQUESTED' || normalized === 'WORKFORCE_CREDENTIAL_DISABLED') {
+      return role === 'SECURITY_GUARD' || isAdminRole(role);
+    }
+    return role === 'SECURITY_GUARD' || role === 'EMPLOYEE' || isAdminRole(role);
+  }
+  if (normalizedCategory === 'VISITOR') {
+    return role === 'VISITOR' || role === 'EMPLOYEE' || role === 'SECURITY_GUARD' || isAdminRole(role);
+  }
+  if (normalizedCategory === 'SYSTEM') {
+    return true;
+  }
+
   if (!normalized) {
     return true;
   }

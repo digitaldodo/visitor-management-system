@@ -3,9 +3,12 @@ import { resolveActiveRole } from '../auth/roleResolver';
 import type {
   AuthResponseDto,
   AuthSession,
+  EmailVerificationDispatchResponseDto,
+  EmailVerificationStatusResponseDto,
   ForgotPasswordPayload,
   ForgotPasswordResponseDto,
   LoginPayload,
+  ResendEmailVerificationPayload,
   ResetPasswordPayload,
   VerifyPasswordResetOtpPayload,
   VerifyPasswordResetOtpResponseDto,
@@ -70,6 +73,26 @@ export async function requestPasswordReset(payload: ForgotPasswordPayload) {
     method: 'POST',
     data: {
       identifier: payload.identifier.trim(),
+    },
+  });
+}
+
+export async function resendEmailVerification(payload: ResendEmailVerificationPayload) {
+  return publicRequest<EmailVerificationDispatchResponseDto>({
+    url: '/auth/resend-verification',
+    method: 'POST',
+    data: {
+      identifier: payload.identifier.trim(),
+    },
+  });
+}
+
+export async function verifyEmail(token: string) {
+  return publicRequest<EmailVerificationStatusResponseDto>({
+    url: '/auth/verify-email',
+    method: 'GET',
+    params: {
+      token: token.trim(),
     },
   });
 }

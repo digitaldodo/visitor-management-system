@@ -22,6 +22,7 @@ import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Organization;
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.VisitorAuditLog;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
@@ -992,7 +993,7 @@ public class VisitorService {
         User actor = actorId == null ? null : currentUser(actorId);
         Organization organization = resolveSearchOrganization(actor, companyCode);
         Query employeeQuery = new Query()
-                .addCriteria(Criteria.where("roles").in(Role.EMPLOYEE))
+                .addCriteria(Criteria.where("roles").in(RoleGroups.EMPLOYEE_WORKSPACE_ROLES))
                 .addCriteria(Criteria.where("active").is(true))
                 .addCriteria(Criteria.where("organizationId").is(organization.getId()))
                 .with(Sort.by(Sort.Direction.ASC, "fullName"))
@@ -1611,6 +1612,9 @@ public class VisitorService {
     }
 
     private boolean hasRole(User user, Role role) {
+        if (role == Role.EMPLOYEE) {
+            return user != null && RoleGroups.hasEmployeeWorkspaceRole(user.getRoles());
+        }
         return user != null && user.getRoles() != null && user.getRoles().contains(role);
     }
 

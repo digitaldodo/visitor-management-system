@@ -6,6 +6,7 @@ import { EmptyState } from '../feedback/EmptyState';
 import { StatusPill } from '../feedback/StatusPill';
 import { SurfaceCard } from '../cards/SurfaceCard';
 import { useAuth } from '../../auth/AuthProvider';
+import { isNotificationAllowedForRole } from '../../auth/workspaceConfig';
 import { openOperationalDeepLink } from '../../runtime/operationalDeepLinks';
 import { theme } from '../../theme';
 import { useLocalization } from '../../localization/LocalizationProvider';
@@ -41,8 +42,9 @@ export function NotificationCenter({
     const combined = [...(localNotifications ?? []), ...(inbox?.items ?? [])];
     return combined
       .map((item) => ({ ...item, source: item.source ?? 'backend' as const }))
+      .filter((item) => !activeRole || isNotificationAllowedForRole(activeRole, item.type, item.category))
       .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
-  }, [inbox?.items, localNotifications]);
+  }, [activeRole, inbox?.items, localNotifications]);
 
   const groupedItems = useMemo(() => {
     return CATEGORY_ORDER.map((category) => ({

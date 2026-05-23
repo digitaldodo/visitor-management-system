@@ -17,6 +17,7 @@ import { useOperationalRuntime } from '../runtime/OperationalRuntimeProvider';
 import { readOnboardingComplete } from '../storage/onboardingStorage';
 import { navigationTheme, theme } from '../theme';
 import { LoginScreen } from '../screens/auth/LoginScreen';
+import { EmailVerificationScreen } from '../screens/auth/EmailVerificationScreen';
 import { BootScreen } from '../screens/common/BootScreen';
 import { LegalScreen } from '../screens/common/LegalScreen';
 import { OperationalFeedScreen } from '../screens/common/OperationalFeedScreen';
@@ -168,6 +169,7 @@ function AuthNavigator() {
     <AuthStack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false, animation: 'fade_from_bottom' }}>
       <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="VerifyEmail" component={EmailVerificationScreen} options={{ animation: 'slide_from_right' }} />
       <AuthStack.Screen name="Legal" component={LegalScreen} options={{ animation: 'slide_from_right' }} />
       <AuthStack.Screen name="VisitorInviteRegistration" component={VisitorInviteRegistrationScreen} />
     </AuthStack.Navigator>
@@ -179,6 +181,7 @@ const linkingConfig = {
   config: {
     screens: {
       VisitorInviteRegistration: 'visitor-invite/:token',
+      VerifyEmail: 'verify-email',
     },
   },
 };

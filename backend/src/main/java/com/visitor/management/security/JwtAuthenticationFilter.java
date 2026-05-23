@@ -1,6 +1,7 @@
 package com.visitor.management.security;
 
 import com.visitor.management.entity.Role;
+import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.AccountStatus;
 import com.visitor.management.repository.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -19,6 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.stream.Stream;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -68,7 +70,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     subject,
                     null,
-                    roles.stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role.name())).toList()
+                    Stream.concat(
+                                    roles.stream().map(role -> "ROLE_" + role.name()),
+                                    RoleGroups.hasEmployeeWorkspaceRole(roles) ? Stream.of("ROLE_EMPLOYEE") : Stream.empty()
+                            )
+                            .distinct()
+                            .map(SimpleGrantedAuthority::new)
+                            .toList()
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (JwtException | IllegalArgumentException ex) {
