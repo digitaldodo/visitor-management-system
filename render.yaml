@@ -46,6 +46,18 @@ services:
       test -n "$API_BASE_URL"
       node ./scripts/build-static.mjs
     headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: default-src 'self'; connect-src 'self' https://accessflow-api-goww.onrender.com https:; img-src 'self' data: blob: https:; media-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
       - path: /
         name: Cache-Control
         value: no-store
