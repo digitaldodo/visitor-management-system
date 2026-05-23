@@ -171,15 +171,15 @@ export function WorkforceScreen() {
 
   const submitOnboarding = async () => {
     if (!fullName.trim() || fullName.trim().length < 2) {
-      setFormError('Enter the worker name.');
+      setFormError('Enter the workforce member name.');
       return;
     }
     if (!phone.trim()) {
-      setFormError('Enter a phone number for the worker.');
+      setFormError('Enter a phone number for the workforce member.');
       return;
     }
     if (!designation.trim()) {
-      setFormError('Enter the worker role or designation.');
+      setFormError('Enter the workforce member role or designation.');
       return;
     }
 
@@ -238,12 +238,12 @@ export function WorkforceScreen() {
   const reasonConfig = workforceAction
     ? workforceAction.type === 'check-in'
       ? {
-          title: 'Manual worker check-in',
+          title: 'Manual workforce check-in',
           helperText: 'Record why security had to assist instead of using the static workforce QR.',
           confirmLabel: 'Check in',
         }
       : {
-          title: 'Manual worker check-out',
+          title: 'Manual workforce check-out',
           helperText: 'Record why security had to assist instead of using the static workforce QR.',
           confirmLabel: 'Check out',
         }
@@ -265,11 +265,11 @@ export function WorkforceScreen() {
           title="Assisted onboarding"
           subtitle={offlineLookupActive
             ? 'New workforce onboarding requires connectivity so admin approval and credential issuance stay authoritative.'
-            : 'Capture the worker identity, service type, and shift context for admin approval.'}
+            : 'Capture the workforce member identity, service type, and shift context for admin approval.'}
         >
-          <AppTextField label="Worker name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
+          <AppTextField label="Workforce member name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
           <AppTextField label="Username (optional)" value={username} onChangeText={setUsername} placeholder="worker_001" autoCapitalize="none" />
-          <AppTextField label="Email (optional)" value={email} onChangeText={setEmail} placeholder="worker@accessflow.local" autoCapitalize="none" keyboardType="email-address" />
+          <AppTextField label="Email (optional)" value={email} onChangeText={setEmail} placeholder="workforce@accessflow.local" autoCapitalize="none" keyboardType="email-address" />
           <AppTextField label="Department" value={department} onChangeText={setDepartment} placeholder="Facility support, landscaping, housekeeping" />
           <InternationalPhoneInput
             countryCode={phoneCountryCode}
@@ -292,7 +292,7 @@ export function WorkforceScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>Worker category</Text>
+          <Text style={styles.sectionLabel}>Workforce category</Text>
           <View style={styles.segmentRow}>
             {WORKER_TYPES.map((type) => (
               <Pressable
@@ -320,7 +320,7 @@ export function WorkforceScreen() {
           <View style={[styles.photoRow, layout.fieldStacked ? styles.photoRowStacked : null]}>
             {workerPhoto ? <Image source={{ uri: workerPhoto.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo optional</Text></View>}
             <View style={styles.photoMeta}>
-              <Text style={styles.photoTitle}>Worker photo</Text>
+              <Text style={styles.photoTitle}>Workforce photo</Text>
               <Text style={styles.helperText}>Capture a reference image if security needs a visual identity on file for later verification.</Text>
               <PrimaryButton label={workerPhoto ? 'Retake photo' : 'Capture photo'} onPress={() => setPhotoModalVisible(true)} tone="secondary" />
             </View>
@@ -442,7 +442,7 @@ export function WorkforceScreen() {
 
       <PhotoCaptureModal
         visible={photoModalVisible}
-        title="Capture worker photo"
+        title="Capture workforce photo"
         onCancel={() => setPhotoModalVisible(false)}
         onCapture={(asset) => {
           setWorkerPhoto(asset);

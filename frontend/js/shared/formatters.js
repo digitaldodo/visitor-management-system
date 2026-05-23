@@ -1,3 +1,5 @@
+import { enterpriseStatusLabel } from "./workflowEnums.js";
+
 let defaultTimezone = "";
 
 export function setDefaultTimezone(timezone) {
@@ -30,7 +32,7 @@ export function formatDateOnly(value) {
 }
 
 export function formatStatus(status) {
-  return String(status || "").replaceAll("_", " ");
+  return enterpriseStatusLabel(status);
 }
 
 export function formatDurationMinutes(totalMinutes) {

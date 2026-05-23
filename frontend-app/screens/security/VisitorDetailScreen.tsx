@@ -236,8 +236,8 @@ export function VisitorDetailScreen() {
                 items={[
                   { label: 'Approved', value: visitor.approvedAt ? formatDateTime(visitor.approvedAt) : 'Not approved' },
                   { label: 'Approved by', value: visitor.approvedBy || 'Not recorded' },
-                  { label: 'Rejected', value: visitor.rejectedAt ? formatDateTime(visitor.rejectedAt) : 'Not rejected' },
-                  { label: 'Rejected by', value: visitor.rejectedBy || 'Not recorded' },
+                  { label: 'Denied', value: visitor.rejectedAt ? formatDateTime(visitor.rejectedAt) : 'Not denied' },
+                  { label: 'Denied by', value: visitor.rejectedBy || 'Not recorded' },
                   { label: 'Rejection reason', value: visitor.rejectionReason || 'No rejection reason' },
                   { label: 'Suspended', value: visitor.suspendedAt ? formatDateTime(visitor.suspendedAt) : 'Not suspended' },
                   { label: 'Suspension reason', value: visitor.suspensionReason || 'No suspension reason' },

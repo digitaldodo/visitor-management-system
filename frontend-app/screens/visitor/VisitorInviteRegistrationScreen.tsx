@@ -147,7 +147,7 @@ export function VisitorInviteRegistrationScreen() {
             <SurfaceCard title="Lifecycle status" subtitle={invite.nextAction || 'AccessFlow is keeping the invite, approval, and badge state synchronized.'}>
               <StatusPill label={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')} tone={inviteStatusTone(invite)} />
               {registrationSubmitted && !invite.pass?.qrImageDataUri ? (
-                <Text style={styles.bodyText}>Awaiting approval. You do not need to submit this form again; AccessFlow will notify you when the approved badge is issued.</Text>
+                <Text style={styles.bodyText}>Pending approval. You do not need to submit this form again; AccessFlow will notify you when the approved badge is issued.</Text>
               ) : null}
             </SurfaceCard>
 
@@ -199,7 +199,7 @@ export function VisitorInviteRegistrationScreen() {
                   <Text style={styles.bodyText}>Expires {invite.pass.expiresAt ? new Date(invite.pass.expiresAt).toLocaleString() : 'after the approved access window'}</Text>
                 </View>
               ) : (
-                <EmptyState title={registrationSubmitted ? 'Awaiting approval' : 'QR pending'} body={registrationSubmitted ? 'Your registration is submitted. The QR badge will be delivered after approval.' : 'Complete pre-registration first. AccessFlow will not issue a QR badge until approval is granted.'} />
+                <EmptyState title={registrationSubmitted ? 'Pending approval' : 'QR pending'} body={registrationSubmitted ? 'Your registration is submitted. The QR badge will be delivered after approval.' : 'Complete pre-registration first. AccessFlow will not issue a QR badge until approval is granted.'} />
               )}
             </SurfaceCard>
           </>

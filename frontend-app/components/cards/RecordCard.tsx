@@ -10,7 +10,7 @@ type Props = {
   subtitle?: string | null;
   meta?: string | null;
   status?: string | null;
-  tone?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+  tone?: keyof typeof theme.statusTones;
 };
 
 export function RecordCard({ title, subtitle, meta, status, tone = 'default' }: Props) {

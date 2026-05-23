@@ -36,7 +36,7 @@ export const ROUTE_DEFINITIONS = {
     navLabel: "Workforce Approvals",
     eyebrow: "Access Activation",
     title: "Workforce Approval Workspace",
-    description: "Approve security-assisted worker onboarding, assign final access details, and keep QR activation admin-controlled.",
+    description: "Approve security-assisted workforce onboarding, assign final access details, and keep QR activation admin-controlled.",
     badges: ["Organization admin", "QR activation", "Audit logged"],
   },
   "attendance-presence": {

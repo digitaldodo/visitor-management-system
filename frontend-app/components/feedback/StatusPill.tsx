@@ -5,24 +5,16 @@ import { theme } from '../../theme';
 
 type Props = {
   label: string;
-  tone?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+  tone?: keyof typeof theme.statusTones;
 };
 
 export function StatusPill({ label, tone = 'default' }: Props) {
   const { tText } = useLocalization();
-  const palette = {
-    default: [theme.colors.surfaceMuted, theme.colors.textSecondary, theme.colors.border],
-    success: [theme.colors.successSoft, theme.colors.success, 'rgba(74, 222, 128, 0.24)'],
-    warning: [theme.colors.warningSoft, theme.colors.warning, 'rgba(251, 191, 36, 0.24)'],
-    danger: [theme.colors.dangerSoft, theme.colors.danger, 'rgba(248, 113, 113, 0.24)'],
-    info: [theme.colors.infoSoft, theme.colors.info, 'rgba(125, 211, 252, 0.24)'],
-  } as const;
-
-  const [backgroundColor, color, borderColor] = palette[tone];
+  const palette = theme.statusTones[tone] ?? theme.statusTones.default;
 
   return (
-    <View style={[styles.pill, { backgroundColor, borderColor }]}>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color }]}>{tText(label)}</Text>
+    <View style={[styles.pill, { backgroundColor: palette.background, borderColor: palette.border }]}>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color: palette.foreground }]}>{tText(label)}</Text>
     </View>
   );
 }

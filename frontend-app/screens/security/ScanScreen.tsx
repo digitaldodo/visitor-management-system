@@ -331,7 +331,7 @@ export function ScanScreen() {
         qrPayload: nextPayload,
         payloadFingerprint,
         targetId: cached.employee?.id ?? cached.result.employee?.id ?? null,
-        targetLabel: cached.employee?.fullName ?? cached.result.employee?.fullName ?? 'Worker',
+        targetLabel: cached.employee?.fullName ?? cached.result.employee?.fullName ?? 'Workforce member',
         localStatus: cached.employee?.currentlyIn || cached.result.currentlyIn ? 'OFFLINE_CHECK_OUT_PENDING' : 'OFFLINE_CHECK_IN_PENDING',
         dedupeKey: `employee-scan:${payloadFingerprint}`,
       });

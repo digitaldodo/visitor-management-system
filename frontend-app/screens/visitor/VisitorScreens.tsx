@@ -444,7 +444,7 @@ export function VisitorPassScreen() {
           </View>
         ) : selectedVisit ? (
           <EmptyState
-            title={String(selectedVisit.status) === 'PENDING' ? 'Awaiting approval' : 'QR pending'}
+            title={String(selectedVisit.status) === 'PENDING' ? 'Pending approval' : 'QR pending'}
             body={String(selectedVisit.status) === 'PENDING'
               ? 'Your pre-registration is with the host or workplace team. The badge will appear here after approval.'
               : 'The QR badge is generated only after the visit is approved.'}
@@ -561,7 +561,7 @@ export function VisitorProfileScreen() {
           <View style={styles.metricsGrid}>
             <MetricCard label="Total" value={history.data?.totalVisits ?? 0} tone="default" />
             <MetricCard label="Approved" value={history.data?.approvedVisits ?? 0} tone="success" />
-            <MetricCard label="Rejected" value={history.data?.rejectedVisits ?? 0} tone={(history.data?.rejectedVisits ?? 0) ? 'danger' : 'default'} />
+            <MetricCard label="Denied" value={history.data?.rejectedVisits ?? 0} tone={(history.data?.rejectedVisits ?? 0) ? 'danger' : 'default'} />
           </View>
           {(history.data?.records ?? []).slice(0, 6).map((visit) => (
             <RecordCard

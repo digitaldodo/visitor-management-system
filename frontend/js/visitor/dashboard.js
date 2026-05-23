@@ -1,12 +1,12 @@
 import { request } from "../shared/httpClient.js";
 import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { bootstrapApplication } from "../shared/appRuntime.js";
-import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
+import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderMetrics, renderWorkList, escapeHtml } from "../shared/portalShell.js";
 import { initOrganizationSelectors } from "../shared/organizationSelector.js";
 import { getAccountProfile, getVisitorPass, getVisitorHistory, listVisitorInvites, requestVisitReschedule, updateAccountPassword, updateAccountProfile, uploadAccountProfilePhoto, uploadVisitPhoto } from "../shared/accessService.js";
-import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
+import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";
@@ -65,7 +65,7 @@ async function loadVisitorPortal() {
   if (overview.status === "fulfilled") {
     const overviewData = overview.value?.data || {};
     renderMetrics([
-      { label: "Pending", value: overviewData.pending || 0, note: "Awaiting host approval" },
+      { label: "Pending", value: overviewData.pending || 0, note: "Pending host approval" },
       { label: "Active passes", value: overviewData.activePasses || 0, note: "Approved or checked in" },
       { label: "Total requests", value: overviewData.totalRequests || 0, note: "Saved in your access history" },
     ]);
@@ -256,7 +256,7 @@ function inviteCard(invite) {
           <h3>${escapeHtml(invite.hostEmployeeName || "Host invitation")}</h3>
           <p>${escapeHtml([invite.organizationName, invite.purposeOfVisit].filter(Boolean).join(" · ") || "Visitor pre-registration")}</p>
         </div>
-        <span class="status-badge status-badge--${String(stage).toLowerCase().replaceAll("_", "-")}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(stage))}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
       </div>
       <dl>
         <div><dt>Arrival</dt><dd>${escapeHtml(formatDate(invite.scheduledStartTime))}</dd></div>
@@ -451,7 +451,7 @@ async function handleRescheduleRequest(visitorId) {
       timezone: getDefaultTimezone(),
       note: note.trim(),
     });
-    showToast("Reschedule requested", "Your host will approve or reject the new timing.");
+    showToast("Reschedule requested", "Your host will approve or deny the new timing.");
     await loadVisitorPortal();
   } catch (error) {
     showToast("Reschedule failed", error.message);
@@ -459,7 +459,7 @@ async function handleRescheduleRequest(visitorId) {
 }
 
 function visitCard(visit) {
-  const status = formatStatus(visit.status);
+  const status = enterpriseStatusLabel(visit.status, "visitor");
   const passReady = ["APPROVED", "CHECKED_IN"].includes(visit.status) && visit.qrCode;
   const duration = visit.checkInTime ? formatDurationMinutes(minutesBetween(visit.checkInTime, visit.checkOutTime || new Date())) : "Pending";
   const passMessage = visit.rejectionReason
@@ -475,7 +475,7 @@ function visitCard(visit) {
           <h3>${escapeHtml(visit.hostEmployee || "Host pending")}</h3>
           <p>${escapeHtml(visit.hostEmployeeDepartment || "Department pending")} · ${escapeHtml(visit.purposeOfVisit || "Visit request")}</p>
         </div>
-        <span class="status-badge status-badge--${String(visit.status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(status)}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(visit.status))}">${escapeHtml(status)}</span>
       </div>
       <dl>
         <div><dt>Requested</dt><dd>${escapeHtml(formatDate(visit.createdAt))}</dd></div>
@@ -555,12 +555,12 @@ function historyCard(record) {
           <h3>${escapeHtml(record.hostEmployee || "Host pending")}</h3>
           <p>${escapeHtml(record.purposeOfVisit || "Visit")} · ${escapeHtml(record.organizationName || record.organizationCode || "Organization pending")}</p>
         </div>
-        <span class="status-badge status-badge--${String(record.status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(formatStatus(record.status))}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(record.status))}">${escapeHtml(enterpriseStatusLabel(record.status, "visitor"))}</span>
       </div>
       <ol class="visitor-history-card__timeline">
         ${(record.statusHistory || []).map((entry) => `
           <li>
-            <strong>${escapeHtml(formatStatus(entry.status))}</strong>
+            <strong>${escapeHtml(enterpriseStatusLabel(entry.status, "visitor"))}</strong>
             <span>${escapeHtml(formatDate(entry.timestamp))}</span>
             ${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ""}
           </li>

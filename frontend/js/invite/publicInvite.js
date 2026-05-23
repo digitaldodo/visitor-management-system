@@ -373,7 +373,7 @@ function lifecycleHeader(invite) {
   if (isBadgeIssued(invite)) {
     return "QR badge issued";
   }
-  return "Awaiting approval";
+  return "Pending approval";
 }
 
 function lifecycleTimeline(invite) {

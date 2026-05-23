@@ -1,7 +1,7 @@
 export const VISITOR_STATUS_LABELS = Object.freeze({
   PENDING: "Pending approval",
   APPROVED: "Approved",
-  REJECTED: "Rejected",
+  REJECTED: "Denied",
   CHECKED_IN: "Checked in",
   CHECKED_OUT: "Checked out",
   EXPIRED: "Expired",
@@ -12,10 +12,10 @@ export const VISITOR_INVITE_STATUS_LABELS = Object.freeze({
   INVITED: "Invited",
   PRE_REGISTRATION_PENDING: "Pre-registration pending",
   PRE_REGISTERED: "Pre-registered",
-  PENDING_APPROVAL: "Awaiting approval",
+  PENDING_APPROVAL: "Pending approval",
   APPROVED: "Approved",
   BADGE_ISSUED: "Badge issued",
-  REJECTED: "Rejected",
+  REJECTED: "Denied",
   CHECKED_IN: "Checked in",
   CHECKED_OUT: "Checked out",
   EXPIRED: "Expired",
@@ -27,7 +27,8 @@ export const WORKFORCE_STATUS_LABELS = Object.freeze({
   UNVERIFIED: "Unverified",
   PENDING_APPROVAL: "Pending approval",
   CHANGES_REQUESTED: "Changes requested",
-  REJECTED: "Rejected",
+  REJECTED: "Denied",
+  INACTIVE: "Disabled",
   DISABLED: "Disabled",
   LOCKED: "Locked",
 });
@@ -88,9 +89,106 @@ export function canonicalVisitorInviteStage(inviteOrStatus) {
 
 export function visitorInviteStatusLabel(inviteOrStatus) {
   const stage = canonicalVisitorInviteStage(inviteOrStatus);
-  return VISITOR_INVITE_STATUS_LABELS[stage] || stage.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (value) => value.toUpperCase());
+  return enterpriseStatusLabel(stage, "invite");
 }
 
 export function visitorStatusLabel(status) {
-  return VISITOR_STATUS_LABELS[status] || String(status || "Unknown").replaceAll("_", " ");
+  return enterpriseStatusLabel(status, "visitor");
+}
+
+export function workforceStatusLabel(status) {
+  return enterpriseStatusLabel(status, "workforce");
+}
+
+export function enterpriseStatusLabel(status, domain = "generic") {
+  const normalized = normalizeStatus(status);
+  if (!normalized) {
+    return "Unknown";
+  }
+  if (domain === "visitor" && VISITOR_STATUS_LABELS[normalized]) {
+    return VISITOR_STATUS_LABELS[normalized];
+  }
+  if (domain === "invite" && VISITOR_INVITE_STATUS_LABELS[normalized]) {
+    return VISITOR_INVITE_STATUS_LABELS[normalized];
+  }
+  if (domain === "workforce" && WORKFORCE_STATUS_LABELS[normalized]) {
+    return WORKFORCE_STATUS_LABELS[normalized];
+  }
+  if (VISITOR_STATUS_LABELS[normalized]) {
+    return VISITOR_STATUS_LABELS[normalized];
+  }
+  if (VISITOR_INVITE_STATUS_LABELS[normalized]) {
+    return VISITOR_INVITE_STATUS_LABELS[normalized];
+  }
+  if (WORKFORCE_STATUS_LABELS[normalized]) {
+    return WORKFORCE_STATUS_LABELS[normalized];
+  }
+  return humanizeStatus(normalized);
+}
+
+export function enterpriseStatusTone(status) {
+  switch (normalizeStatus(status)) {
+    case "APPROVED":
+    case "ACTIVE":
+    case "BADGE_ISSUED":
+    case "CHECKED_IN":
+    case "INSIDE":
+    case "IN":
+    case "PRESENT":
+    case "VALID":
+    case "SUCCESS":
+      return "success";
+    case "PENDING":
+    case "PENDING_APPROVAL":
+    case "PRE_REGISTERED":
+    case "CHANGES_REQUESTED":
+    case "LATE":
+    case "NOT_ACTIVE_YET":
+    case "OVERDUE_VISIT":
+    case "SUSPENDED":
+    case "WARNING":
+      return "warning";
+    case "REJECTED":
+    case "DENIED":
+    case "DISABLED":
+    case "INACTIVE":
+    case "LOCKED":
+    case "EXPIRED":
+    case "REVOKED":
+    case "CANCELLED":
+    case "SUSPENDED_VISITOR":
+    case "DANGER":
+      return "danger";
+    case "CHECKED_OUT":
+    case "OUT":
+    case "OUTSIDE":
+    case "UNVERIFIED":
+    case "INVITED":
+    case "PRE_REGISTRATION_PENDING":
+    case "SENT":
+    case "VIEWED":
+    case "INFO":
+      return "info";
+    case "DEFAULT":
+    case "NEUTRAL":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+export function statusBadgeClass(status) {
+  const normalized = normalizeStatus(status).toLowerCase().replaceAll("_", "-") || "neutral";
+  return `status-badge--${normalized} status-badge--tone-${enterpriseStatusTone(status)}`;
+}
+
+function normalizeStatus(status) {
+  return String(status || "").trim().toUpperCase().replaceAll("-", "_");
+}
+
+function humanizeStatus(status) {
+  return status
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (value) => value.toUpperCase());
 }

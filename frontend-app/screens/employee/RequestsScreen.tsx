@@ -194,7 +194,7 @@ export function RequestsScreen() {
       visitorId: queueAction.visitor.id,
       note: reason,
     });
-    setActionMessage(`${updatedVisitor.fullName} rejected. The backend audit trail and notification flow remain intact.`);
+    setActionMessage(`${updatedVisitor.fullName} denied. The backend audit trail and notification flow remain intact.`);
     setQueueAction(null);
     await refreshWorkspace();
   };
@@ -217,7 +217,7 @@ export function RequestsScreen() {
     <>
       <AppScreen
         title="Requests"
-        subtitle="Approve, reject, or reschedule visitors without leaving the employee access workspace."
+        subtitle="Approve, deny, or reschedule visitors without leaving the employee access workspace."
         sensitive
         sensitiveReason="employee-visitor-invites"
         refreshing={overview.isRefetching || approvals.isRefetching || preApprovals.isRefetching}
@@ -270,7 +270,7 @@ export function RequestsScreen() {
                     tone="secondary"
                   />
                   <PrimaryButton
-                    label="Reject"
+                    label="Deny"
                     onPress={() => setQueueAction({ type: 'reject', visitor })}
                     tone="danger"
                   />
@@ -431,9 +431,9 @@ export function RequestsScreen() {
 
       <ReasonCaptureModal
         visible={queueAction?.type === 'reject'}
-        title="Reject visitor request"
+        title="Deny visitor request"
         helperText="Record why the visit should not proceed so the requester and security teams have the right context."
-        confirmLabel="Reject request"
+        confirmLabel="Deny request"
         minLength={4}
         loading={rejectMutation.isPending}
         onCancel={() => setQueueAction(null)}

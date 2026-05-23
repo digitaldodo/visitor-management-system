@@ -6,7 +6,7 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
-import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
+import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
@@ -707,8 +707,8 @@ function initApprovalActions() {
         showToast("Visitor approved", "Security can now check in this visitor.");
       }
       if (action === "reject") {
-        await rejectVisitor("/employee", id, note || "Rejected by host employee.");
-        showToast("Visitor rejected", "Security will see the updated status.");
+        await rejectVisitor("/employee", id, note || "Denied by host employee.");
+        showToast("Visitor denied", "Security will see the updated status.");
       }
       if (action === "approve-reschedule") {
         await approveRescheduleRequest("/employee", id, note);
@@ -716,7 +716,7 @@ function initApprovalActions() {
       }
       if (action === "reject-reschedule") {
         await rejectRescheduleRequest("/employee", id, note || "Timing change declined by host employee.");
-        showToast("Reschedule rejected", "The original approved timing remains active.");
+        showToast("Reschedule denied", "The original approved timing remains active.");
       }
       await loadApprovals(false);
       await loadEmployeePortal();
@@ -771,7 +771,7 @@ function inviteCard(invite) {
       </dl>
       ${invite.revocationReason ? `<p>${escapeHtml(invite.revocationReason)}</p>` : ""}
       <div class="scheduled-card__footer">
-        <span class="status-badge status-badge--${String(stage).toLowerCase().replaceAll("_", "-")}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(stage))}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
         <span>${escapeHtml(invite.note || "Approval visibility follows host/workplace review.")}</span>
       </div>
       <div class="scheduled-card__actions">
@@ -802,10 +802,10 @@ function scheduledCard(visitor) {
       </dl>
       <div class="scheduled-card__footer">
         <span>${escapeHtml(visitor.scheduledTimezone || "UTC")}</span>
-        <span class="status-badge status-badge--${String(visitor.status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(status)}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(visitor.status))}">${escapeHtml(status)}</span>
       </div>
       <div class="scheduled-card__actions">
-        ${pending ? `<button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button><button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Reject timing</button>` : ""}
+        ${pending ? `<button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button><button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Deny timing</button>` : ""}
         <button class="button button--ghost" type="button" data-direct-reschedule="${escapeHtml(visitor.id)}">Modify timing</button>
       </div>
     </article>
@@ -824,7 +824,7 @@ function initScheduledActions() {
         if (decisionButton.dataset.approvalAction === "reject-reschedule") {
           const note = window.prompt("Reason for rejecting this timing change.") || "Timing change declined by host employee.";
           await rejectRescheduleRequest("/employee", decisionButton.dataset.visitorId, note);
-          showToast("Reschedule rejected", "The original timing remains active.");
+          showToast("Reschedule denied", "The original timing remains active.");
         }
         await loadEmployeePortal();
       } catch (error) {
@@ -872,7 +872,7 @@ function approvalCard(visitor) {
             <h3>${escapeHtml(visitor.fullName)}</h3>
             <p>${escapeHtml(visitor.companyName || "Unlisted company")} · ${escapeHtml(visitor.phone)}</p>
           </div>
-          <span class="status-badge status-badge--pending">Pending</span>
+          <span class="status-badge ${escapeHtml(statusBadgeClass("PENDING"))}">Pending approval</span>
         </div>
         <dl class="approval-meta">
           <div><dt>Purpose</dt><dd>${escapeHtml(visitor.purposeOfVisit)}</dd></div>
@@ -887,9 +887,9 @@ function approvalCard(visitor) {
           <input data-approval-note type="text" maxlength="240" placeholder="Optional approval or rejection note" />
         </label>
         <div class="approval-card__actions">
-          <button class="button button--ghost" type="button" data-approval-action="reject" data-visitor-id="${escapeHtml(visitor.id)}">Reject</button>
+          <button class="button button--ghost" type="button" data-approval-action="reject" data-visitor-id="${escapeHtml(visitor.id)}">Deny</button>
           <button class="button button--primary" type="button" data-approval-action="approve" data-visitor-id="${escapeHtml(visitor.id)}">Approve</button>
-          ${visitor.rescheduleStatus === "PENDING" ? `<button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Reject timing</button><button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button>` : ""}
+          ${visitor.rescheduleStatus === "PENDING" ? `<button class="button button--ghost" type="button" data-approval-action="reject-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Deny timing</button><button class="button button--primary" type="button" data-approval-action="approve-reschedule" data-visitor-id="${escapeHtml(visitor.id)}">Approve timing</button>` : ""}
         </div>
       </div>
     </article>
@@ -1035,12 +1035,7 @@ function timezoneLabelText(timezone) {
 }
 
 function formatStatusLabel(status) {
-  return String(status || "")
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ") || "Presence pending";
+  return status ? enterpriseStatusLabel(status) : "Presence pending";
 }
 
 function setScheduleMinimums(form) {

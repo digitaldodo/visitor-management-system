@@ -9,6 +9,7 @@ import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } fro
 import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, listSecurityWorkforceOnboardingRequests, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
+import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
 
 const ROUTES = ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
 const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
@@ -40,6 +41,7 @@ async function bootSecurityPortal() {
     return;
   }
 
+  groupSecurityNavigation();
   initPortalShell(session, {
     allowedRoutes: ROUTES,
     onRefresh: () => loadSecurityPortal(false),
@@ -62,6 +64,37 @@ async function bootSecurityPortal() {
   renderEmployeeScanIdle();
   await loadSecurityPortal();
   window.setInterval(() => loadSecurityPortal(false), 15000);
+}
+
+function groupSecurityNavigation() {
+  const nav = document.querySelector("#sidebar-nav");
+  if (!nav || nav.dataset.grouped === "true") {
+    return;
+  }
+  const sections = [
+    { label: "Visitor operations", routes: ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges"] },
+    { label: "Workforce operations", routes: ["employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"] },
+  ];
+  const linksByRoute = new Map(Array.from(nav.querySelectorAll(".nav-link")).map((link) => [link.dataset.route, link]));
+  nav.replaceChildren(...sections.map((section) => {
+    const wrapper = document.createElement("section");
+    wrapper.className = "nav-section";
+    wrapper.setAttribute("aria-label", section.label);
+
+    const label = document.createElement("p");
+    label.className = "nav-section__label";
+    label.textContent = section.label;
+    wrapper.append(label);
+
+    section.routes.forEach((route) => {
+      const link = linksByRoute.get(route);
+      if (link) {
+        wrapper.append(link);
+      }
+    });
+    return wrapper;
+  }));
+  nav.dataset.grouped = "true";
 }
 
 async function loadSecurityPortal(showErrors = true) {
@@ -380,7 +413,7 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-inside-list", data.currentlyInside || [], monitorCard, "No visitors inside", "Checked-in visitors will appear here.");
   renderWorkList("#monitor-overdue-list", data.overdueVisitors || [], overdueCard, "No overdue visitors", "Visitors who exceed the approved window will appear here.");
   renderWorkList("#monitor-checkedout-list", data.checkedOutVisitors || [], monitorCard, "No recent check-outs", "Completed departures will appear here.");
-  renderWorkList("#monitor-rejected-list", data.rejectedVisitors || [], rejectedCard, "No rejected visitors", "Denied requests will appear here.");
+  renderWorkList("#monitor-rejected-list", data.rejectedVisitors || [], rejectedCard, "No denied visitors", "Denied requests will appear here.");
   renderWorkList("#monitor-recurring-active-list", data.activeRecurringVisitors || [], recurringCard, "No active recurring visitors", "Approved recurring profiles will appear here.");
   renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
   renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
@@ -472,7 +505,7 @@ function initWorkforceOnboarding() {
       employeePhotoUrl: trim(data.employeePhotoUrl),
     };
     if (!payload.fullName || payload.fullName.length < 2) {
-      showToast("Worker name required", "Enter the worker's full name before submitting.");
+      showToast("Workforce member name required", "Enter the workforce member's full name before submitting.");
       return;
     }
     if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
@@ -493,7 +526,7 @@ function initWorkforceOnboarding() {
       form.reset();
       form.querySelector("input[name='phoneCountryCode']").value = "+1";
       setText("#workforce-photo-status", "Photo optional before admin approval");
-      showToast("Sent for admin approval", "QR and badge access remain inactive until an organization admin approves this worker.");
+      showToast("Sent for admin approval", "QR and badge access remain inactive until an organization admin approves this workforce member.");
       await loadSecurityPortal(false);
     } catch (error) {
       showToast("Onboarding failed", error.message);
@@ -520,7 +553,7 @@ function renderSubmittedWorkforceRequests(requests) {
 function submittedWorkforceRequestCard(worker) {
   return `
     <article class="work-card">
-      <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+      <h3>${escapeHtml(worker.fullName || "Workforce member")}</h3>
       <p>${escapeHtml(formatInternalRole((worker.roles || [])[0] || "EMPLOYEE"))} · ${escapeHtml(worker.department || "Department pending")}</p>
       <small>${escapeHtml(formatStatusText(worker.accountStatus || "PENDING_APPROVAL"))} · Submitted ${escapeHtml(formatDate(worker.workforceOnboardingCreatedAt || worker.createdAt))}</small>
       ${worker.workforceApprovedAt ? `<small>Approved ${escapeHtml(formatDate(worker.workforceApprovedAt))}</small>` : ""}
@@ -562,7 +595,7 @@ function renderWorkforceReceipt(worker) {
     <article class="workforce-receipt">
       <div>
         <p class="eyebrow">Temporary Receipt</p>
-        <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+        <h3>${escapeHtml(worker.fullName || "Workforce member")}</h3>
         <p>${escapeHtml(worker.employeeType || "Support staff")} · ${escapeHtml(worker.department || "Department pending")}</p>
         <small>Request ${escapeHtml(worker.id || "")} · ${escapeHtml(formatStatusText(worker.accountStatus || "PENDING_APPROVAL"))}</small>
       </div>
@@ -603,7 +636,7 @@ function renderEmployeeScanIdle() {
 function renderEmployeeScanFailure(message) {
   const target = document.querySelector("#employee-qr-result");
   if (target) {
-    target.innerHTML = `<article class="qr-result qr-result--danger"><strong>Employee QR rejected</strong><p>${escapeHtml(message)}</p></article>`;
+    target.innerHTML = `<article class="qr-result qr-result--danger"><strong>Employee QR denied</strong><p>${escapeHtml(message)}</p></article>`;
   }
 }
 
@@ -621,7 +654,7 @@ function renderEmployeeScanResult(result) {
           <strong>${escapeHtml(result.headline || "Employee scan complete")}</strong>
           <p>${escapeHtml(result.message || "")}</p>
         </div>
-        <span class="status-badge status-badge--${attendance.state === "IN" ? "checked-in" : "checked-out"}">${escapeHtml(formatPresenceStatus(attendance))}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(attendance.state === "IN" ? "CHECKED_IN" : "CHECKED_OUT"))}">${escapeHtml(formatPresenceStatus(attendance))}</span>
       </div>
       <div class="qr-result__identity">
         <div class="qr-result__photo-placeholder">${escapeHtml(employee.employeeId || "Employee")}</div>
@@ -692,7 +725,7 @@ function employeeCard(employee) {
       <div class="employee-work-card__actions">
         <button class="button button--ghost" type="button" data-employee-action="badge" data-employee-id="${escapeHtml(employee.id)}" ${activeAccess ? "" : "disabled"}>Badge</button>
         ${!activeAccess
-          ? `<button class="button button--ghost" type="button" disabled>Awaiting admin approval</button>`
+          ? `<button class="button button--ghost" type="button" disabled>Pending admin approval</button>`
           : employee.currentlyIn
           ? `<button class="button button--ghost" type="button" data-employee-action="check-out" data-employee-id="${escapeHtml(employee.id)}">Manual check-out</button>`
           : `<button class="button button--primary" type="button" data-employee-action="check-in" data-employee-id="${escapeHtml(employee.id)}">Manual check-in</button>`}
@@ -841,7 +874,7 @@ function passCard(pass) {
           <p>${escapeHtml(pass.companyName || "Unlisted organization")} · ${escapeHtml(pass.hostEmployee || "Unassigned")}</p>
           <small>${escapeHtml(pass.badgeId || pass.passCode || "Badge pending")} · ${escapeHtml(pass.checkInState || pass.statusLabel || pass.validityStatus)}</small>
         </div>
-        <span class="status-badge status-badge--${tone}">${escapeHtml(pass.validityStatus || pass.statusLabel)}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(tone))}">${escapeHtml(pass.validityStatus || pass.statusLabel)}</span>
       </div>
       <div class="visitor-pass-card__actions">
         <button class="button button--ghost" type="button" data-badge-open="${escapeHtml(pass.visitorId)}">Open badge</button>
@@ -1021,7 +1054,7 @@ function renderVerification(result) {
           <strong>${escapeHtml(result.headline || (result.valid ? "Pass verified" : "Pass review required"))}</strong>
           <p>${escapeHtml(result.message)}</p>
         </div>
-        <span class="status-badge status-badge--${statusTone}">${escapeHtml(result.validityStatus || result.statusLabel || result.resultCode || "Review")}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(statusTone))}">${escapeHtml(result.validityStatus || result.statusLabel || result.resultCode || "Review")}</span>
       </div>
       ${result.recommendedAction ? `<div class="qr-result__guidance">${escapeHtml(result.recommendedAction)}</div>` : ""}
       ${result.recognized ? `
@@ -1143,7 +1176,7 @@ function rejectedCard(visitor) {
   return `
     <article class="work-card">
       <h3>${escapeHtml(visitor.fullName)}</h3>
-      <p>${escapeHtml(visitor.rejectionReason || "Rejected by host")}</p>
+      <p>${escapeHtml(visitor.rejectionReason || "Denied by host")}</p>
       <small>${escapeHtml(formatDate(visitor.rejectedAt || visitor.updatedAt || visitor.createdAt))}</small>
     </article>
   `;
@@ -1238,7 +1271,7 @@ function checkpointStateText(result) {
   if (result.checkInTime) {
     return `Checked in ${formatDate(result.checkInTime)}`;
   }
-  return "Awaiting check-in";
+  return "Pending check-in";
 }
 
 function formatWindow(start, end) {
@@ -1257,12 +1290,7 @@ function formatEmployeeShift(employee = {}) {
 }
 
 function formatStatusText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ") || "Not recorded";
+  return value ? enterpriseStatusLabel(value) : "Not recorded";
 }
 
 function formatInternalRole(role) {

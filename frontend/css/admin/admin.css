@@ -34,7 +34,8 @@
 }
 
 .admin-shell .metric-card {
-  background: linear-gradient(180deg, rgba(52, 34, 16, 0.98) 0%, rgba(26, 18, 12, 0.98) 100%);
+  background: var(--panel-bg);
+  border-color: rgba(191, 219, 254, 0.18);
 }
 
 .portal-main--workspace {
@@ -113,7 +114,7 @@
 }
 
 .admin-metric-card {
-  background: linear-gradient(180deg, rgba(52, 34, 16, 0.99) 0%, rgba(26, 18, 12, 0.99) 100%);
+  background: var(--panel-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-xs);
@@ -470,8 +471,8 @@
 }
 
 .homepage-settings-form {
-  background: linear-gradient(180deg, rgba(180, 83, 9, 0.14), rgba(52, 34, 16, 0.46));
-  border: 1px solid rgba(252, 211, 77, 0.18);
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.10), rgba(15, 23, 42, 0.42));
+  border: 1px solid rgba(94, 234, 212, 0.18);
   border-radius: var(--radius-card);
   display: grid;
   gap: 0.9rem;
@@ -570,8 +571,8 @@
 }
 
 .homepage-preview-metrics div {
-  background: rgba(180, 83, 9, 0.16);
-  border: 1px solid rgba(252, 211, 77, 0.22);
+  background: rgba(79, 124, 255, 0.12);
+  border: 1px solid rgba(147, 197, 253, 0.22);
   border-radius: 14px;
   display: grid;
   gap: 0.2rem;
@@ -867,8 +868,8 @@
 
 .department-chip {
   align-items: center;
-  background: rgba(180, 83, 9, 0.18);
-  border: 1px solid rgba(252, 211, 77, 0.22);
+  background: rgba(20, 184, 166, 0.14);
+  border: 1px solid rgba(94, 234, 212, 0.22);
   border-radius: 999px;
   color: var(--color-text);
   display: inline-flex;
@@ -969,7 +970,7 @@
 
 .toggle-card:hover,
 .metric-option-card:hover {
-  border-color: rgba(252, 211, 77, 0.24);
+  border-color: rgba(147, 197, 253, 0.28);
   transform: translateY(-1px);
 }
 
@@ -1024,12 +1025,12 @@
 
 .toggle-card:has(input:checked),
 .metric-option-card.is-selected {
-  background: rgba(180, 83, 9, 0.14);
-  border-color: rgba(252, 211, 77, 0.28);
+  background: rgba(20, 184, 166, 0.14);
+  border-color: rgba(94, 234, 212, 0.28);
 }
 
 .toggle-card:has(input:checked) .toggle-card__switch {
-  background: linear-gradient(180deg, var(--role-accent), #92400e);
+  background: linear-gradient(180deg, var(--role-accent), var(--color-primary-strong));
 }
 
 .toggle-card:has(input:checked) .toggle-card__switch::after {
@@ -1048,7 +1049,7 @@
 
 .admin-user-form input.is-readonly {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(252, 211, 77, 0.18);
+  border-color: rgba(147, 197, 253, 0.22);
   color: var(--color-text);
   cursor: default;
 }
@@ -1087,7 +1088,7 @@
 
 .homepage-preview-hero {
   background:
-    radial-gradient(circle at top right, rgba(252, 211, 77, 0.22), transparent 18rem),
+    radial-gradient(circle at top right, rgba(125, 211, 252, 0.16), transparent 18rem),
     linear-gradient(145deg, rgba(19, 33, 53, 0.96), rgba(8, 14, 24, 0.98));
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 26px;
@@ -1148,8 +1149,8 @@
 }
 
 .homepage-preview-card--announcement {
-  background: rgba(180, 83, 9, 0.12);
-  border-color: rgba(252, 211, 77, 0.18);
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(94, 234, 212, 0.18);
 }
 
 .homepage-preview-card--empty,
@@ -1340,9 +1341,9 @@
 }
 
 .organization-tab.is-active {
-  background: rgba(180, 83, 9, 0.14);
-  border-color: rgba(252, 211, 77, 0.28);
-  color: #f8e1a2;
+  background: rgba(20, 184, 166, 0.14);
+  border-color: rgba(94, 234, 212, 0.28);
+  color: #ccfbf1;
 }
 
 .organization-workspace__body {

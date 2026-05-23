@@ -6,6 +6,7 @@ import type {
   VisitorStatus,
   VisitorType,
 } from '../types/domain';
+import { enterpriseStatusLabel, enterpriseStatusTone, type EnterpriseStatusTone } from '../types/workflow';
 
 export function formatDateTime(value?: string | null, options?: Intl.DateTimeFormatOptions) {
   if (!value) {
@@ -55,43 +56,14 @@ export function visitorTypeLabel(type?: VisitorType | null) {
 }
 
 export function visitorStatusLabel(status?: VisitorStatus | null) {
-  const labels: Record<VisitorStatus, string> = {
-    PENDING: 'Pending approval',
-    APPROVED: 'Approved',
-    REJECTED: 'Denied',
-    CHECKED_IN: 'Checked in',
-    CHECKED_OUT: 'Checked out',
-    EXPIRED: 'Expired',
-    SUSPENDED: 'Suspended',
-  };
-
-  return status ? labels[status] : 'Unknown';
+  return enterpriseStatusLabel(status, 'visitor');
 }
 
-export function statusTone(status?: string | null): 'default' | 'success' | 'warning' | 'danger' | 'info' {
-  switch (status) {
-    case 'APPROVED':
-    case 'CHECKED_IN':
-    case 'INSIDE':
-    case 'PRESENT':
-    case 'CHECKED_IN':
-      return 'success';
-    case 'PENDING':
-    case 'LATE':
-    case 'OUTSIDE_REVIEW':
-    case 'SUSPENDED':
-      return 'warning';
-    case 'REJECTED':
-    case 'EXPIRED':
-    case 'DENIED':
-    case 'CHECKED_OUT':
-      return 'danger';
-    default:
-      return 'info';
-  }
+export function statusTone(status?: string | null): EnterpriseStatusTone {
+  return enterpriseStatusTone(status);
 }
 
-export function verificationTone(result?: QrVerificationResult | null): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+export function verificationTone(result?: QrVerificationResult | null): EnterpriseStatusTone {
   if (!result) {
     return 'info';
   }
@@ -109,7 +81,7 @@ export function employeePresenceLabel(entry?: EmployeeAttendanceRecord | Employe
     return 'Unknown';
   }
   if ('status' in entry && entry.status) {
-    return String(entry.status).replaceAll('_', ' ');
+    return enterpriseStatusLabel(entry.status, 'workforce');
   }
   return 'currentlyIn' in entry && entry.currentlyIn ? 'Inside' : 'Outside';
 }

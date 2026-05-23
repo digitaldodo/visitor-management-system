@@ -43,6 +43,38 @@ export const theme = {
     textMuted: '#8797AE',
     textInverse: '#FFFFFF',
   },
+  statusTones: {
+    default: {
+      background: 'rgba(148, 163, 184, 0.14)',
+      foreground: '#CBD5E1',
+      border: 'rgba(203, 213, 225, 0.24)',
+    },
+    success: {
+      background: 'rgba(34, 197, 94, 0.14)',
+      foreground: '#86EFAC',
+      border: 'rgba(134, 239, 172, 0.28)',
+    },
+    warning: {
+      background: 'rgba(245, 158, 11, 0.14)',
+      foreground: '#FCD34D',
+      border: 'rgba(252, 211, 77, 0.30)',
+    },
+    danger: {
+      background: 'rgba(239, 68, 68, 0.14)',
+      foreground: '#FCA5A5',
+      border: 'rgba(252, 165, 165, 0.30)',
+    },
+    info: {
+      background: 'rgba(14, 165, 233, 0.14)',
+      foreground: '#7DD3FC',
+      border: 'rgba(125, 211, 252, 0.30)',
+    },
+    neutral: {
+      background: 'rgba(100, 116, 139, 0.14)',
+      foreground: '#CBD5E1',
+      border: 'rgba(203, 213, 225, 0.24)',
+    },
+  },
   spacing: {
     xs: 6,
     sm: 10,

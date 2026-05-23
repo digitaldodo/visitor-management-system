@@ -59,6 +59,7 @@ import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider'
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
 import { shareOperationalReport } from '../../services/operationalExportService';
 import { theme } from '../../theme';
+import { enterpriseStatusLabel } from '../../types/workflow';
 import type {
   AdminOperationalAnalytics,
   AnalyticsHeatmapRow,
@@ -96,7 +97,7 @@ type SectionProps = {
 
 const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
   { label: 'All', value: 'ALL' },
-  { label: 'Pending', value: 'PENDING' },
+  { label: 'Pending approval', value: 'PENDING' },
   { label: 'Approved', value: 'APPROVED' },
   { label: 'Inside', value: 'CHECKED_IN' },
   { label: 'Denied', value: 'REJECTED' },
@@ -107,11 +108,11 @@ const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
 const WORKFORCE_STATUSES = [
   { label: 'All', value: 'ALL' },
   { label: 'Active', value: 'ACTIVE' },
-  { label: 'Inactive', value: 'INACTIVE' },
+  { label: 'Disabled', value: 'INACTIVE' },
   { label: 'Pending approval', value: 'PENDING_APPROVAL' },
-  { label: 'Pending invite', value: 'UNVERIFIED' },
-  { label: 'Suspended', value: 'DISABLED' },
-  { label: 'Changes', value: 'CHANGES_REQUESTED' },
+  { label: 'Unverified', value: 'UNVERIFIED' },
+  { label: 'Disabled', value: 'DISABLED' },
+  { label: 'Changes requested', value: 'CHANGES_REQUESTED' },
 ] as const;
 
 const ADMIN_WORKFORCE_ROLES = [
@@ -565,7 +566,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     const username = workforceInviteForm.username.trim();
     const email = workforceInviteForm.email.trim();
     if (!fullName || !username || !email) {
-      setFormError('Worker name, username, and email are required.');
+      setFormError('Workforce member name, username, and email are required.');
       return;
     }
     try {
@@ -693,7 +694,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     switch (actionState.type) {
       case 'reject-workforce': {
         const updated = await rejectWorkforceMutation.mutateAsync({ id: actionState.worker.id, reason });
-        setActionMessage(`${updated.fullName} workforce onboarding rejected.`);
+        setActionMessage(`${updated.fullName} workforce onboarding denied.`);
         break;
       }
       case 'changes-workforce': {
@@ -703,7 +704,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
       }
       case 'reject-visitor': {
         const updated = await rejectVisitorMutation.mutateAsync({ id: actionState.visitor.id, note: reason });
-        setActionMessage(`${updated.fullName} visitor request rejected.`);
+        setActionMessage(`${updated.fullName} visitor request denied.`);
         break;
       }
       case 'deny-visitor': {
@@ -735,7 +736,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
     dashboard: ['Admin Dashboard', 'Approvals, visitors, alerts, workforce, and access operations.'],
     approvals: ['Approval Queue', 'Photo-backed workforce and visitor approvals with auditable decisions.'],
     visitors: ['Visitor Control', 'Inspect pending, active, denied, recurring, and high-priority visitor access.'],
-    workforce: ['Workforce Control', 'Approve onboarding, verify worker details, and monitor employee presence.'],
+    workforce: ['Workforce Control', 'Approve onboarding, verify workforce member details, and monitor employee presence.'],
     alerts: ['Alert Center', 'Acknowledge, escalate, and resolve operational events from mobile.'],
     register: ['Register', 'Searchable visitor, workforce, denied-entry, approval, and incident history.'],
     employees: ['Workforce Directory', 'Search workforce, verify roles, badge status, presence, and operational access.'],
@@ -814,7 +815,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 loading={approveWorkforceMutation.isPending}
               />
             </SurfaceCard>
-            <SurfaceCard title="Visitor approvals" subtitle="Approve or reject pending visitor access after host and history review.">
+            <SurfaceCard title="Visitor approvals" subtitle="Approve or deny pending visitor access after host and history review.">
               <VisitorList
                 visitors={pendingVisitors.data?.items ?? []}
                 onApprove={approveVisitor}
@@ -1003,9 +1004,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
             <SurfaceCard title="Create workforce invite" subtitle="Invite employees, security, reception, operators, and managers with the same organization-scoped backend role rules as web.">
               {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
               <View style={[styles.formGrid, layout.isTwoColumn ? styles.formGridWide : null]}>
-                <AppTextField label="Worker name" value={workforceInviteForm.fullName} onChangeText={(value) => updateWorkforceInviteForm('fullName', value)} placeholder="Full name" />
+                <AppTextField label="Workforce member name" value={workforceInviteForm.fullName} onChangeText={(value) => updateWorkforceInviteForm('fullName', value)} placeholder="Full name" />
                 <AppTextField label="Username" value={workforceInviteForm.username} onChangeText={(value) => updateWorkforceInviteForm('username', value)} placeholder="username" autoCapitalize="none" />
-                <AppTextField label="Email" value={workforceInviteForm.email} onChangeText={(value) => updateWorkforceInviteForm('email', value)} placeholder="worker@company.com" keyboardType="email-address" autoCapitalize="none" />
+                <AppTextField label="Email" value={workforceInviteForm.email} onChangeText={(value) => updateWorkforceInviteForm('email', value)} placeholder="workforce@company.com" keyboardType="email-address" autoCapitalize="none" />
                 <AppTextField label="Department" value={workforceInviteForm.department} onChangeText={(value) => updateWorkforceInviteForm('department', value)} placeholder="Department" />
                 <AppTextField label="Designation" value={workforceInviteForm.designation} onChangeText={(value) => updateWorkforceInviteForm('designation', value)} placeholder="Role title" />
                 <AppTextField label="Employee type" value={workforceInviteForm.employeeType} onChangeText={(value) => updateWorkforceInviteForm('employeeType', value)} placeholder="FULL_TIME" />
@@ -1592,7 +1593,7 @@ function WorkforceList({
                 worker.workforceOnboardingCreatedByName ? `Submitted by ${worker.workforceOnboardingCreatedByName}` : null,
                 worker.workforceOnboardingCreatedAt ? formatDateTime(worker.workforceOnboardingCreatedAt) : null,
               ].filter(Boolean).join(' - ')}
-              status={String(worker.accountStatus || 'Pending').replaceAll('_', ' ')}
+              status={enterpriseStatusLabel(worker.accountStatus, 'workforce')}
               tone={statusTone(worker.accountStatus)}
             />
             <FieldGrid
@@ -1606,7 +1607,7 @@ function WorkforceList({
             />
             <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
               <PrimaryButton label="Approve" onPress={() => void onApprove(worker)} loading={loading} />
-              <PrimaryButton label="Reject" onPress={() => onReject(worker)} tone="danger" />
+              <PrimaryButton label="Deny" onPress={() => onReject(worker)} tone="danger" />
               <PrimaryButton label="Request changes" onPress={() => onChanges(worker)} tone="secondary" />
             </View>
           </View>
@@ -1668,7 +1669,7 @@ function VisitorList({
             />
             <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
               {visitor.status === 'PENDING' ? <PrimaryButton label="Approve" onPress={() => void onApprove(visitor)} /> : null}
-              {visitor.status === 'PENDING' ? <PrimaryButton label="Reject" onPress={() => onReject(visitor)} tone="danger" /> : null}
+              {visitor.status === 'PENDING' ? <PrimaryButton label="Deny request" onPress={() => onReject(visitor)} tone="danger" /> : null}
               {visitor.status === 'APPROVED' ? <PrimaryButton label="Check in" onPress={() => void onCheckIn(visitor)} /> : null}
               {visitor.status === 'CHECKED_IN' ? <PrimaryButton label="Check out" onPress={() => void onCheckOut(visitor)} /> : null}
               {visitor.status === 'SUSPENDED' ? <PrimaryButton label="Reactivate" onPress={() => void onReactivate(visitor)} tone="secondary" /> : null}
@@ -1909,11 +1910,11 @@ function matchesAttendance(entry: EmployeeAttendanceRecord, query: string) {
 function reasonTitle(action: AdminAction | null) {
   switch (action?.type) {
     case 'reject-workforce':
-      return 'Reject workforce';
+      return 'Deny workforce';
     case 'changes-workforce':
       return 'Request workforce changes';
     case 'reject-visitor':
-      return 'Reject visitor';
+      return 'Deny visitor';
     case 'deny-visitor':
       return 'Deny visitor entry';
     case 'suspend-visitor':
@@ -1930,7 +1931,7 @@ function reasonTitle(action: AdminAction | null) {
 function reasonHelper(action: AdminAction | null) {
   switch (action?.type) {
     case 'changes-workforce':
-      return 'Describe the missing or incorrect worker details so security can resubmit cleanly.';
+      return 'Describe the missing or incorrect workforce member details so security can resubmit cleanly.';
     case 'disable-user':
       return 'Record why this employee access should be suspended. The backend audit trail will capture the action.';
     default:

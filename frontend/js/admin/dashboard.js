@@ -15,6 +15,7 @@ import { attachFieldValidator, isEmail, validateUsername } from "../shared/valid
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 import { formatDate as formatOrgDate } from "../shared/formatters.js";
 import { initOrganizationSelector } from "../shared/organizationSelector.js";
+import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
 import { ROUTE_DEFINITIONS, ROUTE_ICON_PATHS, buildPortalProfile } from "./portalProfiles.js";
 
 const ROUTE_ALIASES = {
@@ -1660,7 +1661,7 @@ function initWorkforceApprovalsWorkspace() {
     try {
       if (action === "save") {
         await updateWorkforceOnboarding(workerId, payload);
-        showToast("Worker details saved", "Pending onboarding details were updated.");
+        showToast("Workforce details saved", "Pending onboarding details were updated.");
       }
       if (action === "approve") {
         await approveWorkforceOnboarding(workerId, payload);
@@ -1673,7 +1674,7 @@ function initWorkforceApprovalsWorkspace() {
           return;
         }
         await rejectWorkforceOnboarding(workerId, reason.trim());
-        showToast("Worker request rejected", "The decision was audit logged.");
+        showToast("Workforce request denied", "The decision was audit logged.");
       }
       if (action === "changes") {
         const reason = window.prompt("Describe the workforce onboarding details that security must correct.");
@@ -2767,14 +2768,14 @@ function workforceApprovalCard(worker, canApprove) {
     <article class="admin-user-card workforce-approval-card" data-workforce-card data-worker-id="${escapeHtml(worker.id)}">
       <div class="admin-user-card__header">
         <div>
-          <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+          <h3>${escapeHtml(worker.fullName || "Workforce member")}</h3>
           <p>${escapeHtml(worker.employeeType || "Support staff")} · Requested by ${escapeHtml(worker.workforceOnboardingCreatedByName || "Security")}</p>
         </div>
         ${statusBadge(worker.accountStatus || "PENDING_APPROVAL")}
       </div>
       <dl>
         <div><dt>Organization</dt><dd>${escapeHtml(worker.organizationName || worker.organizationCode || "Organization")}</dd></div>
-        <div><dt>Worker ID</dt><dd>${escapeHtml(worker.employeeId || "Issued after approval")}</dd></div>
+        <div><dt>Workforce ID</dt><dd>${escapeHtml(worker.employeeId || "Issued after approval")}</dd></div>
         <div><dt>Proposed role</dt><dd>${escapeHtml(formatInternalRole((worker.roles || [])[0] || "EMPLOYEE"))}</dd></div>
         <div><dt>QR status</dt><dd>Inactive until approval</dd></div>
         <div><dt>Requested</dt><dd>${escapeHtml(formatDateTime(worker.workforceOnboardingCreatedAt || worker.createdAt))}</dd></div>
@@ -2817,7 +2818,7 @@ function workforceApprovalCard(worker, canApprove) {
         <button class="button button--ghost" type="button" data-workforce-action="save" ${disabled}>Save details</button>
         <button class="button button--primary" type="button" data-workforce-action="approve" ${disabled}>Approve and activate QR</button>
         <button class="button button--ghost" type="button" data-workforce-action="changes" ${disabled}>Request changes</button>
-        <button class="button button--ghost" type="button" data-workforce-action="reject" ${disabled}>Reject</button>
+        <button class="button button--ghost" type="button" data-workforce-action="reject" ${disabled}>Deny</button>
       </div>
     </article>
   `;
@@ -3065,7 +3066,7 @@ function defaultAnalyticsPayload() {
       { label: "Active visitors", value: 0, note: "Waiting for organization activity" },
       { label: "Pending approvals", value: 0, note: "No visitor activity recorded" },
       { label: "Today's check-ins", value: 0, note: "No check-ins recorded today" },
-      { label: "Rejected visitors", value: 0, note: "No rejected visits recorded" },
+      { label: "Denied visitors", value: 0, note: "No denied visits recorded" },
     ],
     dailyVisitors: [],
     monthlyTrends: [],
@@ -3873,7 +3874,7 @@ function departmentCard(department) {
           <h3>${escapeHtml(department.departmentName)}</h3>
           <p>${escapeHtml(organizationMeta)}</p>
         </div>
-        <span class="status-badge status-badge--${department.activeStatus ? "approved" : "rejected"}">${department.activeStatus ? "Active" : "Inactive"}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(department.activeStatus ? "ACTIVE" : "DISABLED"))}">${department.activeStatus ? "Active" : "Disabled"}</span>
       </div>
       <form class="department-card__editor" data-department-editor data-department-id="${escapeHtml(department.id)}">
         <label class="form-field">
@@ -3907,7 +3908,7 @@ function organizationCard(organization) {
           <small>${escapeHtml(organization.activeVisitors)} active · ${escapeHtml(organization.pendingVisitors)} pending</small>
         </div>
       </td>
-      <td data-label="Status"><span class="status-badge status-badge--${organization.activeStatus ? "approved" : "rejected"}">${organization.activeStatus ? "Active" : "Inactive"}</span></td>
+      <td data-label="Status"><span class="status-badge ${escapeHtml(statusBadgeClass(organization.activeStatus ? "ACTIVE" : "DISABLED"))}">${organization.activeStatus ? "Active" : "Disabled"}</span></td>
       <td data-label="Created">
         <div class="organization-row__activity">
           <strong>${escapeHtml(formatDateOnly(organization.createdAt))}</strong>
@@ -4172,7 +4173,7 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
                         <strong>${escapeHtml(department.departmentName)}</strong>
                         <small>${escapeHtml(formatDateOnly(department.createdAt))}</small>
                       </div>
-                      <span class="status-badge status-badge--${department.activeStatus ? "approved" : "rejected"}">${department.activeStatus ? "Active" : "Inactive"}</span>
+                      <span class="status-badge ${escapeHtml(statusBadgeClass(department.activeStatus ? "ACTIVE" : "DISABLED"))}">${department.activeStatus ? "Active" : "Disabled"}</span>
                     </div>
                     <form novalidate>
                       <label class="form-field form-field--wide">
@@ -4242,7 +4243,7 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
                     <p>${escapeHtml(entry.details || entry.outcome || "Audit event recorded.")}</p>
                   </div>
                   <div class="organization-activity-item__meta">
-                    <span class="status-badge status-badge--approved">${escapeHtml(entry.outcome || "Recorded")}</span>
+                    <span class="status-badge ${escapeHtml(statusBadgeClass(entry.outcome || "APPROVED"))}">${escapeHtml(formatStatusLabel(entry.outcome || "Recorded"))}</span>
                     <small>${escapeHtml(entry.actorName || "System")} · ${escapeHtml(formatDateTime(entry.createdAt))}</small>
                   </div>
                 </article>
@@ -4352,7 +4353,7 @@ function organizationAdminCard(user) {
           <strong>${escapeHtml(user.fullName || user.email || "Unknown user")}</strong>
           <p>${escapeHtml(user.email || "No email")} · ${escapeHtml(user.username || "No username")}</p>
         </div>
-        <span class="status-badge status-badge--${disabled ? "rejected" : "approved"}">${disabled ? "Disabled" : "Active"}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(disabled ? "DISABLED" : "ACTIVE"))}">${disabled ? "Disabled" : "Active"}</span>
       </div>
       <div class="organization-admin-card__meta">
         <span>${escapeHtml(user.department || "Department not set")}</span>
@@ -4510,7 +4511,7 @@ function renderEmployeeAnalytics(items) {
           <th>Total</th>
           <th>Active</th>
           <th>Pending</th>
-          <th>Rejected</th>
+          <th>Denied</th>
         </tr>
       </thead>
       <tbody>
@@ -4520,7 +4521,7 @@ function renderEmployeeAnalytics(items) {
             <td data-label="Total">${escapeHtml(item.total ?? 0)}</td>
             <td data-label="Active">${escapeHtml(item.active ?? 0)}</td>
             <td data-label="Pending">${escapeHtml(item.pending ?? 0)}</td>
-            <td data-label="Rejected">${escapeHtml(item.rejected ?? 0)}</td>
+            <td data-label="Denied">${escapeHtml(item.rejected ?? 0)}</td>
           </tr>
         `).join("") : `<tr><td colspan="5"><div class="empty-state empty-state--inline"><h3>No employee activity</h3><p>Host-level analytics will appear after visitor records are created.</p></div></td></tr>`}
       </tbody>
@@ -5089,17 +5090,11 @@ function formatRelativeTime(value) {
 }
 
 function statusBadge(status) {
-  const normalized = String(status || "").toLowerCase().replaceAll("_", "-") || "approved";
-  return `<span class="status-badge status-badge--${escapeHtml(normalized)}">${escapeHtml(formatStatusLabel(status))}</span>`;
+  return `<span class="status-badge ${escapeHtml(statusBadgeClass(status))}">${escapeHtml(formatStatusLabel(status))}</span>`;
 }
 
 function formatStatusLabel(status) {
-  return String(status || "")
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ") || "Unknown";
+  return enterpriseStatusLabel(status);
 }
 
 function emptyPreviewTile(message) {

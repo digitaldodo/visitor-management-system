@@ -1,4 +1,5 @@
 import { formatDate } from "./formatters.js";
+import { statusBadgeClass } from "./workflowEnums.js";
 
 const BRAND_LOGO = new URL("../../assets/branding/logo-dark.png", import.meta.url).href;
 const BRAND_ICON = new URL("../../assets/branding/logo-icon.png", import.meta.url).href;
@@ -48,7 +49,7 @@ export function employeeBadgeMarkup(badge) {
             <span>${escapeHtml(badge.organizationCode || "Managed organization")}</span>
           </div>
         </div>
-        <span class="status-badge status-badge--${badge.active ? "approved" : "rejected"}">${badge.active ? "Active" : "Disabled"}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(badge.active ? "ACTIVE" : "DISABLED"))}">${badge.active ? "Active" : "Disabled"}</span>
       </header>
       <section class="employee-badge__body">
         <img class="employee-badge__photo" src="${escapeHtml(badge.employeePhotoUrl || FALLBACK_PHOTO)}" alt="${escapeHtml(badge.fullName)} photo" />

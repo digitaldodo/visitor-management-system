@@ -220,7 +220,7 @@ function FeedRow({
             <Text numberOfLines={1} style={styles.sourceText}>{item.source}</Text>
           </View>
           {item.groupCount && item.groupCount > 1 ? <MiniPill label={t('feed.grouped', { count: item.groupCount })} /> : null}
-          {item.pendingSync ? <MiniPill label="Pending confirmation" warning /> : null}
+          {item.pendingSync ? <MiniPill label="Pending sync" warning /> : null}
           {item.offlineGenerated ? <MiniPill label="Needs review" warning /> : null}
         </View>
       </View>

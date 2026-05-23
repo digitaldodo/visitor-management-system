@@ -1,4 +1,5 @@
 import type { EmployeeAttendanceRecord, NotificationRecord, VisitorRecord, VisitorStatus } from '../types/domain';
+import { enterpriseStatusLabel, enterpriseStatusTone, type EnterpriseStatusTone } from '../types/workflow';
 
 export function formatDateTime(value?: string | null, timezone?: string | null) {
   const date = parseDate(value);
@@ -61,28 +62,14 @@ export function formatVisitorType(value?: string | null) {
 }
 
 export function formatStatusLabel(value?: string | null) {
-  return humanizeToken(value || 'Pending');
+  return enterpriseStatusLabel(value || 'Pending');
 }
 
-export function visitorTone(status?: VisitorStatus | null): 'default' | 'success' | 'warning' | 'danger' | 'info' {
-  switch (status) {
-    case 'APPROVED':
-    case 'CHECKED_IN':
-      return 'success';
-    case 'PENDING':
-      return 'warning';
-    case 'REJECTED':
-    case 'SUSPENDED':
-    case 'EXPIRED':
-      return 'danger';
-    case 'CHECKED_OUT':
-      return 'info';
-    default:
-      return 'default';
-  }
+export function visitorTone(status?: VisitorStatus | null): EnterpriseStatusTone {
+  return enterpriseStatusTone(status);
 }
 
-export function notificationTone(notification: NotificationRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+export function notificationTone(notification: NotificationRecord): EnterpriseStatusTone {
   const normalizedType = String(notification.type || '').toUpperCase();
   if (normalizedType.includes('DENIAL') || normalizedType.includes('REVOKED') || normalizedType.includes('ISSUE')) {
     return 'danger';

@@ -699,7 +699,7 @@ function deriveCheckInState(pass) {
     return pass.validityStatus === "Overdue" ? "Checked in · overdue" : "Checked in";
   }
   if (pass.status === "APPROVED") {
-    return "Awaiting check-in";
+    return "Pending check-in";
   }
   return pass.statusLabel || formatStatus(pass.status);
 }

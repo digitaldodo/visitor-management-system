@@ -4,7 +4,7 @@ import { initHostPicker } from "./hostPicker.js";
 import { initOrganizationSelectors } from "./organizationSelector.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
-import { VISITOR_STATUS_LABELS as STATUS_LABELS } from "./workflowEnums.js";
+import { VISITOR_STATUS_LABELS as STATUS_LABELS, statusBadgeClass } from "./workflowEnums.js";
 
 const VISITOR_TYPE_LABELS = {
   ONE_TIME: "One-time visitor",
@@ -403,9 +403,9 @@ function template(options) {
       </label>
       <select data-visitor-status aria-label="Filter visitor status">
         <option value="">All statuses</option>
-        <option value="PENDING">Pending</option>
+        <option value="PENDING">Pending approval</option>
         <option value="APPROVED">Approved</option>
-        <option value="REJECTED">Rejected</option>
+        <option value="REJECTED">Denied</option>
         <option value="CHECKED_IN">Checked in</option>
         <option value="CHECKED_OUT">Checked out</option>
         <option value="EXPIRED">Expired</option>
@@ -933,7 +933,7 @@ function exportVisitors(items, label) {
 
 function statusBadge(status) {
   const label = STATUS_LABELS[status] || status;
-  return `<span class="status-badge status-badge--${String(status).toLowerCase().replaceAll("_", "-")}">${escapeHtml(label)}</span>`;
+  return `<span class="status-badge ${escapeHtml(statusBadgeClass(status))}">${escapeHtml(label)}</span>`;
 }
 
 function debounce(callback, delay) {
