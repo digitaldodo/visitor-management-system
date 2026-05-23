@@ -1216,6 +1216,9 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
   const organizationBreakdown = data?.organizationBreakdown ?? [];
   const departmentBreakdown = data?.departmentBreakdown ?? [];
   const categoryBreakdown = data?.visitorCategoryBreakdown ?? [];
+  const workforceLifecycle = data?.workforceAnalytics?.widgets ?? [];
+  const workforceAttendance = data?.workforceAttendance?.widgets ?? [];
+  const workforceAlerts = [...(data?.workforceAnalytics?.alerts ?? []), ...(data?.workforceAttendance?.alerts ?? [])];
 
   return (
     <>
@@ -1270,9 +1273,18 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
         <SurfaceCard title="Workforce access anomalies" subtitle="Access/security anomaly detection without payroll or HR scoring.">
           <AnalyticsList items={anomalies} emptyTitle="No workforce anomalies" emptyBody="Late, missing check-out, and manual override signals will appear here." />
         </SurfaceCard>
+        <SurfaceCard title="Workforce analytics" subtitle="Lifecycle, presence, approval backlog, and attendance signals use the same backend analytics contract as web.">
+          <AnalyticsList items={[...workforceLifecycle, ...workforceAttendance, ...workforceAlerts].slice(0, 10)} emptyTitle="No workforce analytics" emptyBody="Workforce lifecycle and presence analytics will appear after requests, invites, or scans are recorded." />
+        </SurfaceCard>
+      </SplitPane>
+
+      <SplitPane>
         <SurfaceCard title="Site and checkpoint activity" subtitle="Operational scope by checkpoint, organization, department, and visitor category.">
           <AnalyticsList items={checkpoints} emptyTitle="No checkpoint activity" emptyBody="Checkpoint activity appears after guard-assisted access events." />
           <AnalyticsList items={[...organizationBreakdown, ...departmentBreakdown, ...categoryBreakdown].slice(0, 8)} emptyTitle="No scope breakdown" emptyBody="Organization, department, and category analytics will appear after activity." />
+        </SurfaceCard>
+        <SurfaceCard title="Visitor analytics" subtitle="Visitor flow, approval workload, repeat traffic, and denial signals stay aligned with desktop reporting.">
+          <AnalyticsList items={[...(data?.visitorFlow ?? []), ...(data?.approvalWorkload ?? []), ...(data?.approvalRates ?? [])].slice(0, 10)} emptyTitle="No visitor analytics" emptyBody="Visitor analytics will appear after approvals, check-ins, and recurring traffic are recorded." />
         </SurfaceCard>
       </SplitPane>
 

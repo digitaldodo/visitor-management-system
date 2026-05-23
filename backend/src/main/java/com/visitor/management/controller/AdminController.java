@@ -130,6 +130,7 @@ public class AdminController {
     public ApiResponse<Map<String, Object>> analytics(Authentication authentication) {
         Map<String, Object> analytics = new LinkedHashMap<>(safeAdminAnalytics(authentication.getName()));
         analytics.put("workforceAttendance", safeWorkforceAnalytics(authentication.getName()));
+        analytics.put("workforceAnalytics", adminUserService.workforceAnalytics(authentication));
         return ApiResponse.ok("Admin analytics loaded.", analytics);
     }
 
@@ -544,20 +545,49 @@ public class AdminController {
                 Map.entry("staffingInsights", List.of()),
                 Map.entry("approvalWorkload", List.of()),
                 Map.entry("checkInTrends", List.of()),
-                Map.entry("approvalRates", List.of())
+                Map.entry("approvalRates", List.of()),
+                Map.entry("trafficHeatmap", List.of()),
+                Map.entry("checkInHours", List.of()),
+                Map.entry("checkOutHours", List.of()),
+                Map.entry("workforceRushHours", List.of()),
+                Map.entry("weeklyPatterns", List.of()),
+                Map.entry("dailyPatterns", List.of()),
+                Map.entry("repeatVisitors", List.of()),
+                Map.entry("repeatOrganizations", List.of()),
+                Map.entry("repeatDeniedVisitors", List.of()),
+                Map.entry("denialTrends", List.of()),
+                Map.entry("denialReasons", List.of()),
+                Map.entry("denialAttempts", List.of()),
+                Map.entry("securityIncidents", List.of()),
+                Map.entry("incidentTrends", List.of()),
+                Map.entry("workforceAnomalies", List.of()),
+                Map.entry("liveOperations", List.of()),
+                Map.entry("organizationBreakdown", List.of()),
+                Map.entry("departmentBreakdown", List.of()),
+                Map.entry("visitorCategoryBreakdown", List.of()),
+                Map.entry("checkpointActivity", List.of()),
+                Map.entry("operationalInsights", List.of()),
+                Map.entry("exportSnapshots", List.of())
         );
     }
 
     private Map<String, Object> workforceAnalyticsFallback() {
-        return Map.of(
-                "timezone", ZoneOffset.UTC.getId(),
-                "widgets", List.of(
+        return Map.ofEntries(
+                Map.entry("timezone", ZoneOffset.UTC.getId()),
+                Map.entry("metrics", Map.of(
+                        "currentlyInside", 0,
+                        "todayCheckIns", 0,
+                        "lateArrivals", 0,
+                        "activityLogs", 0
+                )),
+                Map.entry("widgets", List.of(
                         Map.of("label", "Currently inside", "value", 0, "note", "No workforce presence yet"),
                         Map.of("label", "Today check-ins", "value", 0, "note", "Waiting for employee scans"),
                         Map.of("label", "Late arrivals", "value", 0, "note", "No late-arrival signal"),
                         Map.of("label", "Activity logs", "value", 0, "note", "No presence events recorded today")
-                ),
-                "recentLogs", List.of()
+                )),
+                Map.entry("alerts", List.of()),
+                Map.entry("recentLogs", List.of())
         );
     }
 

@@ -3098,9 +3098,18 @@ function defaultAnalyticsPayload() {
     checkpointActivity: [],
     operationalInsights: [],
     exportSnapshots: [],
+    workforceAnalytics: {
+      metrics: {},
+      widgets: [],
+      operationalMetrics: [],
+      alerts: [],
+      departmentBreakdown: {},
+    },
     workforceAttendance: {
       timezone: "UTC",
+      metrics: {},
       widgets: [],
+      alerts: [],
       recentLogs: [],
     },
   };
@@ -3109,6 +3118,7 @@ function defaultAnalyticsPayload() {
 function normalizeAnalyticsPayload(data = {}) {
   const fallback = defaultAnalyticsPayload();
   const source = isObject(data) ? data : {};
+  const workforceAnalytics = isObject(source.workforceAnalytics) ? source.workforceAnalytics : fallback.workforceAnalytics;
   const workforceAttendance = isObject(source.workforceAttendance) ? source.workforceAttendance : fallback.workforceAttendance;
   return {
     ...fallback,
@@ -3150,10 +3160,21 @@ function normalizeAnalyticsPayload(data = {}) {
     checkpointActivity: normalizeArray(source.checkpointActivity),
     operationalInsights: normalizeArray(source.operationalInsights),
     exportSnapshots: normalizeArray(source.exportSnapshots),
+    workforceAnalytics: {
+      ...fallback.workforceAnalytics,
+      ...workforceAnalytics,
+      metrics: isObject(workforceAnalytics.metrics) ? workforceAnalytics.metrics : {},
+      widgets: normalizeMetricItems(workforceAnalytics.widgets, []),
+      operationalMetrics: normalizeMetricItems(workforceAnalytics.operationalMetrics, []),
+      alerts: normalizeMetricItems(workforceAnalytics.alerts, []),
+      departmentBreakdown: isObject(workforceAnalytics.departmentBreakdown) ? workforceAnalytics.departmentBreakdown : {},
+    },
     workforceAttendance: {
       ...fallback.workforceAttendance,
       ...workforceAttendance,
+      metrics: isObject(workforceAttendance.metrics) ? workforceAttendance.metrics : {},
       widgets: normalizeMetricItems(workforceAttendance.widgets, []),
+      alerts: normalizeMetricItems(workforceAttendance.alerts, []),
       recentLogs: normalizeArray(workforceAttendance.recentLogs),
     },
   };
@@ -3209,7 +3230,13 @@ function renderOperationalAnalytics(analytics) {
     ...analytics.denialAttempts.map((item) => ({ ...item, group: "Retry attempt" })),
     ...analytics.securityIncidents.map((item) => ({ ...item, group: "Incident" })),
   ], "No security intelligence yet", "Denied-entry reasons, retry patterns, and escalations will appear here.");
-  renderOperationalSignals("#workforce-anomaly-list", analytics.workforceAnomalies, "No workforce anomalies", "Late arrivals, missing check-outs, suspicious activity, and manual overrides will appear here.");
+  renderOperationalSignals("#workforce-anomaly-list", [
+    ...analytics.workforceAnomalies.map((item) => ({ ...item, group: "Anomaly" })),
+    ...analytics.workforceAnalytics.widgets.map((item) => ({ ...item, group: "Lifecycle" })),
+    ...analytics.workforceAnalytics.operationalMetrics.map((item) => ({ ...item, group: "Workforce metric" })),
+    ...analytics.workforceAttendance.widgets.map((item) => ({ ...item, group: "Presence" })),
+    ...analytics.workforceAttendance.alerts.map((item) => ({ ...item, group: "Attendance alert" })),
+  ], "No workforce analytics", "Lifecycle, approval, presence, late arrival, missing check-out, and manual override signals will appear here.");
   renderOperationalSignals("#site-scope-list", [
     ...analytics.checkpointActivity.map((item) => ({ ...item, group: "Checkpoint" })),
     ...analytics.organizationBreakdown.map((item) => ({ ...item, group: "Organization" })),

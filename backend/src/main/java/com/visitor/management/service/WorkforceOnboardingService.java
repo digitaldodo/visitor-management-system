@@ -223,7 +223,7 @@ public class WorkforceOnboardingService {
         );
         notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_APPROVED, "Workforce request approved",
                 "%s approved the workforce request for %s.".formatted(admin.getFullName(), saved.getFullName()),
-                "/pages/security/#workforce");
+                "/pages/security/#workforce-onboarding");
         return toResponse(saved);
     }
 
@@ -256,7 +256,7 @@ public class WorkforceOnboardingService {
         );
         notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_REJECTED, "Workforce request rejected",
                 "%s rejected the workforce request for %s.".formatted(admin.getFullName(), saved.getFullName()),
-                "/pages/security/#workforce");
+                "/pages/security/#workforce-onboarding");
         return toResponse(saved);
     }
 
@@ -279,7 +279,7 @@ public class WorkforceOnboardingService {
                 "Admin requested workforce onboarding changes: " + saved.getWorkforceRejectionReason());
         notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED, "Workforce request needs changes",
                 "%s requested changes for %s: %s".formatted(admin.getFullName(), saved.getFullName(), saved.getWorkforceRejectionReason()),
-                "/pages/security/#workforce");
+                "/pages/security/#workforce-onboarding");
         return toResponse(saved);
     }
 

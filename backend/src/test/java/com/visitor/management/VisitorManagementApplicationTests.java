@@ -486,9 +486,10 @@ class VisitorManagementApplicationTests {
         Notification notification = new Notification();
         notification.setId("notification-id");
         notification.setRecipientUserId("employee-id");
+        notification.setOrganizationId("org-acme");
         notification.setTitle("Visitor checked in");
         notification.setMessage("Test Visitor has checked in.");
-        when(notificationRepository.countByRecipientUserIdAndReadFalse("employee-id")).thenReturn(1L);
+        when(notificationRepository.countByRecipientUserIdAndOrganizationIdAndReadFalse("employee-id", "org-acme")).thenReturn(1L);
         when(notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(any(), any())).thenReturn(List.of(notification));
 
         mockMvc.perform(get("/api/v1/notifications")

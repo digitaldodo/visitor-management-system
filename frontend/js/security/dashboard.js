@@ -6,7 +6,7 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
+import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, listSecurityWorkforceOnboardingRequests, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { showToast } from "../shared/toast.js";
 
@@ -81,15 +81,17 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-attendance-list");
     renderLoadingList("#employee-directory-list");
     renderLoadingList("#employee-attendance-log-list");
+    renderLoadingList("#workforce-request-list");
   }
 
-  const [overview, queue, photo, monitoring, employees, employeeLogs] = await Promise.allSettled([
+  const [overview, queue, photo, monitoring, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
     request("/security/overview"),
     request("/security/queue"),
     request("/security/photo-capture"),
     getSecurityMonitoring(state.monitoringQuery),
     searchEmployees(state.employeeQuery),
     getEmployeeAttendanceLogs("/security"),
+    listSecurityWorkforceOnboardingRequests(),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -142,6 +144,12 @@ async function loadSecurityPortal(showErrors = true) {
     renderEmployeeAttendanceLogs(employeeLogs.value?.data || []);
   } else if (showErrors) {
     renderWorkList("#employee-attendance-log-list", [], (item) => item, "Presence logs unavailable", employeeLogs.reason?.message || "Workforce presence could not be loaded.");
+  }
+
+  if (workforceRequests.status === "fulfilled") {
+    renderSubmittedWorkforceRequests(workforceRequests.value?.data || []);
+  } else if (showErrors) {
+    renderWorkList("#workforce-request-list", [], (item) => item, "Submitted requests unavailable", workforceRequests.reason?.message || "Workforce approval status could not be loaded.");
   }
 }
 
@@ -450,6 +458,10 @@ function initWorkforceOnboarding() {
     const data = Object.fromEntries(new FormData(form).entries());
     const payload = {
       fullName: trim(data.fullName),
+      username: trim(data.username),
+      email: trim(data.email),
+      role: trim(data.role) || "EMPLOYEE",
+      phoneCountryCode: trim(data.phoneCountryCode),
       phone: trim(data.phone),
       department: trim(data.department),
       employeeType: trim(data.employeeType),
@@ -463,6 +475,14 @@ function initWorkforceOnboarding() {
       showToast("Worker name required", "Enter the worker's full name before submitting.");
       return;
     }
+    if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      showToast("Check email", "Use a valid work email or leave it blank.");
+      return;
+    }
+    if (!["EMPLOYEE", "SECURITY_GUARD", "RECEPTION", "OPERATOR", "MANAGER"].includes(payload.role)) {
+      showToast("Check access role", "Choose a supported workforce access role.");
+      return;
+    }
 
     const submit = form.querySelector("button[type='submit']");
     submit?.toggleAttribute("disabled", true);
@@ -471,6 +491,7 @@ function initWorkforceOnboarding() {
       const worker = response?.data || null;
       renderWorkforceReceipt(worker);
       form.reset();
+      form.querySelector("input[name='phoneCountryCode']").value = "+1";
       setText("#workforce-photo-status", "Photo optional before admin approval");
       showToast("Sent for admin approval", "QR and badge access remain inactive until an organization admin approves this worker.");
       await loadSecurityPortal(false);
@@ -480,6 +501,32 @@ function initWorkforceOnboarding() {
       submit?.toggleAttribute("disabled", false);
     }
   });
+}
+
+function renderSubmittedWorkforceRequests(requests) {
+  const list = document.querySelector("#workforce-request-list");
+  if (!list) {
+    return;
+  }
+  renderWorkList(
+    "#workforce-request-list",
+    requests || [],
+    submittedWorkforceRequestCard,
+    "No submitted requests",
+    "Workforce onboarding requests created by this security account will appear here with admin decision status.",
+  );
+}
+
+function submittedWorkforceRequestCard(worker) {
+  return `
+    <article class="work-card">
+      <h3>${escapeHtml(worker.fullName || "Worker")}</h3>
+      <p>${escapeHtml(formatInternalRole((worker.roles || [])[0] || "EMPLOYEE"))} · ${escapeHtml(worker.department || "Department pending")}</p>
+      <small>${escapeHtml(formatStatusText(worker.accountStatus || "PENDING_APPROVAL"))} · Submitted ${escapeHtml(formatDate(worker.workforceOnboardingCreatedAt || worker.createdAt))}</small>
+      ${worker.workforceApprovedAt ? `<small>Approved ${escapeHtml(formatDate(worker.workforceApprovedAt))}</small>` : ""}
+      ${worker.workforceRejectedAt ? `<small>Decision ${escapeHtml(formatDate(worker.workforceRejectedAt))}: ${escapeHtml(worker.workforceRejectionReason || "No note recorded")}</small>` : ""}
+    </article>
+  `;
 }
 
 function captureWorkforcePhoto(form) {
@@ -1216,6 +1263,15 @@ function formatStatusText(value) {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ") || "Not recorded";
+}
+
+function formatInternalRole(role) {
+  return String(role || "WORKFORCE")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function formatPresenceStatus(record = {}) {

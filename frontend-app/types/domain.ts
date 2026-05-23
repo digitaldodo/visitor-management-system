@@ -479,9 +479,27 @@ export type AdminOperationalAnalytics = {
   checkpointActivity?: AnalyticsPoint[];
   operationalInsights?: OperationalInsight[];
   exportSnapshots?: AnalyticsSnapshot[];
+  workforceAnalytics?: {
+    total?: number;
+    active?: number;
+    inactive?: number;
+    pendingInvites?: number;
+    pendingApprovals?: number;
+    changesRequested?: number;
+    securityStaffAvailable?: number;
+    managersActive?: number;
+    attendanceAnomalies?: number;
+    metrics?: Record<string, number>;
+    widgets?: AnalyticsPoint[];
+    operationalMetrics?: AnalyticsPoint[];
+    alerts?: AnalyticsPoint[];
+    departmentBreakdown?: Record<string, number>;
+  };
   workforceAttendance?: {
     timezone?: string | null;
+    metrics?: Record<string, number>;
     widgets?: AnalyticsPoint[];
+    alerts?: AnalyticsPoint[];
     recentLogs?: EmployeeAttendanceRecord[];
   };
 };

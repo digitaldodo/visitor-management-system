@@ -529,19 +529,49 @@ public class AdminUserService {
         long changesRequested = workforce.stream().filter(user -> user.getAccountStatus() == AccountStatus.CHANGES_REQUESTED).count();
         long security = workforce.stream().filter(user -> user.getRoles().contains(Role.SECURITY_GUARD) && user.isActive()).count();
         long managers = workforce.stream().filter(user -> user.getRoles().contains(Role.MANAGER) && user.isActive()).count();
+        long approvalWorkload = pendingApproval + changesRequested;
         Map<String, Long> byDepartment = new LinkedHashMap<>();
         workforce.forEach(user -> byDepartment.merge(trimToNull(user.getDepartment()) == null ? "Unassigned" : user.getDepartment(), 1L, Long::sum));
-        return Map.of(
-                "total", workforce.size(),
-                "active", active,
-                "inactive", inactive,
-                "pendingInvites", pending,
-                "pendingApprovals", pendingApproval,
-                "changesRequested", changesRequested,
-                "securityStaffAvailable", security,
-                "managersActive", managers,
-                "attendanceAnomalies", 0,
-                "departmentBreakdown", byDepartment
+        List<Map<String, Object>> widgets = List.of(
+                Map.of("label", "Active workforce", "value", active, "note", "Approved employee, security, reception, operator, and manager accounts"),
+                Map.of("label", "Inactive workforce", "value", inactive, "note", "Disabled or suspended workforce accounts"),
+                Map.of("label", "Pending invites", "value", pending, "note", "Invites awaiting activation"),
+                Map.of("label", "Pending approvals", "value", pendingApproval, "note", "Security-submitted requests awaiting organization admin decision"),
+                Map.of("label", "Changes requested", "value", changesRequested, "note", "Requests returned to security for correction")
+        );
+        List<Map<String, Object>> alerts = List.of(
+                Map.of("label", "Approval workload", "value", approvalWorkload, "note", approvalWorkload > 0 ? "Admin decision required" : "No workforce approval backlog"),
+                Map.of("label", "Security coverage", "value", security, "note", security > 0 ? "Security portal coverage available" : "No active security workforce accounts")
+        );
+        return Map.ofEntries(
+                Map.entry("total", workforce.size()),
+                Map.entry("active", active),
+                Map.entry("inactive", inactive),
+                Map.entry("pendingInvites", pending),
+                Map.entry("pendingApprovals", pendingApproval),
+                Map.entry("changesRequested", changesRequested),
+                Map.entry("securityStaffAvailable", security),
+                Map.entry("managersActive", managers),
+                Map.entry("attendanceAnomalies", 0),
+                Map.entry("departmentBreakdown", byDepartment),
+                Map.entry("metrics", Map.of(
+                        "total", workforce.size(),
+                        "active", active,
+                        "inactive", inactive,
+                        "pendingInvites", pending,
+                        "pendingApprovals", pendingApproval,
+                        "changesRequested", changesRequested,
+                        "securityStaffAvailable", security,
+                        "managersActive", managers,
+                        "attendanceAnomalies", 0
+                )),
+                Map.entry("widgets", widgets),
+                Map.entry("operationalMetrics", List.of(
+                        Map.of("label", "Lifecycle backlog", "value", approvalWorkload, "note", "Pending approval plus changes requested"),
+                        Map.of("label", "Security available", "value", security, "note", "Active security portal accounts"),
+                        Map.of("label", "Managers active", "value", managers, "note", "Active manager accounts")
+                )),
+                Map.entry("alerts", alerts)
         );
     }
 

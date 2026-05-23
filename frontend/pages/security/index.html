@@ -339,6 +339,28 @@
                 <input name="fullName" type="text" autocomplete="name" placeholder="Worker full name" required />
               </label>
               <label class="form-field">
+                <span>Username</span>
+                <input name="username" type="text" autocomplete="username" placeholder="worker_001" />
+              </label>
+              <label class="form-field">
+                <span>Email</span>
+                <input name="email" type="email" autocomplete="email" placeholder="worker@company.com" />
+              </label>
+              <label class="form-field">
+                <span>Proposed access role</span>
+                <select name="role">
+                  <option value="EMPLOYEE">Employee portal</option>
+                  <option value="SECURITY_GUARD">Security portal</option>
+                  <option value="RECEPTION">Reception/front desk</option>
+                  <option value="OPERATOR">Operator</option>
+                  <option value="MANAGER">Manager</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span>Phone code</span>
+                <input name="phoneCountryCode" type="tel" autocomplete="tel-country-code" placeholder="+1" value="+1" />
+              </label>
+              <label class="form-field">
                 <span>Mobile</span>
                 <input name="phone" type="tel" autocomplete="tel" placeholder="Optional mobile number" />
               </label>
@@ -385,6 +407,16 @@
               </div>
             </form>
             <div id="workforce-onboarding-result"></div>
+          </section>
+
+          <section class="panel" id="workforce-submitted-requests" data-operational-module>
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Submitted Requests</p>
+                <h2>Admin Decision Tracker</h2>
+              </div>
+            </div>
+            <div class="work-list" id="workforce-request-list"></div>
           </section>
 
           <section class="portal-grid">

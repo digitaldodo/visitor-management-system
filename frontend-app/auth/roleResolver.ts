@@ -8,8 +8,8 @@ const audienceRoleMap: Record<WorkspaceAudience, ActiveWorkspaceRole[]> = {
   visitor: ['VISITOR'],
 };
 
-const mobileWorkspaceRoles: ActiveWorkspaceRole[] = ['VISITOR', 'SECURITY_GUARD', 'EMPLOYEE', 'ADMIN'];
-const defaultRoleOrder: ActiveWorkspaceRole[] = ['VISITOR', 'SECURITY_GUARD', 'EMPLOYEE', 'ADMIN'];
+const mobileWorkspaceRoles: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
+const defaultRoleOrder: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
 const employeeWorkspaceAliases: BackendRole[] = ['RECEPTION', 'OPERATOR', 'MANAGER'];
 
 export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudience): ActiveWorkspaceRole {
@@ -19,6 +19,9 @@ export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudi
       message: 'Super Admin access is not available in the mobile app. Use the web control plane.',
       recoverable: false,
     });
+  }
+  if (roles.includes('ADMIN')) {
+    return 'ADMIN';
   }
 
   const expandedRoles = roles.some((role) => employeeWorkspaceAliases.includes(role)) && !roles.includes('EMPLOYEE')
@@ -39,6 +42,9 @@ export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudi
 }
 
 export function canAccessAudience(roles: BackendRole[], audience: WorkspaceAudience) {
+  if (roles.includes('ADMIN')) {
+    return audience === 'admin';
+  }
   if (audience === 'employee' && roles.some((role) => employeeWorkspaceAliases.includes(role))) {
     return true;
   }

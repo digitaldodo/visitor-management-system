@@ -301,13 +301,20 @@ public class EmployeeAttendanceService {
         long todayCheckIns = todayLogs.stream().filter(log -> valuePresent(log.get("checkInTime"))).count();
         long late = todayLogs.stream().filter(this::isLate).count();
 
-        return Map.of(
-                "timezone", zoneId.getId(),
-                "widgets", workforceWidgets(checkedIn, todayCheckIns, late, todayLogs.size()),
-                "recentLogs", todayLogs.stream()
+        return Map.ofEntries(
+                Map.entry("timezone", zoneId.getId()),
+                Map.entry("metrics", Map.of(
+                        "currentlyInside", checkedIn,
+                        "todayCheckIns", todayCheckIns,
+                        "lateArrivals", late,
+                        "activityLogs", todayLogs.size()
+                )),
+                Map.entry("widgets", workforceWidgets(checkedIn, todayCheckIns, late, todayLogs.size())),
+                Map.entry("alerts", workforceAlerts(checkedIn, todayCheckIns, late, todayLogs.size())),
+                Map.entry("recentLogs", todayLogs.stream()
                         .limit(20)
                         .map(this::toAttendanceAnalyticsRow)
-                        .toList()
+                        .toList())
         );
     }
 
@@ -320,11 +327,26 @@ public class EmployeeAttendanceService {
         );
     }
 
+    private List<Map<String, Object>> workforceAlerts(long checkedIn, long todayCheckIns, long late, long activityLogs) {
+        return List.of(
+                Map.of("label", "Late arrivals", "value", late, "note", late > 0 ? "Review shift-start exceptions" : "No late-arrival signal"),
+                Map.of("label", "Presence coverage", "value", checkedIn, "note", checkedIn > 0 ? "Workforce currently inside" : "No active workforce presence"),
+                Map.of("label", "Activity freshness", "value", activityLogs, "note", todayCheckIns > 0 ? "Workforce scans recorded today" : "No workforce scans recorded today")
+        );
+    }
+
     private Map<String, Object> workforceAnalyticsFallback(ZoneId zoneId) {
-        return Map.of(
-                "timezone", zoneId.getId(),
-                "widgets", workforceWidgets(0, 0, 0, 0),
-                "recentLogs", List.of()
+        return Map.ofEntries(
+                Map.entry("timezone", zoneId.getId()),
+                Map.entry("metrics", Map.of(
+                        "currentlyInside", 0,
+                        "todayCheckIns", 0,
+                        "lateArrivals", 0,
+                        "activityLogs", 0
+                )),
+                Map.entry("widgets", workforceWidgets(0, 0, 0, 0)),
+                Map.entry("alerts", workforceAlerts(0, 0, 0, 0)),
+                Map.entry("recentLogs", List.of())
         );
     }
 
