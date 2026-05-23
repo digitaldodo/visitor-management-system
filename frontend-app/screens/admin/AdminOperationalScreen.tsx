@@ -1087,7 +1087,7 @@ export function AdminOperationalScreen({ section }: SectionProps) {
         {section === 'reports' ? (
           <>
             <SurfaceCard title="Operational exports" subtitle="Generate lightweight mobile reports while web keeps advanced dashboard exports.">
-              <SnapshotList items={analytics.data?.exportSnapshots ?? []} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
+              <SnapshotList items={exportSnapshotsForAnalytics(analytics.data)} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
             </SurfaceCard>
             <SurfaceCard title="Audit history" subtitle="Recent organization-scoped access, approval, visitor, and workforce audit events.">
               {(reports.data ?? []).length ? (
@@ -1243,7 +1243,7 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
   const incidentTrends = data?.incidentTrends ?? [];
   const anomalies = data?.workforceAnomalies ?? [];
   const checkpoints = data?.checkpointActivity ?? [];
-  const snapshots = data?.exportSnapshots ?? [];
+  const snapshots = exportSnapshotsForAnalytics(data);
   const organizationBreakdown = data?.organizationBreakdown ?? [];
   const departmentBreakdown = data?.departmentBreakdown ?? [];
   const categoryBreakdown = data?.visitorCategoryBreakdown ?? [];
@@ -1476,6 +1476,51 @@ function SnapshotList({ items, onExport }: { items: AnalyticsSnapshot[]; onExpor
       ))}
     </View>
   );
+}
+
+function exportSnapshotsForAnalytics(data?: AdminOperationalAnalytics): AnalyticsSnapshot[] {
+  if (data?.exportSnapshots?.length) {
+    return data.exportSnapshots;
+  }
+
+  const metrics = data?.metrics ?? {};
+  const workforceAnomalyCount = (data?.workforceAnomalies ?? []).reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  const incidentCount = (data?.securityIncidents ?? []).reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  const deniedCount = Number(metrics.rejectedVisitors ?? metrics.deniedEntries ?? 0);
+  const activeVisitors = Number(metrics.activeVisitors ?? 0);
+
+  return [
+    {
+      label: 'Visitor register',
+      format: 'CSV',
+      records: Number(metrics.totalVisitors ?? activeVisitors),
+      note: 'Visitor exports with badge state, host, check-in, and check-out timestamps.',
+    },
+    {
+      label: 'Denied entry report',
+      format: 'CSV',
+      records: deniedCount,
+      note: 'Denied and rejected visitor entries for security review.',
+    },
+    {
+      label: 'Incident log',
+      format: 'CSV',
+      records: incidentCount,
+      note: 'Security incidents, suspicious activity, escalations, and overrides.',
+    },
+    {
+      label: 'Workforce attendance',
+      format: 'CSV',
+      records: Number(data?.workforceAttendance?.metrics?.total ?? data?.workforceAnalytics?.total ?? workforceAnomalyCount),
+      note: 'Attendance, shift, check-in, check-out, and manual override activity.',
+    },
+    {
+      label: 'Operational snapshot',
+      format: 'PDF',
+      records: activeVisitors,
+      note: 'Executive PDF summary of active visitors, workforce signals, incidents, and actions.',
+    },
+  ];
 }
 
 function metricTone(item: AnalyticsPoint): 'default' | 'success' | 'warning' | 'danger' | 'info' {

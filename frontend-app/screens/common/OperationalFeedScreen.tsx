@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { useOperationalActivityFeed, type OperationalFeedCategory, type OperationalFeedItem, type OperationalFeedSeverity } from '../../hooks/useOperationalActivityFeed';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
+import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { theme } from '../../theme';
 
 type FeedFilter = 'all' | 'priority' | 'visitor' | 'workforce' | 'approval';
@@ -22,6 +23,7 @@ export function OperationalFeedScreen() {
   const navigation = useNavigation<{ navigate: (screen: string, params?: unknown) => void }>();
   const layout = useResponsiveLayout();
   const { t } = useLocalization();
+  const runtime = useOperationalRuntime();
   const feed = useOperationalActivityFeed();
   const [filter, setFilter] = useState<FeedFilter>('all');
 
@@ -127,6 +129,8 @@ export function OperationalFeedScreen() {
             />
           </View>
 
+          <SyncRecoveryPanel runtime={runtime} />
+
           <SurfaceCard title={t('feed.streamTitle')} subtitle={t('feed.streamSubtitle')}>
             <View style={styles.filterRow}>
               {filterOptions(t).map((option) => (
@@ -145,6 +149,46 @@ export function OperationalFeedScreen() {
         </>
       )}
     />
+  );
+}
+
+function SyncRecoveryPanel({
+  runtime,
+}: {
+  runtime: ReturnType<typeof useOperationalRuntime>;
+}) {
+  const connectionTone = runtime.syncConnection.status === 'live'
+    ? 'success'
+    : runtime.syncConnection.status === 'offline' || runtime.offlineOperationalMode === 'offline'
+      ? 'warning'
+      : runtime.syncConnection.status === 'degraded'
+        ? 'warning'
+        : 'info';
+  const queued = runtime.offlineOperationalQueueSize;
+  const scans = runtime.offlineScanQueueSize;
+  const lastEvent = runtime.syncConnection.lastEventAt ? relativeTime(runtime.syncConnection.lastEventAt) : 'No events';
+
+  return (
+    <View style={styles.offlinePanel}>
+      <View style={styles.offlineIcon}>
+        <Ionicons
+          name={runtime.offlineOperationalMode === 'offline' ? 'cloud-offline-outline' : 'radio-outline'}
+          size={22}
+          color={connectionTone === 'success' ? theme.colors.success : connectionTone === 'warning' ? theme.colors.warning : theme.colors.info}
+        />
+      </View>
+      <View style={styles.offlineCopy}>
+        <View style={styles.offlineHeader}>
+          <Text style={styles.offlineTitle}>Operational sync</Text>
+          <StatusPill label={runtime.isSyncingOfflineOperations ? 'Syncing' : runtime.syncConnection.status} tone={connectionTone} />
+        </View>
+        <Text style={styles.offlineBody}>
+          {queued
+            ? `${queued} queued action${queued === 1 ? '' : 's'}${scans ? `, ${scans} scan${scans === 1 ? '' : 's'}` : ''}. Recovery runs silently and avoids repeated retry prompts.`
+            : `Live feed connected with ${lastEvent} as the latest event. Offline records remain visible if connectivity changes.`}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -401,9 +445,25 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.warningSoft,
     padding: theme.spacing.md,
   },
+  offlineIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   offlineCopy: {
     flex: 1,
     gap: theme.spacing.xs,
+  },
+  offlineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
   },
   offlineTitle: {
     color: theme.colors.textPrimary,

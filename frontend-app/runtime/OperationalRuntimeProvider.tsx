@@ -155,6 +155,8 @@ const defaultDevicePosture: DevicePostureState = {
 };
 
 const RESUME_RECOVERY_THROTTLE_MS = 12_000;
+const SYNC_NOW_THROTTLE_MS = 8_000;
+const OFFLINE_SYNC_NOTICE_COOLDOWN_MS = 60_000;
 const SESSION_DIRECT_RESTORE_MS = 5 * 60_000;
 const FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS = 30 * 60_000;
 const initialNetworkState: NetworkReachabilityState = {
@@ -195,7 +197,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   const syncPromiseRef = useRef<Promise<void> | null>(null);
   const lifecycleRecoveryPromiseRef = useRef<Promise<void> | null>(null);
   const unlockPromiseRef = useRef<Promise<void> | null>(null);
+  const lastSyncNowAtRef = useRef(0);
   const lastLifecycleRecoveryAtRef = useRef(0);
+  const lastOfflineSyncNoticeAtRef = useRef(0);
   const expoGoNotificationBypassLoggedRef = useRef(false);
   const deviceRegistrationRef = useRef<{ deviceId: string | null; expoPushToken: string | null; fcmToken: string | null }>({
     deviceId: null,
@@ -951,17 +955,21 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     try {
       const summary = await syncOfflineOperationalQueue();
       if (summary.synced > 0) {
-        upsertSystemNotification({
-          id: `offline-sync-${Date.now()}`,
-          type: 'SYSTEM_BACKEND_CONNECTIVITY_RESTORED',
-          category: 'SYSTEM',
-          priority: 'MEDIUM',
-          title: 'Saved actions completed',
-          message: `${summary.synced} pending action${summary.synced === 1 ? '' : 's'} finished after the connection returned.`,
-          read: false,
-          createdAt: new Date().toISOString(),
-          source: 'local',
-        });
+        const now = Date.now();
+        if (now - lastOfflineSyncNoticeAtRef.current >= OFFLINE_SYNC_NOTICE_COOLDOWN_MS) {
+          lastOfflineSyncNoticeAtRef.current = now;
+          upsertSystemNotification({
+            id: `offline-sync-${now}`,
+            type: 'SYSTEM_BACKEND_CONNECTIVITY_RESTORED',
+            category: 'SYSTEM',
+            priority: 'MEDIUM',
+            title: 'Saved actions completed',
+            message: `${summary.synced} pending action${summary.synced === 1 ? '' : 's'} finished after the connection returned.`,
+            read: false,
+            createdAt: new Date(now).toISOString(),
+            source: 'local',
+          });
+        }
         await invalidateOperationalQueries();
       }
       await refreshOfflineQueueSize();
@@ -982,6 +990,12 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     }
 
     if (!syncPromiseRef.current) {
+      const now = Date.now();
+      if (now - lastSyncNowAtRef.current < SYNC_NOW_THROTTLE_MS) {
+        await refreshOfflineQueueSize();
+        return;
+      }
+      lastSyncNowAtRef.current = now;
       syncPromiseRef.current = (async () => {
         try {
           await Promise.all([
@@ -1295,7 +1309,9 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     queryClient.clear();
     syncPromiseRef.current = null;
     lifecycleRecoveryPromiseRef.current = null;
+    lastSyncNowAtRef.current = 0;
     lastLifecycleRecoveryAtRef.current = 0;
+    lastOfflineSyncNoticeAtRef.current = 0;
     void clearSessionLockState().catch(() => undefined);
     setSessionLock((current) => {
       const next = {

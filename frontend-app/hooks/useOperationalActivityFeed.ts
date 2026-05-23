@@ -238,6 +238,7 @@ export function useOperationalActivityFeed() {
 
     nextItems.push(
       ...(adminFeedEnabled ? buildLiveOperationalItems(runtime.liveOperationalEvents, t) : []),
+      ...(adminFeedEnabled ? buildOfflineItems(offlineSnapshot.data, t, organization) : []),
       ...buildNotificationItems(notifications.data?.items ?? [], role, t),
       ...buildEmergencyItems(emergencyFeed.data ?? [], t),
     );

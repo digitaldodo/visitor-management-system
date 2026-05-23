@@ -24,6 +24,7 @@ type Props = {
 };
 
 const CATEGORY_ORDER = ['SECURITY', 'VISITOR', 'WORKFORCE', 'SYSTEM'];
+const ACTIONABLE_TARGETS = new Set(['VISITOR', 'WORKFORCE', 'EMPLOYEE', 'INCIDENT', 'APPROVAL']);
 
 export function NotificationCenter({
   title,
@@ -49,7 +50,10 @@ export function NotificationCenter({
   const groupedItems = useMemo(() => {
     return CATEGORY_ORDER.map((category) => ({
       category,
-      items: mergedItems.filter((item) => String(item.category || 'VISITOR').toUpperCase() === category),
+      items: mergedItems
+        .filter((item) => String(item.category || 'VISITOR').toUpperCase() === category)
+        .sort((left, right) => Number(left.read) - Number(right.read)
+          || new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime()),
     })).filter((group) => group.items.length);
   }, [mergedItems]);
 
@@ -92,7 +96,7 @@ export function NotificationCenter({
           <View key={group.category} style={styles.group}>
             <View style={styles.groupHeader}>
               <Text style={styles.groupTitle}>{tText(humanize(group.category))}</Text>
-              <Text style={styles.groupMeta}>{tText('{count} items', { count: group.items.length })}</Text>
+              <Text style={styles.groupMeta}>{groupSummary(group.items, tText)}</Text>
             </View>
             {group.items.map((notification) => (
               <Pressable
@@ -110,7 +114,10 @@ export function NotificationCenter({
                     <Text style={styles.notificationTitle}>{notification.title}</Text>
                     <Text style={styles.notificationMessage}>{notification.message}</Text>
                   </View>
-                  <StatusPill label={notification.read ? 'Read' : notification.priority || 'New'} tone={priorityTone(notification)} />
+                  <View style={styles.statusStack}>
+                    <StatusPill label={notification.read ? 'Read' : notification.priority || 'New'} tone={priorityTone(notification)} />
+                    {isActionable(notification) ? <StatusPill label="Open record" tone="info" /> : null}
+                  </View>
                 </View>
 
                 <View style={styles.metaRow}>
@@ -130,6 +137,25 @@ export function NotificationCenter({
         />
       )}
     </SurfaceCard>
+  );
+}
+
+function groupSummary(items: NotificationRecord[], tText: ReturnType<typeof useLocalization>['tText']) {
+  const unread = items.filter((item) => !item.read).length;
+  if (unread) {
+    return tText('{unread} unread / {count} total', { unread, count: items.length });
+  }
+  return tText('{count} read', { count: items.length });
+}
+
+function isActionable(notification: NotificationRecord) {
+  const targetType = String(notification.targetType || '').toUpperCase();
+  return Boolean(
+    notification.deepLink
+      || notification.actionUrl
+      || notification.visitorId
+      || notification.targetId
+      || ACTIONABLE_TARGETS.has(targetType),
   );
 }
 
@@ -227,6 +253,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: theme.spacing.md,
+  },
+  statusStack: {
+    alignItems: 'flex-end',
+    gap: theme.spacing.xs,
   },
   copyBlock: {
     flex: 1,

@@ -51,12 +51,15 @@ public class OperationalEventStreamService {
         int limit = Math.max(1, Math.min(requestedLimit <= 0 ? 80 : requestedLimit, 100));
         Instant since = parseCursor(cursor);
         List<AccessAuditLog> logs = scopedLogs(actor, since).stream()
+                .sorted(since == null
+                        ? Comparator.comparing(AccessAuditLog::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        : Comparator.comparing(AccessAuditLog::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(limit)
                 .sorted(Comparator.comparing(AccessAuditLog::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
         List<OperationalEventResponse> events = logs.stream()
                 .map(this::toEvent)
                 .filter(event -> isVisibleToActor(actor, event))
-                .limit(limit)
                 .toList();
         String nextCursor = events.isEmpty()
                 ? (cursor == null || cursor.isBlank() ? Instant.now().toString() : cursor)
