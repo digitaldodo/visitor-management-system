@@ -528,7 +528,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
       return adminTarget("visitor-access");
     }
     if (portalPath.includes("/visitor")) {
-      return "#visits";
+      return "/visitor/requests";
     }
     return employeeTarget("requests");
   }
@@ -542,7 +542,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     if (portalPath.includes("/employee") && normalized.includes("EMPLOYEE")) {
       return employeeTarget("badge");
     }
-    return portalPath.includes("/visitor") ? "#visits" : employeeTarget("requests");
+    return portalPath.includes("/visitor") ? "/visitor/badge" : employeeTarget("requests");
   }
   if (normalized.includes("EMERGENCY") || normalized.includes("INCIDENT") || normalized.includes("SUSPICIOUS")) {
     return portalPath.includes("/admin") ? adminTarget("emergency-ops") : "#monitoring";
@@ -561,7 +561,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
       return "#badges";
     }
     if (portalPath.includes("/visitor")) {
-      return "#visits";
+      return "/visitor/requests";
     }
     return employeeTarget("requests");
   }

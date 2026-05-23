@@ -174,6 +174,13 @@ export function requestVisitReschedule(id, payload) {
   });
 }
 
+export function cancelVisitorVisit(id, payload = {}) {
+  return request(`/visitor/visits/${encodeURIComponent(id)}/cancel`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function approveRescheduleRequest(basePath, id, note = "") {
   return request(`${basePath}/visitors/${id}/reschedule-request/approve`, {
     method: "PATCH",

@@ -320,7 +320,7 @@ export const ROLE_PORTALS = {
   OPERATOR: "/employee",
   MANAGER: "/employee",
   SECURITY_GUARD: "/security",
-  VISITOR: "/pages/visitor/index.html",
+  VISITOR: "/visitor/dashboard",
 };
 
 export const ROLE_PORTALS_FROM_PORTAL = ROLE_PORTALS;

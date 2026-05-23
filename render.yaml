@@ -165,6 +165,12 @@ services:
         source: /employee/*
         destination: /pages/employee/index.html
       - type: rewrite
+        source: /visitor
+        destination: /pages/visitor/index.html
+      - type: rewrite
+        source: /visitor/*
+        destination: /pages/visitor/index.html
+      - type: rewrite
         source: /security
         destination: /pages/security/index.html
       - type: rewrite

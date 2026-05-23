@@ -65,7 +65,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 : "%s has been approved. The visitor badge is ready.".formatted(visitor.getFullName());
         notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/employee/requests", null);
         markInviteQrIssued(visitor);
-        notifyVisitorAccount(visitor, NotificationType.VISITOR_APPROVED, "Badge issued", "Your visit has been approved and your QR badge is ready in AccessFlow.", "/visitor/pass", "badge-issued");
+        notifyVisitorAccount(visitor, NotificationType.VISITOR_APPROVED, "Badge issued", "Your visit has been approved and your QR badge is ready in AccessFlow.", "/visitor/badge", "badge-issued");
         sendApprovedBadgeEmail(visitor);
     }
 

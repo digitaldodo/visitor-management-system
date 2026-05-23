@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -125,6 +126,16 @@ public class VisitorPortalController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Reschedule request sent to host.", visitorService.requestReschedule(id, request, authentication.getName()));
+    }
+
+    @PatchMapping("/visits/{id}/cancel")
+    public ApiResponse<VisitorResponse> cancelVisit(
+            @PathVariable String id,
+            @RequestBody(required = false) Map<String, String> request,
+            Authentication authentication
+    ) {
+        String reason = request == null ? null : request.get("reason");
+        return ApiResponse.ok("Pending visit request cancelled.", visitorService.cancelPendingForVisitorAccount(id, currentUser(authentication), reason));
     }
 
     private User currentUser(Authentication authentication) {

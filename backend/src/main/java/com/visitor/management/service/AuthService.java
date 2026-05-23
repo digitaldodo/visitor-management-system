@@ -334,6 +334,11 @@ public class AuthService {
     public UserProfileResponse updateAccountProfile(Authentication authentication, AccountProfileUpdateRequest request) {
         User user = currentAuthenticatedUser(authentication);
 
+        String fullName = trimToNull(request.fullName());
+        if (fullName != null) {
+            user.setFullName(fullName);
+        }
+
         String username = trimToNull(request.username());
         if (username != null && !username.equals(user.getUsername())) {
             String normalizedUsername = normalizeUsername(username);

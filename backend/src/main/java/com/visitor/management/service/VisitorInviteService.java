@@ -475,7 +475,7 @@ public class VisitorInviteService {
                 "Pre-registration submitted",
                 "Your pre-registration for %s is awaiting host or workplace approval.".formatted(safeOrganization(invite)),
                 null,
-                "/visitor/pass",
+                "/visitor/badge",
                 invite.getHostEmployeeName(),
                 invite.getOrganizationId(),
                 "invite:%s:pending-approval:recipient:%s".formatted(invite.getId(), visitorAccount.getId()),

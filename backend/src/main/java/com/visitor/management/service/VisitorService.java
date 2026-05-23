@@ -226,6 +226,33 @@ public class VisitorService {
     }
 
     @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
+    public VisitorResponse cancelPendingForVisitorAccount(String id, User account, String reason) {
+        Visitor visitor = find(id);
+        if (visitor.getEmail() == null || !visitor.getEmail().equalsIgnoreCase(account.getEmail())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        if (account.getOrganizationId() != null && !account.getOrganizationId().equals(visitor.getOrganizationId())) {
+            throw new ResourceNotFoundException("Visitor request was not found.");
+        }
+        if (visitor.getStatus() != VisitorStatus.PENDING) {
+            throw new BadRequestException("Only pending visitor requests can be cancelled from the visitor portal.");
+        }
+        Instant now = Instant.now();
+        VisitorStatus from = visitor.getStatus();
+        String note = trimToNull(reason) == null ? "Visitor cancelled the pending request." : trimToNull(reason);
+        visitor.setStatus(VisitorStatus.EXPIRED);
+        visitor.setRevokedAt(now);
+        visitor.setRevokedBy(account.getId());
+        visitor.setRevocationReason(note);
+        visitor.setApprovalExpiresAt(now);
+        visitor.setUpdatedAt(now);
+        addHistory(visitor, VisitorStatus.EXPIRED, "CANCELLED_BY_VISITOR", account.getId(), note, now);
+        Visitor saved = visitorRepository.save(visitor);
+        audit(saved.getId(), from, VisitorStatus.EXPIRED, "CANCELLED_BY_VISITOR", account.getId(), note, now);
+        return toResponse(saved);
+    }
+
+    @CacheEvict(value = {"adminAnalytics", "statusSummary"}, allEntries = true)
     public VisitorResponse create(VisitorCreateRequest request, String actorId) {
         User actor = actorId == null ? null : currentUser(actorId);
         String forcedHostEmployeeId = actor != null && hasRole(actor, Role.EMPLOYEE) ? actor.getId() : null;
