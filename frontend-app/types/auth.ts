@@ -67,7 +67,7 @@ export type VisitorRegisterPayload = {
   phoneCountryCode?: string | null;
 };
 
-export type AuthUser = {
+type AuthUser = {
   id: string;
   username: string;
   email: string;

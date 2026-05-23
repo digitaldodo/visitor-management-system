@@ -13,14 +13,14 @@ const INSTALLATION_ID_KEY = 'accessflow.mobile.installation-id';
 const ASYNC_STORAGE_DEVICE_ID_KEY = 'accessflow.mobile.device-id';
 const SESSION_LOCK_KEY = 'accessflow.mobile.session-lock';
 
-export class SecureSessionStorageError extends Error {
+class SecureSessionStorageError extends Error {
   constructor(message = 'Secure session storage could not be read.') {
     super(message);
     this.name = 'SecureSessionStorageError';
   }
 }
 
-export class SecureSessionCorruptionError extends Error {
+class SecureSessionCorruptionError extends Error {
   constructor(message = 'Secure session payload is invalid.') {
     super(message);
     this.name = 'SecureSessionCorruptionError';

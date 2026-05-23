@@ -2,14 +2,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import {
   getVisitorHistory,
-  getVisitorHosts,
   getVisitorInvites,
   getVisitorNotifications,
   getVisitorOverview,
   getVisitorPass,
   getVisitorVisits,
   registerVisitorAccount,
-  requestVisitorReschedule,
   requestVisitorVisit,
   uploadVisitorVisitPhoto,
 } from '../services/visitorService';
@@ -46,15 +44,6 @@ export function useVisitorHistory() {
   });
 }
 
-export function useVisitorHosts(query?: string, companyCode?: string) {
-  const normalizedQuery = (query || '').trim();
-  return useQuery({
-    queryKey: ['visitor', 'hosts', normalizedQuery, companyCode],
-    queryFn: ({ signal }) => getVisitorHosts(normalizedQuery, companyCode, signal),
-    enabled: normalizedQuery.length >= 2 && Boolean((companyCode || '').trim()),
-  });
-}
-
 export function useVisitorPass(visitorId?: string | null) {
   return useQuery({
     queryKey: ['visitor', 'pass', visitorId],
@@ -87,12 +76,5 @@ export function useRequestVisitorVisitMutation() {
 export function useUploadVisitorVisitPhotoMutation() {
   return useMutation({
     mutationFn: uploadVisitorVisitPhoto,
-  });
-}
-
-export function useRequestVisitorRescheduleMutation() {
-  return useMutation({
-    mutationFn: ({ visitorId, payload }: { visitorId: string; payload: Parameters<typeof requestVisitorReschedule>[1] }) =>
-      requestVisitorReschedule(visitorId, payload),
   });
 }

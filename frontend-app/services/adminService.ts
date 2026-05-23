@@ -334,14 +334,6 @@ export async function enableAdminUser(id: string) {
   });
 }
 
-export async function createAdminUser(payload: WorkforceUserPayload) {
-  return request<WorkforceOnboardingRecord>({
-    url: '/admin/users',
-    method: 'POST',
-    data: payload,
-  });
-}
-
 export async function inviteAdminUser(payload: Omit<WorkforceUserPayload, 'password'>) {
   return request<WorkforceOnboardingRecord>({
     url: '/admin/users/invite',

@@ -205,7 +205,7 @@ export const enterpriseStatusToneMap: Record<string, EnterpriseStatusTone> = {
   NEUTRAL: 'neutral',
 };
 
-export const enterpriseWorkflowNames = {
+const enterpriseWorkflowNames = {
   visitorOperations: 'Visitor Operations',
   workforceOperations: 'Workforce Operations',
   approvalQueue: 'Approval Queue',

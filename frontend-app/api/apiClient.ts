@@ -54,8 +54,8 @@ function createClient(baseURL: string) {
   });
 }
 
-export const publicApi = createClient(apiConfig.apiBaseUrl);
-export const privateApi = createClient(apiConfig.apiBaseUrl);
+const publicApi = createClient(apiConfig.apiBaseUrl);
+const privateApi = createClient(apiConfig.apiBaseUrl);
 
 export function configureApiClient(configuration: {
   getSession: SessionProvider;
@@ -324,7 +324,7 @@ function sanitizeRoles(roles: string[] | undefined) {
   return Array.from(new Set((roles ?? []).filter(Boolean))) as AuthSession['user']['roles'];
 }
 
-export function assertApiConfigured() {
+function assertApiConfigured() {
   if (!apiConfig.isConfigured) {
     throw createAppError({
       kind: 'config',
@@ -334,7 +334,7 @@ export function assertApiConfigured() {
   }
 }
 
-export function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
+function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
   if (payload === null || payload === undefined) {
     throw createPayloadError();
   }

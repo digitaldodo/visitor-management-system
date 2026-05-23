@@ -20,9 +20,6 @@ import {
   resendEmployeeVisitorInvite,
   revokeEmployeeVisitorInvite,
   rescheduleEmployeeVisitor,
-  updateEmployeePassword,
-  updateEmployeeProfile,
-  uploadEmployeeProfilePhoto,
 } from '../services/employeeService';
 
 export function useEmployeeOverview() {
@@ -117,24 +114,6 @@ export function useEmployeeProfile() {
     queryKey: ['employee', 'profile'],
     queryFn: getEmployeeProfile,
     placeholderData: (previous) => previous,
-  });
-}
-
-export function useUpdateEmployeeProfileMutation() {
-  return useMutation({
-    mutationFn: updateEmployeeProfile,
-  });
-}
-
-export function useUpdateEmployeePasswordMutation() {
-  return useMutation({
-    mutationFn: updateEmployeePassword,
-  });
-}
-
-export function useUploadEmployeeProfilePhotoMutation() {
-  return useMutation({
-    mutationFn: uploadEmployeeProfilePhoto,
   });
 }
 

@@ -4,10 +4,10 @@ import type { VersionHandshakePayload } from './runtime';
 
 export type VisitorType = 'ONE_TIME' | 'WALK_IN' | 'EMERGENCY' | 'RECURRING' | 'CONTRACTOR_VENDOR';
 
-export type { VisitorInviteStatus, VisitorStatus };
-export type EmailDeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
+export type { VisitorStatus };
+type EmailDeliveryStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
 
-export type EmployeePresenceAction = 'CHECKED_IN' | 'CHECKED_OUT';
+type EmployeePresenceAction = 'CHECKED_IN' | 'CHECKED_OUT';
 
 export type UserProfile = {
   id: string;
@@ -38,7 +38,7 @@ export type UserProfile = {
   roles: BackendRole[];
 };
 
-export type VisitorStatusHistoryRecord = {
+type VisitorStatusHistoryRecord = {
   status?: VisitorStatus | null;
   action?: string | null;
   actorId?: string | null;
@@ -349,9 +349,9 @@ export type NotificationInbox = {
 
 export type EmergencyIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
-export type EmergencyIncidentStatus = 'ACTIVE' | 'MONITORING' | 'RESOLVED';
+type EmergencyIncidentStatus = 'ACTIVE' | 'MONITORING' | 'RESOLVED';
 
-export type EmergencyIncidentType =
+type EmergencyIncidentType =
   | 'LOCKDOWN_STARTED'
   | 'LOCKDOWN_CLEARED'
   | 'PANIC_TRIGGERED'
@@ -399,7 +399,7 @@ export type EmergencyIncident = {
   resolvedAt?: string | null;
 };
 
-export type EmergencyEvacuationPerson = {
+type EmergencyEvacuationPerson = {
   id: string;
   personType: 'VISITOR' | 'WORKFORCE' | string;
   name: string;

@@ -6,7 +6,7 @@ import {
 
 export type { EnterpriseStatusTone };
 
-export const ACCESSFLOW_ROLES = [
+const ACCESSFLOW_ROLES = [
   'SUPER_ADMIN',
   'ADMIN',
   'EMPLOYEE',
@@ -19,11 +19,11 @@ export const ACCESSFLOW_ROLES = [
 
 export type BackendRole = typeof ACCESSFLOW_ROLES[number];
 
-export const VISITOR_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CHECKED_IN', 'CHECKED_OUT', 'EXPIRED', 'SUSPENDED'] as const;
+const VISITOR_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CHECKED_IN', 'CHECKED_OUT', 'EXPIRED', 'SUSPENDED'] as const;
 
 export type VisitorStatus = typeof VISITOR_STATUSES[number];
 
-export const VISITOR_INVITE_STATUSES = [
+const VISITOR_INVITE_STATUSES = [
   'INVITED',
   'PRE_REGISTRATION_PENDING',
   'PRE_REGISTERED',
@@ -44,70 +44,21 @@ export const VISITOR_INVITE_STATUSES = [
 
 export type VisitorInviteStatus = typeof VISITOR_INVITE_STATUSES[number];
 
-export const WORKFORCE_STATUSES = ['ACTIVE', 'UNVERIFIED', 'PENDING_APPROVAL', 'CHANGES_REQUESTED', 'REJECTED', 'DISABLED', 'LOCKED'] as const;
+const WORKFORCE_STATUSES = ['ACTIVE', 'UNVERIFIED', 'PENDING_APPROVAL', 'CHANGES_REQUESTED', 'REJECTED', 'DISABLED', 'LOCKED'] as const;
 
-export type WorkforceStatus = typeof WORKFORCE_STATUSES[number];
+type WorkforceStatus = typeof WORKFORCE_STATUSES[number];
 
-export const BADGE_STATES = ['APPROVED', 'BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT', 'EXPIRED', 'REVOKED', 'SUSPENDED'] as const;
-
-export type BadgeState = typeof BADGE_STATES[number];
-
-export const APPROVAL_STATES = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'] as const;
-
-export type ApprovalState = typeof APPROVAL_STATES[number];
-
-export const VISITOR_STATUS_LABELS: Record<VisitorStatus, string> = {
+const VISITOR_STATUS_LABELS: Record<VisitorStatus, string> = {
   ...enterpriseStatusLabels.visitor,
 };
 
-export const VISITOR_INVITE_STATUS_LABELS: Record<string, string> = {
+const VISITOR_INVITE_STATUS_LABELS: Record<string, string> = {
   ...enterpriseStatusLabels.invite,
 };
 
-export const WORKFORCE_STATUS_LABELS: Record<string, string> = {
+const WORKFORCE_STATUS_LABELS: Record<string, string> = {
   ...enterpriseStatusLabels.workforce,
 };
-
-export const NOTIFICATION_EVENT_TYPES = [
-  'VISITOR_APPROVAL_REQUEST',
-  'VISITOR_APPROVED',
-  'VISITOR_ARRIVED',
-  'VISITOR_ARRIVAL_REMINDER',
-  'VISITOR_CHECK_IN_WINDOW_REMINDER',
-  'VISITOR_OVERDUE',
-  'VISITOR_WAITING_AT_RECEPTION',
-  'VISITOR_RESCHEDULED',
-  'VISITOR_ACCESS_WINDOW_EXPIRING',
-  'VISITOR_INVITE_SENT',
-  'VISITOR_INVITE_VIEWED',
-  'VISITOR_PRE_REGISTRATION_COMPLETED',
-  'VISITOR_INVITE_REGISTRATION_REMINDER',
-  'VISITOR_INVITE_REVOKED',
-  'VISITOR_CHECKED_IN',
-  'VISITOR_REJECTED',
-  'VISITOR_EXPIRED',
-  'WORKFORCE_ONBOARDING_REQUESTED',
-  'WORKFORCE_ONBOARDING_APPROVED',
-  'WORKFORCE_ONBOARDING_REJECTED',
-  'WORKFORCE_ONBOARDING_MODIFICATION_REQUIRED',
-  'WORKFORCE_ACCESS_REVOKED',
-  'WORKFORCE_CREDENTIAL_DISABLED',
-  'SECURITY_INVALID_QR_SCAN',
-  'SECURITY_DENIED_ENTRY',
-  'SECURITY_SUSPICIOUS_ACTIVITY',
-  'SECURITY_MANUAL_OVERRIDE',
-  'SECURITY_ESCALATION',
-  'EMERGENCY_LOCKDOWN',
-  'EMERGENCY_PANIC',
-  'EMERGENCY_BROADCAST',
-  'EMERGENCY_EVACUATION',
-  'SYSTEM_SESSION_EXPIRED',
-  'SYSTEM_RUNTIME_UPDATE_AVAILABLE',
-  'SYSTEM_BACKEND_CONNECTIVITY_ISSUE',
-  'SYSTEM_BACKEND_CONNECTIVITY_RESTORED',
-] as const;
-
-export type NotificationEventType = typeof NOTIFICATION_EVENT_TYPES[number];
 
 export function canonicalVisitorInviteStage(status?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
   const normalizedStatus = String(status || 'INVITED').toUpperCase();
@@ -132,7 +83,7 @@ export function canonicalVisitorInviteStage(status?: string | null, qrIssuedAt?:
   return normalizedStatus;
 }
 
-export function isTerminalVisitorInviteStage(status?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
+function isTerminalVisitorInviteStage(status?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
   const stage = canonicalVisitorInviteStage(status, qrIssuedAt, arrivedAt);
   return ['REVOKED', 'EXPIRED', 'REJECTED', 'CHECKED_IN', 'CHECKED_OUT'].includes(stage);
 }
@@ -146,14 +97,6 @@ export function canResendVisitorInvite(status?: string | null, visitorEmail?: st
 
 export function visitorInviteStatusLabel(status?: string | null) {
   return enterpriseStatusLabel(canonicalVisitorInviteStage(status), 'invite');
-}
-
-export function visitorStatusLabel(status?: string | null) {
-  return enterpriseStatusLabel(status, 'visitor');
-}
-
-export function workforceStatusLabel(status?: string | null) {
-  return enterpriseStatusLabel(status, 'workforce');
 }
 
 export function enterpriseStatusLabel(status?: string | null, domain: 'visitor' | 'invite' | 'workforce' | 'generic' = 'generic') {

@@ -1,6 +1,6 @@
 import type { ActiveWorkspaceRole, WorkspaceAudience } from '../types/auth';
 
-export type WorkspaceNavigatorName = 'SecurityTabs' | 'EmployeeTabs' | 'VisitorTabs' | 'AdminStack';
+type WorkspaceNavigatorName = 'SecurityTabs' | 'EmployeeTabs' | 'VisitorTabs' | 'AdminStack';
 export type WorkspaceNavigationTarget =
   | 'employee-badge'
   | 'employee-requests'
@@ -58,7 +58,7 @@ export function getWorkspaceConfig(role: ActiveWorkspaceRole) {
   return workspaceConfigMap[role];
 }
 
-export function isAdminRole(role: ActiveWorkspaceRole) {
+function isAdminRole(role: ActiveWorkspaceRole) {
   return role === 'ADMIN';
 }
 

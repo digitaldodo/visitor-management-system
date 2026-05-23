@@ -208,7 +208,7 @@ export async function recordSyncFailure(input: {
   });
 }
 
-export async function recordPerformanceSample(input: {
+async function recordPerformanceSample(input: {
   name: string;
   durationMs: number;
   thresholdMs: number;
@@ -245,7 +245,7 @@ export async function recordPerformanceSample(input: {
   });
 }
 
-export async function getObservabilitySnapshot() {
+async function getObservabilitySnapshot() {
   const crash = await getFirebaseCrashReportingState();
   return {
     initialized,

@@ -8,8 +8,6 @@ import {
   denyVisitorEntry,
   escalateVisitorIssue,
   getSecurityAttendance,
-  getSecurityEmployees,
-  getSecurityHosts,
   getSecurityMonitoring,
   getSecurityOverview,
   getSecurityVisitorPass,
@@ -25,9 +23,7 @@ import {
   reportVisitorMismatch,
   resendSecurityVisitorInvite,
   revokeSecurityVisitorInvite,
-  revokeVisitor,
   scanEmployeeQr,
-  suspendVisitor,
   uploadVisitorPhoto,
   uploadWorkforcePhoto,
   verifyQrPayload,
@@ -106,22 +102,6 @@ export function useSecurityAttendance() {
     queryKey: ['security', 'attendance'],
     queryFn: getSecurityAttendance,
     placeholderData: (previous) => previous,
-  });
-}
-
-export function useSecurityEmployees(query?: string) {
-  return useQuery({
-    queryKey: ['security', 'employees', query ?? ''],
-    queryFn: ({ signal }) => getSecurityEmployees(query, signal),
-    placeholderData: (previous) => previous,
-  });
-}
-
-export function useSecurityHosts(query?: string) {
-  return useQuery({
-    queryKey: ['security', 'hosts', query ?? ''],
-    queryFn: ({ signal }) => getSecurityHosts(query, signal),
-    enabled: Boolean(query && query.trim().length >= 2),
   });
 }
 
@@ -208,18 +188,6 @@ export function useCheckOutVisitorMutation() {
 export function useDenyVisitorMutation() {
   return useMutation({
     mutationFn: denyVisitorEntry,
-  });
-}
-
-export function useSuspendVisitorMutation() {
-  return useMutation({
-    mutationFn: suspendVisitor,
-  });
-}
-
-export function useRevokeVisitorMutation() {
-  return useMutation({
-    mutationFn: revokeVisitor,
   });
 }
 

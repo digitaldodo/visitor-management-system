@@ -108,9 +108,9 @@ export type NetworkReachabilityState = {
 
 export type OfflineOperationalMode = 'online' | 'degraded' | 'offline';
 
-export type OfflineOperationalQueueStatus = 'pending' | 'syncing' | 'failed';
+type OfflineOperationalQueueStatus = 'pending' | 'syncing' | 'failed';
 
-export type OfflineOperationalOperationType =
+type OfflineOperationalOperationType =
   | 'visitor-qr-check-in'
   | 'visitor-check-out'
   | 'visitor-qr-verify'
@@ -157,7 +157,7 @@ export type OfflineOperationalCacheMetadata = {
   schemaVersion: number;
 };
 
-export type OfflineOperationalCacheEntry<T> = {
+type OfflineOperationalCacheEntry<T> = {
   record: T;
   cachedAt: string;
   lastSeenAt: string;

@@ -10,7 +10,7 @@ const audienceRoleMap: Record<WorkspaceAudience, ActiveWorkspaceRole[]> = {
 
 const mobileWorkspaceRoles: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
 const defaultRoleOrder: ActiveWorkspaceRole[] = ['ADMIN', 'SECURITY_GUARD', 'EMPLOYEE', 'VISITOR'];
-export const employeeWorkspaceRoles: BackendRole[] = ['EMPLOYEE', 'RECEPTION', 'OPERATOR', 'MANAGER'];
+const employeeWorkspaceRoles: BackendRole[] = ['EMPLOYEE', 'RECEPTION', 'OPERATOR', 'MANAGER'];
 
 export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudience): ActiveWorkspaceRole {
   if (roles.includes('SUPER_ADMIN')) {
@@ -41,7 +41,7 @@ export function resolveActiveRole(roles: BackendRole[], audience?: WorkspaceAudi
   return match;
 }
 
-export function canAccessAudience(roles: BackendRole[], audience: WorkspaceAudience) {
+function canAccessAudience(roles: BackendRole[], audience: WorkspaceAudience) {
   if (roles.includes('ADMIN')) {
     return audience === 'admin';
   }

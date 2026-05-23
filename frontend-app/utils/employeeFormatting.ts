@@ -15,7 +15,7 @@ export function formatDateTime(value?: string | null, timezone?: string | null) 
   });
 }
 
-export function formatTime(value?: string | null, timezone?: string | null) {
+function formatTime(value?: string | null, timezone?: string | null) {
   const date = parseDate(value);
   if (!date) {
     return 'Not available';
@@ -27,7 +27,7 @@ export function formatTime(value?: string | null, timezone?: string | null) {
   });
 }
 
-export function formatDay(value?: string | null, timezone?: string | null) {
+function formatDay(value?: string | null, timezone?: string | null) {
   const date = parseDate(value);
   if (!date) {
     return 'Not available';
@@ -40,7 +40,7 @@ export function formatDay(value?: string | null, timezone?: string | null) {
   });
 }
 
-export function formatWindow(start?: string | null, end?: string | null, timezone?: string | null) {
+function formatWindow(start?: string | null, end?: string | null, timezone?: string | null) {
   if (!start && !end) {
     return 'Window not assigned';
   }
@@ -69,7 +69,7 @@ export function visitorTone(status?: VisitorStatus | null): EnterpriseStatusTone
   return enterpriseStatusTone(status);
 }
 
-export function notificationTone(notification: NotificationRecord): EnterpriseStatusTone {
+function notificationTone(notification: NotificationRecord): EnterpriseStatusTone {
   const normalizedType = String(notification.type || '').toUpperCase();
   if (normalizedType.includes('DENIAL') || normalizedType.includes('REVOKED') || normalizedType.includes('ISSUE')) {
     return 'danger';

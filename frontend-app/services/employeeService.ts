@@ -1,33 +1,15 @@
 import { request } from '../api/apiClient';
 import { trackFirebaseEvent } from '../runtime/firebaseRuntime';
-import { uploadImage, type UploadAsset } from './uploadService';
 import type { PageResponse } from '../types/api';
 import type {
   EmployeeAttendanceRecord,
   EmployeeBadge,
   NotificationInbox,
-  NotificationRecord,
-  SecurityPhotoUpload,
   SecurityOverview,
   UserProfile,
   VisitorInviteRecord,
   VisitorRecord,
 } from '../types/domain';
-
-export type EmployeeProfileUpdatePayload = {
-  phone?: string | null;
-  phoneCountryCode?: string | null;
-  emergencyContact?: string | null;
-  preferredLanguage?: string | null;
-  employeePhotoUrl?: string | null;
-  notificationEmailEnabled?: boolean;
-  notificationInAppEnabled?: boolean;
-};
-
-export type EmployeePasswordUpdatePayload = {
-  currentPassword: string;
-  newPassword: string;
-};
 
 export type VisitorDecisionPayload = {
   note?: string | null;
@@ -166,30 +148,6 @@ export async function getEmployeeProfile() {
   return request<UserProfile>({
     url: '/employee/profile',
     method: 'GET',
-  });
-}
-
-export async function updateEmployeeProfile(payload: EmployeeProfileUpdatePayload) {
-  return request<UserProfile>({
-    url: '/employee/profile',
-    method: 'PATCH',
-    data: payload,
-  });
-}
-
-export async function updateEmployeePassword(payload: EmployeePasswordUpdatePayload) {
-  return request<{ success: boolean }>({
-    url: '/employee/profile/password',
-    method: 'PATCH',
-    data: payload,
-  });
-}
-
-export async function uploadEmployeeProfilePhoto(asset: UploadAsset) {
-  return uploadImage<SecurityPhotoUpload>({
-    url: '/employee/profile/photo',
-    asset,
-    fallbackName: 'employee-photo.jpg',
   });
 }
 

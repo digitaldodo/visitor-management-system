@@ -33,7 +33,7 @@ const MAX_QUEUE_ATTEMPTS = 8;
 const CACHE_TTL_MS = 72 * 60 * 60 * 1000;
 const STALE_SYNCING_OPERATION_MS = 2 * 60 * 1000;
 const MAX_RETRY_DELAY_MS = 30 * 60 * 1000;
-export const OFFLINE_VALIDATION_MAX_AGE_MS = 18 * 60 * 60 * 1000;
+const OFFLINE_VALIDATION_MAX_AGE_MS = 18 * 60 * 60 * 1000;
 
 const emptyCache = (): OfflineOperationalCache => ({
   visitors: {},
@@ -588,10 +588,6 @@ export async function markOfflineOperationSyncing(id: string) {
 export async function removeOfflineOperation(id: string) {
   const nextQueue = (await readOfflineOperationalQueue()).filter((item) => item.id !== id);
   await writeQueue(nextQueue);
-}
-
-export async function clearOfflineOperationalQueue() {
-  await removeSecureValue(OFFLINE_QUEUE_KEY);
 }
 
 export async function cleanupOfflineOperationalCache() {

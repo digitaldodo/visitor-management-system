@@ -1,5 +1,5 @@
-export type OperationalEventCategory = 'visitor' | 'workforce' | 'approval' | 'incident' | 'audit' | 'runtime';
-export type OperationalEventSeverity = 'info' | 'warning' | 'approval' | 'security' | 'emergency';
+type OperationalEventCategory = 'visitor' | 'workforce' | 'approval' | 'incident' | 'audit' | 'runtime';
+type OperationalEventSeverity = 'info' | 'warning' | 'approval' | 'security' | 'emergency';
 
 export type OperationalEvent = {
   id: string;

@@ -14,8 +14,6 @@ import java.time.Instant;
 public class VisitorInviteEmailDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(VisitorInviteEmailDispatcher.class);
-    private static final int MAX_EMAIL_ATTEMPTS = 3;
-
     private final VisitorInviteRepository visitorInviteRepository;
     private final EmailService emailService;
 
@@ -32,7 +30,7 @@ public class VisitorInviteEmailDispatcher {
     public void retryPendingInviteEmails() {
         visitorInviteRepository.findByVisitorEmailIsNotNullAndEmailStatusAndEmailAttemptsLessThan(
                         NotificationStatus.PENDING,
-                        MAX_EMAIL_ATTEMPTS
+                        EmailDeliveryPolicy.MAX_ATTEMPTS
                 )
                 .forEach(this::deliverInviteEmail);
     }
@@ -44,7 +42,7 @@ public class VisitorInviteEmailDispatcher {
             visitorInviteRepository.save(invite);
             return;
         }
-        if (invite.getEmailStatus() == NotificationStatus.SENT || invite.getEmailAttempts() >= MAX_EMAIL_ATTEMPTS) {
+        if (invite.getEmailStatus() == NotificationStatus.SENT || invite.getEmailAttempts() >= EmailDeliveryPolicy.MAX_ATTEMPTS) {
             return;
         }
 
@@ -63,9 +61,7 @@ public class VisitorInviteEmailDispatcher {
             invite.setLastEmailError(null);
             invite.setUpdatedAt(sentAt);
         } catch (RuntimeException ex) {
-            invite.setEmailStatus(invite.getEmailAttempts() >= MAX_EMAIL_ATTEMPTS
-                    ? NotificationStatus.FAILED
-                    : NotificationStatus.PENDING);
+            invite.setEmailStatus(EmailDeliveryPolicy.statusAfterFailure(invite.getEmailAttempts()));
             invite.setLastEmailError(trimToNull(ex.getMessage()));
             invite.setUpdatedAt(Instant.now());
             log.warn("Visitor invite email attempt {} failed for invite {}: {}", invite.getEmailAttempts(), invite.getId(), ex.getMessage());

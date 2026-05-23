@@ -15,8 +15,6 @@ import java.time.Instant;
 public class NotificationEmailDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationEmailDispatcher.class);
-    private static final int MAX_EMAIL_ATTEMPTS = 3;
-
     private final NotificationRepository notificationRepository;
     private final EmailService emailService;
 
@@ -33,14 +31,14 @@ public class NotificationEmailDispatcher {
     public void retryPendingEmails() {
         notificationRepository.findByEmailEnabledTrueAndEmailStatusAndEmailAttemptsLessThan(
                         NotificationStatus.PENDING,
-                        MAX_EMAIL_ATTEMPTS,
+                        EmailDeliveryPolicy.MAX_ATTEMPTS,
                         PageRequest.of(0, 25)
                 )
                 .forEach(this::deliverEmail);
     }
 
     private void deliverEmail(Notification notification) {
-        if (!notification.isEmailEnabled() || notification.getEmailAttempts() >= MAX_EMAIL_ATTEMPTS) {
+        if (!notification.isEmailEnabled() || notification.getEmailAttempts() >= EmailDeliveryPolicy.MAX_ATTEMPTS) {
             return;
         }
 
@@ -58,9 +56,7 @@ public class NotificationEmailDispatcher {
             notification.setEmailStatus(NotificationStatus.SENT);
             notification.setLastEmailError(null);
         } catch (RuntimeException ex) {
-            notification.setEmailStatus(notification.getEmailAttempts() >= MAX_EMAIL_ATTEMPTS
-                    ? NotificationStatus.FAILED
-                    : NotificationStatus.PENDING);
+            notification.setEmailStatus(EmailDeliveryPolicy.statusAfterFailure(notification.getEmailAttempts()));
             notification.setLastEmailError(ex.getMessage());
             log.warn("Notification email attempt {} failed for {}: {}", notification.getEmailAttempts(), notification.getId(), ex.getMessage());
         }

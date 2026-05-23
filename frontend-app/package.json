@@ -67,5 +67,14 @@
     "babel-preset-expo": "~54.0.10",
     "typescript": "~5.9.2"
   },
+  "knip": {
+    "ignore": [
+      "babel.config.js"
+    ],
+    "ignoreDependencies": [
+      "expo-system-ui",
+      "react-native-ssl-public-key-pinning"
+    ]
+  },
   "private": true
 }

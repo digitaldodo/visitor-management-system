@@ -119,7 +119,7 @@ export async function resetPassword(payload: ResetPasswordPayload) {
   });
 }
 
-export async function fetchCurrentUser(accessToken: string, tokenType = 'Bearer') {
+async function fetchCurrentUser(accessToken: string, tokenType = 'Bearer') {
   return publicRequest<UserProfile>({
     url: '/auth/me',
     method: 'GET',

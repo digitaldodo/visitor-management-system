@@ -7,7 +7,6 @@ import {
   checkInAdminVisitor,
   checkOutAdminVisitor,
   createAdminDepartment,
-  createAdminUser,
   createAdminVisitor,
   denyAdminVisitor,
   disableAdminUser,
@@ -187,10 +186,6 @@ export function useDisableAdminUserMutation() {
 
 export function useEnableAdminUserMutation() {
   return useMutation({ mutationFn: enableAdminUser });
-}
-
-export function useCreateAdminUserMutation() {
-  return useMutation({ mutationFn: createAdminUser });
 }
 
 export function useInviteAdminUserMutation() {

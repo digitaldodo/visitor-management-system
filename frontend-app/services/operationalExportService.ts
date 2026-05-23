@@ -34,7 +34,7 @@ export async function shareOperationalReport({ role, reportType, format }: Expor
   return payload;
 }
 
-export function operationalReportCsv(report: OperationalReportExport) {
+function operationalReportCsv(report: OperationalReportExport) {
   const columns = report.columns.length ? report.columns : inferColumns(report.rows);
   const header = columns.map((column) => csvCell(column.label)).join(',');
   const rows = report.rows.map((row) => columns.map((column) => csvCell(row[column.key])).join(','));
@@ -49,7 +49,7 @@ export function operationalReportCsv(report: OperationalReportExport) {
   ].join('\n');
 }
 
-export function operationalReportHtml(report: OperationalReportExport) {
+function operationalReportHtml(report: OperationalReportExport) {
   const columns = report.columns.length ? report.columns : inferColumns(report.rows);
   const rows = report.rows.slice(0, 300).map((row) => (
     `<tr>${columns.map((column) => `<td>${escapeHtml(row[column.key])}</td>`).join('')}</tr>`

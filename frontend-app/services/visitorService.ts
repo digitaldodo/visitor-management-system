@@ -166,17 +166,6 @@ export async function getVisitorPass(visitorId: string) {
   });
 }
 
-export async function requestVisitorReschedule(
-  visitorId: string,
-  payload: { scheduledStartTime: string; scheduledEndTime?: string | null; expectedDurationMinutes?: number | null; timezone?: string | null; note?: string | null },
-) {
-  return request<VisitorRecord>({
-    url: `/visitor/visits/${encodeURIComponent(visitorId)}/reschedule-request`,
-    method: 'POST',
-    data: payload,
-  });
-}
-
 export async function getVisitorNotifications(limit = 25) {
   return request<NotificationInbox>({
     url: '/notifications',

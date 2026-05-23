@@ -45,7 +45,7 @@ function inviteTokenFromActionUrl(actionUrl?: string | null) {
   return null;
 }
 
-export function resolveOperationalDeepLink(
+function resolveOperationalDeepLink(
   role: ActiveWorkspaceRole,
   payload: OperationalDeepLinkPayload,
 ): { target: WorkspaceNavigationTarget; params?: Record<string, unknown> } | null {
@@ -150,7 +150,7 @@ function parseActionUrlTarget(value?: string | null) {
   return { targetType: null as string | null };
 }
 
-export function openOperationalEvent(role: ActiveWorkspaceRole, event: OperationalEvent) {
+function openOperationalEvent(role: ActiveWorkspaceRole, event: OperationalEvent) {
   return openOperationalDeepLink(role, {
     type: event.type,
     category: event.category,
@@ -159,6 +159,6 @@ export function openOperationalEvent(role: ActiveWorkspaceRole, event: Operation
   });
 }
 
-export function openWorkspaceFallback(target: WorkspaceNavigationTarget) {
+function openWorkspaceFallback(target: WorkspaceNavigationTarget) {
   navigateToWorkspace(target);
 }

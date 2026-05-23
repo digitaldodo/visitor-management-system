@@ -210,7 +210,7 @@ function AdminAccountSettingsScreen() {
   );
 }
 
-export function AdminOperationalScreen({ section }: SectionProps) {
+function AdminOperationalScreen({ section }: SectionProps) {
   const navigation = useNavigation<any>();
   const { session, logout, isBusy } = useAuth();
   const queryClient = useQueryClient();

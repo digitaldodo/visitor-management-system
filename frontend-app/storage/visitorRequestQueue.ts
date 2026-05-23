@@ -1,13 +1,13 @@
 import * as Crypto from 'expo-crypto';
 
-import { readSecureJson, removeSecureValue, writeSecureJson } from './secureStore';
+import { readSecureJson, writeSecureJson } from './secureStore';
 import type { VisitorVisitPayload } from '../services/visitorService';
 
 const VISITOR_REQUEST_QUEUE_KEY = 'accessflow.mobile.visitor-request-queue.v1';
 const MAX_QUEUE_ITEMS = 40;
 const MAX_QUEUE_ATTEMPTS = 8;
 
-export type QueuedVisitorRequestStatus = 'pending' | 'syncing' | 'failed';
+type QueuedVisitorRequestStatus = 'pending' | 'syncing' | 'failed';
 
 export type QueuedVisitorRequest = {
   id: string;
@@ -84,10 +84,6 @@ export async function markVisitorRequestAttempt(id: string, errorMessage?: strin
 
 export async function removeQueuedVisitorRequest(id: string) {
   await mutateQueue((queue) => queue.filter((item) => item.id !== id));
-}
-
-export async function clearQueuedVisitorRequests() {
-  await removeSecureValue(VISITOR_REQUEST_QUEUE_KEY);
 }
 
 function visitorRequestDedupeKey(payload: VisitorVisitPayload) {

@@ -8,7 +8,7 @@ import { apiConfig } from '../api/apiConfig';
 import { readOrCreateDeviceId, readOrCreateInstallationId } from '../storage/sessionStorage';
 import type { DeviceIntegritySignals } from '../types/runtime';
 
-export async function getCurrentDeviceDescriptor() {
+async function getCurrentDeviceDescriptor() {
   const [deviceId, installationId] = await Promise.all([
     readOrCreateDeviceId(),
     readOrCreateInstallationId(),

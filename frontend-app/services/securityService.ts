@@ -331,26 +331,6 @@ export async function denyVisitorEntry({ visitorId, reason }: SecurityIncidentPa
   return visitor;
 }
 
-export async function suspendVisitor({ visitorId, reason }: SecurityIncidentPayload) {
-  const visitor = await request<VisitorRecord>({
-    url: `/security/visitors/${encodeURIComponent(visitorId)}/suspend`,
-    method: 'PATCH',
-    data: { reason },
-  });
-  await upsertCachedVisitors([visitor], 'security-suspend').catch(() => undefined);
-  return visitor;
-}
-
-export async function revokeVisitor({ visitorId, reason }: SecurityIncidentPayload) {
-  const visitor = await request<VisitorRecord>({
-    url: `/security/visitors/${encodeURIComponent(visitorId)}/revoke`,
-    method: 'PATCH',
-    data: { reason },
-  });
-  await upsertCachedVisitors([visitor], 'security-revoke').catch(() => undefined);
-  return visitor;
-}
-
 export async function reactivateVisitor(visitorId: string) {
   const visitor = await request<VisitorRecord>({
     url: `/security/visitors/${encodeURIComponent(visitorId)}/reactivate`,
