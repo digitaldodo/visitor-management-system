@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
+import { RecordCard } from '../../components/cards/RecordCard';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { useOperationalSnackbar } from '../../components/feedback/OperationalSnackbar';
@@ -28,6 +29,8 @@ import {
   useEscalateVisitorMutation,
   useOverrideCheckInMutation,
   useReportVisitorMismatchMutation,
+  useResendSecurityVisitorInviteMutation,
+  useSecurityVisitorInvites,
   useSecurityMonitoring,
   useSecurityVisitors,
   useUploadVisitorPhotoMutation,
@@ -35,7 +38,8 @@ import {
 import { getSecurityHosts } from '../../services/securityService';
 import { searchCachedVisitors } from '../../storage/offlineOperationalStore';
 import { theme } from '../../theme';
-import type { HostDirectoryEntry, SecurityMonitoring, VisitorRecord, VisitorType } from '../../types/domain';
+import type { HostDirectoryEntry, SecurityMonitoring, VisitorInviteRecord, VisitorRecord, VisitorType } from '../../types/domain';
+import { canResendVisitorInvite, canonicalVisitorInviteStage, visitorInviteStatusLabel } from '../../types/workflow';
 import {
   formatDateTime,
   statusTone,
@@ -86,12 +90,15 @@ export function VisitorsScreen() {
   const [actionState, setActionState] = useState<VisitorAction | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [cachedVisitors, setCachedVisitors] = useState<VisitorRecord[]>([]);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const resendingInvitesRef = useRef(new Set<string>());
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
   const normalizedHostSearch = hostSearch.trim();
 
   const monitoring = useSecurityMonitoring(deferredSearch);
   const visitors = useSecurityVisitors(deferredSearch, statusFilter === 'ALL' ? undefined : statusFilter);
+  const visitorInvites = useSecurityVisitorInvites();
   const searchHosts = useCallback((nextQuery: string, signal: AbortSignal) => getSecurityHosts(nextQuery, signal), []);
   const hostSearchState = useOperationalAutocomplete({
     query: normalizedHostSearch,
@@ -109,6 +116,7 @@ export function VisitorsScreen() {
   const denyMutation = useDenyVisitorMutation();
   const escalateMutation = useEscalateVisitorMutation();
   const mismatchMutation = useReportVisitorMismatchMutation();
+  const resendInviteMutation = useResendSecurityVisitorInviteMutation();
 
   useEffect(() => {
     if (hostSearchState.isError && hostSearchState.error) {
@@ -139,6 +147,7 @@ export function VisitorsScreen() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['security', 'monitoring'] }),
       queryClient.invalidateQueries({ queryKey: ['security', 'visitors'] }),
+      queryClient.invalidateQueries({ queryKey: ['security', 'visitor-invites'] }),
       queryClient.invalidateQueries({ queryKey: ['security', 'overview'] }),
     ]);
   };
@@ -262,6 +271,33 @@ export function VisitorsScreen() {
     }
   };
 
+  const resendInvite = async (invite: VisitorInviteRecord) => {
+    if (!canResendVisitorInvite(invite.lifecycleStage || invite.status, invite.visitorEmail, invite.qrIssuedAt, invite.arrivedAt)) {
+      showSnackbar({
+        message: invite.visitorEmail ? 'This invite is already closed and cannot be resent.' : 'This invite has no visitor email. Share the invite link instead.',
+        tone: 'warning',
+        dedupeKey: `security-invite-resend-blocked-${invite.id}`,
+      });
+      return;
+    }
+    if (resendingInvitesRef.current.size > 0) {
+      return;
+    }
+
+    try {
+      resendingInvitesRef.current.add(invite.id);
+      setResendingInviteId(invite.id);
+      const updated = await resendInviteMutation.mutateAsync(invite.id);
+      showSnackbar({ message: `${updated.visitorName}'s invite was resent`, tone: 'success', dedupeKey: `security-invite-resent-${invite.id}` });
+      await refreshWorkspace();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to resend invite'), tone: 'danger', dedupeKey: `security-invite-resend-failed-${invite.id}` });
+    } finally {
+      resendingInvitesRef.current.delete(invite.id);
+      setResendingInviteId(null);
+    }
+  };
+
   const actionConfig = actionState
     ? {
         override: {
@@ -294,8 +330,8 @@ export function VisitorsScreen() {
         subtitle="Fast registration, photo-backed verification, and checkpoint actions for reception and gate teams."
         sensitive
         sensitiveReason="visitor-operations"
-        refreshing={monitoring.isRefetching || visitors.isRefetching}
-        onRefresh={() => Promise.all([monitoring.refetch(), visitors.refetch()])}
+        refreshing={monitoring.isRefetching || visitors.isRefetching || visitorInvites.isRefetching}
+        onRefresh={() => Promise.all([monitoring.refetch(), visitors.refetch(), visitorInvites.refetch()])}
       >
         <SurfaceCard
           title="Walk-in registration"
@@ -476,6 +512,50 @@ export function VisitorsScreen() {
           )}
         </SurfaceCard>
 
+        <SurfaceCard title="Invite lifecycle" subtitle="Organization invite visibility across invited, pre-registered, pending approval, badge issued, and arrival states.">
+          {visitorInvites.data?.length ? (
+            visitorInvites.data.slice(0, 8).map((invite) => (
+              <View key={invite.id} style={styles.queueCard}>
+                <RecordCard
+                  title={invite.visitorName}
+                  subtitle={[invite.companyName, invite.purposeOfVisit, invite.hostEmployeeName ? `Host ${invite.hostEmployeeName}` : null].filter(Boolean).join(' - ')}
+                  meta={invite.scheduledStartTime ? formatInviteDate(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Arrival time pending'}
+                  status={invite.lifecycleLabel || visitorInviteStatusLabel(invite.lifecycleStage || invite.status)}
+                  tone={inviteTone(invite)}
+                />
+                <OperationalFieldList
+                  items={[
+                    { label: 'Approval state', value: invite.nextAction || lifecycleGuidance(invite) },
+                    { label: 'Email delivery', value: invite.visitorEmail ? `${invite.emailStatus || 'PENDING'}${invite.emailSentAt ? ` - ${formatInviteDate(invite.emailSentAt, invite.timezone || invite.organizationTimezone)}` : ''}` : 'No visitor email; share link manually' },
+                    { label: 'QR badge', value: invite.qrIssuedAt ? `Issued ${formatInviteDate(invite.qrIssuedAt, invite.timezone || invite.organizationTimezone)}` : 'Issued after approval only' },
+                    { label: 'Expires', value: invite.expiresAt ? formatInviteDate(invite.expiresAt, invite.timezone || invite.organizationTimezone) : 'No expiry recorded' },
+                  ]}
+                />
+                <View style={styles.actionGrid}>
+                  {invite.inviteUrl ? (
+                    <PrimaryButton
+                      label="Share link"
+                      onPress={() => void Share.share({ message: `AccessFlow visitor pre-registration: ${invite.inviteUrl}` })}
+                      tone="secondary"
+                    />
+                  ) : null}
+                  {canResendVisitorInvite(invite.lifecycleStage || invite.status, invite.visitorEmail, invite.qrIssuedAt, invite.arrivedAt) ? (
+                    <PrimaryButton
+                      label="Resend invite"
+                      onPress={() => void resendInvite(invite)}
+                      loading={resendingInviteId === invite.id}
+                      disabled={Boolean(resendingInviteId && resendingInviteId !== invite.id)}
+                      tone="secondary"
+                    />
+                  ) : null}
+                </View>
+              </View>
+            ))
+          ) : (
+            <EmptyState title="No active invites" body="Visitor pre-registration invites will appear here with approval and QR issuance state." />
+          )}
+        </SurfaceCard>
+
         <SurfaceCard title="Recent records" subtitle="Compact visitor history for fast scanning. Tap a row to open the full operational record.">
           {visitorItems.length ? (
             <View style={styles.compactList}>
@@ -639,6 +719,46 @@ function highlightReason(visitor: VisitorRecord) {
     return 'Ready arrival';
   }
   return visitorStatusLabel(visitor.status);
+}
+
+function inviteTone(invite: VisitorInviteRecord): 'default' | 'success' | 'warning' | 'danger' | 'info' {
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  if (['REVOKED', 'EXPIRED', 'REJECTED'].includes(stage)) {
+    return 'danger';
+  }
+  if (['BADGE_ISSUED', 'CHECKED_IN', 'CHECKED_OUT'].includes(stage)) {
+    return 'success';
+  }
+  if (['PENDING_APPROVAL', 'PRE_REGISTERED', 'APPROVED'].includes(stage)) {
+    return 'warning';
+  }
+  return 'info';
+}
+
+function lifecycleGuidance(invite: VisitorInviteRecord) {
+  const stage = canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt);
+  switch (stage) {
+    case 'INVITED':
+    case 'PRE_REGISTRATION_PENDING':
+      return 'Visitor must complete pre-registration.';
+    case 'PRE_REGISTERED':
+    case 'PENDING_APPROVAL':
+      return 'Waiting for host or admin approval.';
+    case 'APPROVED':
+      return 'Approved; QR badge issuance is next.';
+    case 'BADGE_ISSUED':
+      return 'Badge ready for security scan.';
+    case 'CHECKED_IN':
+      return 'Visitor is checked in.';
+    case 'CHECKED_OUT':
+      return 'Visit completed.';
+    default:
+      return visitorInviteStatusLabel(stage);
+  }
+}
+
+function formatInviteDate(value?: string | null, timezone?: string | null) {
+  return formatDateTime(value, timezone ? { timeZone: timezone } : undefined);
 }
 
 function latestTimestamp(visitor: VisitorRecord) {

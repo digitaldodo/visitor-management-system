@@ -14,6 +14,7 @@ import {
   markAllEmployeeNotificationsRead,
   markEmployeeNotificationRead,
   rejectEmployeeVisitor,
+  resendEmployeeVisitorInvite,
   revokeEmployeeVisitorInvite,
   rescheduleEmployeeVisitor,
   updateEmployeePassword,
@@ -77,6 +78,12 @@ export function useRevokeEmployeeVisitorInviteMutation() {
   return useMutation({
     mutationFn: ({ inviteId, reason }: { inviteId: string; reason: string }) =>
       revokeEmployeeVisitorInvite(inviteId, reason),
+  });
+}
+
+export function useResendEmployeeVisitorInviteMutation() {
+  return useMutation({
+    mutationFn: resendEmployeeVisitorInvite,
   });
 }
 

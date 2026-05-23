@@ -52,6 +52,7 @@ export type VisitorPass = {
   qrImageDataUri?: string | null;
   issuedAt?: string | null;
   expiresAt?: string | null;
+  badgePrintedAt?: string | null;
   approvedAt?: string | null;
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;

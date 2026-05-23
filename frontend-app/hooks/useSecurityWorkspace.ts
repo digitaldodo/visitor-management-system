@@ -14,13 +14,16 @@ import {
   getSecurityOverview,
   getSecurityVisitorPass,
   getSecurityVisitorById,
+  getSecurityVisitorInvites,
   getSecurityVisitors,
   getSecurityWorkforceOnboardingRequests,
   manualEmployeeCheckIn,
   manualEmployeeCheckOut,
+  markSecurityVisitorBadgePrinted,
   overrideCheckInVisitor,
   reactivateVisitor,
   reportVisitorMismatch,
+  resendSecurityVisitorInvite,
   revokeVisitor,
   scanEmployeeQr,
   suspendVisitor,
@@ -59,6 +62,26 @@ export function useSecurityVisitorPass(visitorId?: string | null) {
     queryFn: () => getSecurityVisitorPass(String(visitorId)),
     enabled: Boolean(visitorId),
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useSecurityVisitorInvites() {
+  return useQuery({
+    queryKey: ['security', 'visitor-invites'],
+    queryFn: getSecurityVisitorInvites,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useResendSecurityVisitorInviteMutation() {
+  return useMutation({
+    mutationFn: resendSecurityVisitorInvite,
+  });
+}
+
+export function useMarkSecurityVisitorBadgePrintedMutation() {
+  return useMutation({
+    mutationFn: markSecurityVisitorBadgePrinted,
   });
 }
 

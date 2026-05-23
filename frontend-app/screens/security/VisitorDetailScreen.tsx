@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider'
 import {
   useCheckInVisitorMutation,
   useCheckOutVisitorMutation,
+  useMarkSecurityVisitorBadgePrintedMutation,
   useReactivateVisitorMutation,
   useSecurityVisitor,
   useSecurityVisitorPass,
@@ -45,12 +46,14 @@ export function VisitorDetailScreen() {
   const visitorId = params.visitorId ?? params.initialVisitor?.id ?? null;
   const [historyOpen, setHistoryOpen] = useState(true);
   const [reactivateReasonOpen, setReactivateReasonOpen] = useState(false);
+  const badgePrintInFlightRef = useRef(false);
 
   const visitorQuery = useSecurityVisitor(visitorId);
   const passQuery = useSecurityVisitorPass(visitorId);
   const checkInMutation = useCheckInVisitorMutation();
   const checkOutMutation = useCheckOutVisitorMutation();
   const reactivateMutation = useReactivateVisitorMutation();
+  const badgePrintedMutation = useMarkSecurityVisitorBadgePrintedMutation();
   const visitor = visitorQuery.data ?? params.initialVisitor ?? null;
 
   const intelligence = useMemo(() => buildVisitorIntelligence(visitor), [visitor]);
@@ -106,6 +109,30 @@ export function VisitorDetailScreen() {
       await refreshWorkspace();
     } catch (error) {
       showSnackbar({ message: getErrorMessage(error, 'Unable to reactivate visitor'), tone: 'danger' });
+    }
+  };
+
+  const recordBadgePrint = async () => {
+    if (badgePrintInFlightRef.current) {
+      return;
+    }
+    if (!visitorId) {
+      showSnackbar({ message: 'Unable to load visitor record', tone: 'danger' });
+      return;
+    }
+    try {
+      badgePrintInFlightRef.current = true;
+      const pass = await badgePrintedMutation.mutateAsync(visitorId);
+      showSnackbar({
+        message: `${pass.fullName || visitor?.fullName || 'Visitor'} badge print recorded`,
+        tone: 'success',
+        dedupeKey: `badge-print-${visitorId}`,
+      });
+      await refreshWorkspace();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to record badge print'), tone: 'danger' });
+    } finally {
+      badgePrintInFlightRef.current = false;
     }
   };
 
@@ -175,7 +202,12 @@ export function VisitorDetailScreen() {
 
             <SurfaceCard title="Badge and QR" subtitle="Read-only pass evidence for guard verification.">
               {passQuery.data ? (
-                <VisitorBadgePreview visitor={visitor} pass={passQuery.data} />
+                <VisitorBadgePreview
+                  visitor={visitor}
+                  pass={passQuery.data}
+                  onRecordPrint={recordBadgePrint}
+                  printLoading={badgePrintedMutation.isPending}
+                />
               ) : passQuery.isError ? (
                 <View style={styles.messageStack}>
                   <StatusPill label="Data unavailable" tone="warning" />
@@ -310,7 +342,17 @@ function VisitorHero({ visitor }: { visitor: VisitorRecord }) {
   );
 }
 
-function VisitorBadgePreview({ visitor, pass }: { visitor: VisitorRecord; pass: VisitorPass }) {
+function VisitorBadgePreview({
+  visitor,
+  pass,
+  onRecordPrint,
+  printLoading,
+}: {
+  visitor: VisitorRecord;
+  pass: VisitorPass;
+  onRecordPrint: () => void;
+  printLoading?: boolean;
+}) {
   return (
     <View style={styles.badgePreview}>
       <View style={styles.badgeIdentity}>
@@ -331,7 +373,15 @@ function VisitorBadgePreview({ visitor, pass }: { visitor: VisitorRecord; pass: 
           { label: 'Pass code', value: pass.passCode || 'Not returned' },
           { label: 'Issued', value: pass.issuedAt ? formatDateTime(pass.issuedAt) : visitor.qrIssuedAt ? formatDateTime(visitor.qrIssuedAt) : 'Not recorded' },
           { label: 'Expires', value: pass.expiresAt ? formatDateTime(pass.expiresAt) : 'Not recorded' },
+          { label: 'Printed', value: pass.badgePrintedAt ? formatDateTime(pass.badgePrintedAt) : visitor.badgePrintedAt ? formatDateTime(visitor.badgePrintedAt) : 'Not recorded' },
         ]}
+      />
+      <PrimaryButton
+        label={pass.badgePrintedAt || visitor.badgePrintedAt ? 'Record reprint' : 'Record badge print'}
+        onPress={() => void onRecordPrint()}
+        loading={printLoading}
+        disabled={!pass.qrImageDataUri}
+        tone="secondary"
       />
     </View>
   );

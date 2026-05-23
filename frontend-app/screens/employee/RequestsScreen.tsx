@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -24,11 +24,12 @@ import {
   useEmployeeVisitorInvites,
   useRejectEmployeeVisitorMutation,
   useRevokeEmployeeVisitorInviteMutation,
+  useResendEmployeeVisitorInviteMutation,
   useRescheduleEmployeeVisitorMutation,
 } from '../../hooks/useEmployeeWorkspace';
 import type { VisitorReschedulePayload } from '../../services/employeeService';
 import type { VisitorRecord } from '../../types/domain';
-import { canonicalVisitorInviteStage, enterpriseStatusLabel, visitorInviteStatusLabel } from '../../types/workflow';
+import { canResendVisitorInvite, canonicalVisitorInviteStage, enterpriseStatusLabel, visitorInviteStatusLabel } from '../../types/workflow';
 import { theme } from '../../theme';
 import {
   accessWindowLabel,
@@ -58,6 +59,7 @@ export function RequestsScreen() {
   const rescheduleMutation = useRescheduleEmployeeVisitorMutation();
   const createInviteMutation = useCreateEmployeeVisitorInviteMutation();
   const revokeInviteMutation = useRevokeEmployeeVisitorInviteMutation();
+  const resendInviteMutation = useResendEmployeeVisitorInviteMutation();
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [inviteForm, setInviteForm] = useState({
     visitorName: '',
@@ -71,6 +73,8 @@ export function RequestsScreen() {
   });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const resendingInvitesRef = useRef(new Set<string>());
 
   const pendingVisitors = approvals.data?.items ?? [];
   const upcomingVisitors = preApprovals.data ?? [];
@@ -177,6 +181,29 @@ export function RequestsScreen() {
     setActionMessage(`${invite.visitorName}'s QR invite was revoked.`);
     setRevokeInviteId(null);
     await refreshWorkspace();
+  };
+
+  const resendInvite = async (invite: NonNullable<typeof visitorInvites.data>[number]) => {
+    if (!canResendVisitorInvite(invite.lifecycleStage || invite.status, invite.visitorEmail, invite.qrIssuedAt, invite.arrivedAt)) {
+      setActionMessage(invite.visitorEmail ? 'This invite is already closed and cannot be resent.' : 'This invite has no visitor email. Share the invite link instead.');
+      return;
+    }
+    if (resendingInvitesRef.current.size > 0) {
+      return;
+    }
+
+    try {
+      resendingInvitesRef.current.add(invite.id);
+      setResendingInviteId(invite.id);
+      const updated = await resendInviteMutation.mutateAsync(invite.id);
+      setActionMessage(`${updated.visitorName}'s invite was resent. Email delivery is queued and duplicate taps were ignored.`);
+      await refreshWorkspace();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : 'Unable to resend invite.');
+    } finally {
+      resendingInvitesRef.current.delete(invite.id);
+      setResendingInviteId(null);
+    }
   };
 
   const approveVisitor = async (visitor: VisitorRecord) => {
@@ -360,6 +387,15 @@ export function RequestsScreen() {
                     <PrimaryButton
                       label="Share link"
                       onPress={() => void Share.share({ message: `AccessFlow visitor pre-registration: ${invite.inviteUrl}` })}
+                      tone="secondary"
+                    />
+                  ) : null}
+                  {canResendVisitorInvite(invite.lifecycleStage || invite.status, invite.visitorEmail, invite.qrIssuedAt, invite.arrivedAt) ? (
+                    <PrimaryButton
+                      label="Resend invite"
+                      onPress={() => void resendInvite(invite)}
+                      loading={resendingInviteId === invite.id}
+                      disabled={Boolean(resendingInviteId && resendingInviteId !== invite.id)}
                       tone="secondary"
                     />
                   ) : null}

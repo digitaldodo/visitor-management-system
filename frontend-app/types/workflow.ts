@@ -113,6 +113,18 @@ export function canonicalVisitorInviteStage(status?: string | null, qrIssuedAt?:
   return normalizedStatus;
 }
 
+export function isTerminalVisitorInviteStage(status?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
+  const stage = canonicalVisitorInviteStage(status, qrIssuedAt, arrivedAt);
+  return ['REVOKED', 'EXPIRED', 'REJECTED', 'CHECKED_IN', 'CHECKED_OUT'].includes(stage);
+}
+
+export function canResendVisitorInvite(status?: string | null, visitorEmail?: string | null, qrIssuedAt?: string | null, arrivedAt?: string | null) {
+  if (!String(visitorEmail || '').trim()) {
+    return false;
+  }
+  return !isTerminalVisitorInviteStage(status, qrIssuedAt, arrivedAt);
+}
+
 export function visitorInviteStatusLabel(status?: string | null) {
   return enterpriseStatusLabel(canonicalVisitorInviteStage(status), 'invite');
 }

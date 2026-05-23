@@ -113,6 +113,15 @@ export async function revokeEmployeeVisitorInvite(inviteId: string, reason: stri
   return response;
 }
 
+export async function resendEmployeeVisitorInvite(inviteId: string) {
+  const response = await request<VisitorInviteRecord>({
+    url: `/employee/visitor-invites/${encodeURIComponent(inviteId)}/resend`,
+    method: 'PATCH',
+  });
+  await trackFirebaseEvent('visitor_invite_resent', { actor_role: 'EMPLOYEE' });
+  return response;
+}
+
 export async function getEmployeeAttendance() {
   return request<EmployeeAttendanceRecord[]>({
     url: '/employee/attendance',

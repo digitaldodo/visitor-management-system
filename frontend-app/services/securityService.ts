@@ -18,6 +18,7 @@ import type {
   SecurityMonitoring,
   SecurityOverview,
   SecurityPhotoUpload,
+  VisitorInviteRecord,
   VisitorRecord,
   WorkforceOnboardingRecord,
 } from '../types/domain';
@@ -118,6 +119,27 @@ export async function getSecurityVisitorPass(id: string) {
   return request<VisitorPass>({
     url: `/security/visitors/${encodeURIComponent(id)}/pass`,
     method: 'GET',
+  });
+}
+
+export async function getSecurityVisitorInvites() {
+  return request<VisitorInviteRecord[]>({
+    url: '/security/visitor-invites',
+    method: 'GET',
+  });
+}
+
+export async function resendSecurityVisitorInvite(inviteId: string) {
+  return request<VisitorInviteRecord>({
+    url: `/security/visitor-invites/${encodeURIComponent(inviteId)}/resend`,
+    method: 'PATCH',
+  });
+}
+
+export async function markSecurityVisitorBadgePrinted(id: string) {
+  return request<VisitorPass>({
+    url: `/security/visitors/${encodeURIComponent(id)}/badge-printed`,
+    method: 'PATCH',
   });
 }
 
