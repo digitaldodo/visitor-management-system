@@ -7,7 +7,7 @@ import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, work
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
 import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
-import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
+import { downloadEmployeeBadge, employeeBadgeMarkup, employeeBadgeQrImage, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
@@ -45,7 +45,10 @@ async function bootEmployeePortal() {
 
   initPortalShell(session, {
     allowedRoutes: ROUTES,
-    onRefresh: () => loadEmployeePortal(),
+    onRefresh: async () => {
+      await loadEmployeePortal();
+      await loadRouteData({ force: true });
+    },
   });
   await runSafely("employee visitor module", () => initVisitorModule("[data-employee-visitors]", {
     basePath: "/employee",
@@ -265,23 +268,27 @@ function renderOwnBadge(badge, error = "") {
   if (!badge) {
     panel.innerHTML = `<article class="approval-empty"><h3>Badge unavailable</h3><p>${escapeHtml(error || "Your employee badge is not ready yet.")}</p></article>`;
     renderCredentialCompanions(null);
+    setCredentialActionsState(false);
     return;
   }
   panel.innerHTML = employeeBadgeMarkup(badge);
   renderCredentialCompanions(badge);
+  setCredentialActionsState(true);
 }
 
 function renderCredentialCompanions(badge) {
   const qrPanel = document.querySelector("#credential-qr-panel");
   const mobilePanel = document.querySelector("#credential-mobile-preview");
+  const qrImage = badge ? employeeBadgeQrImage(badge) : "";
+  const hasQrImage = Boolean(firstUsableBadgeQrImage(badge));
   if (qrPanel) {
     qrPanel.innerHTML = badge ? `
       <div>
         <p class="eyebrow">Static QR Code</p>
-        <h3>Reusable Identity QR</h3>
+        <h3>${hasQrImage ? "Reusable Identity QR" : "QR image pending"}</h3>
       </div>
-      <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static employee QR" />
-      <code>${escapeHtml(badge.qrPayload || "QR identity pending")}</code>
+      <img src="${escapeHtml(qrImage)}" alt="${hasQrImage ? "Static employee QR" : "Employee QR pending"}" />
+      <code data-i18n-ignore>${escapeHtml(badge.qrPayload || "QR identity pending")}</code>
     ` : `
       <div>
         <p class="eyebrow">Static QR Code</p>
@@ -302,7 +309,7 @@ function renderCredentialCompanions(badge) {
           <strong>${escapeHtml(badge.employeeId || "Employee ID pending")}</strong>
           <span>${escapeHtml(joinSoft([badge.department, badge.designation]))}</span>
         </div>
-        <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static QR" />
+        <img src="${escapeHtml(qrImage)}" alt="${hasQrImage ? "Static QR" : "QR pending"}" />
       </div>
     ` : `
       <div>
@@ -316,6 +323,13 @@ function renderCredentialCompanions(badge) {
       photo.remove();
     }
   }
+}
+
+function setCredentialActionsState(enabled) {
+  document.querySelectorAll("[data-own-badge-action]").forEach((button) => {
+    button.toggleAttribute("disabled", !enabled);
+    button.setAttribute("aria-disabled", String(!enabled));
+  });
 }
 
 function initEmployeeBadgeActions() {
@@ -347,13 +361,14 @@ function initEmployeeRouteLoading() {
   });
 }
 
-async function loadRouteData() {
+async function loadRouteData(options = {}) {
+  const { force = false } = options;
   const route = window.location.hash.replace("#", "") || "dashboard";
   if (route === "credential") {
-    await loadCredentialPage();
+    await loadCredentialPage(force);
   }
   if (route === "settings") {
-    await loadEmployeeSettings();
+    await loadEmployeeSettings(force);
   }
 }
 
@@ -374,9 +389,19 @@ async function loadCredentialPage(force = false) {
   if (panel) {
     panel.innerHTML = `<article class="approval-empty"><h3>Loading credential</h3><p>Preparing your badge preview and static QR.</p></article>`;
   }
+  setCredentialActionsState(false);
   try {
-    const response = await getEmployeeBadge("/employee");
-    activeEmployeeBadge = response?.data || null;
+    const [badgeResponse, profileResponse] = await Promise.allSettled([
+      getEmployeeBadge("/employee"),
+      getEmployeeProfile(),
+    ]);
+    if (badgeResponse.status !== "fulfilled") {
+      throw badgeResponse.reason || new Error("Employee badge could not be loaded.");
+    }
+    const badgeData = badgeResponse.value?.data || null;
+    const profileData = profileResponse.status === "fulfilled" ? profileResponse.value?.data || null : null;
+    activeEmployeeProfile = profileData || activeEmployeeProfile;
+    activeEmployeeBadge = mergeBadgeProfile(badgeData, profileData);
     renderOwnBadge(activeEmployeeBadge);
     credentialLoaded = Boolean(activeEmployeeBadge);
   } catch (error) {
@@ -384,6 +409,34 @@ async function loadCredentialPage(force = false) {
     credentialLoaded = false;
     renderOwnBadge(null, error.message);
   }
+}
+
+function firstUsableBadgeQrImage(badge) {
+  return [
+    badge?.qrImageDataUri,
+    badge?.staticFallbackQrImageDataUri,
+    badge?.qrCodeImageDataUri,
+    badge?.qrCodeDataUri,
+  ].find((value) => /^data:image\/(?:png|jpeg|jpg|webp|svg\+xml);/i.test(String(value || "").trim())) || "";
+}
+
+function mergeBadgeProfile(badge, profile) {
+  if (!badge || typeof badge !== "object") {
+    return null;
+  }
+  if (!profile || typeof profile !== "object") {
+    return badge;
+  }
+  return {
+    ...badge,
+    fullName: badge.fullName || profile.fullName || profile.name,
+    employeeId: badge.employeeId || profile.employeeId,
+    department: badge.department || profile.department,
+    designation: badge.designation || profile.designation,
+    employeePhotoUrl: badge.employeePhotoUrl || profile.employeePhotoUrl || profile.profilePhotoUrl,
+    organizationName: badge.organizationName || profile.organizationName,
+    organizationCode: badge.organizationCode || profile.organizationCode,
+  };
 }
 
 function initCredentialPhotoForm() {

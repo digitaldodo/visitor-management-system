@@ -1,6 +1,7 @@
 const LANGUAGE_KEY = "accessflow.web.language.v1";
 const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_LANGUAGES = new Set(["en", "hi"]);
+const TRANSLATION_BATCH_MS = 16;
 
 const translations = Object.freeze({
   hi: Object.freeze({
@@ -118,8 +119,13 @@ const translations = Object.freeze({
   }),
 });
 
+const textSources = new WeakMap();
+const attributeSources = new WeakMap();
 let currentLanguage = readLanguage();
 let observer = null;
+let translating = false;
+let pendingTranslation = 0;
+const pendingRoots = new Set();
 
 export function initWebLocalization() {
   document.documentElement.lang = currentLanguage;
@@ -144,6 +150,10 @@ export function getWebLanguage() {
 
 export function setWebLanguage(language) {
   const normalized = SUPPORTED_LANGUAGES.has(language) ? language : DEFAULT_LANGUAGE;
+  if (normalized === currentLanguage) {
+    syncLanguageControls();
+    return;
+  }
   currentLanguage = normalized;
   document.documentElement.lang = normalized;
   try {
@@ -152,14 +162,16 @@ export function setWebLanguage(language) {
     // Language selection remains in-memory when storage is unavailable.
   }
   translateDocument();
+  window.dispatchEvent(new CustomEvent("accessflow:languagechange", { detail: { language: normalized } }));
 }
 
 export function translateFragment(root) {
-  if (!root || currentLanguage === "en") {
+  if (!root) {
     return;
   }
-  walkTextNodes(root);
-  translateAttributes(root);
+  runWithoutObserver(() => {
+    translateRoot(root);
+  });
 }
 
 function installLanguageControl() {
@@ -184,11 +196,10 @@ function installLanguageControl() {
 }
 
 function translateDocument() {
-  document.querySelectorAll("#web-language-control select").forEach((select) => {
-    select.value = currentLanguage;
+  runWithoutObserver(() => {
+    syncLanguageControls();
+    translateRoot(document.body);
   });
-  walkTextNodes(document.body);
-  translateAttributes(document.body);
 }
 
 function observeTranslations() {
@@ -196,32 +207,82 @@ function observeTranslations() {
     return;
   }
   observer = new MutationObserver((mutations) => {
-    if (currentLanguage === "en") {
+    if (translating) {
       return;
     }
     mutations.forEach((mutation) => {
-      if (mutation.type === "characterData") {
-        translateTextNode(mutation.target);
+      if (mutation.type === "characterData" && mutation.target?.parentElement) {
+        pendingRoots.add(mutation.target.parentElement);
         return;
       }
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          translateFragment(node);
+          pendingRoots.add(node);
         }
         if (node.nodeType === Node.TEXT_NODE) {
-          translateTextNode(node);
+          pendingRoots.add(node.parentElement || document.body);
         }
       });
     });
+    schedulePendingTranslations();
   });
   observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+}
+
+function schedulePendingTranslations() {
+  if (pendingTranslation) {
+    return;
+  }
+  pendingTranslation = window.setTimeout(() => {
+    pendingTranslation = 0;
+    const roots = Array.from(pendingRoots);
+    pendingRoots.clear();
+    runWithoutObserver(() => {
+      roots.forEach((root) => {
+        if (root?.isConnected) {
+          translateRoot(root);
+        }
+      });
+      syncLanguageControls();
+    });
+  }, TRANSLATION_BATCH_MS);
+}
+
+function runWithoutObserver(callback) {
+  const wasObserving = Boolean(observer);
+  translating = true;
+  if (wasObserving) {
+    observer.disconnect();
+  }
+  try {
+    callback();
+  } finally {
+    if (wasObserving) {
+      observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    }
+    translating = false;
+  }
+}
+
+function syncLanguageControls() {
+  document.querySelectorAll("#web-language-control select").forEach((select) => {
+    select.value = currentLanguage;
+  });
+}
+
+function translateRoot(root) {
+  walkTextNodes(root);
+  translateAttributes(root);
 }
 
 function walkTextNodes(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
-      if (!parent || ["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"].includes(parent.tagName)) {
+      if (!parent || ["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION", "CODE", "PRE"].includes(parent.tagName)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      if (parent.closest("[data-i18n-ignore]")) {
         return NodeFilter.FILTER_REJECT;
       }
       return node.nodeValue?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
@@ -240,16 +301,20 @@ function translateTextNode(node) {
     return;
   }
   const current = node.nodeValue || "";
-  if (!parent.dataset.i18nSource) {
-    parent.dataset.i18nSource = current;
+  let source = textSources.get(node);
+  if (!source || currentLanguage === "en") {
+    source = current;
   } else {
-    const translatedSource = t(parent.dataset.i18nSource);
-    if (current && current !== parent.dataset.i18nSource && current !== translatedSource) {
-      parent.dataset.i18nSource = current;
+    const translatedSource = t(source);
+    if (current && current !== source && current !== translatedSource) {
+      source = current;
     }
   }
-  const source = parent.dataset.i18nSource;
-  node.nodeValue = currentLanguage === "en" ? source : t(source);
+  textSources.set(node, source);
+  const nextValue = currentLanguage === "en" ? source : t(source);
+  if (current !== nextValue) {
+    node.nodeValue = nextValue;
+  }
 }
 
 function translateAttributes(root) {
@@ -259,12 +324,25 @@ function translateAttributes(root) {
       if (!element.hasAttribute?.(attribute)) {
         return;
       }
-      const sourceKey = `i18n${attribute.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase())}`;
-      if (!element.dataset[sourceKey]) {
-        element.dataset[sourceKey] = element.getAttribute(attribute) || "";
+      let sources = attributeSources.get(element);
+      if (!sources) {
+        sources = {};
+        attributeSources.set(element, sources);
       }
-      const source = element.dataset[sourceKey];
-      element.setAttribute(attribute, currentLanguage === "en" ? source : t(source));
+      const current = element.getAttribute(attribute) || "";
+      if (!Object.prototype.hasOwnProperty.call(sources, attribute) || currentLanguage === "en") {
+        sources[attribute] = current;
+      } else {
+        const translatedSource = t(sources[attribute]);
+        if (current && current !== sources[attribute] && current !== translatedSource) {
+          sources[attribute] = current;
+        }
+      }
+      const source = sources[attribute];
+      const nextValue = currentLanguage === "en" ? source : t(source);
+      if (current !== nextValue) {
+        element.setAttribute(attribute, nextValue);
+      }
     });
   });
 }
@@ -288,7 +366,14 @@ function escapeHtml(value) {
 function readLanguage() {
   try {
     const stored = window.localStorage.getItem(LANGUAGE_KEY);
-    return SUPPORTED_LANGUAGES.has(stored) ? stored : DEFAULT_LANGUAGE;
+    if (!stored) {
+      return DEFAULT_LANGUAGE;
+    }
+    if (SUPPORTED_LANGUAGES.has(stored)) {
+      return stored;
+    }
+    window.localStorage.removeItem(LANGUAGE_KEY);
+    return DEFAULT_LANGUAGE;
   } catch {
     return DEFAULT_LANGUAGE;
   }

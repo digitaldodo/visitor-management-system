@@ -5,8 +5,11 @@
 
   const VERSION_KEY = "accessflow.runtime.version";
   const RECOVERY_KEY = "accessflow.runtime.recovery";
+  const RECOVERY_NOTICE_KEY = "accessflow.runtime.recoveredNotice";
+  const LANGUAGE_KEY = "accessflow.web.language.v1";
   const LEGACY_LOCAL_KEYS = ["visitor_management_session"];
   const LEGACY_SESSION_PREFIXES = ["accessflow.", "accessflow.sidebar:", "passwordReset"];
+  const SUPPORTED_LANGUAGES = new Set(["en", "hi"]);
   const DEFAULT_LOGIN_PATH = "/";
   const VERSION_POLL_MS = 60000;
   const ENV_SYNC_TIMEOUT_MS = 5000;
@@ -82,6 +85,7 @@
     ready = true;
     clearRecoveryState();
     hideNotice();
+    showRecoveredNoticeIfNeeded();
   }
 
   function recover(reason, options = {}) {
@@ -91,6 +95,7 @@
     reportError(details.reason, details.error, { autoReload: recoveryState.count <= 1, redirectToLogin: details.redirectToLogin });
     clearAppStorage({ preserveSession: details.preserveSession });
     persistCurrentVersion();
+    persistRecoveredNotice();
 
     if (details.redirectToLogin) {
       showNotice(details.message, {
@@ -214,6 +219,8 @@
   }
 
   function primeVersionState() {
+    recoverCorruptPersistentState();
+
     const storedVersion = readStoredVersion();
     if (storedVersion && storedVersion !== currentVersion) {
       recover("deployment-update", {
@@ -225,6 +232,61 @@
     }
 
     persistCurrentVersion();
+  }
+
+  function recoverCorruptPersistentState() {
+    const repaired = [];
+
+    safeStorageOperation(window.localStorage, (storage) => {
+      collectStorageKeys(storage).forEach((key) => {
+        if (key === LANGUAGE_KEY && !SUPPORTED_LANGUAGES.has(storage.getItem(key))) {
+          storage.removeItem(key);
+          repaired.push(key);
+          return;
+        }
+        if (key === VERSION_KEY && !isValidJsonObject(storage.getItem(key))) {
+          storage.removeItem(key);
+          repaired.push(key);
+          return;
+        }
+        if (key === "accessflow.api.config" && !isValidJsonObject(storage.getItem(key))) {
+          storage.removeItem(key);
+          repaired.push(key);
+        }
+      });
+    });
+
+    safeStorageOperation(window.sessionStorage, (storage) => {
+      collectStorageKeys(storage).forEach((key) => {
+        const value = storage.getItem(key);
+        if (key === RECOVERY_KEY && !isValidJsonObject(value)) {
+          storage.removeItem(key);
+          repaired.push(key);
+          return;
+        }
+        if (key.startsWith("accessflow.sidebar:") && !["collapsed", "expanded"].includes(value)) {
+          storage.removeItem(key);
+          repaired.push(key);
+          return;
+        }
+        if (key.startsWith("accessflow.security.module:") && !["collapsed", "expanded"].includes(value)) {
+          storage.removeItem(key);
+          repaired.push(key);
+          return;
+        }
+        if (key === "accessflow.security.activeSection" && !/^[a-z0-9-]{1,64}$/.test(String(value || ""))) {
+          storage.removeItem(key);
+          repaired.push(key);
+        }
+      });
+    });
+
+    if (repaired.length) {
+      reportError("persistent-state-recovery", new Error("AccessFlow repaired corrupted persisted UI state."), {
+        keys: repaired,
+      });
+      persistRecoveredNotice();
+    }
   }
 
   function startVersionMonitor() {
@@ -399,6 +461,29 @@
     safeStorageOperation(window.sessionStorage, (storage) => {
       storage.removeItem(RECOVERY_KEY);
     });
+  }
+
+  function persistRecoveredNotice() {
+    safeStorageOperation(window.sessionStorage, (storage) => {
+      storage.setItem(RECOVERY_NOTICE_KEY, "1");
+    });
+  }
+
+  function showRecoveredNoticeIfNeeded() {
+    const shouldShow = safeStorageOperation(window.sessionStorage, (storage) => {
+      const value = storage.getItem(RECOVERY_NOTICE_KEY);
+      storage.removeItem(RECOVERY_NOTICE_KEY);
+      return value === "1";
+    }, false);
+
+    if (!shouldShow) {
+      return;
+    }
+
+    showNotice("Workspace refreshed successfully.");
+    window.setTimeout(() => {
+      hideNotice();
+    }, 3200);
   }
 
   function normalizeRecoveryOptions(reason, options) {
@@ -605,6 +690,18 @@
       }
     }
     return keys;
+  }
+
+  function isValidJsonObject(value) {
+    if (!value) {
+      return true;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      return Boolean(parsed && typeof parsed === "object");
+    } catch {
+      return false;
+    }
   }
 
   function safeStorageOperation(storage, action, fallback = undefined) {

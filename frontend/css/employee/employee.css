@@ -7,6 +7,8 @@
   color: #101828;
   display: grid;
   gap: 1rem;
+  min-width: 0;
+  overflow: hidden;
   padding: 1.2rem;
 }
 
@@ -22,6 +24,7 @@
   align-items: center;
   display: flex;
   gap: 0.8rem;
+  min-width: 0;
 }
 
 .employee-badge__brand img {
@@ -37,6 +40,14 @@
 .employee-badge__identity p,
 .employee-badge__identity span {
   margin: 0;
+}
+
+.employee-badge__brand h3,
+.employee-badge__brand span,
+.employee-badge__identity h4,
+.employee-badge__identity strong,
+.employee-badge__identity span {
+  overflow-wrap: anywhere;
 }
 
 .employee-badge__brand p,
@@ -75,6 +86,7 @@
   display: grid;
   gap: 0.4rem;
   justify-items: center;
+  min-width: 8rem;
 }
 
 .employee-badge__qr img {
@@ -83,6 +95,10 @@
   border-radius: 8px;
   object-fit: contain;
   width: 9rem;
+}
+
+.employee-badge__qr--pending img {
+  opacity: 0.82;
 }
 
 .employee-badge__meta {
@@ -134,6 +150,7 @@
 }
 
 .employee-route {
+  content-visibility: visible;
   display: grid;
   gap: 1rem;
   min-width: 0;
@@ -245,6 +262,10 @@
   min-width: 0;
 }
 
+.credential-preview-card {
+  overflow: hidden;
+}
+
 .credential-preview-card,
 .credential-photo-card,
 .credential-qr-card,
@@ -269,6 +290,10 @@
   flex-wrap: wrap;
   gap: 0.65rem;
   justify-content: flex-end;
+}
+
+.credential-actions .button {
+  min-width: 0;
 }
 
 .credential-qr-card img {

@@ -743,7 +743,13 @@ function renderIdentityChip(session, portalProfile) {
   const timezone = session.organizationName || session.organizationCode
     ? timezoneLabel(session.organizationTimezone || session.user?.organizationTimezone || "UTC")
     : "Global";
-  chip.textContent = `${displayName} · ${scope} · ${timezone} · ${role}`;
+  const parts = [displayName, scope, timezone, role].filter(Boolean);
+  chip.title = parts.join(" · ");
+  chip.dataset.i18nIgnore = "true";
+  chip.innerHTML = `
+    <span class="user-chip__primary">${escapeHtml(displayName)}</span>
+    <span class="user-chip__meta">${escapeHtml([scope, timezone, role].filter(Boolean).join(" · "))}</span>
+  `;
 }
 
 function emptyMarkup(title, message) {

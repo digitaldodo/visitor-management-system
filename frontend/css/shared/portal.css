@@ -248,6 +248,7 @@ body.has-mobile-sidebar {
   justify-self: end;
   justify-content: flex-end;
   min-width: 0;
+  max-width: 100%;
   row-gap: 0.5rem;
 }
 
@@ -365,19 +366,46 @@ body.has-mobile-sidebar {
 }
 
 .user-chip {
+  align-items: center;
   background: rgba(79, 124, 255, 0.16);
   border: 1px solid rgba(111, 147, 255, 0.3);
   border-radius: var(--radius-pill);
   color: #dbe7ff;
-  display: inline-flex;
+  display: grid;
+  flex: 1 1 16rem;
   font-size: 0.86rem;
   font-weight: 800;
+  gap: 0.15rem;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   min-height: 2.5rem;
-  max-width: clamp(11rem, 18vw, 18rem);
+  min-width: 0;
+  max-width: min(100%, clamp(13rem, 28vw, 28rem));
   overflow: hidden;
   padding: 0.55rem 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-chip__primary,
+.user-chip__meta {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-chip__primary {
+  color: #f8fbff;
+}
+
+.user-chip__meta {
+  color: rgba(219, 231, 255, 0.78);
+}
+
+.user-chip__meta::before {
+  content: "·";
+  padding: 0 0.35rem;
 }
 
 .user-chip--platform {
@@ -1201,6 +1229,8 @@ body.has-mobile-sidebar {
   display: inline-flex;
   gap: 0.45rem;
   min-height: 2.5rem;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.25rem 0.4rem 0.25rem 0.75rem;
 }
 
@@ -1208,6 +1238,9 @@ body.has-mobile-sidebar {
   font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .language-control select {
@@ -1219,6 +1252,7 @@ body.has-mobile-sidebar {
   font-size: 0.82rem;
   font-weight: 800;
   min-height: 2rem;
+  min-width: 6.5rem;
   padding: 0 1.8rem 0 0.75rem;
 }
 
@@ -2121,6 +2155,10 @@ body.has-mobile-sidebar {
 @media (max-width: 640px) {
   .topbar {
     padding-inline: 1rem;
+  }
+
+  .language-control span {
+    display: none;
   }
 
   .portal-main {

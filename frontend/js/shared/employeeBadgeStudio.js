@@ -11,14 +11,36 @@ const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
     <path d="M116 488c28-82 74-126 124-126s96 44 124 126" fill="#9bb0ca"/>
   </svg>
 `);
+const FALLBACK_QR = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320">
+    <rect width="320" height="320" rx="28" fill="#ffffff"/>
+    <rect x="24" y="24" width="272" height="272" rx="18" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="4"/>
+    <g fill="#0f172a">
+      <rect x="52" y="52" width="64" height="64" rx="8"/>
+      <rect x="204" y="52" width="64" height="64" rx="8"/>
+      <rect x="52" y="204" width="64" height="64" rx="8"/>
+      <rect x="72" y="72" width="24" height="24" fill="#ffffff"/>
+      <rect x="224" y="72" width="24" height="24" fill="#ffffff"/>
+      <rect x="72" y="224" width="24" height="24" fill="#ffffff"/>
+      <rect x="146" y="62" width="18" height="56"/>
+      <rect x="166" y="136" width="78" height="18"/>
+      <rect x="136" y="166" width="18" height="78"/>
+      <rect x="190" y="190" width="18" height="18"/>
+      <rect x="226" y="226" width="30" height="30"/>
+      <rect x="166" y="250" width="18" height="18"/>
+    </g>
+    <text x="160" y="158" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#475569">QR pending</text>
+  </svg>
+`);
 
 export function employeeBadgeDialogMarkup(badge) {
+  const normalizedBadge = normalizeEmployeeBadge(badge);
   return `
     <div class="visitor-modal__dialog visitor-modal__dialog--badge" role="dialog" aria-modal="true" aria-label="Employee badge">
       <div class="panel__header">
         <div>
           <p class="eyebrow">Employee Badge</p>
-          <h2>${escapeHtml(badge.fullName)}</h2>
+          <h2>${escapeHtml(normalizedBadge.fullName)}</h2>
           <p class="enterprise-badge-dialog__lead">Reusable workforce credential for access and presence operations.</p>
         </div>
         <button class="icon-button" type="button" data-employee-badge-action="close" aria-label="Close employee badge">
@@ -26,7 +48,7 @@ export function employeeBadgeDialogMarkup(badge) {
         </button>
       </div>
       <div class="employee-badge-sheet">
-        ${employeeBadgeMarkup(badge)}
+        ${employeeBadgeMarkup(normalizedBadge)}
       </div>
       <div class="enterprise-badge__actions">
         <button class="button button--ghost" type="button" data-employee-badge-action="print">Print badge</button>
@@ -38,6 +60,9 @@ export function employeeBadgeDialogMarkup(badge) {
 }
 
 export function employeeBadgeMarkup(badge) {
+  const normalizedBadge = normalizeEmployeeBadge(badge);
+  const qrImage = employeeBadgeQrImage(normalizedBadge);
+  const hasQrImage = hasUsableDataImage(qrImage) && qrImage !== FALLBACK_QR;
   return `
     <article class="employee-badge" data-employee-badge-card>
       <header class="employee-badge__header">
@@ -45,37 +70,37 @@ export function employeeBadgeMarkup(badge) {
           <img src="${escapeHtml(BRAND_ICON)}" alt="AccessFlow" />
           <div>
             <p>Enterprise Workforce Access</p>
-            <h3>${escapeHtml(badge.organizationName || "AccessFlow")}</h3>
-            <span>${escapeHtml(badge.organizationCode || "Managed organization")}</span>
+            <h3>${escapeHtml(normalizedBadge.organizationName || "AccessFlow")}</h3>
+            <span>${escapeHtml(normalizedBadge.organizationCode || "Managed organization")}</span>
           </div>
         </div>
-        <span class="status-badge ${escapeHtml(statusBadgeClass(badge.active ? "ACTIVE" : "DISABLED"))}">${badge.active ? "Active" : "Disabled"}</span>
+        <span class="status-badge ${escapeHtml(statusBadgeClass(normalizedBadge.active ? "ACTIVE" : "DISABLED"))}">${normalizedBadge.active ? "Active" : "Disabled"}</span>
       </header>
       <section class="employee-badge__body">
-        <img class="employee-badge__photo" src="${escapeHtml(badge.employeePhotoUrl || FALLBACK_PHOTO)}" alt="${escapeHtml(badge.fullName)} photo" />
+        <img class="employee-badge__photo" src="${escapeHtml(normalizedBadge.employeePhotoUrl || FALLBACK_PHOTO)}" alt="${escapeHtml(normalizedBadge.fullName)} photo" />
         <div class="employee-badge__identity">
           <p>Employee</p>
-          <h4>${escapeHtml(badge.fullName || "Employee")}</h4>
-          <strong>${escapeHtml(badge.employeeId || "Employee ID pending")}</strong>
-          <span>${escapeHtml(joinSoft([badge.department || "Department pending", badge.designation || "Designation pending"]))}</span>
+          <h4>${escapeHtml(normalizedBadge.fullName || "Employee")}</h4>
+          <strong>${escapeHtml(normalizedBadge.employeeId || "Employee ID pending")}</strong>
+          <span>${escapeHtml(joinSoft([normalizedBadge.department || "Department pending", normalizedBadge.designation || "Designation pending"]))}</span>
         </div>
-        <div class="employee-badge__qr">
-          <img src="${escapeHtml(badge.qrImageDataUri)}" alt="Static employee QR" />
-          <span>Reusable access QR</span>
+        <div class="employee-badge__qr${hasQrImage ? "" : " employee-badge__qr--pending"}">
+          <img src="${escapeHtml(qrImage)}" alt="${hasQrImage ? "Static employee QR" : "Employee QR pending"}" />
+          <span>${hasQrImage ? "Reusable access QR" : "QR image pending"}</span>
         </div>
       </section>
       <dl class="employee-badge__meta">
-        <div><dt>Employee type</dt><dd>${escapeHtml(badge.employeeType || "Type pending")}</dd></div>
-        <div><dt>Shift</dt><dd>${escapeHtml(badge.shiftName || "Shift pending")}</dd></div>
-        <div><dt>Timing</dt><dd>${escapeHtml(formatShift(badge))}</dd></div>
-        <div><dt>Issued</dt><dd>${escapeHtml(formatDate(badge.issuedAt))}</dd></div>
+        <div><dt>Employee type</dt><dd>${escapeHtml(normalizedBadge.employeeType || "Type pending")}</dd></div>
+        <div><dt>Shift</dt><dd>${escapeHtml(normalizedBadge.shiftName || "Shift pending")}</dd></div>
+        <div><dt>Timing</dt><dd>${escapeHtml(formatShift(normalizedBadge))}</dd></div>
+        <div><dt>Issued</dt><dd>${escapeHtml(formatDate(normalizedBadge.issuedAt))}</dd></div>
       </dl>
     </article>
   `;
 }
 
 export async function downloadEmployeeBadge(badge, format) {
-  const canvas = await createEmployeeBadgeCanvas(badge);
+  const canvas = await createEmployeeBadgeCanvas(normalizeEmployeeBadge(badge));
   if (format === "pdf") {
     triggerDownload(createPdfFromCanvas(canvas), fileName(badge, "pdf"));
     return;
@@ -85,12 +110,13 @@ export async function downloadEmployeeBadge(badge, format) {
 }
 
 export async function printEmployeeBadge(badge) {
-  const canvas = await createEmployeeBadgeCanvas(badge);
+  const normalizedBadge = normalizeEmployeeBadge(badge);
+  const canvas = await createEmployeeBadgeCanvas(normalizedBadge);
   const imageDataUrl = canvas.toDataURL("image/png");
   const frame = document.createElement("iframe");
   frame.className = "badge-print-frame";
   frame.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;inset:0";
-  frame.srcdoc = `<!doctype html><html><head><title>${escapeHtml(badge.fullName || "Employee badge")}</title><style>body{margin:0;display:grid;place-items:center;min-height:100vh}.card{width:min(100%,210mm)}img{width:100%;display:block}@page{margin:8mm;size:auto landscape}</style></head><body><main class="card"><img src="${imageDataUrl}" alt="Employee badge" /></main></body></html>`;
+  frame.srcdoc = `<!doctype html><html><head><title>${escapeHtml(normalizedBadge.fullName || "Employee badge")}</title><style>body{margin:0;display:grid;place-items:center;min-height:100vh}.card{width:min(100%,210mm)}img{width:100%;display:block}@page{margin:8mm;size:auto landscape}</style></head><body><main class="card"><img src="${imageDataUrl}" alt="Employee badge" /></main></body></html>`;
   frame.addEventListener("load", () => {
     frame.contentWindow?.focus();
     frame.contentWindow?.print();
@@ -100,6 +126,7 @@ export async function printEmployeeBadge(badge) {
 }
 
 async function createEmployeeBadgeCanvas(badge) {
+  const normalizedBadge = normalizeEmployeeBadge(badge);
   const width = 1680;
   const height = 1040;
   const canvas = document.createElement("canvas");
@@ -113,8 +140,8 @@ async function createEmployeeBadgeCanvas(badge) {
   const [logo, icon, photo, qr] = await Promise.all([
     loadImage(BRAND_LOGO),
     loadImage(BRAND_ICON),
-    loadImage(badge.employeePhotoUrl || FALLBACK_PHOTO),
-    loadImage(badge.qrImageDataUri),
+    loadImage(normalizedBadge.employeePhotoUrl || FALLBACK_PHOTO, FALLBACK_PHOTO),
+    loadImage(employeeBadgeQrImage(normalizedBadge), FALLBACK_QR),
   ]);
   ctx.drawImage(icon, 102, 106, 72, 72);
   ctx.drawImage(logo, 190, 116, 205, 54);
@@ -124,22 +151,22 @@ async function createEmployeeBadgeCanvas(badge) {
   drawImageCover(ctx, photo, 112, 300, 300, 374, 26);
   ctx.fillStyle = "#ffffff";
   ctx.font = `700 46px ${FONT_STACK}`;
-  wrapText(ctx, badge.fullName || "Employee", 112, 760, 300, 52);
+  wrapText(ctx, normalizedBadge.fullName || "Employee", 112, 760, 300, 52);
   ctx.fillStyle = "#b8cbe6";
   ctx.font = `700 30px ${FONT_STACK}`;
-  wrapText(ctx, badge.employeeId || "Employee ID pending", 112, 870, 300, 36);
+  wrapText(ctx, normalizedBadge.employeeId || "Employee ID pending", 112, 870, 300, 36);
   ctx.fillStyle = "#101828";
   ctx.font = `700 42px ${FONT_STACK}`;
-  ctx.fillText(badge.organizationName || "AccessFlow", 550, 145);
+  ctx.fillText(normalizedBadge.organizationName || "AccessFlow", 550, 145);
   ctx.fillStyle = "#52627a";
   ctx.font = `600 24px ${FONT_STACK}`;
-  ctx.fillText(badge.organizationCode || "Managed workforce", 550, 186);
+  ctx.fillText(normalizedBadge.organizationCode || "Managed workforce", 550, 186);
   const details = [
-    ["Department", badge.department || "Department pending"],
-    ["Designation", badge.designation || "Designation pending"],
-    ["Employee type", badge.employeeType || "Type pending"],
-    ["Shift", badge.shiftName || "Shift pending"],
-    ["Timing", formatShift(badge)],
+    ["Department", normalizedBadge.department || "Department pending"],
+    ["Designation", normalizedBadge.designation || "Designation pending"],
+    ["Employee type", normalizedBadge.employeeType || "Type pending"],
+    ["Shift", normalizedBadge.shiftName || "Shift pending"],
+    ["Timing", formatShift(normalizedBadge)],
   ];
   details.forEach(([label, value], index) => {
     const x = 550 + (index % 2) * 375;
@@ -165,6 +192,39 @@ function formatShift(badge) {
   return badge.shiftStartTime && badge.shiftEndTime ? `${badge.shiftStartTime} to ${badge.shiftEndTime}` : "Timing pending";
 }
 
+function normalizeEmployeeBadge(badge) {
+  const source = badge && typeof badge === "object" ? badge : {};
+  const qrImageDataUri = firstString(
+    source.qrImageDataUri,
+    source.staticFallbackQrImageDataUri,
+    source.qrCodeImageDataUri,
+    source.qrCodeDataUri,
+  );
+  return {
+    ...source,
+    active: source.active !== false,
+    fullName: firstString(source.fullName, source.name, source.employeeName, "Employee"),
+    employeeId: firstString(source.employeeId, source.staffId, source.id, ""),
+    qrImageDataUri,
+    qrPayload: firstString(source.qrPayload, source.staticFallbackQrPayload, source.qrCode, ""),
+  };
+}
+
+export function employeeBadgeQrImage(badge) {
+  const source = badge && typeof badge === "object" ? badge : {};
+  const qrImageDataUri = firstString(
+    source.qrImageDataUri,
+    source.staticFallbackQrImageDataUri,
+    source.qrCodeImageDataUri,
+    source.qrCodeDataUri,
+  );
+  return hasUsableDataImage(qrImageDataUri) ? qrImageDataUri : FALLBACK_QR;
+}
+
+function hasUsableDataImage(value) {
+  return /^data:image\/(?:png|jpeg|jpg|webp|svg\+xml);/i.test(String(value || "").trim());
+}
+
 function joinSoft(values) {
   return values
     .map((value) => String(value || "").trim())
@@ -175,6 +235,11 @@ function joinSoft(values) {
 function fileName(badge, extension) {
   const id = String(badge.employeeId || "employee").toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
   return `accessflow-employee-badge-${id}.${extension}`;
+}
+
+function firstString(...values) {
+  const value = values.find((item) => typeof item === "string" && item.trim());
+  return value ? value.trim() : "";
 }
 
 function triggerDownload(blob, filename) {
@@ -226,23 +291,22 @@ function base64ToBytes(base64) {
   return bytes;
 }
 
-async function loadImage(src) {
-  const image = new Image();
-  image.decoding = "async";
-  image.crossOrigin = "anonymous";
-  image.src = src;
-  if (typeof image.decode === "function") {
-    await image.decode().catch(() => waitForImageLoad(image));
-    return image;
-  }
-  await waitForImageLoad(image);
-  return image;
-}
-
-function waitForImageLoad(image) {
+async function loadImage(src, fallbackSrc = "") {
   return new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
+    const image = new Image();
+    let triedFallback = false;
+    image.decoding = "async";
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      if (fallbackSrc && !triedFallback && image.src !== fallbackSrc) {
+        triedFallback = true;
+        image.src = fallbackSrc;
+        return;
+      }
+      reject(new Error("Badge image could not be loaded."));
+    };
+    image.src = src || fallbackSrc;
   });
 }
 
