@@ -6,7 +6,29 @@ import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
-import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, listSecurityWorkforceOnboardingRequests, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
+import {
+  checkInVisitor,
+  checkInWithQr,
+  checkOutVisitor,
+  createWorkforceOnboarding,
+  getEmployeeAttendanceLogs,
+  getEmployeeBadge,
+  getSecurityMonitoring,
+  getVisitorPass,
+  listSecurityVisitorInvites,
+  listSecurityWorkforceOnboardingRequests,
+  manualEmployeeCheckIn,
+  manualEmployeeCheckOut,
+  markBadgePrinted,
+  resendSecurityVisitorInvite,
+  revokeSecurityVisitorInvite,
+  scanEmployeeQr,
+  searchEmployees,
+  updateVisitor,
+  uploadVisitorPhoto,
+  uploadWorkforcePhoto,
+  verifyQrPayload,
+} from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { getOperationalEvents } from "../shared/operationalEventApi.js";
 import { showToast } from "../shared/toast.js";
@@ -123,17 +145,19 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-recurring-expired-list");
     renderLoadingList("#monitor-suspended-list");
     renderLoadingList("#monitor-attendance-list");
+    renderLoadingList("#security-invite-list");
     renderEmergencyLoading();
     renderLoadingList("#employee-directory-list");
     renderLoadingList("#employee-attendance-log-list");
     renderLoadingList("#workforce-request-list");
   }
 
-  const [overview, queue, photo, monitoring, emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
+  const [overview, queue, photo, monitoring, visitorInvites, emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
     request("/security/overview"),
     request("/security/queue"),
     request("/security/photo-capture"),
     getSecurityMonitoring(state.monitoringQuery),
+    listSecurityVisitorInvites(),
     getEmergencyState(),
     getEmergencyFeed(),
     getEmergencyEvacuationRegister(),
@@ -183,6 +207,12 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#monitor-attendance-list", [], (item) => item, "Monitoring unavailable", message);
   }
 
+  if (visitorInvites.status === "fulfilled") {
+    renderSecurityVisitorInvites(visitorInvites.value?.data || []);
+  } else if (showErrors) {
+    renderWorkList("#security-invite-list", [], (item) => item, "Invites unavailable", visitorInvites.reason?.message || "Visitor invites could not be loaded.");
+  }
+
   if (emergencyState.status === "fulfilled") {
     state.emergencyState = emergencyState.value?.data || null;
   }
@@ -224,6 +254,8 @@ function initOperationalWorkspace() {
   const activeRoute = resolveInitialActiveRoute();
   prepareOperationalModules(activeRoute);
   mountSecurityReportExports();
+  mountSecurityInviteLifecycle();
+  initSecurityInviteActions();
   bindOperationalNavigation();
   initActiveSectionObserver();
   state.activeScrollUntil = Date.now() + 1200;
@@ -278,6 +310,90 @@ function mountSecurityReportExports() {
     });
   });
   target.append(panel);
+}
+
+function mountSecurityInviteLifecycle() {
+  const target = document.querySelector("#monitoring .security-monitor-grid");
+  if (!target || document.querySelector("#security-invite-lifecycle-panel")) {
+    return;
+  }
+  const panel = document.createElement("article");
+  panel.className = "security-monitor-card";
+  panel.id = "security-invite-lifecycle-panel";
+  panel.innerHTML = `
+    <div class="security-monitor-card__header">
+      <div>
+        <p class="eyebrow">Invite Lifecycle</p>
+        <h3>Visitor Invites</h3>
+      </div>
+      <span class="status-badge status-badge--tone-info" id="security-invite-count">0</span>
+    </div>
+    <div class="work-list" id="security-invite-list"></div>
+  `;
+  target.prepend(panel);
+}
+
+function initSecurityInviteActions() {
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-security-invite-action]");
+    if (!button) {
+      return;
+    }
+    const id = button.dataset.inviteId;
+    if (!id) {
+      return;
+    }
+    const action = button.dataset.securityInviteAction;
+    button.disabled = true;
+    button.classList.add("is-loading");
+    try {
+      if (action === "copy") {
+        const url = button.dataset.inviteUrl || "";
+        if (!url) {
+          showToast("Invite link unavailable", "This invite does not currently expose a shareable link.");
+          return;
+        }
+        await navigator.clipboard?.writeText(url);
+        showToast("Invite link copied", "Share the secure pre-registration link with the visitor.");
+        return;
+      }
+      if (action === "resend") {
+        const confirmed = await confirmAction({
+          title: "Resend visitor invite",
+          message: "Queue the invite email again for this visitor?",
+          confirmLabel: "Resend invite",
+        });
+        if (!confirmed) {
+          return;
+        }
+        await resendSecurityVisitorInvite(id);
+        showToast("Invite resent", "Email delivery has been queued again.");
+      }
+      if (action === "revoke") {
+        const reason = await promptAction({
+          title: "Cancel visitor invite",
+          message: "Record why this pending invite should be closed.",
+          label: "Revocation reason",
+          placeholder: "Meeting cancelled, wrong recipient, policy reason",
+          confirmLabel: "Revoke invite",
+          minLength: 8,
+          multiline: true,
+        });
+        if (!reason || reason.trim().length < 8) {
+          showToast("Reason required", "Enter at least 8 characters before revoking an invite.");
+          return;
+        }
+        await revokeSecurityVisitorInvite(id, reason.trim());
+        showToast("Invite revoked", "The visitor invite lifecycle was closed.");
+      }
+      await loadSecurityPortal(false);
+    } catch (error) {
+      showToast("Invite action failed", error.message);
+    } finally {
+      button.disabled = false;
+      button.classList.remove("is-loading");
+    }
+  });
 }
 
 function prepareOperationalModules(activeRoute) {
@@ -499,6 +615,80 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
   renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
   renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No presence logs today", "Today's check-in and check-out activity will appear here.");
+}
+
+function renderSecurityVisitorInvites(invites = []) {
+  setCount("#security-invite-count", invites.length);
+  renderWorkList(
+    "#security-invite-list",
+    invites.slice(0, 10),
+    securityInviteCard,
+    "No active invites",
+    "Visitor pre-registration invites will appear here with resend and revoke controls.",
+  );
+}
+
+function securityInviteCard(invite = {}) {
+  const stage = canonicalInviteStage(invite);
+  const closed = ["REVOKED", "EXPIRED", "REJECTED", "CHECKED_IN", "CHECKED_OUT"].includes(stage);
+  const canResend = Boolean(invite.visitorEmail) && !closed;
+  const subtitle = [invite.companyName, invite.purposeOfVisit, invite.hostEmployeeName ? `Host ${invite.hostEmployeeName}` : ""].filter(Boolean).join(" · ") || "Pre-registration invite";
+  const meta = [
+    invite.scheduledStartTime ? `Arrival ${formatDate(invite.scheduledStartTime)}` : "Arrival pending",
+    invite.emailStatus ? `Email ${enterpriseStatusLabel(invite.emailStatus)}` : "",
+    invite.expiresAt ? `Expires ${formatDate(invite.expiresAt)}` : "",
+  ].filter(Boolean).join(" · ");
+  return `
+    <article class="work-card">
+      <div class="work-card__header">
+        <h3>${escapeHtml(invite.visitorName || "Visitor invite")}</h3>
+        <span class="status-badge status-badge--tone-${escapeHtml(inviteTone(stage))}">${escapeHtml(invite.lifecycleLabel || enterpriseStatusLabel(stage, "invite"))}</span>
+      </div>
+      <p>${escapeHtml(subtitle)}</p>
+      <small>${escapeHtml(meta)}</small>
+      <div class="table-actions">
+        ${invite.inviteUrl ? `<button class="button button--ghost button--small" type="button" data-security-invite-action="copy" data-invite-id="${escapeHtml(invite.id)}" data-invite-url="${escapeHtml(invite.inviteUrl)}">Copy link</button>` : ""}
+        ${canResend ? `<button class="button button--ghost button--small" type="button" data-security-invite-action="resend" data-invite-id="${escapeHtml(invite.id)}">Resend</button>` : ""}
+        ${!closed ? `<button class="button button--danger button--small" type="button" data-security-invite-action="revoke" data-invite-id="${escapeHtml(invite.id)}">Cancel invite</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function canonicalInviteStage(invite = {}) {
+  const status = String(invite.lifecycleStage || invite.status || "INVITED").toUpperCase();
+  if (status === "CHECKED_OUT") {
+    return "CHECKED_OUT";
+  }
+  if (status === "CHECKED_IN" || status === "ARRIVED" || invite.arrivedAt) {
+    return "CHECKED_IN";
+  }
+  if (status === "BADGE_ISSUED" || status === "QR_ISSUED" || invite.qrIssuedAt) {
+    return "BADGE_ISSUED";
+  }
+  if (status === "SENT") {
+    return "INVITED";
+  }
+  if (status === "VIEWED") {
+    return "PRE_REGISTRATION_PENDING";
+  }
+  if (status === "REGISTRATION_COMPLETED") {
+    return "PRE_REGISTERED";
+  }
+  return status;
+}
+
+function inviteTone(stage) {
+  if (["REVOKED", "EXPIRED", "REJECTED"].includes(stage)) {
+    return "danger";
+  }
+  if (["BADGE_ISSUED", "CHECKED_IN", "CHECKED_OUT"].includes(stage)) {
+    return "success";
+  }
+  if (["PENDING_APPROVAL", "PRE_REGISTERED", "APPROVED"].includes(stage)) {
+    return "warning";
+  }
+  return "info";
 }
 
 function initEmergencyWorkspace() {

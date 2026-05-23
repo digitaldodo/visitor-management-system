@@ -55,6 +55,23 @@ export function resendEmployeeVisitorInvite(id) {
   });
 }
 
+export function listSecurityVisitorInvites() {
+  return request("/security/visitor-invites");
+}
+
+export function revokeSecurityVisitorInvite(id, reason) {
+  return request(`/security/visitor-invites/${encodeURIComponent(id)}/revoke`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function resendSecurityVisitorInvite(id) {
+  return request(`/security/visitor-invites/${encodeURIComponent(id)}/resend`, {
+    method: "PATCH",
+  });
+}
+
 export function listVisitorInvites() {
   return request("/visitor/invites");
 }
@@ -348,6 +365,47 @@ export function checkInVisitor(basePath, id) {
 
 export function overrideCheckInVisitor(basePath, id, reason) {
   return request(`${basePath}/visitors/${id}/override-check-in`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function denyVisitorEntry(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/deny-entry`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function suspendVisitorAccess(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/suspend`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function revokeVisitorAccess(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/revoke`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function reactivateVisitorAccess(basePath, id) {
+  return request(`${basePath}/visitors/${id}/reactivate`, {
+    method: "PATCH",
+  });
+}
+
+export function escalateVisitorIssue(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/escalate`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function reportVisitorMismatch(basePath, id, reason) {
+  return request(`${basePath}/visitors/${id}/report-mismatch`, {
     method: "PATCH",
     body: JSON.stringify({ reason }),
   });

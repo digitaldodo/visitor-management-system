@@ -136,6 +136,14 @@ export async function resendSecurityVisitorInvite(inviteId: string) {
   });
 }
 
+export async function revokeSecurityVisitorInvite(inviteId: string, reason: string) {
+  return request<VisitorInviteRecord>({
+    url: `/security/visitor-invites/${encodeURIComponent(inviteId)}/revoke`,
+    method: 'PATCH',
+    data: { reason },
+  });
+}
+
 export async function markSecurityVisitorBadgePrinted(id: string) {
   return request<VisitorPass>({
     url: `/security/visitors/${encodeURIComponent(id)}/badge-printed`,

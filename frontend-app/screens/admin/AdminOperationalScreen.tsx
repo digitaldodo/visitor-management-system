@@ -42,8 +42,10 @@ import {
   useReactivateAdminVisitorMutation,
   useRejectAdminVisitorMutation,
   useRejectAdminWorkforceMutation,
+  useReportAdminVisitorMismatchMutation,
   useResendAdminUserInviteMutation,
   useResetAdminUserPasswordMutation,
+  useRevokeAdminVisitorMutation,
   useRevokeAdminUserInviteMutation,
   useRevokeAdminUserSessionsMutation,
   useRequestAdminWorkforceModificationMutation,
@@ -88,7 +90,9 @@ type AdminAction =
   | { type: 'reject-visitor'; visitor: VisitorRecord }
   | { type: 'deny-visitor'; visitor: VisitorRecord }
   | { type: 'suspend-visitor'; visitor: VisitorRecord }
+  | { type: 'revoke-visitor'; visitor: VisitorRecord }
   | { type: 'escalate-visitor'; visitor: VisitorRecord }
+  | { type: 'mismatch-visitor'; visitor: VisitorRecord }
   | { type: 'disable-user'; user: WorkforceOnboardingRecord };
 
 type SectionProps = {
@@ -281,8 +285,10 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const checkOutVisitorMutation = useCheckOutAdminVisitorMutation();
   const denyVisitorMutation = useDenyAdminVisitorMutation();
   const suspendVisitorMutation = useSuspendAdminVisitorMutation();
+  const revokeVisitorMutation = useRevokeAdminVisitorMutation();
   const reactivateVisitorMutation = useReactivateAdminVisitorMutation();
   const escalateVisitorMutation = useEscalateAdminVisitorMutation();
+  const mismatchVisitorMutation = useReportAdminVisitorMismatchMutation();
   const createVisitorMutation = useCreateAdminVisitorMutation();
   const uploadVisitorPhotoMutation = useUploadAdminVisitorPhotoMutation();
   const disableUserMutation = useDisableAdminUserMutation();
@@ -717,9 +723,19 @@ export function AdminOperationalScreen({ section }: SectionProps) {
         setActionMessage(`${updated.fullName} visitor access suspended.`);
         break;
       }
+      case 'revoke-visitor': {
+        const updated = await revokeVisitorMutation.mutateAsync({ id: actionState.visitor.id, reason });
+        setActionMessage(`${updated.fullName} recurring access revoked.`);
+        break;
+      }
       case 'escalate-visitor': {
         const updated = await escalateVisitorMutation.mutateAsync({ id: actionState.visitor.id, reason });
         setActionMessage(`${updated.fullName} escalation recorded.`);
+        break;
+      }
+      case 'mismatch-visitor': {
+        const updated = await mismatchVisitorMutation.mutateAsync({ id: actionState.visitor.id, reason });
+        setActionMessage(`${updated.fullName} identity mismatch recorded.`);
         break;
       }
       case 'disable-user': {
@@ -794,7 +810,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                   onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                   onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                   onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                  onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                   onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                  onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                   onReactivate={reactivateVisitor}
                   onCheckIn={checkInVisitor}
                   onCheckOut={checkOutVisitor}
@@ -822,7 +840,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                 onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                 onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                 onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                 onReactivate={reactivateVisitor}
                 onCheckIn={checkInVisitor}
                 onCheckOut={checkOutVisitor}
@@ -845,7 +865,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                   onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                   onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                   onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                  onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                   onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                  onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                   onReactivate={reactivateVisitor}
                   onCheckIn={checkInVisitor}
                   onCheckOut={checkOutVisitor}
@@ -858,7 +880,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                   onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                   onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                   onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                  onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                   onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                  onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                   onReactivate={reactivateVisitor}
                   onCheckIn={checkInVisitor}
                   onCheckOut={checkOutVisitor}
@@ -899,7 +923,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                 onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                 onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                 onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                 onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                 onReactivate={reactivateVisitor}
                 onCheckIn={checkInVisitor}
                 onCheckOut={checkOutVisitor}
@@ -986,7 +1012,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
                   onReject={(visitor) => setActionState({ type: 'reject-visitor', visitor })}
                   onDeny={(visitor) => setActionState({ type: 'deny-visitor', visitor })}
                   onSuspend={(visitor) => setActionState({ type: 'suspend-visitor', visitor })}
+                  onRevoke={(visitor) => setActionState({ type: 'revoke-visitor', visitor })}
                   onEscalate={(visitor) => setActionState({ type: 'escalate-visitor', visitor })}
+                  onMismatch={(visitor) => setActionState({ type: 'mismatch-visitor', visitor })}
                   onReactivate={reactivateVisitor}
                   onCheckIn={checkInVisitor}
                   onCheckOut={checkOutVisitor}
@@ -1141,7 +1169,9 @@ export function AdminOperationalScreen({ section }: SectionProps) {
           || rejectVisitorMutation.isPending
           || denyVisitorMutation.isPending
           || suspendVisitorMutation.isPending
+          || revokeVisitorMutation.isPending
           || escalateVisitorMutation.isPending
+          || mismatchVisitorMutation.isPending
           || disableUserMutation.isPending}
         onCancel={() => setActionState(null)}
         onConfirm={executeReasonAction}
@@ -1623,7 +1653,9 @@ function VisitorList({
   onReject,
   onDeny,
   onSuspend,
+  onRevoke,
   onEscalate,
+  onMismatch,
   onReactivate,
   onCheckIn,
   onCheckOut,
@@ -1633,7 +1665,9 @@ function VisitorList({
   onReject: (visitor: VisitorRecord) => void;
   onDeny: (visitor: VisitorRecord) => void;
   onSuspend: (visitor: VisitorRecord) => void;
+  onRevoke: (visitor: VisitorRecord) => void;
   onEscalate: (visitor: VisitorRecord) => void;
+  onMismatch: (visitor: VisitorRecord) => void;
   onReactivate: (visitor: VisitorRecord) => void | Promise<void>;
   onCheckIn: (visitor: VisitorRecord) => void | Promise<void>;
   onCheckOut: (visitor: VisitorRecord) => void | Promise<void>;
@@ -1677,6 +1711,10 @@ function VisitorList({
               {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'SUSPENDED' ? (
                 <PrimaryButton label="Suspend" onPress={() => onSuspend(visitor)} tone="secondary" />
               ) : null}
+              {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'REJECTED' ? (
+                <PrimaryButton label="Revoke access" onPress={() => onRevoke(visitor)} tone="danger" />
+              ) : null}
+              <PrimaryButton label="Mismatch" onPress={() => onMismatch(visitor)} tone="secondary" />
               <PrimaryButton label="Escalate" onPress={() => onEscalate(visitor)} tone="secondary" />
             </View>
           </View>
@@ -1919,8 +1957,12 @@ function reasonTitle(action: AdminAction | null) {
       return 'Deny visitor entry';
     case 'suspend-visitor':
       return 'Suspend visitor access';
+    case 'revoke-visitor':
+      return 'Revoke visitor access';
     case 'escalate-visitor':
       return 'Escalate visitor issue';
+    case 'mismatch-visitor':
+      return 'Report visitor mismatch';
     case 'disable-user':
       return 'Suspend employee access';
     default:
@@ -1934,6 +1976,8 @@ function reasonHelper(action: AdminAction | null) {
       return 'Describe the missing or incorrect workforce member details so security can resubmit cleanly.';
     case 'disable-user':
       return 'Record why this employee access should be suspended. The backend audit trail will capture the action.';
+    case 'mismatch-visitor':
+      return 'Record what did not match between the person, badge, and approved visitor profile.';
     default:
       return 'Record the operational reason. This note is sent to the backend workflow and audit history where supported.';
   }
@@ -1949,6 +1993,10 @@ function reasonConfirm(action: AdminAction | null) {
       return 'Escalate';
     case 'suspend-visitor':
       return 'Suspend';
+    case 'revoke-visitor':
+      return 'Revoke';
+    case 'mismatch-visitor':
+      return 'Report mismatch';
     case 'deny-visitor':
       return 'Deny entry';
     default:

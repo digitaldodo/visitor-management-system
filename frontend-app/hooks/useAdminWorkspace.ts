@@ -27,8 +27,10 @@ import {
   requestAdminWorkforceModification,
   rejectAdminVisitor,
   rejectAdminWorkforce,
+  reportAdminVisitorMismatch,
   resendAdminUserInvite,
   resetAdminUserPassword,
+  revokeAdminVisitor,
   revokeAdminUserInvite,
   revokeAdminUserSessions,
   suspendAdminVisitor,
@@ -163,12 +165,20 @@ export function useSuspendAdminVisitorMutation() {
   return useMutation({ mutationFn: suspendAdminVisitor });
 }
 
+export function useRevokeAdminVisitorMutation() {
+  return useMutation({ mutationFn: revokeAdminVisitor });
+}
+
 export function useReactivateAdminVisitorMutation() {
   return useMutation({ mutationFn: reactivateAdminVisitor });
 }
 
 export function useEscalateAdminVisitorMutation() {
   return useMutation({ mutationFn: escalateAdminVisitor });
+}
+
+export function useReportAdminVisitorMismatchMutation() {
+  return useMutation({ mutationFn: reportAdminVisitorMismatch });
 }
 
 export function useDisableAdminUserMutation() {

@@ -1,4 +1,18 @@
-import { checkInVisitor, checkOutVisitor, createVisitor, deleteVisitor, overrideCheckInVisitor, searchVisitors, uploadVisitorPhoto } from "./accessService.js";
+import {
+  checkInVisitor,
+  checkOutVisitor,
+  createVisitor,
+  deleteVisitor,
+  denyVisitorEntry,
+  escalateVisitorIssue,
+  overrideCheckInVisitor,
+  reactivateVisitorAccess,
+  reportVisitorMismatch,
+  revokeVisitorAccess,
+  searchVisitors,
+  suspendVisitorAccess,
+  uploadVisitorPhoto,
+} from "./accessService.js";
 import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "./formatters.js";
 import { initHostPicker } from "./hostPicker.js";
 import { initOrganizationSelectors } from "./organizationSelector.js";
@@ -186,6 +200,50 @@ export function initVisitorModule(selector, options) {
       if (type === "check-out") {
         await checkOutVisitor(options.basePath, id);
         showToast("Checked out", "Visitor status updated.");
+      }
+      if (type === "deny-entry") {
+        const reason = await promptOperationalReason("Deny visitor entry", "Record why this visitor must be denied at the checkpoint.", "Deny entry");
+        if (!reason) {
+          return;
+        }
+        await denyVisitorEntry(options.basePath, id, reason);
+        showToast("Entry denied", "Visitor denial was recorded with backend audit history.");
+      }
+      if (type === "suspend") {
+        const reason = await promptOperationalReason("Suspend recurring access", "Record why recurring access should be paused.", "Suspend access");
+        if (!reason) {
+          return;
+        }
+        await suspendVisitorAccess(options.basePath, id, reason);
+        showToast("Access suspended", "Recurring visitor access was suspended.");
+      }
+      if (type === "revoke") {
+        const reason = await promptOperationalReason("Revoke recurring access", "Record why recurring access should be revoked.", "Revoke access");
+        if (!reason) {
+          return;
+        }
+        await revokeVisitorAccess(options.basePath, id, reason);
+        showToast("Access revoked", "Recurring visitor access was revoked.");
+      }
+      if (type === "reactivate") {
+        await reactivateVisitorAccess(options.basePath, id);
+        showToast("Access reactivated", "Recurring visitor access was restored.");
+      }
+      if (type === "escalate") {
+        const reason = await promptOperationalReason("Escalate visitor issue", "Record the issue for admin, host, or lead guard follow-up.", "Escalate");
+        if (!reason) {
+          return;
+        }
+        await escalateVisitorIssue(options.basePath, id, reason);
+        showToast("Escalation recorded", "Visitor issue was added to the operational history.");
+      }
+      if (type === "mismatch") {
+        const reason = await promptOperationalReason("Report visitor mismatch", "Record what did not match between the person, badge, and approved profile.", "Report mismatch");
+        if (!reason) {
+          return;
+        }
+        await reportVisitorMismatch(options.basePath, id, reason);
+        showToast("Mismatch recorded", "Visitor mismatch was recorded with backend audit history.");
       }
       if (type === "delete" && options.canDelete) {
         await deleteVisitor(options.basePath, id);
@@ -530,6 +588,12 @@ function row(visitor, options) {
           ${visitor.status === "APPROVED" && visitor.preApproved ? actionButton("override-check-in", visitor.id, "Override check-in") : ""}
           ${visitor.status === "CHECKED_OUT" && isRecurring(visitor) ? actionButton("override-check-in", visitor.id, "Override recurring check-in") : ""}
           ${visitor.status === "CHECKED_IN" ? actionButton("check-out", visitor.id, "Check out") : ""}
+          ${visitor.status !== "REJECTED" ? actionButton("deny-entry", visitor.id, "Deny entry") : ""}
+          ${isRecurring(visitor) && visitor.status !== "SUSPENDED" ? actionButton("suspend", visitor.id, "Suspend recurring access") : ""}
+          ${isRecurring(visitor) && visitor.status !== "REJECTED" ? actionButton("revoke", visitor.id, "Revoke recurring access") : ""}
+          ${visitor.status === "SUSPENDED" && isRecurring(visitor) ? actionButton("reactivate", visitor.id, "Reactivate recurring access") : ""}
+          ${actionButton("escalate", visitor.id, "Escalate issue")}
+          ${actionButton("mismatch", visitor.id, "Report mismatch")}
           ${options.canDelete ? actionButton("delete", visitor.id, "Delete") : ""}
         </div>
       </td>
@@ -538,14 +602,31 @@ function row(visitor, options) {
 }
 
 function actionButton(action, id, label) {
-  const icon = action === "delete"
-    ? '<path d="M7 4V2h10v2h4v2H3V4Zm-1 4h12l-1 14H7Z"/>'
-    : '<path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z"/>';
+  const icon = iconForAction(action);
   return `
     <button class="icon-button" type="button" title="${label}" data-visitor-action="${action}" data-visitor-id="${escapeHtml(id)}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
     </button>
   `;
+}
+
+function iconForAction(action) {
+  if (action === "delete" || action === "revoke" || action === "deny-entry") {
+    return '<path d="M6.4 5 19 17.6 17.6 19 5 6.4Zm5.6-3a10 10 0 0 1 8.7 14.9L7.1 3.3A10 10 0 0 1 12 2ZM3.3 7.1l13.6 13.6A10 10 0 0 1 3.3 7.1Z"/>';
+  }
+  if (action === "suspend") {
+    return '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2ZM7 11h10v2H7Z"/>';
+  }
+  if (action === "reactivate") {
+    return '<path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3Z"/>';
+  }
+  if (action === "escalate") {
+    return '<path d="M12 2 2 21h20Zm1 14h-2v2h2Zm0-7h-2v5h2Z"/>';
+  }
+  if (action === "mismatch") {
+    return '<path d="M12 3a4 4 0 1 0 4 4 4 4 0 0 0-4-4ZM5 21a7 7 0 0 1 14 0Zm13.6-9.6 1.4 1.4-2.2 2.2 2.2 2.2-1.4 1.4-2.2-2.2-2.2 2.2-1.4-1.4 2.2-2.2-2.2-2.2 1.4-1.4 2.2 2.2Z"/>';
+  }
+  return '<path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z"/>';
 }
 
 function isRecurring(visitor) {
@@ -749,6 +830,23 @@ function validate(payload, options, state) {
     return "Capture the visitor photo.";
   }
   return "";
+}
+
+async function promptOperationalReason(title, message, confirmLabel) {
+  const reason = await promptAction({
+    title,
+    message,
+    label: "Operational reason",
+    placeholder: "Policy reason, identity concern, host request, or incident detail",
+    confirmLabel,
+    minLength: 8,
+    multiline: true,
+  });
+  if (!reason || reason.trim().length < 8) {
+    showToast("Reason required", "Enter at least 8 characters so the action is audit-safe.");
+    return "";
+  }
+  return reason.trim();
 }
 
 async function initCamera(root, state) {

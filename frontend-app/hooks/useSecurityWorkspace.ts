@@ -24,6 +24,7 @@ import {
   reactivateVisitor,
   reportVisitorMismatch,
   resendSecurityVisitorInvite,
+  revokeSecurityVisitorInvite,
   revokeVisitor,
   scanEmployeeQr,
   suspendVisitor,
@@ -76,6 +77,13 @@ export function useSecurityVisitorInvites() {
 export function useResendSecurityVisitorInviteMutation() {
   return useMutation({
     mutationFn: resendSecurityVisitorInvite,
+  });
+}
+
+export function useRevokeSecurityVisitorInviteMutation() {
+  return useMutation({
+    mutationFn: ({ inviteId, reason }: { inviteId: string; reason: string }) =>
+      revokeSecurityVisitorInvite(inviteId, reason),
   });
 }
 

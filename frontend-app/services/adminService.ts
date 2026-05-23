@@ -289,6 +289,14 @@ export async function suspendAdminVisitor({ id, reason }: ReasonPayload) {
   });
 }
 
+export async function revokeAdminVisitor({ id, reason }: ReasonPayload) {
+  return request<VisitorRecord>({
+    url: `/admin/visitors/${encodeURIComponent(id)}/revoke`,
+    method: 'PATCH',
+    data: { reason },
+  });
+}
+
 export async function reactivateAdminVisitor(id: string) {
   return request<VisitorRecord>({
     url: `/admin/visitors/${encodeURIComponent(id)}/reactivate`,
@@ -299,6 +307,14 @@ export async function reactivateAdminVisitor(id: string) {
 export async function escalateAdminVisitor({ id, reason }: ReasonPayload) {
   return request<VisitorRecord>({
     url: `/admin/visitors/${encodeURIComponent(id)}/escalate`,
+    method: 'PATCH',
+    data: { reason },
+  });
+}
+
+export async function reportAdminVisitorMismatch({ id, reason }: ReasonPayload) {
+  return request<VisitorRecord>({
+    url: `/admin/visitors/${encodeURIComponent(id)}/report-mismatch`,
     method: 'PATCH',
     data: { reason },
   });

@@ -429,6 +429,16 @@ public class AdminController {
         return ApiResponse.ok("Visitor checked in.", visitorService.checkIn(id, authentication.getName()));
     }
 
+    @PatchMapping("/visitors/{id}/override-check-in")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> overrideCheckInVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor checked in with audited override.", visitorService.overrideCheckIn(id, request, authentication.getName()));
+    }
+
     @PatchMapping("/visitors/{id}/check-out")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     public ApiResponse<VisitorResponse> checkOutVisitor(@PathVariable String id, Authentication authentication) {
@@ -455,6 +465,16 @@ public class AdminController {
         return ApiResponse.ok("Recurring visitor suspended.", visitorService.suspend(id, request.reason(), authentication.getName()));
     }
 
+    @PatchMapping("/visitors/{id}/revoke")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> revokeVisitor(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Recurring visitor revoked.", visitorService.revoke(id, request.reason(), authentication.getName()));
+    }
+
     @PatchMapping("/visitors/{id}/reactivate")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<VisitorResponse> reactivateVisitor(@PathVariable String id, Authentication authentication) {
@@ -469,6 +489,16 @@ public class AdminController {
             Authentication authentication
     ) {
         return ApiResponse.ok("Visitor issue escalated.", visitorService.escalateIssue(id, request.reason(), authentication.getName()));
+    }
+
+    @PatchMapping("/visitors/{id}/report-mismatch")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<VisitorResponse> reportVisitorMismatch(
+            @PathVariable String id,
+            @Valid @RequestBody ManualOverrideCheckInRequest request,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor mismatch recorded.", visitorService.reportMismatch(id, request.reason(), authentication.getName()));
     }
 
     @DeleteMapping("/visitors/{id}")

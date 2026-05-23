@@ -17,12 +17,15 @@ import { OperationalFieldList } from '../../components/security/OperationalField
 import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal';
 import {
   useApproveEmployeeVisitorMutation,
+  useApproveEmployeeVisitorRescheduleMutation,
+  useCreateEmployeePreApprovalMutation,
   useCreateEmployeeVisitorInviteMutation,
   useEmployeeApprovals,
   useEmployeeOverview,
   useEmployeePreApprovals,
   useEmployeeVisitorInvites,
   useRejectEmployeeVisitorMutation,
+  useRejectEmployeeVisitorRescheduleMutation,
   useRevokeEmployeeVisitorInviteMutation,
   useResendEmployeeVisitorInviteMutation,
   useRescheduleEmployeeVisitorMutation,
@@ -42,7 +45,8 @@ import {
 
 type QueueAction =
   | { type: 'reject'; visitor: VisitorRecord }
-  | { type: 'reschedule'; visitor: VisitorRecord };
+  | { type: 'reschedule'; visitor: VisitorRecord }
+  | { type: 'reject-reschedule'; visitor: VisitorRecord };
 
 export function RequestsScreen() {
   const queryClient = useQueryClient();
@@ -57,6 +61,9 @@ export function RequestsScreen() {
   const approveMutation = useApproveEmployeeVisitorMutation();
   const rejectMutation = useRejectEmployeeVisitorMutation();
   const rescheduleMutation = useRescheduleEmployeeVisitorMutation();
+  const approveRescheduleMutation = useApproveEmployeeVisitorRescheduleMutation();
+  const rejectRescheduleMutation = useRejectEmployeeVisitorRescheduleMutation();
+  const createPreApprovalMutation = useCreateEmployeePreApprovalMutation();
   const createInviteMutation = useCreateEmployeeVisitorInviteMutation();
   const revokeInviteMutation = useRevokeEmployeeVisitorInviteMutation();
   const resendInviteMutation = useResendEmployeeVisitorInviteMutation();
@@ -71,7 +78,19 @@ export function RequestsScreen() {
     expectedDurationMinutes: '60',
     note: '',
   });
+  const [preApprovalForm, setPreApprovalForm] = useState({
+    fullName: '',
+    phoneCountryCode: '+1',
+    phone: '',
+    email: '',
+    companyName: '',
+    purposeOfVisit: '',
+    scheduledStartAt: nearestArrivalTime(),
+    expectedDurationMinutes: '60',
+    note: '',
+  });
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [preApprovalError, setPreApprovalError] = useState<string | null>(null);
   const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
   const resendingInvitesRef = useRef(new Set<string>());
@@ -109,6 +128,57 @@ export function RequestsScreen() {
       queryClient.invalidateQueries({ queryKey: ['employee', 'visitor-invites'] }),
       queryClient.invalidateQueries({ queryKey: ['employee', 'notifications'] }),
     ]);
+  };
+
+  const createPreApproval = async () => {
+    if (!preApprovalForm.fullName.trim() || !preApprovalForm.phone.trim() || !preApprovalForm.purposeOfVisit.trim()) {
+      setPreApprovalError('Visitor name, phone, and purpose are required.');
+      return;
+    }
+
+    const phoneError = validateInternationalPhone(preApprovalForm.phoneCountryCode, preApprovalForm.phone, true);
+    if (phoneError) {
+      setPreApprovalError(phoneError);
+      return;
+    }
+
+    if (Number.isNaN(preApprovalForm.scheduledStartAt.getTime()) || preApprovalForm.scheduledStartAt.getTime() <= Date.now()) {
+      setPreApprovalError('Choose a future arrival date and time.');
+      return;
+    }
+
+    try {
+      setPreApprovalError(null);
+      const duration = Number(preApprovalForm.expectedDurationMinutes) || 60;
+      const scheduledEndAt = new Date(preApprovalForm.scheduledStartAt.getTime() + duration * 60_000);
+      const visitor = await createPreApprovalMutation.mutateAsync({
+        fullName: preApprovalForm.fullName.trim(),
+        phoneCountryCode: preApprovalForm.phoneCountryCode.trim() || null,
+        phone: preApprovalForm.phone.trim(),
+        email: preApprovalForm.email.trim() || null,
+        companyName: preApprovalForm.companyName.trim() || null,
+        purposeOfVisit: preApprovalForm.purposeOfVisit.trim(),
+        scheduledStartTime: preApprovalForm.scheduledStartAt.toISOString(),
+        scheduledEndTime: scheduledEndAt.toISOString(),
+        timezone: localTimezone,
+        note: preApprovalForm.note.trim() || null,
+      });
+      setActionMessage(`${visitor.fullName} pre-approved. Security will see the badge-ready access window.`);
+      setPreApprovalForm({
+        fullName: '',
+        phoneCountryCode: '+1',
+        phone: '',
+        email: '',
+        companyName: '',
+        purposeOfVisit: '',
+        scheduledStartAt: nearestArrivalTime(),
+        expectedDurationMinutes: '60',
+        note: '',
+      });
+      await refreshWorkspace();
+    } catch (error) {
+      setPreApprovalError(error instanceof Error ? error.message : 'Unable to create pre-approval.');
+    }
   };
 
   const createInvite = async () => {
@@ -240,6 +310,25 @@ export function RequestsScreen() {
     await refreshWorkspace();
   };
 
+  const approveReschedule = async (visitor: VisitorRecord) => {
+    const updatedVisitor = await approveRescheduleMutation.mutateAsync({ visitorId: visitor.id, note: 'Approved from AccessFlow mobile employee workspace.' });
+    setActionMessage(`${updatedVisitor.fullName} timing change approved. QR validity was refreshed from the backend.`);
+    await refreshWorkspace();
+  };
+
+  const rejectReschedule = async (reason: string) => {
+    if (!queueAction || queueAction.type !== 'reject-reschedule') {
+      return;
+    }
+    const updatedVisitor = await rejectRescheduleMutation.mutateAsync({
+      visitorId: queueAction.visitor.id,
+      note: reason,
+    });
+    setActionMessage(`${updatedVisitor.fullName} timing change denied. Original access window remains active.`);
+    setQueueAction(null);
+    await refreshWorkspace();
+  };
+
   return (
     <>
       <AppScreen
@@ -296,6 +385,21 @@ export function RequestsScreen() {
                     onPress={() => setQueueAction({ type: 'reschedule', visitor })}
                     tone="secondary"
                   />
+                  {visitor.rescheduleStatus === 'PENDING' && visitor.pendingScheduledStartTime ? (
+                    <>
+                      <PrimaryButton
+                        label="Approve timing"
+                        onPress={() => void approveReschedule(visitor)}
+                        loading={approveRescheduleMutation.isPending}
+                        tone="secondary"
+                      />
+                      <PrimaryButton
+                        label="Deny timing"
+                        onPress={() => setQueueAction({ type: 'reject-reschedule', visitor })}
+                        tone="danger"
+                      />
+                    </>
+                  ) : null}
                   <PrimaryButton
                     label="Deny"
                     onPress={() => setQueueAction({ type: 'reject', visitor })}
@@ -310,6 +414,40 @@ export function RequestsScreen() {
               body="New visitor requests will appear here when security or visitor workflows send them to you for host action."
             />
           )}
+        </SurfaceCard>
+
+        <SurfaceCard
+          title="Pre-approved visitor"
+          subtitle="Create an approved access window directly from mobile for known guests. Security still verifies the badge and organization scope."
+        >
+          <AppTextField label="Visitor name" value={preApprovalForm.fullName} onChangeText={(fullName) => setPreApprovalForm((current) => ({ ...current, fullName }))} placeholder="Full name" />
+          <InternationalPhoneInput
+            countryCode={preApprovalForm.phoneCountryCode}
+            phone={preApprovalForm.phone}
+            phoneLabel="Visitor phone"
+            helperText="Required for badge and audit traceability."
+            errorText={validateInternationalPhone(preApprovalForm.phoneCountryCode, preApprovalForm.phone, false)}
+            onCountryCodeChange={(phoneCountryCode) => setPreApprovalForm((current) => ({ ...current, phoneCountryCode }))}
+            onPhoneChange={(phone) => setPreApprovalForm((current) => ({ ...current, phone }))}
+          />
+          <AppTextField label="Visitor email" value={preApprovalForm.email} onChangeText={(email) => setPreApprovalForm((current) => ({ ...current, email }))} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
+          <AppTextField label="Company" value={preApprovalForm.companyName} onChangeText={(companyName) => setPreApprovalForm((current) => ({ ...current, companyName }))} placeholder="Company or organization" />
+          <AppTextField label="Purpose" value={preApprovalForm.purposeOfVisit} onChangeText={(purposeOfVisit) => setPreApprovalForm((current) => ({ ...current, purposeOfVisit }))} placeholder="Meeting, interview, vendor visit" />
+          <ArrivalTimeSelector
+            value={preApprovalForm.scheduledStartAt}
+            durationMinutes={preApprovalForm.expectedDurationMinutes}
+            timezone={localTimezone}
+            durationOptions={['30', '60', '120', '240', '480']}
+            onChange={(scheduledStartAt) => setPreApprovalForm((current) => ({ ...current, scheduledStartAt }))}
+            onDurationChange={(expectedDurationMinutes) => setPreApprovalForm((current) => ({ ...current, expectedDurationMinutes }))}
+          />
+          <AppTextField label="Approval note" value={preApprovalForm.note} onChangeText={(note) => setPreApprovalForm((current) => ({ ...current, note }))} placeholder="Reception notes, room, or gate details" multiline />
+          {preApprovalError ? <Text style={styles.errorText}>{preApprovalError}</Text> : null}
+          <PrimaryButton
+            label="Create pre-approval"
+            onPress={() => void createPreApproval()}
+            loading={createPreApprovalMutation.isPending}
+          />
         </SurfaceCard>
 
         <SurfaceCard
@@ -441,6 +579,27 @@ export function RequestsScreen() {
                     label={visitor.preApproved ? 'Access ready' : formatStatusLabel(visitor.status)}
                     tone={visitor.preApproved ? 'success' : visitorTone(visitor.status)}
                   />
+                  {visitor.rescheduleStatus === 'PENDING' && visitor.pendingScheduledStartTime ? (
+                    <View style={styles.scheduleSummary}>
+                      <Text style={styles.scheduleSummaryLabel}>Requested timing</Text>
+                      <Text style={styles.scheduleSummaryValue}>{formatDateTime(visitor.pendingScheduledStartTime, visitor.pendingScheduledTimezone || visitor.organizationTimezone || visitor.scheduledTimezone)}</Text>
+                    </View>
+                  ) : null}
+                  {visitor.rescheduleStatus === 'PENDING' && visitor.pendingScheduledStartTime ? (
+                    <View style={styles.actionRow}>
+                      <PrimaryButton
+                        label="Approve timing"
+                        onPress={() => void approveReschedule(visitor)}
+                        loading={approveRescheduleMutation.isPending}
+                        tone="secondary"
+                      />
+                      <PrimaryButton
+                        label="Deny timing"
+                        onPress={() => setQueueAction({ type: 'reject-reschedule', visitor })}
+                        tone="danger"
+                      />
+                    </View>
+                  ) : null}
                   <PrimaryButton
                     label="Adjust timing"
                     onPress={() => setQueueAction({ type: 'reschedule', visitor })}
@@ -474,6 +633,17 @@ export function RequestsScreen() {
         loading={rejectMutation.isPending}
         onCancel={() => setQueueAction(null)}
         onConfirm={rejectVisitor}
+      />
+
+      <ReasonCaptureModal
+        visible={queueAction?.type === 'reject-reschedule'}
+        title="Deny timing change"
+        helperText="Record why the requested meeting time cannot be accepted. The original approval remains active."
+        confirmLabel="Deny timing"
+        minLength={4}
+        loading={rejectRescheduleMutation.isPending}
+        onCancel={() => setQueueAction(null)}
+        onConfirm={rejectReschedule}
       />
 
       <EmployeeRescheduleModal

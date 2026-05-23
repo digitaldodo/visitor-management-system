@@ -33,6 +33,19 @@ export type VisitorDecisionPayload = {
   note?: string | null;
 };
 
+export type PreApprovalCreatePayload = {
+  fullName: string;
+  phone: string;
+  phoneCountryCode?: string | null;
+  email?: string | null;
+  companyName?: string | null;
+  purposeOfVisit: string;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  timezone?: string | null;
+  note?: string | null;
+};
+
 export type VisitorReschedulePayload = {
   scheduledStartTime: string;
   scheduledEndTime?: string | null;
@@ -84,6 +97,16 @@ export async function getEmployeePreApprovals() {
     url: '/employee/pre-approvals',
     method: 'GET',
   });
+}
+
+export async function createEmployeePreApproval(payload: PreApprovalCreatePayload) {
+  const response = await request<VisitorRecord>({
+    url: '/employee/pre-approvals',
+    method: 'POST',
+    data: payload,
+  });
+  await trackFirebaseEvent('visitor_preapproval_created', { actor_role: 'EMPLOYEE' });
+  return response;
 }
 
 export async function getEmployeeVisitorInvites() {
@@ -193,6 +216,22 @@ export async function rejectEmployeeVisitor(visitorId: string, payload?: Visitor
 export async function rescheduleEmployeeVisitor(visitorId: string, payload: VisitorReschedulePayload) {
   return request<VisitorRecord>({
     url: `/employee/visitors/${encodeURIComponent(visitorId)}/reschedule`,
+    method: 'PATCH',
+    data: payload,
+  });
+}
+
+export async function approveEmployeeVisitorReschedule(visitorId: string, payload?: VisitorDecisionPayload) {
+  return request<VisitorRecord>({
+    url: `/employee/visitors/${encodeURIComponent(visitorId)}/reschedule-request/approve`,
+    method: 'PATCH',
+    data: payload ?? {},
+  });
+}
+
+export async function rejectEmployeeVisitorReschedule(visitorId: string, payload: VisitorDecisionPayload) {
+  return request<VisitorRecord>({
+    url: `/employee/visitors/${encodeURIComponent(visitorId)}/reschedule-request/reject`,
     method: 'PATCH',
     data: payload,
   });

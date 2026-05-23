@@ -2,6 +2,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import {
   approveEmployeeVisitor,
+  approveEmployeeVisitorReschedule,
+  createEmployeePreApproval,
   createEmployeeVisitorInvite,
   getEmployeeApprovals,
   getEmployeeAttendance,
@@ -14,6 +16,7 @@ import {
   markAllEmployeeNotificationsRead,
   markEmployeeNotificationRead,
   rejectEmployeeVisitor,
+  rejectEmployeeVisitorReschedule,
   resendEmployeeVisitorInvite,
   revokeEmployeeVisitorInvite,
   rescheduleEmployeeVisitor,
@@ -57,6 +60,12 @@ export function useEmployeePreApprovals() {
     queryKey: ['employee', 'pre-approvals'],
     queryFn: getEmployeePreApprovals,
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useCreateEmployeePreApprovalMutation() {
+  return useMutation({
+    mutationFn: createEmployeePreApproval,
   });
 }
 
@@ -147,6 +156,20 @@ export function useRescheduleEmployeeVisitorMutation() {
   return useMutation({
     mutationFn: ({ visitorId, payload }: { visitorId: string; payload: Parameters<typeof rescheduleEmployeeVisitor>[1] }) =>
       rescheduleEmployeeVisitor(visitorId, payload),
+  });
+}
+
+export function useApproveEmployeeVisitorRescheduleMutation() {
+  return useMutation({
+    mutationFn: ({ visitorId, note }: { visitorId: string; note?: string | null }) =>
+      approveEmployeeVisitorReschedule(visitorId, note ? { note } : undefined),
+  });
+}
+
+export function useRejectEmployeeVisitorRescheduleMutation() {
+  return useMutation({
+    mutationFn: ({ visitorId, note }: { visitorId: string; note: string }) =>
+      rejectEmployeeVisitorReschedule(visitorId, { note }),
   });
 }
 

@@ -30,6 +30,7 @@ import {
   useOverrideCheckInMutation,
   useReportVisitorMismatchMutation,
   useResendSecurityVisitorInviteMutation,
+  useRevokeSecurityVisitorInviteMutation,
   useSecurityVisitorInvites,
   useSecurityMonitoring,
   useSecurityVisitors,
@@ -55,8 +56,12 @@ type VisitorAction =
 const QUICK_VISITOR_TYPES: { label: string; value: VisitorType }[] = [
   { label: 'Walk-in', value: 'WALK_IN' },
   { label: 'Scheduled', value: 'ONE_TIME' },
+  { label: 'Recurring', value: 'RECURRING' },
+  { label: 'Contractor', value: 'CONTRACTOR_VENDOR' },
   { label: 'Emergency', value: 'EMERGENCY' },
 ];
+
+const WEEKDAY_OPTIONS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
 
 const DURATION_OPTIONS = [
   { label: '30 min', value: '30' },
@@ -85,12 +90,24 @@ export function VisitorsScreen() {
   const [selectedHost, setSelectedHost] = useState<HostDirectoryEntry | null>(null);
   const [scheduledStart, setScheduledStart] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
+  const [vendorCompanyName, setVendorCompanyName] = useState('');
+  const [sponsorEmployee, setSponsorEmployee] = useState('');
+  const [department, setDepartment] = useState('');
+  const [validityStart, setValidityStart] = useState('');
+  const [validityEnd, setValidityEnd] = useState('');
+  const [recurringSchedule, setRecurringSchedule] = useState('');
+  const [allowedWeekdays, setAllowedWeekdays] = useState<string[]>([]);
+  const [allowedEntryStartTime, setAllowedEntryStartTime] = useState('');
+  const [allowedEntryEndTime, setAllowedEntryEndTime] = useState('');
+  const [emergencyContact, setEmergencyContact] = useState('');
+  const [notes, setNotes] = useState('');
   const [photoAsset, setPhotoAsset] = useState<{ uri: string; name: string; type: string } | null>(null);
   const [photoPreviewVisible, setPhotoPreviewVisible] = useState(false);
   const [actionState, setActionState] = useState<VisitorAction | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [cachedVisitors, setCachedVisitors] = useState<VisitorRecord[]>([]);
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
   const resendingInvitesRef = useRef(new Set<string>());
 
   const deferredSearch = useDebouncedValue(search.trim(), 220);
@@ -117,6 +134,7 @@ export function VisitorsScreen() {
   const escalateMutation = useEscalateVisitorMutation();
   const mismatchMutation = useReportVisitorMismatchMutation();
   const resendInviteMutation = useResendSecurityVisitorInviteMutation();
+  const revokeInviteMutation = useRevokeSecurityVisitorInviteMutation();
 
   useEffect(() => {
     if (hostSearchState.isError && hostSearchState.error) {
@@ -163,6 +181,17 @@ export function VisitorsScreen() {
     setSelectedHost(null);
     setScheduledStart('');
     setDurationMinutes('60');
+    setVendorCompanyName('');
+    setSponsorEmployee('');
+    setDepartment('');
+    setValidityStart('');
+    setValidityEnd('');
+    setRecurringSchedule('');
+    setAllowedWeekdays([]);
+    setAllowedEntryStartTime('');
+    setAllowedEntryEndTime('');
+    setEmergencyContact('');
+    setNotes('');
     setPhotoAsset(null);
     setFormError(null);
     setVisitorType('WALK_IN');
@@ -198,6 +227,29 @@ export function VisitorsScreen() {
       showSnackbar({ message: 'Enter the scheduled arrival time', tone: 'warning' });
       return;
     }
+    const recurringAccess = visitorType === 'RECURRING' || visitorType === 'CONTRACTOR_VENDOR';
+    if (recurringAccess && (!validityStart.trim() || !validityEnd.trim())) {
+      setFormError('Enter validity start and end for recurring access.');
+      showSnackbar({ message: 'Enter recurring access validity', tone: 'warning' });
+      return;
+    }
+    const validityStartDate = new Date(validityStart);
+    const validityEndDate = new Date(validityEnd);
+    if (recurringAccess && (Number.isNaN(validityStartDate.getTime()) || Number.isNaN(validityEndDate.getTime()))) {
+      setFormError('Use a valid date and time for recurring access.');
+      showSnackbar({ message: 'Check recurring validity dates', tone: 'warning' });
+      return;
+    }
+    if (recurringAccess && validityEndDate.getTime() <= validityStartDate.getTime()) {
+      setFormError('Validity end must be after validity start.');
+      showSnackbar({ message: 'Check recurring validity dates', tone: 'warning' });
+      return;
+    }
+    if ((allowedEntryStartTime.trim() && !allowedEntryEndTime.trim()) || (!allowedEntryStartTime.trim() && allowedEntryEndTime.trim())) {
+      setFormError('Enter both start and end times for the entry window.');
+      showSnackbar({ message: 'Complete the entry window', tone: 'warning' });
+      return;
+    }
     if (!photoAsset) {
       setFormError('Capture a visitor photo before registration.');
       showSnackbar({ message: 'Capture a visitor photo before registration', tone: 'warning' });
@@ -222,6 +274,17 @@ export function VisitorsScreen() {
         scheduledStartTime: visitorType === 'ONE_TIME' ? new Date(scheduledStart).toISOString() : null,
         expectedDurationMinutes: visitorType === 'ONE_TIME' ? Number(durationMinutes) : null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        vendorCompanyName: recurringAccess ? vendorCompanyName.trim() || companyName.trim() || null : null,
+        sponsorEmployee: recurringAccess ? sponsorEmployee.trim() || selectedHost.fullName : null,
+        department: department.trim() || null,
+        validityStartDate: recurringAccess ? validityStartDate.toISOString() : null,
+        validityEndDate: recurringAccess ? validityEndDate.toISOString() : null,
+        recurringSchedule: recurringAccess ? recurringSchedule.trim() || 'Recurring access' : null,
+        allowedWeekdays: recurringAccess && allowedWeekdays.length ? allowedWeekdays : null,
+        allowedEntryStartTime: recurringAccess ? allowedEntryStartTime.trim() || null : null,
+        allowedEntryEndTime: recurringAccess ? allowedEntryEndTime.trim() || null : null,
+        emergencyContact: emergencyContact.trim() || null,
+        notes: notes.trim() || null,
       };
       const visitor = await createVisitorMutation.mutateAsync(payload);
       showSnackbar({
@@ -298,6 +361,20 @@ export function VisitorsScreen() {
     }
   };
 
+  const revokeInvite = async (reason: string) => {
+    if (!revokeInviteId) {
+      return;
+    }
+    try {
+      const updated = await revokeInviteMutation.mutateAsync({ inviteId: revokeInviteId, reason });
+      showSnackbar({ message: `${updated.visitorName}'s invite was revoked`, tone: 'success', dedupeKey: `security-invite-revoked-${revokeInviteId}` });
+      setRevokeInviteId(null);
+      await refreshWorkspace();
+    } catch (error) {
+      showSnackbar({ message: getErrorMessage(error, 'Unable to revoke invite'), tone: 'danger', dedupeKey: `security-invite-revoke-failed-${revokeInviteId}` });
+    }
+  };
+
   const actionConfig = actionState
     ? {
         override: {
@@ -361,6 +438,51 @@ export function VisitorsScreen() {
           <AppTextField label="Email" value={email} onChangeText={setEmail} placeholder="visitor@company.com" keyboardType="email-address" autoCapitalize="none" />
           <AppTextField label="Organization" value={companyName} onChangeText={setCompanyName} placeholder="Company name" />
           <AppTextField label="Purpose of visit" value={purposeOfVisit} onChangeText={setPurposeOfVisit} placeholder="Meeting, service, delivery, audit" />
+          {(visitorType === 'RECURRING' || visitorType === 'CONTRACTOR_VENDOR') ? (
+            <View style={styles.recurringPanel}>
+              <AppTextField
+                label={visitorType === 'CONTRACTOR_VENDOR' ? 'Vendor company' : 'Linked organization'}
+                value={vendorCompanyName}
+                onChangeText={setVendorCompanyName}
+                placeholder="Vendor, contractor, or recurring visitor organization"
+              />
+              <AppTextField label="Sponsor" value={sponsorEmployee} onChangeText={setSponsorEmployee} placeholder="Sponsor or site owner" />
+              <AppTextField label="Department / area" value={department} onChangeText={setDepartment} placeholder="Facilities, IT, loading dock" />
+              <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+                <View style={styles.inlineFieldWide}>
+                  <AppTextField label="Validity start" value={validityStart} onChangeText={setValidityStart} placeholder="2026-05-24T09:00" />
+                </View>
+                <View style={styles.inlineFieldWide}>
+                  <AppTextField label="Validity end" value={validityEnd} onChangeText={setValidityEnd} placeholder="2026-06-24T18:00" />
+                </View>
+              </View>
+              <AppTextField label="Recurring schedule" value={recurringSchedule} onChangeText={setRecurringSchedule} placeholder="Weekdays, night shift, project access" />
+              <View style={styles.segmentRow}>
+                {WEEKDAY_OPTIONS.map((day) => {
+                  const active = allowedWeekdays.includes(day);
+                  return (
+                    <Pressable
+                      key={day}
+                      onPress={() => setAllowedWeekdays((current) => current.includes(day) ? current.filter((item) => item !== day) : [...current, day])}
+                      style={[styles.segment, active ? styles.segmentActive : null]}
+                    >
+                      <Text style={[styles.segmentLabel, active ? styles.segmentLabelActive : null]}>{day}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={[styles.inlineFields, layout.fieldStacked ? styles.inlineFieldsStacked : null]}>
+                <View style={styles.inlineFieldWide}>
+                  <AppTextField label="Entry start" value={allowedEntryStartTime} onChangeText={setAllowedEntryStartTime} placeholder="09:00" />
+                </View>
+                <View style={styles.inlineFieldWide}>
+                  <AppTextField label="Entry end" value={allowedEntryEndTime} onChangeText={setAllowedEntryEndTime} placeholder="18:00" />
+                </View>
+              </View>
+            </View>
+          ) : null}
+          <AppTextField label="Emergency contact" value={emergencyContact} onChangeText={setEmergencyContact} placeholder="Emergency phone or contact" />
+          <AppTextField label="Access notes" value={notes} onChangeText={setNotes} placeholder="Restrictions, service area, or badge desk notes" multiline />
 
           <View style={styles.hostPanel}>
             <EmployeeHostSelector
@@ -532,6 +654,14 @@ export function VisitorsScreen() {
                   ]}
                 />
                 <View style={styles.actionGrid}>
+                  {!['REVOKED', 'EXPIRED', 'CHECKED_IN', 'CHECKED_OUT'].includes(canonicalVisitorInviteStage(invite.lifecycleStage || invite.status, invite.qrIssuedAt, invite.arrivedAt)) ? (
+                    <PrimaryButton
+                      label="Cancel invite"
+                      onPress={() => setRevokeInviteId(invite.id)}
+                      loading={revokeInviteMutation.isPending && revokeInviteId === invite.id}
+                      tone="danger"
+                    />
+                  ) : null}
                   {invite.inviteUrl ? (
                     <PrimaryButton
                       label="Share link"
@@ -600,6 +730,16 @@ export function VisitorsScreen() {
           onConfirm={executeAction}
         />
       ) : null}
+      <ReasonCaptureModal
+        visible={Boolean(revokeInviteId)}
+        title="Cancel visitor invite"
+        helperText="This closes the pending invite lifecycle and records the security reason in the backend audit trail."
+        confirmLabel="Revoke invite"
+        minLength={4}
+        loading={revokeInviteMutation.isPending}
+        onCancel={() => setRevokeInviteId(null)}
+        onConfirm={revokeInvite}
+      />
     </>
   );
 }
@@ -831,6 +971,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  recurringPanel: {
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.primarySoft,
     padding: theme.spacing.md,
   },
   panelTitle: {
