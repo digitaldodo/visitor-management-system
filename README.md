@@ -6,6 +6,8 @@ Detailed architecture, lifecycle flows, RBAC, API coverage, database design, and
 
 Firebase is mobile operational infrastructure only: Android FCM, Crashlytics, and lightweight analytics. Spring Boot remains the source of truth for auth, business logic, notification targeting, and security decisions. See [frontend-app/docs/firebase-infrastructure.md](frontend-app/docs/firebase-infrastructure.md).
 
+Offline operations are intentionally mobile-first. Web portals keep live recovery and notification resilience, while privileged offline queueing stays on mobile checkpoint surfaces. See [frontend-app/docs/offline-notification-parity.md](frontend-app/docs/offline-notification-parity.md).
+
 ## Core Features
 
 - Audience-aware sign-in for `SUPER_ADMIN`, `ADMIN`, `SECURITY_GUARD`, `EMPLOYEE`, and `VISITOR`.

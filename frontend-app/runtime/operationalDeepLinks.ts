@@ -49,14 +49,39 @@ export function resolveOperationalDeepLink(
   role: ActiveWorkspaceRole,
   payload: OperationalDeepLinkPayload,
 ): { target: WorkspaceNavigationTarget; params?: Record<string, unknown> } | null {
-  if (!isNotificationAllowedForRole(role, payload.type || payload.category)) {
+  if (!isNotificationAllowedForRole(role, payload.type, payload.category)) {
     return null;
   }
 
-  const normalizedType = String(payload.type || payload.category || payload.targetType || payload.actionUrl || '').toUpperCase();
+  const normalizedType = String(payload.type || payload.category || payload.targetType || payload.actionUrl || payload.deepLink || '').toUpperCase();
   const deepLinkTarget = parseOperationalDeepLink(payload.deepLink);
+  const actionTarget = parseActionUrlTarget(payload.actionUrl);
   const targetId = payload.visitorId || payload.incidentId || payload.workforceId || payload.employeeId || payload.credentialId || payload.targetId || deepLinkTarget.targetId || null;
-  const targetType = String(payload.targetType || deepLinkTarget.targetType || '').toUpperCase();
+  const targetType = String(payload.targetType || deepLinkTarget.targetType || actionTarget.targetType || '').toUpperCase();
+
+  if (targetType.includes('INVITE') || normalizedType.includes('INVITE')) {
+    if (role === 'VISITOR') {
+      return { target: 'visitor-home', params: { inviteId: targetId } };
+    }
+    if (role === 'ADMIN') {
+      return { target: 'admin-visitors', params: { inviteId: targetId } };
+    }
+    return { target: 'employee-requests', params: { inviteId: targetId } };
+  }
+
+  if (targetType.includes('APPROVAL') || normalizedType.includes('APPROVAL')) {
+    return role === 'ADMIN'
+      ? { target: 'admin-approvals', params: { visitorId: targetId } }
+      : { target: 'employee-requests', params: { visitorId: targetId } };
+  }
+
+  if (targetType.includes('BADGE') && (payload.employeeId || targetType.includes('EMPLOYEE') || normalizedType.includes('WORKFORCE'))) {
+    return role === 'SECURITY_GUARD'
+      ? { target: 'security-workforce', params: { employeeId: payload.employeeId || targetId } }
+      : role === 'ADMIN'
+        ? { target: 'admin-employees', params: { employeeId: payload.employeeId || targetId } }
+        : { target: 'employee-badge', params: { employeeId: payload.employeeId || targetId } };
+  }
 
   if (payload.visitorId || targetType.includes('VISITOR') || normalizedType.includes('VISITOR') || normalizedType.includes('BADGE')) {
     if (role === 'SECURITY_GUARD') {
@@ -89,10 +114,6 @@ export function resolveOperationalDeepLink(
     return { target: 'employee-presence', params: { employeeId: payload.employeeId || targetId } };
   }
 
-  if (normalizedType.includes('APPROVAL')) {
-    return role === 'ADMIN' ? { target: 'admin-approvals' } : { target: 'employee-requests' };
-  }
-
   return { target: getWorkspaceConfig(role).notificationTarget };
 }
 
@@ -107,6 +128,26 @@ function parseOperationalDeepLink(value?: string | null) {
     targetType: targetType || null,
     targetId: idParts.join('/') || null,
   };
+}
+
+function parseActionUrlTarget(value?: string | null) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return { targetType: null as string | null };
+  }
+  if (normalized.includes('/visitor-invite/') || normalized.includes('visitor-invite')) {
+    return { targetType: 'VISITOR_INVITE' };
+  }
+  if (normalized.includes('/pass/') || normalized.includes('badge')) {
+    return { targetType: 'BADGE' };
+  }
+  if (normalized.includes('approval') || normalized.includes('requests')) {
+    return { targetType: 'APPROVAL' };
+  }
+  if (normalized.includes('incident') || normalized.includes('emergency')) {
+    return { targetType: 'INCIDENT' };
+  }
+  return { targetType: null as string | null };
 }
 
 export function openOperationalEvent(role: ActiveWorkspaceRole, event: OperationalEvent) {

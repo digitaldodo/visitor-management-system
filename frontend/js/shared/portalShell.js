@@ -11,6 +11,7 @@ let notificationPollTimer;
 let notificationHydrated = false;
 const seenNotificationIds = new Set();
 const browserNotificationIds = new Set();
+const OPERATIONAL_NOTIFICATION_FRESH_MS = 10 * 60 * 1000;
 
 export function initPortalShell(session, options = {}) {
   setDefaultTimezone(session.organizationTimezone || session.user?.organizationTimezone || "UTC");
@@ -387,7 +388,7 @@ function renderNotifications(data, showNewToast) {
     `;
   }
 
-  const newUnreadItems = items.filter((item) => item?.id && !item.read && !seenNotificationIds.has(item.id));
+  const newUnreadItems = items.filter((item) => item?.id && !item.read && !seenNotificationIds.has(item.id) && isFreshOperationalNotification(item));
   if (notificationHydrated && showNewToast && newUnreadItems.length) {
     announceNewNotifications(newUnreadItems);
   }
@@ -440,6 +441,14 @@ function shouldAnnounceNotification(item) {
   return priority === "CRITICAL" || priority === "HIGH" || category === "SECURITY";
 }
 
+function isFreshOperationalNotification(item) {
+  const createdAt = Date.parse(item.createdAt || "");
+  if (!Number.isFinite(createdAt)) {
+    return true;
+  }
+  return Date.now() - createdAt <= OPERATIONAL_NOTIFICATION_FRESH_MS;
+}
+
 function maybeShowBrowserNotification(item) {
   if (!("Notification" in window) || Notification.permission !== "granted" || browserNotificationIds.has(item.id)) {
     return;
@@ -489,6 +498,27 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
   const normalized = `${type || ""} ${targetType || parsedDeepLink.targetType || ""}`.toUpperCase();
   const resolvedTargetId = targetId || parsedDeepLink.targetId;
   const portalPath = window.location.pathname.toLowerCase();
+  if (normalized.includes("INVITE")) {
+    if (portalPath.includes("/admin")) {
+      return adminTarget("visitor-access");
+    }
+    if (portalPath.includes("/visitor")) {
+      return "#visits";
+    }
+    return "#visitor-requests";
+  }
+  if (normalized.includes("BADGE")) {
+    if (portalPath.includes("/admin")) {
+      return adminTarget("visitor-access");
+    }
+    if (portalPath.includes("/security")) {
+      return "#badges";
+    }
+    if (portalPath.includes("/employee") && normalized.includes("EMPLOYEE")) {
+      return "#credential";
+    }
+    return portalPath.includes("/visitor") ? "#visits" : "#visitor-requests";
+  }
   if (normalized.includes("EMERGENCY") || normalized.includes("INCIDENT") || normalized.includes("SUSPICIOUS")) {
     return portalPath.includes("/admin") ? adminTarget("emergency-ops") : "#monitoring";
   }

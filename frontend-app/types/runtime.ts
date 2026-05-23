@@ -131,6 +131,7 @@ export type OfflineOperationalQueueItem = {
   updatedAt: string;
   attempts: number;
   status: OfflineOperationalQueueStatus;
+  nextAttemptAt?: string | null;
   lastError?: string | null;
 };
 

@@ -8,6 +8,7 @@ import {
   markOfflineOperationAttempt,
   markOfflineOperationSyncing,
   readOfflineOperationalQueue,
+  recoverOfflineOperationalQueue,
   removeOfflineOperation,
 } from '../storage/offlineOperationalStore';
 import { recordDiagnosticEvent } from '../runtime/diagnostics';
@@ -15,6 +16,7 @@ import { recordOperationalMetric } from '../runtime/telemetry';
 import type { OfflineOperationalQueueItem } from '../types/runtime';
 
 const SYNC_BATCH_SIZE = 12;
+const MAX_SYNC_ATTEMPTS = 8;
 
 export type OfflineSyncSummary = {
   attempted: number;
@@ -24,8 +26,11 @@ export type OfflineSyncSummary = {
 };
 
 export async function syncOfflineOperationalQueue(): Promise<OfflineSyncSummary> {
+  await recoverOfflineOperationalQueue();
+  const now = Date.now();
   const queue = (await readOfflineOperationalQueue())
     .filter((item) => item.status !== 'failed')
+    .filter((item) => !item.nextAttemptAt || Date.parse(item.nextAttemptAt) <= now)
     .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))
     .slice(0, SYNC_BATCH_SIZE);
 
@@ -49,6 +54,15 @@ export async function syncOfflineOperationalQueue(): Promise<OfflineSyncSummary>
       failed += 1;
       const message = error instanceof Error ? error.message : 'Offline operation sync failed.';
       await markOfflineOperationAttempt(item.id, message);
+      if (item.attempts + 1 >= MAX_SYNC_ATTEMPTS) {
+        await recordOperationalMetric({
+          name: 'offline_operation_failed',
+          tags: {
+            operationType: item.operationType,
+            attempts: item.attempts + 1,
+          },
+        });
+      }
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'sync',

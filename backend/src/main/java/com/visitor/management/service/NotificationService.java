@@ -15,6 +15,7 @@ import com.visitor.management.entity.Role;
 import com.visitor.management.entity.RoleGroups;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
+import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.exception.ResourceNotFoundException;
 import com.visitor.management.repository.MobileDeviceRegistrationRepository;
 import com.visitor.management.repository.NotificationRepository;
@@ -27,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +43,8 @@ import java.util.concurrent.CompletableFuture;
 public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+    private static final Duration DEFAULT_OPERATIONAL_DEDUPE_WINDOW = Duration.ofMinutes(10);
+    private static final Duration CRITICAL_OPERATIONAL_DEDUPE_WINDOW = Duration.ofMinutes(2);
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -96,7 +100,14 @@ public class NotificationService {
             String targetType,
             String targetId
     ) {
-        String normalizedDedupeKey = trimToNull(dedupeKey);
+        String normalizedDedupeKey = resolveNotificationDedupeKey(
+                recipientUserId,
+                type,
+                visitor,
+                dedupeKey,
+                targetType,
+                targetId
+        );
         if (normalizedDedupeKey != null && notificationRepository.existsByDedupeKey(normalizedDedupeKey)) {
             return null;
         }
@@ -110,6 +121,10 @@ public class NotificationService {
         String resolvedOrganizationId = resolveOrganizationId(organizationId, visitor, recipientUser);
         if (!isNotificationSafeForRecipient(recipientUser, type, visitor, resolvedOrganizationId)) {
             log.warn("Skipped {} notification for user {} because role or organization scope did not match.", type, recipientUserId);
+            return null;
+        }
+        if (isStaleOperationalNotification(type, visitor)) {
+            log.debug("Skipped stale {} notification for visitor {}.", type, visitor == null ? null : visitor.getId());
             return null;
         }
 
@@ -217,7 +232,11 @@ public class NotificationService {
                 .stream()
                 .filter(notification -> user.map(value -> canAccessNotification(value, notification)).orElse(false))
                 .toList();
-        long unreadCount = notifications.stream().filter(notification -> !notification.isRead()).count();
+        long unreadCount = user
+                .map(value -> trimToNull(value.getOrganizationId()) == null
+                        ? notificationRepository.countByRecipientUserIdAndReadFalse(userId)
+                        : notificationRepository.countByRecipientUserIdAndOrganizationIdAndReadFalse(userId, value.getOrganizationId()))
+                .orElse(0L);
         return new NotificationListResponse(
                 unreadCount,
                 notifications.stream().map(this::toResponse).toList()
@@ -402,7 +421,8 @@ public class NotificationService {
                     WORKFORCE_CREDENTIAL_DISABLED -> NotificationCategory.WORKFORCE;
             case SYSTEM_SESSION_EXPIRED,
                     SYSTEM_RUNTIME_UPDATE_AVAILABLE,
-                    SYSTEM_BACKEND_CONNECTIVITY_ISSUE -> NotificationCategory.SYSTEM;
+                    SYSTEM_BACKEND_CONNECTIVITY_ISSUE,
+                    SYSTEM_BACKEND_CONNECTIVITY_RESTORED -> NotificationCategory.SYSTEM;
         };
     }
 
@@ -442,7 +462,8 @@ public class NotificationService {
                     VISITOR_INVITE_REGISTRATION_REMINDER,
                     VISITOR_CHECKED_IN,
                     VISITOR_EXPIRED,
-                    WORKFORCE_ONBOARDING_APPROVED -> NotificationPriority.MEDIUM;
+                    WORKFORCE_ONBOARDING_APPROVED,
+                    SYSTEM_BACKEND_CONNECTIVITY_RESTORED -> NotificationPriority.MEDIUM;
         };
     }
 
@@ -460,6 +481,9 @@ public class NotificationService {
         }
 
         for (MobileDeviceRegistration device : devices) {
+            if (!canDeliverPushToDevice(device)) {
+                continue;
+            }
             Map<String, String> notificationData = buildNotificationData(notification);
             if (trimToNull(device.getFcmToken()) != null) {
                 FirebaseCloudMessagingDispatcher.DeliveryResult fcmResult = firebaseCloudMessagingDispatcher.deliver(device, notification, notificationData);
@@ -567,6 +591,103 @@ public class NotificationService {
         );
     }
 
+    private String resolveNotificationDedupeKey(
+            String recipientUserId,
+            NotificationType type,
+            Visitor visitor,
+            String dedupeKey,
+            String targetType,
+            String targetId
+    ) {
+        String normalized = trimToNull(dedupeKey);
+        if (normalized != null) {
+            return normalized;
+        }
+        String resolvedTargetType = resolveTargetType(targetType, visitor);
+        String resolvedTargetId = resolveTargetId(targetId, visitor);
+        if (trimToNull(recipientUserId) == null || type == null || trimToNull(resolvedTargetType) == null || trimToNull(resolvedTargetId) == null) {
+            return null;
+        }
+
+        String baseKey = "notification:%s:%s:%s:%s".formatted(
+                safeData(recipientUserId),
+                type.name(),
+                safeData(resolvedTargetType).toUpperCase(Locale.ROOT),
+                safeData(resolvedTargetId)
+        );
+        if (!usesWindowedDedupe(type)) {
+            return baseKey;
+        }
+        long bucket = Instant.now().getEpochSecond() / dedupeWindow(type).toSeconds();
+        return "%s:bucket:%d".formatted(baseKey, bucket);
+    }
+
+    private boolean usesWindowedDedupe(NotificationType type) {
+        return switch (type) {
+            case VISITOR_ARRIVAL_REMINDER,
+                    VISITOR_CHECK_IN_WINDOW_REMINDER,
+                    VISITOR_OVERDUE,
+                    VISITOR_WAITING_AT_RECEPTION,
+                    VISITOR_ACCESS_WINDOW_EXPIRING,
+                    VISITOR_INVITE_REGISTRATION_REMINDER,
+                    SECURITY_INVALID_QR_SCAN,
+                    SECURITY_DENIED_ENTRY,
+                    SECURITY_SUSPICIOUS_ACTIVITY,
+                    SECURITY_MANUAL_OVERRIDE,
+                    SECURITY_ESCALATION,
+                    EMERGENCY_BROADCAST,
+                    EMERGENCY_EVACUATION -> true;
+            default -> false;
+        };
+    }
+
+    private Duration dedupeWindow(NotificationType type) {
+        return switch (type) {
+            case EMERGENCY_LOCKDOWN,
+                    EMERGENCY_PANIC,
+                    EMERGENCY_BROADCAST,
+                    EMERGENCY_EVACUATION,
+                    SECURITY_INVALID_QR_SCAN,
+                    SECURITY_DENIED_ENTRY,
+                    SECURITY_SUSPICIOUS_ACTIVITY,
+                    SECURITY_MANUAL_OVERRIDE,
+                    SECURITY_ESCALATION -> CRITICAL_OPERATIONAL_DEDUPE_WINDOW;
+            default -> DEFAULT_OPERATIONAL_DEDUPE_WINDOW;
+        };
+    }
+
+    private boolean isStaleOperationalNotification(NotificationType type, Visitor visitor) {
+        if (type == null || visitor == null) {
+            return false;
+        }
+        return switch (type) {
+            case VISITOR_APPROVAL_REQUEST -> visitor.getStatus() != null && visitor.getStatus() != VisitorStatus.PENDING;
+            case VISITOR_ARRIVAL_REMINDER,
+                    VISITOR_CHECK_IN_WINDOW_REMINDER,
+                    VISITOR_WAITING_AT_RECEPTION,
+                    VISITOR_ACCESS_WINDOW_EXPIRING -> visitor.getCheckInTime() != null
+                    || visitor.getStatus() == VisitorStatus.CHECKED_IN
+                    || visitor.getStatus() == VisitorStatus.CHECKED_OUT
+                    || visitor.getStatus() == VisitorStatus.REJECTED
+                    || visitor.getStatus() == VisitorStatus.EXPIRED
+                    || visitor.getStatus() == VisitorStatus.SUSPENDED;
+            case VISITOR_OVERDUE -> visitor.getStatus() == VisitorStatus.CHECKED_OUT
+                    || visitor.getStatus() == VisitorStatus.REJECTED
+                    || visitor.getStatus() == VisitorStatus.EXPIRED
+                    || visitor.getStatus() == VisitorStatus.SUSPENDED;
+            case VISITOR_CHECKED_IN -> visitor.getCheckInTime() == null;
+            default -> false;
+        };
+    }
+
+    private boolean canDeliverPushToDevice(MobileDeviceRegistration device) {
+        String permissionStatus = trimToNull(device.getPermissionStatus());
+        if (permissionStatus != null && !permissionStatus.equalsIgnoreCase("GRANTED")) {
+            return false;
+        }
+        return trimToNull(device.getFcmToken()) != null || trimToNull(device.getExpoPushToken()) != null;
+    }
+
     private String resolveTimezone(Visitor visitor, User recipient) {
         if (visitor != null && trimToNull(visitor.getOrganizationTimezone()) != null) {
             return visitor.getOrganizationTimezone();
@@ -628,6 +749,9 @@ public class NotificationService {
         }
         if (notificationOrganizationId != null && !notificationOrganizationId.equals(userOrganizationId)) {
             return false;
+        }
+        if (notification.getType() == null) {
+            return true;
         }
         return canReceiveNotificationType(user, notification.getType());
     }

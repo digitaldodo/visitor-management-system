@@ -16,4 +16,8 @@ public interface NotificationRepository extends MongoRepository<Notification, St
     boolean existsByRecipientUserIdAndTypeAndVisitorIdAndCreatedAtAfter(String recipientUserId, com.visitor.management.entity.NotificationType type, String visitorId, Instant createdAt);
 
     boolean existsByDedupeKey(String dedupeKey);
+
+    long countByRecipientUserIdAndReadFalse(String recipientUserId);
+
+    long countByRecipientUserIdAndOrganizationIdAndReadFalse(String recipientUserId, String organizationId);
 }

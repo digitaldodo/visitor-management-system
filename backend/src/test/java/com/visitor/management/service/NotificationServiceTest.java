@@ -6,6 +6,7 @@ import com.visitor.management.entity.NotificationType;
 import com.visitor.management.entity.Role;
 import com.visitor.management.entity.User;
 import com.visitor.management.entity.Visitor;
+import com.visitor.management.entity.VisitorStatus;
 import com.visitor.management.repository.MobileDeviceRegistrationRepository;
 import com.visitor.management.repository.NotificationRepository;
 import com.visitor.management.repository.UserRepository;
@@ -140,6 +141,51 @@ class NotificationServiceTest {
         verify(notificationRepository, never()).save(any(Notification.class));
     }
 
+    @Test
+    void notifyUserCreatesFallbackDedupeKeyForTargetedNotifications() {
+        User recipient = employee("employee-1", "org-a");
+        Visitor visitor = visitor("visitor-1", "org-a", "employee-1");
+
+        when(userRepository.findById("employee-1")).thenReturn(Optional.of(recipient));
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.notifyUser(
+                "employee-1",
+                NotificationType.VISITOR_APPROVAL_REQUEST,
+                "Approval required",
+                "A visitor needs approval.",
+                visitor,
+                "/pages/employee/#requests"
+        );
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().getDedupeKey())
+                .isEqualTo("notification:employee-1:VISITOR_APPROVAL_REQUEST:VISITOR:visitor-1");
+    }
+
+    @Test
+    void notifyUserSkipsStaleVisitorReminderAfterCheckIn() {
+        User recipient = admin("admin-1", "org-a");
+        Visitor visitor = visitor("visitor-1", "org-a", "employee-1");
+        visitor.setStatus(VisitorStatus.CHECKED_IN);
+        visitor.setCheckInTime(java.time.Instant.now());
+
+        when(userRepository.findById("admin-1")).thenReturn(Optional.of(recipient));
+
+        Notification saved = notificationService.notifyUser(
+                "admin-1",
+                NotificationType.VISITOR_ARRIVAL_REMINDER,
+                "Visitor arriving soon",
+                "Your visitor is arriving in 15 minutes.",
+                visitor,
+                "/pages/employee/#requests"
+        );
+
+        assertThat(saved).isNull();
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
     private User employee(String id, String organizationId) {
         User user = new User();
         user.setId(id);
@@ -149,6 +195,12 @@ class NotificationServiceTest {
         user.setRoles(Set.of(Role.EMPLOYEE));
         user.setNotificationEmailEnabled(false);
         user.setNotificationInAppEnabled(true);
+        return user;
+    }
+
+    private User admin(String id, String organizationId) {
+        User user = employee(id, organizationId);
+        user.setRoles(Set.of(Role.ADMIN));
         return user;
     }
 

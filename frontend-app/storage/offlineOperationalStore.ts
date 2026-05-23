@@ -31,6 +31,8 @@ const MAX_OPERATION_RECORDS = 120;
 const MAX_QUEUE_ITEMS = 80;
 const MAX_QUEUE_ATTEMPTS = 8;
 const CACHE_TTL_MS = 72 * 60 * 60 * 1000;
+const STALE_SYNCING_OPERATION_MS = 2 * 60 * 1000;
+const MAX_RETRY_DELAY_MS = 30 * 60 * 1000;
 export const OFFLINE_VALIDATION_MAX_AGE_MS = 18 * 60 * 60 * 1000;
 
 const emptyCache = (): OfflineOperationalCache => ({
@@ -490,6 +492,31 @@ export async function readOfflineOperationalQueue(): Promise<OfflineOperationalQ
   return Array.isArray(queued) ? queued : [];
 }
 
+export async function recoverOfflineOperationalQueue() {
+  const now = Date.now();
+  let changed = false;
+  const queue = (await readOfflineOperationalQueue()).map((item) => {
+    if (item.status !== 'syncing') {
+      return item;
+    }
+    const updatedAt = Date.parse(item.updatedAt || item.createdAt || '');
+    if (Number.isFinite(updatedAt) && now - updatedAt < STALE_SYNCING_OPERATION_MS) {
+      return item;
+    }
+    changed = true;
+    return {
+      ...item,
+      status: 'pending',
+      updatedAt: new Date(now).toISOString(),
+      nextAttemptAt: null,
+    } satisfies OfflineOperationalQueueItem;
+  });
+  if (changed) {
+    await writeQueue(queue);
+  }
+  return queue;
+}
+
 export async function enqueueOfflineOperation(input: OfflineOperationalQueueInput): Promise<OfflineOperationalQueueResult> {
   const now = new Date().toISOString();
   const payloadFingerprint = input.qrPayload ? fingerprintPayload(input.qrPayload.trim()) : input.payloadFingerprint ?? null;
@@ -521,6 +548,7 @@ export async function enqueueOfflineOperation(input: OfflineOperationalQueueInpu
     updatedAt: now,
     attempts: 0,
     status: 'pending',
+    nextAttemptAt: null,
     lastError: null,
   };
 
@@ -542,6 +570,7 @@ export async function markOfflineOperationAttempt(id: string, errorMessage?: str
       attempts,
       updatedAt: now,
       status: attempts >= MAX_QUEUE_ATTEMPTS ? 'failed' : 'pending',
+      nextAttemptAt: attempts >= MAX_QUEUE_ATTEMPTS ? null : new Date(Date.now() + retryDelayMs(attempts)).toISOString(),
       lastError: errorMessage ?? null,
     } satisfies OfflineOperationalQueueItem;
   });
@@ -551,7 +580,7 @@ export async function markOfflineOperationAttempt(id: string, errorMessage?: str
 export async function markOfflineOperationSyncing(id: string) {
   const now = new Date().toISOString();
   const nextQueue = (await readOfflineOperationalQueue()).map((item) => item.id === id
-    ? { ...item, status: 'syncing', updatedAt: now } satisfies OfflineOperationalQueueItem
+    ? { ...item, status: 'syncing', updatedAt: now, nextAttemptAt: null } satisfies OfflineOperationalQueueItem
     : item);
   await writeQueue(nextQueue);
 }
@@ -626,6 +655,11 @@ function trimMap<T extends { cachedAt: string; lastSeenAt?: string | null }>(rec
 
 function writeQueue(queue: OfflineOperationalQueueItem[]) {
   return writeSecureJson(OFFLINE_QUEUE_KEY, queue.slice(0, MAX_QUEUE_ITEMS));
+}
+
+function retryDelayMs(attempts: number) {
+  const boundedAttempts = Math.max(1, Math.min(attempts, 6));
+  return Math.min(MAX_RETRY_DELAY_MS, 15_000 * 2 ** (boundedAttempts - 1));
 }
 
 async function appendLocalOperationalRecord(item: OfflineOperationalQueueItem) {

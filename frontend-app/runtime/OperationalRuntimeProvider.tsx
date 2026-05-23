@@ -59,6 +59,7 @@ import { syncQueuedVisitorRequests } from '../services/visitorRequestQueueServic
 import { getApiVersions, getHealthStatus } from '../services/systemService';
 import {
   cleanupOfflineOperationalCache,
+  recoverOfflineOperationalQueue,
   readOfflineOperationalMetadata,
   readOfflineOperationalQueue,
 } from '../storage/offlineOperationalStore';
@@ -238,6 +239,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
   }, []);
 
   const refreshOfflineQueueSize = useCallback(async () => {
+    await recoverOfflineOperationalQueue().catch(() => undefined);
     const [queuedOperations, metadata] = await Promise.all([
       readOfflineOperationalQueue().catch(() => []),
       readOfflineOperationalMetadata().catch(() => null),
@@ -725,7 +727,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       const data = typeof payload === 'string' ? { type: payload } : (payload ?? {});
       const role = activeRole;
       const type = data.type;
-      if (!isNotificationAllowedForRole(role, type)) {
+      if (!isNotificationAllowedForRole(role, type, data.category)) {
         void recordDiagnosticEvent({
           level: 'warn',
           scope: 'notification',
@@ -797,7 +799,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
-    if (!isNotificationAllowedForRole(activeRole, data.type)) {
+    if (!isNotificationAllowedForRole(activeRole, data.type, data.category)) {
       return;
     }
 
@@ -843,7 +845,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
       return;
     }
 
-    if (!isNotificationAllowedForRole(activeRole, data.type)) {
+    if (!isNotificationAllowedForRole(activeRole, data.type, data.category)) {
       await recordDiagnosticEvent({
         level: 'warn',
         scope: 'notification',
@@ -969,7 +971,6 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         message: error instanceof Error ? error.message : 'Offline queue reconciliation failed.',
         status: syncConnection.status,
       });
-      throw error;
     } finally {
       setIsSyncingOfflineOperations(false);
     }
