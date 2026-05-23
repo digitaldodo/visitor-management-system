@@ -17,6 +17,14 @@ html {
   background: #075985;
 }
 
+.security-shell .button--danger {
+  background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+}
+
+.security-shell .button--danger:hover {
+  background: #7f1d1d;
+}
+
 .security-shell .nav-link__icon {
   color: var(--role-accent-soft);
 }
@@ -118,6 +126,10 @@ html {
 
 .operations-zone--workforce .operations-zone__header {
   border-color: rgba(52, 211, 153, 0.22);
+}
+
+.operations-zone--emergency .operations-zone__header {
+  border-color: rgba(248, 113, 113, 0.28);
 }
 
 .operational-module {
@@ -369,6 +381,139 @@ html {
 .security-monitor-card__header h3,
 .security-monitor-card__header p {
   margin: 0;
+}
+
+.emergency-panel {
+  border-color: rgba(248, 113, 113, 0.26);
+}
+
+.emergency-alert-card {
+  align-items: center;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(8, 16, 29, 0.8));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.emergency-alert-card--active {
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.35), rgba(42, 18, 18, 0.32));
+  border-color: rgba(248, 113, 113, 0.42);
+}
+
+.emergency-alert-card h3,
+.emergency-alert-card p {
+  margin: 0;
+}
+
+.emergency-alert-card p {
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+}
+
+.security-emergency-metrics,
+.security-emergency-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.security-emergency-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.security-emergency-metric {
+  background: rgba(11, 18, 31, 0.58);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.security-emergency-metric span,
+.emergency-counts span {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.security-emergency-metric strong {
+  color: #ffffff;
+  font-size: clamp(1.4rem, 4vw, 2.1rem);
+}
+
+.security-emergency-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.security-emergency-grid--wide {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.emergency-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.emergency-filter {
+  min-width: min(100%, 12rem);
+}
+
+.emergency-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.emergency-counts span {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+}
+
+.emergency-incident-card,
+.operational-event-card,
+.evacuation-person-card {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.emergency-incident-card__header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.emergency-incident-card__header h3,
+.emergency-incident-card__header p {
+  margin: 0;
+}
+
+.emergency-incident-card__header p {
+  color: var(--color-muted);
+  margin-top: 0.2rem;
+}
+
+.button--compact {
+  justify-self: flex-start;
+  min-height: 2.25rem;
+  padding: 0 0.65rem;
+}
+
+.operational-event-card--emergency {
+  border-color: rgba(248, 113, 113, 0.34);
+}
+
+.operational-event-card--security,
+.operational-event-card--warning {
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 .qr-verify-form {
@@ -706,6 +851,12 @@ html {
   .operations-zone__header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .security-emergency-metrics,
+  .security-emergency-grid,
+  .security-emergency-grid--wide {
+    grid-template-columns: 1fr;
   }
 
   .workforce-onboarding-form {

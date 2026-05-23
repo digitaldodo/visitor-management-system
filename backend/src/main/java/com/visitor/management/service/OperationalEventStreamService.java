@@ -17,9 +17,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class OperationalEventStreamService {
+
+    private static final Set<Role> OPERATIONAL_FEED_ROLES = Set.of(
+            Role.ADMIN,
+            Role.SECURITY_GUARD
+    );
+    private static final Set<String> SECURITY_VISIBLE_CATEGORIES = Set.of(
+            "incident",
+            "visitor",
+            "workforce",
+            "approval",
+            "notification"
+    );
 
     private final AccessAuditLogRepository accessAuditLogRepository;
     private final UserRepository userRepository;
@@ -32,16 +45,19 @@ public class OperationalEventStreamService {
     public OperationalEventBatchResponse events(String actorId, String cursor, int requestedLimit) {
         User actor = userRepository.findById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException("User account was not found."));
-        if (!isOrganizationAdmin(actor)) {
-            throw new AccessDeniedException("Operational activity feeds are available to organization administrators only.");
+        if (!canAccessOperationalFeed(actor)) {
+            throw new AccessDeniedException("Operational activity feeds require organization operational access.");
         }
         int limit = Math.max(1, Math.min(requestedLimit <= 0 ? 80 : requestedLimit, 100));
         Instant since = parseCursor(cursor);
         List<AccessAuditLog> logs = scopedLogs(actor, since).stream()
                 .sorted(Comparator.comparing(AccessAuditLog::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+        List<OperationalEventResponse> events = logs.stream()
+                .map(this::toEvent)
+                .filter(event -> isVisibleToActor(actor, event))
                 .limit(limit)
                 .toList();
-        List<OperationalEventResponse> events = logs.stream().map(this::toEvent).toList();
         String nextCursor = events.isEmpty()
                 ? (cursor == null || cursor.isBlank() ? Instant.now().toString() : cursor)
                 : events.getLast().occurredAt().toString();
@@ -58,11 +74,24 @@ public class OperationalEventStreamService {
         return accessAuditLogRepository.findTop100ByOrganizationIdAndCreatedAtAfterOrderByCreatedAtAsc(actor.getOrganizationId(), since);
     }
 
-    private boolean isOrganizationAdmin(User actor) {
+    private boolean canAccessOperationalFeed(User actor) {
         return actor.getOrganizationId() != null
                 && !actor.getOrganizationId().isBlank()
                 && actor.getRoles() != null
-                && actor.getRoles().contains(Role.ADMIN);
+                && actor.getRoles().stream().anyMatch(OPERATIONAL_FEED_ROLES::contains);
+    }
+
+    private boolean isVisibleToActor(User actor, OperationalEventResponse event) {
+        if (!normalize(actor.getOrganizationId(), "").equals(normalize(event.organizationId(), ""))) {
+            return false;
+        }
+        if (actor.getRoles() != null && actor.getRoles().contains(Role.ADMIN)) {
+            return true;
+        }
+        if (actor.getRoles() != null && actor.getRoles().contains(Role.SECURITY_GUARD)) {
+            return SECURITY_VISIBLE_CATEGORIES.contains(normalize(event.category(), "audit"));
+        }
+        return false;
     }
 
     private OperationalEventResponse toEvent(AccessAuditLog log) {

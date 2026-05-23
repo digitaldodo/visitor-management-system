@@ -8,15 +8,22 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { checkInVisitor, checkInWithQr, checkOutVisitor, createWorkforceOnboarding, getEmployeeAttendanceLogs, getEmployeeBadge, getSecurityMonitoring, getVisitorPass, listSecurityWorkforceOnboardingRequests, manualEmployeeCheckIn, manualEmployeeCheckOut, markBadgePrinted, scanEmployeeQr, searchEmployees, updateVisitor, uploadVisitorPhoto, uploadWorkforcePhoto, verifyQrPayload } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
+import { getOperationalEvents } from "../shared/operationalEventApi.js";
 import { showToast } from "../shared/toast.js";
 import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
 
-const ROUTES = ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
+const ROUTES = ["emergency", "visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
 const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
 const MODULE_STATE_PREFIX = "accessflow.security.module";
 const state = {
   monitoringQuery: "",
   monitoringDebounce: 0,
+  emergencyIncidentFilter: "ALL",
+  emergencyState: null,
+  emergencyFeed: [],
+  emergencyEvacuation: null,
+  operationalEvents: [],
+  operationalEventCursor: "",
   employeeQuery: "",
   employeeDebounce: 0,
   activeBadge: null,
@@ -60,6 +67,7 @@ async function bootSecurityPortal() {
   initBadgeActions();
   initEmployeeBadgeActions();
   initMonitoringSearch();
+  initEmergencyWorkspace();
   renderVerificationIdle();
   renderEmployeeScanIdle();
   await loadSecurityPortal();
@@ -72,6 +80,7 @@ function groupSecurityNavigation() {
     return;
   }
   const sections = [
+    { label: "Emergency operations", routes: ["emergency"] },
     { label: "Visitor operations", routes: ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges"] },
     { label: "Workforce operations", routes: ["employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"] },
   ];
@@ -112,16 +121,21 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#monitor-recurring-expired-list");
     renderLoadingList("#monitor-suspended-list");
     renderLoadingList("#monitor-attendance-list");
+    renderEmergencyLoading();
     renderLoadingList("#employee-directory-list");
     renderLoadingList("#employee-attendance-log-list");
     renderLoadingList("#workforce-request-list");
   }
 
-  const [overview, queue, photo, monitoring, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
+  const [overview, queue, photo, monitoring, emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
     request("/security/overview"),
     request("/security/queue"),
     request("/security/photo-capture"),
     getSecurityMonitoring(state.monitoringQuery),
+    getEmergencyState(),
+    getEmergencyFeed(),
+    getEmergencyEvacuationRegister(),
+    getOperationalEvents(state.operationalEventCursor, 80),
     searchEmployees(state.employeeQuery),
     getEmployeeAttendanceLogs("/security"),
     listSecurityWorkforceOnboardingRequests(),
@@ -165,6 +179,24 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#monitor-recurring-expired-list", [], (item) => item, "Monitoring unavailable", message);
     renderWorkList("#monitor-suspended-list", [], (item) => item, "Monitoring unavailable", message);
     renderWorkList("#monitor-attendance-list", [], (item) => item, "Monitoring unavailable", message);
+  }
+
+  if (emergencyState.status === "fulfilled") {
+    state.emergencyState = emergencyState.value?.data || null;
+  }
+  if (emergencyFeed.status === "fulfilled") {
+    state.emergencyFeed = emergencyFeed.value?.data || [];
+  }
+  if (emergencyEvacuation.status === "fulfilled") {
+    state.emergencyEvacuation = emergencyEvacuation.value?.data || null;
+  }
+  if (operationalEvents.status === "fulfilled") {
+    mergeOperationalEvents(operationalEvents.value?.data || {});
+  }
+  if ([emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents].some((result) => result.status === "fulfilled")) {
+    renderEmergencyWorkspace();
+  } else if (showErrors) {
+    renderEmergencyUnavailable(emergencyFeed.reason?.message || emergencyState.reason?.message || "Emergency operations could not be loaded.");
   }
 
   if (employees.status === "fulfilled") {
@@ -418,6 +450,260 @@ function renderMonitoring(data = {}) {
   renderWorkList("#monitor-recurring-expired-list", data.expiredRecurringVisitors || [], recurringCard, "No expired recurring visitors", "Expired recurring profiles will appear here.");
   renderWorkList("#monitor-suspended-list", data.suspendedVisitors || [], recurringCard, "No suspended visitors", "Suspended profiles will appear here.");
   renderWorkList("#monitor-attendance-list", data.dailyAttendanceLogs || [], attendanceCard, "No presence logs today", "Today's check-in and check-out activity will appear here.");
+}
+
+function initEmergencyWorkspace() {
+  const filter = document.querySelector("#emergency-incident-filter");
+  filter?.addEventListener("change", () => {
+    state.emergencyIncidentFilter = filter.value || "ALL";
+    renderEmergencyWorkspace();
+  });
+
+  document.querySelector("#panic-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const checkpoint = trim(data.checkpoint) || "Security checkpoint";
+    const note = trim(data.note);
+    if (!note || note.length < 4) {
+      showToast("Panic note required", "Record a short note before dispatching a panic alert.");
+      return;
+    }
+    if (!window.confirm("Dispatch a critical panic alert to emergency operations?")) {
+      return;
+    }
+    await submitEmergencyAction(form, () => triggerEmergencyPanic({ checkpoint, note, deliberate: true }), {
+      title: "Panic alert dispatched",
+      message: "Emergency operations have been notified and the incident was audited.",
+      reset: true,
+    });
+  });
+
+  document.querySelector("#suspicious-visitor-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const id = trim(data.id);
+    const note = trim(data.note);
+    if (!id || !note) {
+      showToast("Visitor and note required", "Choose a visitor record ID and record the suspicious activity note.");
+      return;
+    }
+    await submitEmergencyAction(form, () => flagSuspiciousVisitor({ id, note, checkpoint: trim(data.checkpoint) || "Visitor operation" }), {
+      title: "Suspicious visitor flagged",
+      message: "The incident is visible in the emergency feed and audit trail.",
+      reset: true,
+    });
+  });
+
+  document.querySelector("#suspicious-workforce-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const id = trim(data.id);
+    const note = trim(data.note);
+    if (!id || !note) {
+      showToast("Workforce ID and note required", "Choose a workforce user ID and record the suspicious activity note.");
+      return;
+    }
+    await submitEmergencyAction(form, () => flagSuspiciousWorkforce({ id, note, checkpoint: trim(data.checkpoint) || "Workforce operation" }), {
+      title: "Suspicious workforce flagged",
+      message: "The incident is visible in the emergency feed and audit trail.",
+      reset: true,
+    });
+  });
+
+  document.querySelector("#emergency-feed-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-emergency-subject]");
+    if (!button?.dataset.emergencySubject) {
+      return;
+    }
+    const write = navigator.clipboard?.writeText?.(button.dataset.emergencySubject);
+    if (write?.then) {
+      write.then(() => {
+        showToast("Record ID copied", "Use this ID for related suspicious activity workflows.");
+      }).catch(() => undefined);
+    }
+  });
+}
+
+async function submitEmergencyAction(form, action, options = {}) {
+  const submit = form.querySelector("button[type='submit']");
+  submit?.toggleAttribute("disabled", true);
+  submit?.classList.add("is-loading");
+  submit?.setAttribute("aria-busy", "true");
+  try {
+    await action();
+    if (options.reset) {
+      form.reset();
+    }
+    showToast(options.title || "Emergency action recorded", options.message || "The operational workflow was completed.");
+    await loadSecurityPortal(false);
+  } catch (error) {
+    showToast("Emergency action failed", error.message);
+  } finally {
+    submit?.toggleAttribute("disabled", false);
+    submit?.classList.remove("is-loading");
+    submit?.removeAttribute("aria-busy");
+  }
+}
+
+function renderEmergencyLoading() {
+  renderWorkList("#emergency-feed-list", [], (item) => item, "Loading incidents", "Emergency incidents are loading.");
+  renderWorkList("#evacuation-register-list", [], (item) => item, "Loading register", "Evacuation register is loading.");
+  renderWorkList("#operational-feed-list", [], (item) => item, "Loading operations", "Realtime operational events are loading.");
+}
+
+function renderEmergencyUnavailable(message) {
+  renderWorkList("#emergency-feed-list", [], (item) => item, "Emergency feed unavailable", message);
+  renderWorkList("#evacuation-register-list", [], (item) => item, "Evacuation register unavailable", message);
+  renderWorkList("#operational-feed-list", [], (item) => item, "Operational feed unavailable", message);
+}
+
+function renderEmergencyWorkspace() {
+  const incidents = state.emergencyFeed || [];
+  const evacuation = state.emergencyEvacuation || {};
+  const activeIncidents = incidents.filter((incident) => incident.status !== "RESOLVED");
+  const panicCount = activeIncidents.filter((incident) => incident.type === "PANIC_TRIGGERED").length;
+  const unaccounted = evacuation.counts?.unaccounted || 0;
+
+  setText("#emergency-lockdown-state", state.emergencyState?.lockdownActive ? "Active" : "Clear");
+  setText("#emergency-active-count", String(activeIncidents.length));
+  setText("#emergency-panic-count", String(panicCount));
+  setText("#emergency-unaccounted-count", String(unaccounted));
+  setText("#emergency-alert-title", emergencyAlertTitle(state.emergencyState, activeIncidents));
+  setText("#emergency-alert-body", emergencyAlertBody(state.emergencyState, activeIncidents));
+
+  document.querySelector("#emergency-alert-card")?.classList.toggle("emergency-alert-card--active", Boolean(state.emergencyState?.lockdownActive || state.emergencyState?.evacuationActive || panicCount));
+  const emergencyStateBadge = document.querySelector("#emergency-lockdown-state");
+  if (emergencyStateBadge) {
+    emergencyStateBadge.className = `status-badge ${state.emergencyState?.lockdownActive ? "status-badge--tone-danger" : "status-badge--tone-info"}`;
+  }
+
+  setText("#evacuation-visitor-count", String(evacuation.counts?.visitorsInside || 0));
+  setText("#evacuation-workforce-count", String(evacuation.counts?.workforceInside || 0));
+  setText("#evacuation-unaccounted-count", String(unaccounted));
+
+  const filteredIncidents = state.emergencyIncidentFilter === "ALL"
+    ? incidents
+    : incidents.filter((incident) => incident.type === state.emergencyIncidentFilter || incident.severity === state.emergencyIncidentFilter || incident.status === state.emergencyIncidentFilter);
+
+  renderWorkList("#emergency-feed-list", filteredIncidents.slice(0, 16), emergencyIncidentCard, "No emergency incidents", "Panic, suspicious activity, evacuation, and broadcast incidents will appear here.");
+  renderWorkList("#evacuation-register-list", (evacuation.unaccounted || []).slice(0, 14), evacuationPersonCard, "No unaccounted people", "Checked-in visitors and workforce will appear here during evacuation review.");
+  renderWorkList("#operational-feed-list", state.operationalEvents.slice(0, 18), operationalEventCard, "No realtime operational events", "Visitor alerts, incident streams, and approval updates will appear here.");
+}
+
+function mergeOperationalEvents(batch = {}) {
+  if (batch.cursor) {
+    state.operationalEventCursor = batch.cursor;
+  }
+  const events = Array.isArray(batch.events) ? batch.events : [];
+  if (!events.length) {
+    return;
+  }
+  const byId = new Map(state.operationalEvents.map((event) => [event.id, event]));
+  events.forEach((event) => {
+    if (event?.id) {
+      byId.set(event.id, event);
+    }
+  });
+  state.operationalEvents = Array.from(byId.values())
+    .sort((left, right) => Date.parse(right.occurredAt || 0) - Date.parse(left.occurredAt || 0))
+    .slice(0, 80);
+}
+
+function emergencyAlertTitle(emergencyState, activeIncidents) {
+  if (emergencyState?.lockdownActive) {
+    return "Emergency lockdown active";
+  }
+  if (emergencyState?.evacuationActive) {
+    return "Evacuation register active";
+  }
+  const panic = activeIncidents.find((incident) => incident.type === "PANIC_TRIGGERED");
+  if (panic) {
+    return panic.title || "Panic alert active";
+  }
+  return emergencyState?.latestBroadcastTitle || "Emergency operations clear";
+}
+
+function emergencyAlertBody(emergencyState, activeIncidents) {
+  if (emergencyState?.lockdownActive) {
+    return [emergencyState.lockdownReason, emergencyState.lockdownScope, emergencyState.lockdownInitiatedByName].filter(Boolean).join(" · ") || "Visitor approvals and new check-ins are suspended.";
+  }
+  if (emergencyState?.evacuationActive) {
+    return [emergencyState.evacuationScope, formatDate(emergencyState.evacuationStartedAt)].filter(Boolean).join(" · ") || "Monitor the evacuation register until everyone is accounted for.";
+  }
+  const panic = activeIncidents.find((incident) => incident.type === "PANIC_TRIGGERED");
+  if (panic) {
+    return [panic.checkpoint, panic.notes, formatDate(panic.createdAt)].filter(Boolean).join(" · ");
+  }
+  return emergencyState?.latestBroadcastMessage || "No active lockdown, evacuation, or panic alert.";
+}
+
+function emergencyIncidentCard(incident) {
+  const tone = incident.severity === "CRITICAL" ? "tone-danger" : incident.severity === "HIGH" ? "tone-warning" : "tone-info";
+  return `
+    <article class="work-card emergency-incident-card">
+      <div class="emergency-incident-card__header">
+        <div>
+          <h3>${escapeHtml(incident.title || "Emergency incident")}</h3>
+          <p>${escapeHtml(incident.message || incident.notes || "Incident recorded.")}</p>
+        </div>
+        <span class="status-badge status-badge--${escapeHtml(tone)}">${escapeHtml(incident.severity || "INFO")}</span>
+      </div>
+      <small>${escapeHtml(formatIncidentType(incident.type))} · ${escapeHtml(incident.checkpoint || "No checkpoint")} · ${escapeHtml(formatDate(incident.createdAt))}</small>
+      ${incident.subjectName ? `<small>${escapeHtml(incident.subjectType || "Subject")}: ${escapeHtml(incident.subjectName)}</small>` : ""}
+      ${incident.subjectId ? `<button class="button button--ghost button--compact" type="button" data-emergency-subject="${escapeHtml(incident.subjectId)}">Copy subject ID</button>` : ""}
+    </article>
+  `;
+}
+
+function evacuationPersonCard(person) {
+  return `
+    <article class="work-card evacuation-person-card">
+      <h3>${escapeHtml(person.name || "Person")}</h3>
+      <p>${escapeHtml(person.personType || "Record")} · ${escapeHtml(person.department || "Department pending")} · ${escapeHtml(person.organizationName || "Organization")}</p>
+      <small>${escapeHtml(person.lastKnownCheckpoint || "Last checkpoint pending")} · ${escapeHtml(formatDate(person.lastActivityAt))}</small>
+      <span class="status-badge status-badge--tone-warning">${escapeHtml(person.evacuationStatus || "UNACCOUNTED")}</span>
+    </article>
+  `;
+}
+
+function operationalEventCard(event) {
+  return `
+    <article class="work-card operational-event-card operational-event-card--${escapeHtml(event.severity || "info")}">
+      <div class="emergency-incident-card__header">
+        <div>
+          <h3>${escapeHtml(event.title || formatIncidentType(event.type))}</h3>
+          <p>${escapeHtml(event.detail || event.targetName || "Operational update recorded.")}</p>
+        </div>
+        <span class="status-badge ${escapeHtml(operationalSeverityClass(event.severity))}">${escapeHtml(event.category || "audit")}</span>
+      </div>
+      <small>${escapeHtml(event.organizationName || "Current organization")} · ${escapeHtml(event.actorName || "System")} · ${escapeHtml(formatDate(event.occurredAt))}</small>
+    </article>
+  `;
+}
+
+function operationalSeverityClass(severity) {
+  if (severity === "emergency") {
+    return "status-badge--tone-danger";
+  }
+  if (severity === "security" || severity === "warning") {
+    return "status-badge--tone-warning";
+  }
+  if (severity === "approval") {
+    return "status-badge--approved";
+  }
+  return "status-badge--tone-info";
+}
+
+function formatIncidentType(value) {
+  return String(value || "OPERATIONAL_EVENT")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function initEmployeeAttendanceWorkspace() {
@@ -1333,6 +1619,45 @@ function setText(selector, value) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function getEmergencyState() {
+  return request("/emergency/state");
+}
+
+function getEmergencyFeed() {
+  return request("/emergency/feed");
+}
+
+function getEmergencyEvacuationRegister() {
+  return request("/emergency/evacuation-register");
+}
+
+function triggerEmergencyPanic(payload) {
+  return request("/emergency/panic", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+function flagSuspiciousVisitor(payload) {
+  return request(`/emergency/visitors/${encodeURIComponent(payload.id)}/suspicious`, {
+    method: "POST",
+    body: JSON.stringify({
+      note: payload.note,
+      checkpoint: payload.checkpoint || null,
+    }),
+  });
+}
+
+function flagSuspiciousWorkforce(payload) {
+  return request(`/emergency/workforce/${encodeURIComponent(payload.id)}/suspicious`, {
+    method: "POST",
+    body: JSON.stringify({
+      note: payload.note,
+      checkpoint: payload.checkpoint || null,
+    }),
+  });
 }
 
 document.querySelector("#queue-list")?.addEventListener("click", async (event) => {

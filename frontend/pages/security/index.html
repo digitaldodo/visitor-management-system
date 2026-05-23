@@ -12,7 +12,7 @@
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell security-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Security navigation">
-        <a class="brand logo-link" href="#queue" aria-label="Security portal home">
+        <a class="brand logo-link" href="#emergency" aria-label="Security portal home">
           <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
           <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
         </a>
@@ -22,7 +22,11 @@
         <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
-          <a class="nav-link is-active" href="#visitor-registration" data-route="visitor-registration">
+          <a class="nav-link is-active" href="#emergency" data-route="emergency">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 2 21h20Zm1 14h-2v2h2Zm0-7h-2v5h2Z"/></svg></span>
+            Emergency Ops
+          </a>
+          <a class="nav-link" href="#visitor-registration" data-route="visitor-registration">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 1 0 4 4 4 4 0 0 0-4-4ZM5 21a7 7 0 0 1 14 0Zm14-10h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
             Register visitor
           </a>
@@ -82,7 +86,7 @@
           <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
           </button>
-          <a class="topbar__brand logo-link" href="#queue" aria-label="Security dashboard home">
+          <a class="topbar__brand logo-link" href="#emergency" aria-label="Security dashboard home">
             <img class="brand-logo brand-logo--full brand-logo--dark" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
             <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
           </a>
@@ -107,6 +111,10 @@
           <section class="metric-grid" id="metric-grid" aria-label="Security metrics"></section>
 
           <nav class="security-quick-actions" aria-label="Security quick actions">
+            <a class="security-quick-action" href="#emergency" data-route="emergency">
+              <span aria-hidden="true">!</span>
+              Emergency ops
+            </a>
             <a class="security-quick-action" href="#visitor-registration" data-route="visitor-registration">
               <span aria-hidden="true">+</span>
               Register visitor
@@ -128,6 +136,167 @@
               Workforce onboarding
             </a>
           </nav>
+
+          <section class="operations-zone operations-zone--emergency" aria-labelledby="emergency-operations-title">
+            <div class="operations-zone__header">
+              <div>
+                <p class="eyebrow">Emergency Operations</p>
+                <h2 id="emergency-operations-title">Incident Response</h2>
+              </div>
+              <span>Panic alerts, suspicious activity, evacuation register, and realtime operational updates</span>
+            </div>
+
+            <section class="panel emergency-panel" id="emergency" data-operational-module>
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Operational Security</p>
+                  <h2>Emergency Command</h2>
+                </div>
+              </div>
+
+              <div class="emergency-alert-card" id="emergency-alert-card">
+                <div>
+                  <p class="eyebrow">Emergency Alerts</p>
+                  <h3 id="emergency-alert-title">Emergency operations clear</h3>
+                  <p id="emergency-alert-body">No active lockdown, evacuation, or panic alert.</p>
+                </div>
+                <span class="status-badge status-badge--tone-info" id="emergency-lockdown-state">Clear</span>
+              </div>
+
+              <div class="security-emergency-metrics">
+                <article class="security-emergency-metric">
+                  <span>Active incidents</span>
+                  <strong id="emergency-active-count">0</strong>
+                </article>
+                <article class="security-emergency-metric">
+                  <span>Panic alerts</span>
+                  <strong id="emergency-panic-count">0</strong>
+                </article>
+                <article class="security-emergency-metric">
+                  <span>Unaccounted</span>
+                  <strong id="emergency-unaccounted-count">0</strong>
+                </article>
+              </div>
+
+              <div class="security-emergency-grid">
+                <article class="security-monitor-card">
+                  <div class="security-monitor-card__header">
+                    <div>
+                      <p class="eyebrow">Panic Workflow</p>
+                      <h3>Dispatch Critical Alert</h3>
+                    </div>
+                  </div>
+                  <form class="emergency-form" id="panic-form">
+                    <label class="form-field">
+                      <span>Checkpoint</span>
+                      <input name="checkpoint" type="text" maxlength="120" placeholder="Main gate, lobby, dock" value="Main Gate" />
+                    </label>
+                    <label class="form-field">
+                      <span>Situation note</span>
+                      <textarea name="note" maxlength="500" placeholder="Short note for responding operators" required></textarea>
+                    </label>
+                    <button class="button button--primary button--danger" type="submit">Dispatch panic alert</button>
+                  </form>
+                </article>
+
+                <article class="security-monitor-card">
+                  <div class="security-monitor-card__header">
+                    <div>
+                      <p class="eyebrow">Suspicious Activity</p>
+                      <h3>Visitor Incident</h3>
+                    </div>
+                  </div>
+                  <form class="emergency-form" id="suspicious-visitor-form">
+                    <label class="form-field">
+                      <span>Visitor record ID</span>
+                      <input name="id" type="text" maxlength="80" placeholder="Paste visitor ID" required />
+                    </label>
+                    <label class="form-field">
+                      <span>Checkpoint</span>
+                      <input name="checkpoint" type="text" maxlength="120" placeholder="Gate or desk location" />
+                    </label>
+                    <label class="form-field">
+                      <span>Security note</span>
+                      <textarea name="note" maxlength="500" placeholder="What was observed?" required></textarea>
+                    </label>
+                    <button class="button button--ghost" type="submit">Flag visitor</button>
+                  </form>
+                </article>
+
+                <article class="security-monitor-card">
+                  <div class="security-monitor-card__header">
+                    <div>
+                      <p class="eyebrow">Suspicious Activity</p>
+                      <h3>Workforce Incident</h3>
+                    </div>
+                  </div>
+                  <form class="emergency-form" id="suspicious-workforce-form">
+                    <label class="form-field">
+                      <span>Workforce user ID</span>
+                      <input name="id" type="text" maxlength="80" placeholder="Paste workforce user ID" required />
+                    </label>
+                    <label class="form-field">
+                      <span>Checkpoint</span>
+                      <input name="checkpoint" type="text" maxlength="120" placeholder="Gate or desk location" />
+                    </label>
+                    <label class="form-field">
+                      <span>Security note</span>
+                      <textarea name="note" maxlength="500" placeholder="What was observed?" required></textarea>
+                    </label>
+                    <button class="button button--ghost" type="submit">Flag workforce</button>
+                  </form>
+                </article>
+              </div>
+
+              <div class="security-emergency-grid security-emergency-grid--wide">
+                <article class="security-monitor-card">
+                  <div class="security-monitor-card__header">
+                    <div>
+                      <p class="eyebrow">Evacuation Register</p>
+                      <h3>People Currently Inside</h3>
+                    </div>
+                    <div class="emergency-counts">
+                      <span>Visitors <b id="evacuation-visitor-count">0</b></span>
+                      <span>Workforce <b id="evacuation-workforce-count">0</b></span>
+                      <span>Unaccounted <b id="evacuation-unaccounted-count">0</b></span>
+                    </div>
+                  </div>
+                  <div class="work-list" id="evacuation-register-list"></div>
+                </article>
+
+                <article class="security-monitor-card">
+                  <div class="security-monitor-card__header">
+                    <div>
+                      <p class="eyebrow">Incident Stream</p>
+                      <h3>Emergency Feed</h3>
+                    </div>
+                    <label class="form-field emergency-filter">
+                      <span>Filter</span>
+                      <select id="emergency-incident-filter">
+                        <option value="ALL">All incidents</option>
+                        <option value="PANIC_TRIGGERED">Panic</option>
+                        <option value="SUSPICIOUS_VISITOR">Suspicious visitor</option>
+                        <option value="SUSPICIOUS_WORKFORCE">Suspicious workforce</option>
+                        <option value="CRITICAL">Critical</option>
+                        <option value="ACTIVE">Active</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="work-list" id="emergency-feed-list"></div>
+                </article>
+              </div>
+
+              <article class="security-monitor-card">
+                <div class="security-monitor-card__header">
+                  <div>
+                    <p class="eyebrow">Realtime Operations</p>
+                    <h3>Visitor Alerts, Incidents, and Approval Updates</h3>
+                  </div>
+                </div>
+                <div class="work-list" id="operational-feed-list"></div>
+              </article>
+            </section>
+          </section>
 
           <section class="operations-zone operations-zone--visitor" aria-labelledby="visitor-operations-title">
             <div class="operations-zone__header">
@@ -294,7 +463,7 @@
             </article>
           </section>
 
-          <section class="portal-grid">
+          <section>
             <article class="panel" id="badges" data-operational-module>
               <div class="panel__header">
                 <div>
@@ -304,16 +473,6 @@
               </div>
               <div class="work-list" id="badge-list"></div>
             </article>
-
-            <aside class="panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">System</p>
-                  <h2>Backend Status</h2>
-                </div>
-              </div>
-              <div class="health-card" id="health-card"></div>
-            </aside>
           </section>
           </section>
 

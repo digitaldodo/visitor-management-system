@@ -59,12 +59,12 @@ export function useOperationalActivityFeed() {
   const role = auth.status === 'authenticated' ? auth.session.user.activeRole : null;
   const user = auth.status === 'authenticated' ? auth.session.user : null;
 
-  const securityEnabled = false;
+  const securityEnabled = role === 'SECURITY_GUARD';
   const adminEnabled = role === 'ADMIN';
   const employeeEnabled = false;
   const visitorEnabled = false;
-  const opsEnabled = adminEnabled;
-  const adminFeedEnabled = role === 'ADMIN';
+  const opsEnabled = adminEnabled || securityEnabled;
+  const adminFeedEnabled = adminEnabled || securityEnabled;
 
   const securityMonitoring = useQuery({
     queryKey: ['security', 'monitoring', 'feed'],

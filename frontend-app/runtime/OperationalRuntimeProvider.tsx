@@ -177,7 +177,7 @@ const initialSyncConnection: OperationalSyncConnectionState = {
 };
 
 function canAccessOperationalFeed(role?: string | null) {
-  return role === 'ADMIN';
+  return role === 'ADMIN' || role === 'SECURITY_GUARD';
 }
 
 export function OperationalRuntimeProvider({ children }: { children: ReactNode }) {
