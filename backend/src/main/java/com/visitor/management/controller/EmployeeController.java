@@ -122,6 +122,14 @@ public class EmployeeController {
         return ApiResponse.ok("Visitor invite revoked.", visitorInviteService.revoke(id, authentication.getName(), request.reason()));
     }
 
+    @PatchMapping("/visitor-invites/{id}/resend")
+    public ApiResponse<VisitorInviteResponse> resendVisitorInvite(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor invite resent.", visitorInviteService.resend(id, authentication.getName()));
+    }
+
     @GetMapping("/notifications")
     public ApiResponse<List<NotificationResponse>> notifications(Authentication authentication) {
         return ApiResponse.ok("Employee notifications loaded.", notificationService.listForUser(authentication.getName(), 10).items());

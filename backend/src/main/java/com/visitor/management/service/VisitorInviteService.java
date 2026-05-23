@@ -287,6 +287,54 @@ public class VisitorInviteService {
         return toResponse(saved, passIfReady(saved));
     }
 
+    public VisitorInviteResponse resend(String inviteId, String actorId) {
+        VisitorInvite invite = visitorInviteRepository.findById(inviteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Visitor invite was not found."));
+        User actor = currentUser(actorId);
+        if (!hasInviteAccess(invite, actor)) {
+            throw new ResourceNotFoundException("Visitor invite was not found.");
+        }
+        if (trimToNull(invite.getVisitorEmail()) == null) {
+            throw new BadRequestException("This invite does not have a visitor email address. Share the invite link instead.");
+        }
+        if (invite.getStatus() == VisitorInviteStatus.REVOKED
+                || invite.getStatus() == VisitorInviteStatus.EXPIRED
+                || invite.getStatus() == VisitorInviteStatus.ARRIVED
+                || invite.getStatus() == VisitorInviteStatus.CHECKED_IN
+                || invite.getStatus() == VisitorInviteStatus.CHECKED_OUT) {
+            throw new BadRequestException("This invite can no longer be resent.");
+        }
+        Instant now = Instant.now();
+        if (isExpired(invite, now)) {
+            invite.setStatus(VisitorInviteStatus.EXPIRED);
+            invite.setUpdatedAt(now);
+            visitorInviteRepository.save(invite);
+            throw new BadRequestException("This visitor invite has expired.");
+        }
+        invite.setEmailStatus(NotificationStatus.PENDING);
+        invite.setEmailAttempts(0);
+        invite.setEmailLastAttemptAt(null);
+        invite.setLastEmailError(null);
+        invite.setUpdatedAt(now);
+        VisitorInvite saved = visitorInviteRepository.save(invite);
+        visitorInviteEmailDispatcher.deliverInviteEmailAsync(saved.getId());
+        notifyRegisteredVisitorInviteReceived(saved);
+        notificationService.notifyUser(
+                invite.getHostEmployeeId(),
+                NotificationType.VISITOR_INVITE_SENT,
+                "Visitor invite resent",
+                "%s's pre-registration invite was resent.".formatted(invite.getVisitorName()),
+                null,
+                "/pages/employee/#requests",
+                null,
+                saved.getOrganizationId(),
+                "invite:%s:resent:recipient:%s:%s".formatted(saved.getId(), invite.getHostEmployeeId(), now.toEpochMilli()),
+                "VISITOR_INVITE",
+                saved.getId()
+        );
+        return toResponse(saved, passIfReady(saved));
+    }
+
     public void validatePhotoUploadToken(String token) {
         requireUsableInvite(token);
     }

@@ -29,9 +29,17 @@
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 1 1-8.2 5.3L3 8.3V3h5.3L6.2 5.1A7 7 0 1 0 13 5Zm-1 4h2v5l4 2-1 1.7-5-3Z"/></svg></span>
             History
           </a>
+          <a class="nav-link" href="#invites" data-route="invites">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4Zm2 2v1.2l6 3.8 6-3.8V7Zm0 4v6h12v-6l-6 3.8Z"/></svg></span>
+            Invite Inbox
+          </a>
           <a class="nav-link" href="#request" data-route="request">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7Z"/></svg></span>
             Request Visit
+          </a>
+          <a class="nav-link" href="#settings" data-route="settings">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.6-2-3.5-2.5 1a7 7 0 0 0-2.6-1.5L14 2h-4l-.4 2.9A7 7 0 0 0 7 6.4l-2.5-1-2 3.5 2 1.6L4.4 12l.1 1.5-2 1.6 2 3.5 2.5-1a7 7 0 0 0 2.6 1.5L10 22h4l.4-2.9a7 7 0 0 0 2.6-1.5l2.5 1 2-3.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg></span>
+            Settings
           </a>
         </nav>
         <div class="sidebar__footer">
@@ -167,6 +175,85 @@
                 </article>
               </div>
             </aside>
+          </section>
+
+          <section class="portal-grid">
+            <article class="panel" id="invites">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Invite Inbox</p>
+                  <h2>Pre-registration Invites</h2>
+                </div>
+              </div>
+              <div class="work-list visitor-visit-list" id="visitor-invite-list"></div>
+            </article>
+
+            <article class="panel" id="settings">
+              <div class="panel__header">
+                <div>
+                  <p class="eyebrow">Account</p>
+                  <h2>Profile and Settings</h2>
+                </div>
+              </div>
+              <form class="visitor-request-form" id="visitor-settings-form" novalidate>
+                <label class="form-field">
+                  <span>Username</span>
+                  <input name="username" type="text" autocomplete="username" required />
+                </label>
+                <label class="form-field">
+                  <span>Phone</span>
+                  <input name="phone" type="tel" autocomplete="tel" />
+                </label>
+                <label class="form-field">
+                  <span>Emergency contact</span>
+                  <input name="emergencyContact" type="text" maxlength="160" autocomplete="tel" />
+                </label>
+                <label class="form-field">
+                  <span>Preferred language</span>
+                  <select name="preferredLanguage">
+                    <option value="">Use organization default</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                  </select>
+                </label>
+                <fieldset class="settings-fieldset">
+                  <legend>Notification preferences</legend>
+                  <label class="toggle-row">
+                    <input name="notificationInAppEnabled" type="checkbox" />
+                    <span>In-app notifications</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input name="notificationEmailEnabled" type="checkbox" />
+                    <span>Email notifications</span>
+                  </label>
+                </fieldset>
+                <button class="button button--primary" type="submit">Save settings</button>
+              </form>
+              <form class="visitor-request-form" id="visitor-photo-form" novalidate>
+                <label class="form-field">
+                  <span>Profile photo</span>
+                  <input name="profilePhoto" type="file" accept="image/*" />
+                </label>
+                <p class="form-hint" id="visitor-photo-status">Photo updates apply to your account profile and badge surfaces.</p>
+              </form>
+              <form class="visitor-request-form" id="visitor-password-form" novalidate>
+                <label class="form-field">
+                  <span>Current password</span>
+                  <input name="currentPassword" type="password" autocomplete="current-password" required />
+                </label>
+                <label class="form-field">
+                  <span>New password</span>
+                  <input name="newPassword" type="password" autocomplete="new-password" required />
+                </label>
+                <label class="form-field">
+                  <span>Confirm new password</span>
+                  <input name="confirmPassword" type="password" autocomplete="new-password" required />
+                </label>
+                <button class="button button--primary" type="submit">Update password</button>
+              </form>
+            </article>
           </section>
         </main>
       </div>

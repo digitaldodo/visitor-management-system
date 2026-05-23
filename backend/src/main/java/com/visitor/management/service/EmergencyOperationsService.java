@@ -88,6 +88,7 @@ public class EmergencyOperationsService {
 
     public EmergencyStateResponse startLockdown(EmergencyLockdownRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireCoordinator(actor);
         if (!request.confirmOperationalOnly()) {
             throw new BadRequestException("Confirm this is an operational coordination lockdown, not physical access-control automation.");
         }
@@ -127,6 +128,7 @@ public class EmergencyOperationsService {
 
     public EmergencyStateResponse clearLockdown(EmergencyLockdownRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireCoordinator(actor);
         EmergencyOperationalState state = mutableState(actor);
         if (!state.isLockdownActive()) {
             return toStateResponse(state, actor);
@@ -165,6 +167,7 @@ public class EmergencyOperationsService {
 
     public EmergencyIncidentResponse triggerPanic(EmergencyPanicRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireOperator(actor);
         if (!request.deliberate()) {
             throw new BadRequestException("Hold-to-confirm panic trigger was not completed.");
         }
@@ -191,6 +194,7 @@ public class EmergencyOperationsService {
 
     public EmergencyIncidentResponse broadcast(EmergencyBroadcastRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireCoordinator(actor);
         Instant now = Instant.now();
         EmergencyIncidentSeverity severity = request.severity() == null ? EmergencyIncidentSeverity.HIGH : request.severity();
         EmergencyIncidentType type = request.evacuation() ? EmergencyIncidentType.EVACUATION_STARTED : EmergencyIncidentType.EMERGENCY_BROADCAST;
@@ -230,6 +234,7 @@ public class EmergencyOperationsService {
 
     public EmergencyIncidentResponse flagVisitor(String visitorId, EmergencyFlagRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireOperator(actor);
         Visitor visitor = visitorRepository.findById(visitorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Visitor was not found."));
         requireOrganizationAccess(actor, visitor.getOrganizationId());
@@ -263,6 +268,7 @@ public class EmergencyOperationsService {
 
     public EmergencyIncidentResponse flagWorkforce(String userId, EmergencyFlagRequest request, String actorId) {
         User actor = currentUser(actorId);
+        requireOperator(actor);
         User worker = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Workforce account was not found."));
         requireOrganizationAccess(actor, worker.getOrganizationId());
@@ -497,6 +503,20 @@ public class EmergencyOperationsService {
         if (!Objects.equals(requiredOrganizationId(actor), trimToNull(organizationId))) {
             throw new UnauthorizedException("Record is outside the active organization.");
         }
+    }
+
+    private void requireCoordinator(User actor) {
+        if (hasRole(actor, Role.ADMIN) || hasRole(actor, Role.SUPER_ADMIN)) {
+            return;
+        }
+        throw new UnauthorizedException("Emergency coordination controls require an admin role.");
+    }
+
+    private void requireOperator(User actor) {
+        if (hasRole(actor, Role.ADMIN) || hasRole(actor, Role.SUPER_ADMIN) || hasRole(actor, Role.SECURITY_GUARD)) {
+            return;
+        }
+        throw new UnauthorizedException("Emergency incident operations require admin or security access.");
     }
 
     private boolean hasRole(User user, Role role) {

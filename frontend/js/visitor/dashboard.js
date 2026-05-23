@@ -3,16 +3,21 @@ import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { bootstrapApplication } from "../shared/appRuntime.js";
 import { formatDate, formatDurationMinutes, formatStatus, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
-import { initPortalShell, renderMetrics, escapeHtml } from "../shared/portalShell.js";
+import { initPortalShell, renderMetrics, renderWorkList, escapeHtml } from "../shared/portalShell.js";
 import { initOrganizationSelectors } from "../shared/organizationSelector.js";
-import { getVisitorPass, getVisitorHistory, requestVisitReschedule, uploadVisitPhoto } from "../shared/accessService.js";
+import { getAccountProfile, getVisitorPass, getVisitorHistory, listVisitorInvites, requestVisitReschedule, updateAccountPassword, updateAccountProfile, uploadAccountProfilePhoto, uploadVisitPhoto } from "../shared/accessService.js";
+import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
+import { LOGIN_FROM_PORTAL } from "../shared/config.js";
+import { setText } from "../shared/dom.js";
+import { clearSession } from "../shared/session.js";
 
-const ROUTES = ["visits", "history", "request"];
+const ROUTES = ["visits", "history", "invites", "request", "settings"];
 let activeBadge = null;
+let visitorProfileLoaded = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("visitor-portal", () => bootVisitorPortal(), {
@@ -43,14 +48,18 @@ async function bootVisitorPortal() {
   initScheduleHints();
   initVisitActions();
   initBadgeActions();
+  initVisitorSettingsForm();
+  initVisitorPasswordForm();
+  initVisitorPhotoForm();
   await loadVisitorPortal();
 }
 
 async function loadVisitorPortal() {
-  const [overview, visits, history] = await Promise.allSettled([
+  const [overview, visits, history, invites] = await Promise.allSettled([
     request("/visitor/overview"),
     request("/visitor/visits"),
     getVisitorHistory("/visitor"),
+    listVisitorInvites(),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -77,6 +86,14 @@ async function loadVisitorPortal() {
   } else {
     renderHistory(null);
   }
+
+  if (invites.status === "fulfilled") {
+    renderInvites(invites.value?.data || []);
+  } else {
+    renderWorkList("#visitor-invite-list", [], (item) => item, "Invites unavailable", invites.reason?.message || "Invite inbox could not be loaded.");
+  }
+
+  await loadVisitorProfile();
 }
 
 function initRequestForm() {
@@ -134,7 +151,7 @@ function initRequestForm() {
 }
 
 function initVisitActions() {
-  document.querySelector("#visitor-visits-list")?.addEventListener("click", async (event) => {
+  const handler = async (event) => {
     const button = event.target.closest("[data-visit-action]");
     if (!button) {
       return;
@@ -157,7 +174,9 @@ function initVisitActions() {
     } catch (error) {
       showToast("Badge unavailable", error.message);
     }
-  });
+  };
+  document.querySelector("#visitor-visits-list")?.addEventListener("click", handler);
+  document.querySelector("#visitor-invite-list")?.addEventListener("click", handler);
 }
 
 function initBadgeActions() {
@@ -219,6 +238,192 @@ function renderVisits(items) {
       <p>Submit a request when you plan to visit an AccessFlow-managed location.</p>
     </article>
   `;
+}
+
+function renderInvites(items) {
+  const sorted = [...items].sort((left, right) => new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0));
+  renderWorkList("#visitor-invite-list", sorted, inviteCard, "No visitor invites", "Employee pre-registration invites for this account will appear here.");
+}
+
+function inviteCard(invite) {
+  const stage = canonicalVisitorInviteStage(invite);
+  const actionable = ["INVITED", "PRE_REGISTRATION_PENDING"].includes(stage);
+  const passReady = invite.pass?.qrImageDataUri || ["BADGE_ISSUED", "CHECKED_IN", "CHECKED_OUT"].includes(stage);
+  return `
+    <article class="visitor-visit-card">
+      <div class="visitor-visit-card__header">
+        <div>
+          <h3>${escapeHtml(invite.hostEmployeeName || "Host invitation")}</h3>
+          <p>${escapeHtml([invite.organizationName, invite.purposeOfVisit].filter(Boolean).join(" · ") || "Visitor pre-registration")}</p>
+        </div>
+        <span class="status-badge status-badge--${String(stage).toLowerCase().replaceAll("_", "-")}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
+      </div>
+      <dl>
+        <div><dt>Arrival</dt><dd>${escapeHtml(formatDate(invite.scheduledStartTime))}</dd></div>
+        <div><dt>Access review</dt><dd>${escapeHtml(invite.lifecycleLabel || visitorInviteStatusLabel(invite))}</dd></div>
+        <div><dt>Next step</dt><dd>${escapeHtml(invite.nextAction || (actionable ? "Complete pre-registration" : "Track approval status"))}</dd></div>
+        <div><dt>Expires</dt><dd>${escapeHtml(formatDate(invite.expiresAt))}</dd></div>
+        <div><dt>Pre-registration</dt><dd>${escapeHtml(invite.registrationCompletedAt ? `Submitted ${formatDate(invite.registrationCompletedAt)}` : "Pending")}</dd></div>
+        <div><dt>Badge</dt><dd>${escapeHtml(passReady ? "Visible after approval" : "Pending approval")}</dd></div>
+      </dl>
+      <div class="visitor-visit-card__footer">
+        <span>${escapeHtml(invite.revocationReason || invite.note || "Your QR badge appears after host or workplace approval.")}</span>
+        ${actionable && invite.inviteUrl ? `<a class="button button--primary" href="${escapeHtml(invite.inviteUrl)}">Complete pre-registration</a>` : ""}
+        ${invite.pass?.qrImageDataUri ? `<button class="button button--ghost" type="button" data-visit-action="badge" data-visitor-id="${escapeHtml(invite.visitorId || "")}">Open badge</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+async function loadVisitorProfile(force = false) {
+  if (visitorProfileLoaded && !force) {
+    return;
+  }
+  try {
+    const response = await getAccountProfile();
+    renderVisitorProfile(response?.data || null);
+    visitorProfileLoaded = Boolean(response?.data);
+  } catch (error) {
+    showToast("Settings unavailable", error.message);
+  }
+}
+
+function renderVisitorProfile(profile) {
+  const form = document.querySelector("#visitor-settings-form");
+  if (!profile || !form) {
+    return;
+  }
+  initPhoneInput(form);
+  setFieldValue(form, "username", profile.username || "");
+  const phoneInput = form.querySelector("input[name='phone']");
+  const phoneCode = form.querySelector("select[name='phoneCountryCode']");
+  if (phoneInput) {
+    phoneInput.value = stripDialCode(profile.phone, profile.phoneCountryCode);
+  }
+  if (phoneCode && profile.phoneCountryCode) {
+    phoneCode.value = profile.phoneCountryCode;
+  }
+  setFieldValue(form, "emergencyContact", profile.emergencyContact || "");
+  setFieldValue(form, "preferredLanguage", profile.preferredLanguage || "");
+  const inApp = form.querySelector("input[name='notificationInAppEnabled']");
+  const email = form.querySelector("input[name='notificationEmailEnabled']");
+  if (inApp) {
+    inApp.checked = profile.notificationInAppEnabled !== false;
+  }
+  if (email) {
+    email.checked = profile.notificationEmailEnabled !== false;
+  }
+}
+
+function initVisitorSettingsForm() {
+  const form = document.querySelector("#visitor-settings-form");
+  if (!form) {
+    return;
+  }
+  initPhoneInput(form);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    const phone = phonePayload(data);
+    const phoneError = validatePhonePayload(phone, { required: false });
+    if (phoneError) {
+      showToast("Check phone", phoneError);
+      return;
+    }
+    if (!/^[a-z0-9_]{3,32}$/.test(String(data.username || "").trim().toLowerCase())) {
+      showToast("Check username", "Use 3-32 lowercase letters, numbers, or underscores.");
+      return;
+    }
+    setFormLoading(form, true);
+    try {
+      const response = await updateAccountProfile({
+        username: String(data.username || "").trim().toLowerCase(),
+        phoneCountryCode: phone.phoneCountryCode,
+        phone: phone.phone,
+        emergencyContact: trim(data.emergencyContact),
+        preferredLanguage: trim(data.preferredLanguage),
+        notificationInAppEnabled: Boolean(data.notificationInAppEnabled),
+        notificationEmailEnabled: Boolean(data.notificationEmailEnabled),
+      });
+      renderVisitorProfile(response?.data || null);
+      showToast("Settings saved", "Your visitor profile preferences were updated.");
+    } catch (error) {
+      showToast("Settings update failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+}
+
+function initVisitorPasswordForm() {
+  const form = document.querySelector("#visitor-password-form");
+  if (!form) {
+    return;
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    if (!isStrongPassword(data.newPassword)) {
+      showToast("Weak password", "Use uppercase, lowercase, number, symbol, and at least 12 characters.");
+      return;
+    }
+    if (data.newPassword !== data.confirmPassword) {
+      showToast("Passwords differ", "Confirm password must match.");
+      return;
+    }
+    setFormLoading(form, true);
+    try {
+      await updateAccountPassword({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+      showToast("Password updated", "Sign in again with your new password.");
+      clearSession();
+      window.setTimeout(() => {
+        window.location.href = LOGIN_FROM_PORTAL;
+      }, 900);
+    } catch (error) {
+      showToast("Password update failed", error.message);
+      setFormLoading(form, false);
+    }
+  });
+}
+
+function initVisitorPhotoForm() {
+  const form = document.querySelector("#visitor-photo-form");
+  const input = form?.querySelector("input[name='profilePhoto']");
+  if (!form || !input) {
+    return;
+  }
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      showToast("Photo rejected", "Choose a JPEG, PNG, or WebP image.");
+      input.value = "";
+      return;
+    }
+    setText("#visitor-photo-status", "Uploading photo...");
+    try {
+      const upload = await uploadAccountProfilePhoto(file);
+      const photoUrl = upload?.data?.url;
+      if (!photoUrl) {
+        throw new Error("Photo upload completed without a usable URL.");
+      }
+      await updateAccountProfile({ employeePhotoUrl: photoUrl });
+      visitorProfileLoaded = false;
+      await loadVisitorProfile(true);
+      setText("#visitor-photo-status", "Profile photo updated.");
+      showToast("Photo updated", "Your account photo was refreshed.");
+    } catch (error) {
+      setText("#visitor-photo-status", "Photo update failed.");
+      showToast("Photo update failed", error.message);
+    } finally {
+      input.value = "";
+    }
+  });
 }
 
 function initScheduleHints() {
@@ -421,6 +626,22 @@ function setFormLoading(form, loading) {
   button?.toggleAttribute("aria-busy", loading);
 }
 
+function setFieldValue(form, name, value) {
+  const field = form.querySelector(`[name='${name}']`);
+  if (field) {
+    field.value = value || "";
+  }
+}
+
+function isStrongPassword(value) {
+  const password = String(value || "");
+  return password.length >= 12
+    && /[a-z]/.test(password)
+    && /[A-Z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
 function resetHostPicker(form) {
   form.querySelector("[data-host-search-input]")?.setAttribute("value", "");
   const input = form.querySelector("[data-host-search-input]");
@@ -444,6 +665,12 @@ function resetHostPicker(form) {
 function trim(value) {
   const next = String(value || "").trim();
   return next || null;
+}
+
+function stripDialCode(value, code) {
+  const text = String(value || "").trim();
+  const dialCode = String(code || "").trim();
+  return dialCode && text.startsWith(dialCode) ? text.slice(dialCode.length).trim() : text;
 }
 
 function formatWindow(start, end, timezone) {

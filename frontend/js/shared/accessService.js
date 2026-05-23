@@ -31,6 +31,34 @@ export function preApproveVisitor(payload) {
   });
 }
 
+export function listEmployeeVisitorInvites() {
+  return request("/employee/visitor-invites");
+}
+
+export function createEmployeeVisitorInvite(payload) {
+  return request("/employee/visitor-invites", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function revokeEmployeeVisitorInvite(id, reason) {
+  return request(`/employee/visitor-invites/${encodeURIComponent(id)}/revoke`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function resendEmployeeVisitorInvite(id) {
+  return request(`/employee/visitor-invites/${encodeURIComponent(id)}/resend`, {
+    method: "PATCH",
+  });
+}
+
+export function listVisitorInvites() {
+  return request("/visitor/invites");
+}
+
 export function uploadVisitorPhoto(basePath, file) {
   const formData = new FormData();
   formData.append("file", file);
@@ -250,6 +278,33 @@ export function uploadEmployeeProfilePhoto(file) {
   const formData = new FormData();
   formData.append("file", file);
   return request("/employee/profile/photo", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function getAccountProfile() {
+  return request("/auth/me");
+}
+
+export function updateAccountProfile(payload) {
+  return request("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAccountPassword(payload) {
+  return request("/auth/profile/password", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadAccountProfilePhoto(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request("/auth/profile/photo", {
     method: "POST",
     body: formData,
   });

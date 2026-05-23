@@ -178,6 +178,14 @@ public class SecurityPortalController {
         return ApiResponse.ok("Visitor invite revoked.", visitorInviteService.revoke(id, authentication.getName(), request.reason()));
     }
 
+    @PatchMapping("/visitor-invites/{id}/resend")
+    public ApiResponse<VisitorInviteResponse> resendVisitorInvite(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+        return ApiResponse.ok("Visitor invite resent.", visitorInviteService.resend(id, authentication.getName()));
+    }
+
     @GetMapping("/monitoring")
     public ApiResponse<SecurityMonitoringResponse> monitoring(@RequestParam(required = false) String query, Authentication authentication) {
         return ApiResponse.ok("Security monitoring loaded.", visitorService.securityMonitoring(authentication.getName(), query));

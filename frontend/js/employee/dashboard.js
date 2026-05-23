@@ -5,7 +5,8 @@ import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveRescheduleRequest, approveVisitor, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
+import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
+import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
@@ -50,6 +51,8 @@ async function bootEmployeePortal() {
   initApprovalActions();
   initScheduledActions();
   initPreApprovalForm();
+  initVisitorInviteForm();
+  initVisitorInviteActions();
   initEmployeeBadgeActions();
   initCredentialPhotoForm();
   initEmployeeSettingsForm();
@@ -67,17 +70,19 @@ async function loadEmployeePortal() {
   renderLoadingList("#notifications-list");
   renderLoadingList("#dashboard-notifications-list", 2);
   renderLoadingList("#scheduled-list");
+  renderLoadingList("#visitor-invite-list");
   renderLoadingList("#dashboard-upcoming-list", 2);
   renderLoadingList("#employee-attendance-list");
   renderLoadingList("#recent-activity-list", 2);
   renderPresenceSummary([]);
   renderAttendanceSummary([]);
 
-  const [overview, notifications, scheduled, attendance] = await Promise.allSettled([
+  const [overview, notifications, scheduled, attendance, invites] = await Promise.allSettled([
     request("/employee/overview"),
     request("/employee/notifications"),
     request("/employee/scheduled-visitors"),
     getOwnEmployeeAttendance(),
+    listEmployeeVisitorInvites(),
   ]);
 
   if (overview.status === "fulfilled") {
@@ -102,6 +107,12 @@ async function loadEmployeePortal() {
   } else {
     renderWorkList("#scheduled-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
     renderWorkList("#dashboard-upcoming-list", [], (item) => item, "Schedule unavailable", scheduled.reason?.message || "Schedule could not be loaded.");
+  }
+
+  if (invites.status === "fulfilled") {
+    renderVisitorInvites(invites.value?.data || []);
+  } else {
+    renderWorkList("#visitor-invite-list", [], (item) => item, "Invites unavailable", invites.reason?.message || "Visitor invites could not be loaded.");
   }
 
   if (attendance.status === "fulfilled") {
@@ -573,6 +584,87 @@ function initPreApprovalForm() {
   });
 }
 
+function initVisitorInviteForm() {
+  const form = document.querySelector("#visitor-invite-form");
+  if (!form) {
+    return;
+  }
+
+  initPhoneInput(form);
+  const timezone = getDefaultTimezone();
+  const timezoneLabel = document.querySelector("#visitor-invite-timezone");
+  if (timezoneLabel) {
+    timezoneLabel.textContent = `Times use ${timezoneLabelText(timezone)}`;
+  }
+  setInviteMinimums(form);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = visitorInvitePayload(form, timezone);
+    const error = validateVisitorInvite(payload);
+    if (error) {
+      showToast("Check invite", error);
+      return;
+    }
+
+    setFormLoading(form, true);
+    try {
+      const response = await createEmployeeVisitorInvite(payload);
+      const invite = response?.data || {};
+      form.reset();
+      setInviteMinimums(form);
+      showToast("Invite created", invite.visitorEmail ? "Email delivery is queued and the secure link is ready." : "Secure invite link is ready to share.");
+      if (invite.inviteUrl && !invite.visitorEmail) {
+        await shareInvite(invite);
+      }
+      await loadEmployeePortal();
+    } catch (error) {
+      showToast("Invite failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+}
+
+function initVisitorInviteActions() {
+  document.querySelector("#visitor-invite-list")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-invite-action]");
+    if (!button) {
+      return;
+    }
+    const action = button.dataset.inviteAction;
+    const inviteId = button.dataset.inviteId;
+    const card = button.closest("[data-invite-card]");
+    try {
+      setInviteLoading(card, true);
+      if (action === "share") {
+        await shareInvite({
+          inviteUrl: button.dataset.inviteUrl,
+          visitorName: button.dataset.visitorName,
+        });
+        return;
+      }
+      if (action === "resend") {
+        await resendEmployeeVisitorInvite(inviteId);
+        showToast("Invite resent", "Email delivery has been queued again.");
+      }
+      if (action === "revoke") {
+        const reason = window.prompt("Reason for revoking this visitor invite.");
+        if (!reason?.trim()) {
+          return;
+        }
+        await revokeEmployeeVisitorInvite(inviteId, reason.trim());
+        showToast("Invite revoked", "The visitor invite lifecycle was closed.");
+      }
+      await loadEmployeePortal();
+    } catch (error) {
+      showToast("Invite action failed", error.message);
+    } finally {
+      setInviteLoading(card, false);
+    }
+  });
+}
+
 async function loadApprovals(showToastOnSuccess) {
   const list = document.querySelector("#approvals-list");
   if (!list) {
@@ -646,6 +738,47 @@ function renderScheduledVisitors(items) {
     <article class="approval-empty">
       <h3>No upcoming visitors</h3>
       <p>Pre-approved visitors will appear here after scheduling.</p>
+    </article>
+  `;
+}
+
+function renderVisitorInvites(items) {
+  renderWorkList("#visitor-invite-list", items, inviteCard, "No visitor invites", "Create a secure pre-registration invite to track its lifecycle here.");
+}
+
+function inviteCard(invite) {
+  const stage = canonicalVisitorInviteStage(invite);
+  const canRevoke = !["REVOKED", "EXPIRED", "CHECKED_IN", "CHECKED_OUT"].includes(stage);
+  const canResend = Boolean(invite.visitorEmail) && canRevoke;
+  const emailState = invite.visitorEmail
+    ? `${formatStatusLabel(invite.emailStatus || "PENDING")}${invite.emailSentAt ? ` · sent ${formatDate(invite.emailSentAt)}` : ""}`
+    : "No email, share link manually";
+  return `
+    <article class="scheduled-card" data-invite-card>
+      <div>
+        <h3>${escapeHtml(invite.visitorName || "Visitor invite")}</h3>
+        <p>${escapeHtml([invite.companyName, invite.purposeOfVisit].filter(Boolean).join(" · ") || "Pre-registration invite")}</p>
+      </div>
+      <dl>
+        <div><dt>Status</dt><dd>${escapeHtml(invite.lifecycleLabel || visitorInviteStatusLabel(invite))}</dd></div>
+        <div><dt>Next step</dt><dd>${escapeHtml(invite.nextAction || "Monitor lifecycle")}</dd></div>
+        <div><dt>Arrival</dt><dd>${escapeHtml(formatDate(invite.scheduledStartTime))}</dd></div>
+        <div><dt>Expires</dt><dd>${escapeHtml(formatDate(invite.expiresAt))}</dd></div>
+        <div><dt>Email</dt><dd>${escapeHtml(emailState)}</dd></div>
+        <div><dt>Badge</dt><dd>${escapeHtml(invite.pass?.badgeId || (invite.qrIssuedAt ? "QR issued" : "Issued after approval"))}</dd></div>
+        <div><dt>Viewed</dt><dd>${escapeHtml(invite.viewedAt ? formatDate(invite.viewedAt) : "Not viewed")}</dd></div>
+        <div><dt>Registered</dt><dd>${escapeHtml(invite.registrationCompletedAt ? formatDate(invite.registrationCompletedAt) : "Pending")}</dd></div>
+      </dl>
+      ${invite.revocationReason ? `<p>${escapeHtml(invite.revocationReason)}</p>` : ""}
+      <div class="scheduled-card__footer">
+        <span class="status-badge status-badge--${String(stage).toLowerCase().replaceAll("_", "-")}">${escapeHtml(visitorInviteStatusLabel(invite))}</span>
+        <span>${escapeHtml(invite.note || "Approval visibility follows host/workplace review.")}</span>
+      </div>
+      <div class="scheduled-card__actions">
+        ${invite.inviteUrl ? `<button class="button button--ghost" type="button" data-invite-action="share" data-invite-id="${escapeHtml(invite.id)}" data-invite-url="${escapeHtml(invite.inviteUrl)}" data-visitor-name="${escapeHtml(invite.visitorName || "Visitor")}">Share invite</button>` : ""}
+        ${canResend ? `<button class="button button--ghost" type="button" data-invite-action="resend" data-invite-id="${escapeHtml(invite.id)}">Resend invite</button>` : ""}
+        ${canRevoke ? `<button class="button button--ghost" type="button" data-invite-action="revoke" data-invite-id="${escapeHtml(invite.id)}">Revoke invite</button>` : ""}
+      </div>
     </article>
   `;
 }
@@ -797,6 +930,32 @@ function preApprovalPayload(form, timezone) {
   };
 }
 
+function visitorInvitePayload(form, timezone) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const phone = phonePayload(data);
+  const duration = Number(data.expectedDurationMinutes || 60);
+  const scheduledStartTime = toIsoInstant(data.scheduledStartTime, timezone);
+  const scheduledEndTime = scheduledStartTime
+    ? new Date(new Date(scheduledStartTime).getTime() + duration * 60 * 1000).toISOString()
+    : null;
+  return {
+    visitorName: trim(data.visitorName),
+    visitorEmail: trim(data.visitorEmail),
+    phoneCountryCode: phone.phoneCountryCode,
+    visitorPhone: phone.phone,
+    companyName: trim(data.companyName),
+    purposeOfVisit: trim(data.purposeOfVisit),
+    visitorType: "ONE_TIME",
+    scheduledStartTime,
+    scheduledEndTime,
+    expectedDurationMinutes: duration,
+    timezone,
+    approvalRequired: true,
+    expiresInHours: Number(data.expiresInHours || 72),
+    note: trim(data.note),
+  };
+}
+
 function validatePreApproval(payload) {
   if (!payload.fullName || payload.fullName.length < 2) {
     return "Enter the visitor full name.";
@@ -828,6 +987,49 @@ function validatePreApproval(payload) {
   return "";
 }
 
+function validateVisitorInvite(payload) {
+  if (!payload.visitorName || payload.visitorName.length < 2) {
+    return "Enter the visitor full name.";
+  }
+  if (payload.visitorEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.visitorEmail)) {
+    return "Enter a valid visitor email address.";
+  }
+  if (payload.visitorPhone) {
+    const phoneError = validatePhonePayload({
+      phoneCountryCode: payload.phoneCountryCode,
+      phone: payload.visitorPhone,
+    }, { required: false });
+    if (phoneError) {
+      return phoneError;
+    }
+  }
+  if (!payload.purposeOfVisit || payload.purposeOfVisit.length < 2) {
+    return "Enter the purpose of visit.";
+  }
+  if (!payload.scheduledStartTime || new Date(payload.scheduledStartTime) <= new Date()) {
+    return "Choose a future arrival time.";
+  }
+  if (!payload.expectedDurationMinutes || payload.expectedDurationMinutes < 15 || payload.expectedDurationMinutes > 1440) {
+    return "Choose a valid expected duration.";
+  }
+  return "";
+}
+
+async function shareInvite(invite) {
+  const inviteUrl = invite?.inviteUrl;
+  if (!inviteUrl) {
+    showToast("Share unavailable", "This invite does not have a secure link.");
+    return;
+  }
+  const text = `AccessFlow visitor pre-registration for ${invite.visitorName || "your visit"}: ${inviteUrl}`;
+  if (navigator.share) {
+    await navigator.share({ title: "AccessFlow visitor invite", text, url: inviteUrl });
+    return;
+  }
+  await navigator.clipboard?.writeText(text);
+  showToast("Invite copied", "The secure invite link was copied to the clipboard.");
+}
+
 function timezoneLabelText(timezone) {
   return timezoneLabel(timezone);
 }
@@ -854,6 +1056,19 @@ function setFormLoading(form, loading) {
   button?.toggleAttribute("disabled", loading);
   button?.classList.toggle("is-loading", loading);
   button?.toggleAttribute("aria-busy", loading);
+}
+
+function setInviteMinimums(form) {
+  const start = form.querySelector("[name='scheduledStartTime']");
+  const min = toDatetimeLocal(new Date(Date.now() + 5 * 60 * 1000), getDefaultTimezone());
+  start?.setAttribute("min", min);
+}
+
+function setInviteLoading(card, loading) {
+  card?.querySelectorAll("button").forEach((button) => {
+    button.toggleAttribute("disabled", loading);
+    button.classList.toggle("is-loading", loading);
+  });
 }
 
 function setFieldValue(form, name, value) {

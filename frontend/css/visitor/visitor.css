@@ -143,6 +143,32 @@
   padding-left: 0.7rem;
 }
 
+.settings-fieldset {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 1rem;
+}
+
+.settings-fieldset legend {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.toggle-row {
+  align-items: center;
+  color: var(--color-text);
+  display: flex;
+  gap: 0.75rem;
+  font-weight: 700;
+}
+
 @media (max-width: 860px) {
   .visitor-visit-card__header,
   .visitor-visit-card__footer {

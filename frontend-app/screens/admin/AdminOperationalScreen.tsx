@@ -37,12 +37,18 @@ import {
   useDisableAdminUserMutation,
   useEnableAdminUserMutation,
   useEscalateAdminVisitorMutation,
+  useArchiveAdminUserMutation,
   useInviteAdminUserMutation,
   useReactivateAdminVisitorMutation,
   useRejectAdminVisitorMutation,
   useRejectAdminWorkforceMutation,
+  useResendAdminUserInviteMutation,
+  useResetAdminUserPasswordMutation,
+  useRevokeAdminUserInviteMutation,
+  useRevokeAdminUserSessionsMutation,
   useRequestAdminWorkforceModificationMutation,
   useSuspendAdminVisitorMutation,
+  useUpdateAdminUserMutation,
   useUpdateAdminDepartmentMutation,
   useUploadAdminVisitorPhotoMutation,
 } from '../../hooks/useAdminWorkspace';
@@ -280,6 +286,12 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const uploadVisitorPhotoMutation = useUploadAdminVisitorPhotoMutation();
   const disableUserMutation = useDisableAdminUserMutation();
   const enableUserMutation = useEnableAdminUserMutation();
+  const updateUserMutation = useUpdateAdminUserMutation();
+  const resetUserPasswordMutation = useResetAdminUserPasswordMutation();
+  const revokeUserSessionsMutation = useRevokeAdminUserSessionsMutation();
+  const resendUserInviteMutation = useResendAdminUserInviteMutation();
+  const revokeUserInviteMutation = useRevokeAdminUserInviteMutation();
+  const archiveUserMutation = useArchiveAdminUserMutation();
   const inviteUserMutation = useInviteAdminUserMutation();
   const createDepartmentMutation = useCreateAdminDepartmentMutation();
   const updateDepartmentMutation = useUpdateAdminDepartmentMutation();
@@ -404,6 +416,86 @@ export function AdminOperationalScreen({ section }: SectionProps) {
   const suspendUser = async (user: WorkforceOnboardingRecord) => {
     const updated = await disableUserMutation.mutateAsync(user.id);
     setActionMessage(`${updated.fullName} employee access suspended.`);
+    await refreshWorkspace();
+  };
+
+  const rotateUserRole = async (user: WorkforceOnboardingRecord) => {
+    const currentRole = String(user.roles?.[0] || 'EMPLOYEE');
+    const roles = ADMIN_WORKFORCE_ROLES.map((role) => role.value);
+    const roleIndex = roles.findIndex((role) => role === currentRole);
+    const nextRole = roles[((roleIndex >= 0 ? roleIndex : 0) + 1) % roles.length] ?? 'EMPLOYEE';
+    const updated = await updateUserMutation.mutateAsync({
+      id: user.id,
+      payload: {
+        fullName: user.fullName,
+        email: user.email,
+        role: nextRole,
+        department: user.department ?? null,
+        designation: user.designation ?? null,
+        employeeType: user.employeeType ?? null,
+        employeePhotoUrl: user.employeePhotoUrl ?? null,
+        shiftName: user.shiftName ?? null,
+        shiftStartTime: user.shiftStartTime ?? null,
+        shiftEndTime: user.shiftEndTime ?? null,
+        phoneCountryCode: user.phoneCountryCode ?? null,
+        phone: user.phone ?? null,
+      },
+    });
+    setActionMessage(`${updated.fullName} reassigned to ${roleLabel(nextRole)}. Active sessions were invalidated if the role changed.`);
+    await refreshWorkspace();
+  };
+
+  const updateUserShift = async (user: WorkforceOnboardingRecord) => {
+    const nextShiftName = user.shiftName === 'General Shift' ? 'Operations Shift' : 'General Shift';
+    const updated = await updateUserMutation.mutateAsync({
+      id: user.id,
+      payload: {
+        fullName: user.fullName,
+        email: user.email,
+        role: user.roles?.[0] ?? 'EMPLOYEE',
+        department: user.department ?? null,
+        designation: user.designation ?? null,
+        employeeType: user.employeeType ?? null,
+        employeePhotoUrl: user.employeePhotoUrl ?? null,
+        shiftName: nextShiftName,
+        shiftStartTime: user.shiftStartTime ?? '09:00',
+        shiftEndTime: user.shiftEndTime ?? '18:00',
+        phoneCountryCode: user.phoneCountryCode ?? null,
+        phone: user.phone ?? null,
+      },
+    });
+    setActionMessage(`${updated.fullName} workforce profile updated.`);
+    await refreshWorkspace();
+  };
+
+  const resetUserPassword = async (user: WorkforceOnboardingRecord) => {
+    const newPassword = `AccessFlow${new Date().getFullYear()}!${String(user.fullName || user.email || 'User').replace(/[^A-Za-z0-9]/g, '').slice(0, 6) || 'User'}9`;
+    const updated = await resetUserPasswordMutation.mutateAsync({ id: user.id, newPassword });
+    setActionMessage(`${updated.fullName} password reset. Temporary password: ${newPassword}`);
+    await refreshWorkspace();
+  };
+
+  const revokeUserSessions = async (user: WorkforceOnboardingRecord) => {
+    const updated = await revokeUserSessionsMutation.mutateAsync(user.id);
+    setActionMessage(`${updated.fullName} active sessions revoked.`);
+    await refreshWorkspace();
+  };
+
+  const resendUserInvite = async (user: WorkforceOnboardingRecord) => {
+    const updated = await resendUserInviteMutation.mutateAsync(user.id);
+    setActionMessage(`${updated.fullName} invite resent.`);
+    await refreshWorkspace();
+  };
+
+  const revokeUserInvite = async (user: WorkforceOnboardingRecord) => {
+    const updated = await revokeUserInviteMutation.mutateAsync(user.id);
+    setActionMessage(`${updated.fullName} pending invite revoked.`);
+    await refreshWorkspace();
+  };
+
+  const archiveUserAccess = async (user: WorkforceOnboardingRecord) => {
+    const updated = await archiveUserMutation.mutateAsync(user.id);
+    setActionMessage(`${updated.fullName} access archived and revoked.`);
     await refreshWorkspace();
   };
 
@@ -944,8 +1036,21 @@ export function AdminOperationalScreen({ section }: SectionProps) {
               attendance={attendance.data ?? []}
               onDisable={suspendUser}
               onEnable={reactivateUser}
+              onRotateRole={rotateUserRole}
+              onUpdateShift={updateUserShift}
+              onResetPassword={resetUserPassword}
+              onRevokeSessions={revokeUserSessions}
+              onResendInvite={resendUserInvite}
+              onRevokeInvite={revokeUserInvite}
+              onArchive={archiveUserAccess}
               disableLoading={disableUserMutation.isPending}
               enableLoading={enableUserMutation.isPending}
+              mutationLoading={updateUserMutation.isPending
+                || resetUserPasswordMutation.isPending
+                || revokeUserSessionsMutation.isPending
+                || resendUserInviteMutation.isPending
+                || revokeUserInviteMutation.isPending
+                || archiveUserMutation.isPending}
             />
           </>
         ) : null}
@@ -1598,15 +1703,31 @@ function EmployeeList({
   attendance,
   onDisable,
   onEnable,
+  onRotateRole,
+  onUpdateShift,
+  onResetPassword,
+  onRevokeSessions,
+  onResendInvite,
+  onRevokeInvite,
+  onArchive,
   disableLoading,
   enableLoading,
+  mutationLoading,
 }: {
   users: WorkforceOnboardingRecord[];
   attendance: EmployeeAttendanceRecord[];
   onDisable: (user: WorkforceOnboardingRecord) => void;
   onEnable: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onRotateRole: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onUpdateShift: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onResetPassword: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onRevokeSessions: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onResendInvite: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onRevokeInvite: (user: WorkforceOnboardingRecord) => void | Promise<void>;
+  onArchive: (user: WorkforceOnboardingRecord) => void | Promise<void>;
   disableLoading?: boolean;
   enableLoading?: boolean;
+  mutationLoading?: boolean;
 }) {
   const layout = useResponsiveLayout();
   if (!users.length) {
@@ -1616,6 +1737,7 @@ function EmployeeList({
     <View style={[styles.employeeGrid, layout.isTwoColumn ? styles.employeeGridWide : null]}>
       {users.map((user) => {
         const latest = attendance.find((entry) => entry.employeeUserId === user.id);
+        const pendingInvite = String(user.accountStatus || '').toUpperCase() === 'UNVERIFIED';
         return (
           <View key={user.id} style={[styles.employeeCard, layout.isPhone ? styles.employeeCardCompact : null]}>
             <IdentityPhoto uri={user.employeePhotoUrl} fallback="No photo" compact />
@@ -1646,6 +1768,17 @@ function EmployeeList({
                 ) : (
                   <PrimaryButton label="Reactivate access" onPress={() => void onEnable(user)} loading={enableLoading} />
                 )}
+                <PrimaryButton label="Role" onPress={() => void onRotateRole(user)} tone="secondary" loading={mutationLoading} />
+                <PrimaryButton label="Update profile" onPress={() => void onUpdateShift(user)} tone="secondary" loading={mutationLoading} />
+                <PrimaryButton label="Reset password" onPress={() => void onResetPassword(user)} tone="secondary" loading={mutationLoading} />
+                <PrimaryButton label="Revoke sessions" onPress={() => void onRevokeSessions(user)} tone="secondary" loading={mutationLoading} />
+                {pendingInvite ? (
+                  <>
+                    <PrimaryButton label="Resend invite" onPress={() => void onResendInvite(user)} tone="secondary" loading={mutationLoading} />
+                    <PrimaryButton label="Revoke invite" onPress={() => void onRevokeInvite(user)} tone="danger" loading={mutationLoading} />
+                  </>
+                ) : null}
+                <PrimaryButton label="Archive access" onPress={() => void onArchive(user)} tone="danger" loading={mutationLoading} />
               </View>
             </View>
           </View>
