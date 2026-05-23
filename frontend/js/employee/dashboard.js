@@ -5,9 +5,10 @@ import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getEmployeeBadge, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
+import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
 import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
-import { downloadEmployeeBadge, employeeBadgeMarkup, employeeBadgeQrImage, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
+import { BadgePreviewPanel, QRIdentityCard, downloadEmployeeBadge, employeeBadgeQrImage, employeeBadgeSkeletonMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
+import { loadEmployeeBadgeIdentity, updateEmployeeBadgeCache } from "../shared/employeeBadgeProvider.js";
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
@@ -46,7 +47,7 @@ async function bootEmployeePortal() {
   initPortalShell(session, {
     allowedRoutes: ROUTES,
     onRefresh: async () => {
-      await loadEmployeePortal();
+      await loadEmployeePortal({ forceBadge: true });
       await loadRouteData({ force: true });
     },
   });
@@ -79,7 +80,8 @@ async function bootEmployeePortal() {
   window.addEventListener("beforeunload", () => approvalPollTimer?.stop(), { once: true });
 }
 
-async function loadEmployeePortal() {
+async function loadEmployeePortal(options = {}) {
+  const { forceBadge = false } = options;
   if (employeePortalLoading) {
     employeePortalRevision += 1;
     employeePortalQueued = true;
@@ -100,13 +102,15 @@ async function loadEmployeePortal() {
   renderLoadingList("#recent-activity-list", 2);
   renderPresenceSummary([]);
   renderAttendanceSummary([]);
+  renderDashboardBadgeSkeleton();
 
-  const [overview, notifications, scheduled, attendance, invites] = await Promise.allSettled([
+  const [overview, notifications, scheduled, attendance, invites, badgeIdentity] = await Promise.allSettled([
     request("/employee/overview"),
     request("/employee/notifications"),
     request("/employee/scheduled-visitors"),
     getOwnEmployeeAttendance(),
     listEmployeeVisitorInvites(),
+    loadEmployeeBadgeIdentity({ force: forceBadge }),
   ]);
 
   if (revision !== employeePortalRevision) {
@@ -156,6 +160,14 @@ async function loadEmployeePortal() {
   } else {
     renderWorkList("#employee-attendance-list", [], (item) => item, "Presence unavailable", attendance.reason?.message || "Presence history could not be loaded.");
     renderWorkList("#recent-activity-list", [], (item) => item, "Activity unavailable", attendance.reason?.message || "Activity could not be loaded.");
+  }
+
+  if (badgeIdentity.status === "fulfilled") {
+    activeEmployeeProfile = badgeIdentity.value.profile || activeEmployeeProfile;
+    activeEmployeeBadge = badgeIdentity.value.badge || activeEmployeeBadge;
+    renderDashboardBadge(activeEmployeeBadge);
+  } else {
+    renderDashboardBadge(null, badgeIdentity.reason?.message || "Your badge could not be loaded.");
   }
 
   employeePortalLoading = false;
@@ -266,14 +278,46 @@ function renderOwnBadge(badge, error = "") {
     return;
   }
   if (!badge) {
-    panel.innerHTML = `<article class="approval-empty"><h3>Badge unavailable</h3><p>${escapeHtml(error || "Your employee badge is not ready yet.")}</p></article>`;
+    panel.innerHTML = BadgePreviewPanel(null, {
+      emptyTitle: "Badge unavailable",
+      emptyMessage: error || "Your employee badge is not ready yet.",
+    });
     renderCredentialCompanions(null);
     setCredentialActionsState(false);
     return;
   }
-  panel.innerHTML = employeeBadgeMarkup(badge);
+  panel.innerHTML = BadgePreviewPanel(badge);
   renderCredentialCompanions(badge);
   setCredentialActionsState(true);
+}
+
+function renderDashboardBadgeSkeleton() {
+  const panel = document.querySelector("#dashboard-badge-panel");
+  if (!panel) {
+    return;
+  }
+  panel.innerHTML = employeeBadgeSkeletonMarkup("Loading badge", "Syncing reusable identity QR.");
+}
+
+function renderDashboardBadge(badge, error = "") {
+  const panel = document.querySelector("#dashboard-badge-panel");
+  if (!panel) {
+    return;
+  }
+  panel.innerHTML = badge ? `
+    <div class="dashboard-badge-card__preview">
+      ${BadgePreviewPanel(badge, { compact: true })}
+    </div>
+    <div class="dashboard-badge-card__footer">
+      <span>${escapeHtml(badge.organizationName || badge.organizationCode || "Organization context pending")}</span>
+      <a class="button button--ghost" href="#credential">Open badge</a>
+    </div>
+  ` : `
+    ${BadgePreviewPanel(null, {
+      emptyTitle: "Badge unavailable",
+      emptyMessage: error || "Your reusable employee badge will appear here once available.",
+    })}
+  `;
 }
 
 function renderCredentialCompanions(badge) {
@@ -282,14 +326,9 @@ function renderCredentialCompanions(badge) {
   const qrImage = badge ? employeeBadgeQrImage(badge) : "";
   const hasQrImage = Boolean(firstUsableBadgeQrImage(badge));
   if (qrPanel) {
-    qrPanel.innerHTML = badge ? `
-      <div>
-        <p class="eyebrow">Static QR Code</p>
-        <h3>${hasQrImage ? "Reusable Identity QR" : "QR image pending"}</h3>
-      </div>
-      <img src="${escapeHtml(qrImage)}" alt="${hasQrImage ? "Static employee QR" : "Employee QR pending"}" />
-      <code data-i18n-ignore>${escapeHtml(badge.qrPayload || "QR identity pending")}</code>
-    ` : `
+    qrPanel.innerHTML = badge ? QRIdentityCard(badge, {
+      title: hasQrImage ? "Reusable Identity QR" : "QR image pending",
+    }) : `
       <div>
         <p class="eyebrow">Static QR Code</p>
         <h3>QR pending</h3>
@@ -387,22 +426,15 @@ async function loadCredentialPage(force = false) {
   }
   const panel = document.querySelector("#employee-badge-panel");
   if (panel) {
-    panel.innerHTML = `<article class="approval-empty"><h3>Loading credential</h3><p>Preparing your badge preview and static QR.</p></article>`;
+    panel.innerHTML = employeeBadgeSkeletonMarkup("Loading credential", "Preparing your badge preview and static QR.");
   }
   setCredentialActionsState(false);
   try {
-    const [badgeResponse, profileResponse] = await Promise.allSettled([
-      getEmployeeBadge("/employee"),
-      getEmployeeProfile(),
-    ]);
-    if (badgeResponse.status !== "fulfilled") {
-      throw badgeResponse.reason || new Error("Employee badge could not be loaded.");
-    }
-    const badgeData = badgeResponse.value?.data || null;
-    const profileData = profileResponse.status === "fulfilled" ? profileResponse.value?.data || null : null;
-    activeEmployeeProfile = profileData || activeEmployeeProfile;
-    activeEmployeeBadge = mergeBadgeProfile(badgeData, profileData);
+    const badgeIdentity = await loadEmployeeBadgeIdentity({ force });
+    activeEmployeeProfile = badgeIdentity.profile || activeEmployeeProfile;
+    activeEmployeeBadge = badgeIdentity.badge;
     renderOwnBadge(activeEmployeeBadge);
+    renderDashboardBadge(activeEmployeeBadge);
     credentialLoaded = Boolean(activeEmployeeBadge);
   } catch (error) {
     activeEmployeeBadge = null;
@@ -418,25 +450,6 @@ function firstUsableBadgeQrImage(badge) {
     badge?.qrCodeImageDataUri,
     badge?.qrCodeDataUri,
   ].find((value) => /^data:image\/(?:png|jpeg|jpg|webp|svg\+xml);/i.test(String(value || "").trim())) || "";
-}
-
-function mergeBadgeProfile(badge, profile) {
-  if (!badge || typeof badge !== "object") {
-    return null;
-  }
-  if (!profile || typeof profile !== "object") {
-    return badge;
-  }
-  return {
-    ...badge,
-    fullName: badge.fullName || profile.fullName || profile.name,
-    employeeId: badge.employeeId || profile.employeeId,
-    department: badge.department || profile.department,
-    designation: badge.designation || profile.designation,
-    employeePhotoUrl: badge.employeePhotoUrl || profile.employeePhotoUrl || profile.profilePhotoUrl,
-    organizationName: badge.organizationName || profile.organizationName,
-    organizationCode: badge.organizationCode || profile.organizationCode,
-  };
 }
 
 function initCredentialPhotoForm() {
@@ -459,7 +472,9 @@ function initCredentialPhotoForm() {
     const localPreviewUrl = URL.createObjectURL(file);
     if (activeEmployeeBadge) {
       activeEmployeeBadge = { ...activeEmployeeBadge, employeePhotoUrl: localPreviewUrl };
+      updateEmployeeBadgeCache(activeEmployeeBadge, activeEmployeeProfile);
       renderOwnBadge(activeEmployeeBadge);
+      renderDashboardBadge(activeEmployeeBadge);
     }
     try {
       const upload = await uploadEmployeeProfilePhoto(file);

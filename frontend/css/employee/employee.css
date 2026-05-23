@@ -8,8 +8,92 @@
   display: grid;
   gap: 1rem;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   padding: 1.2rem;
+  width: 100%;
+}
+
+.employee-badge--compact {
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.employee-badge--compact .employee-badge__header {
+  align-items: flex-start;
+}
+
+.employee-badge--compact .employee-badge__brand img {
+  height: 2.3rem;
+  width: 2.3rem;
+}
+
+.employee-badge--compact .employee-badge__body {
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.employee-badge--compact .employee-badge__photo {
+  width: 5.8rem;
+}
+
+.employee-badge--compact .employee-badge__identity {
+  min-width: 0;
+}
+
+.employee-badge--compact .employee-badge__identity h4 {
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  line-height: 1.08;
+}
+
+.employee-badge--compact .employee-badge__qr {
+  min-width: 5.8rem;
+}
+
+.employee-badge--compact .employee-badge__qr img {
+  width: 5.8rem;
+}
+
+.employee-badge--compact .employee-badge__meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.employee-badge-skeleton {
+  background: rgba(11, 18, 31, 0.52);
+  border: 1px dashed rgba(153, 246, 228, 0.2);
+  border-radius: 8px;
+  color: var(--color-text);
+  display: grid;
+  gap: 0.75rem;
+  min-height: 14rem;
+  padding: 1rem;
+}
+
+.employee-badge-skeleton div {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.employee-badge-skeleton span {
+  animation: shimmer 1.2s linear infinite;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  background-size: 200% 100%;
+  border-radius: 999px;
+  display: block;
+  height: 0.8rem;
+}
+
+.employee-badge-skeleton span:nth-child(2) {
+  width: 66%;
+}
+
+.employee-badge-skeleton strong,
+.employee-badge-skeleton p {
+  margin: 0;
+}
+
+.employee-badge-skeleton p {
+  color: var(--color-muted);
 }
 
 .employee-badge__header,
@@ -24,6 +108,10 @@
   align-items: center;
   display: flex;
   gap: 0.8rem;
+  min-width: 0;
+}
+
+.employee-badge__brand > div {
   min-width: 0;
 }
 
@@ -72,6 +160,14 @@
   min-width: 12rem;
 }
 
+.employee-badge__identity p,
+.employee-badge__identity h4,
+.employee-badge__identity strong,
+.employee-badge__identity span {
+  display: block;
+  max-width: 100%;
+}
+
 .employee-badge__identity h4 {
   font-size: 2rem;
   line-height: 1;
@@ -111,12 +207,14 @@
 .employee-badge__meta div {
   background: #f6f9fc;
   border-radius: 8px;
+  min-width: 0;
   padding: 0.75rem;
 }
 
 .employee-badge__meta dd {
   font-weight: 800;
   margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {
@@ -129,6 +227,15 @@
   .employee-badge__photo,
   .employee-badge__qr img {
     width: min(100%, 12rem);
+  }
+
+  .employee-badge--compact .employee-badge__photo,
+  .employee-badge--compact .employee-badge__qr img {
+    width: min(100%, 8rem);
+  }
+
+  .employee-badge--compact .employee-badge__meta {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -178,6 +285,42 @@
   gap: 0.85rem;
   min-height: 7rem;
   padding: 1rem;
+}
+
+.dashboard-badge-card {
+  overflow: hidden;
+}
+
+.dashboard-badge-card > *,
+#dashboard-badge-panel,
+.dashboard-badge-card .panel__header > div {
+  min-width: 0;
+}
+
+.dashboard-badge-card__preview {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.dashboard-badge-card__footer {
+  align-items: center;
+  border-top: 1px solid var(--color-line);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+}
+
+.dashboard-badge-card__footer span {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .employee-presence strong,
@@ -286,6 +429,7 @@
 }
 
 .credential-actions {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;

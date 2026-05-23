@@ -59,12 +59,63 @@ export function employeeBadgeDialogMarkup(badge) {
   `;
 }
 
-export function employeeBadgeMarkup(badge) {
+export function EmployeeBadgeCard(badge, options = {}) {
+  return employeeBadgeMarkup(badge, options);
+}
+
+export function BadgePreviewPanel(badge, options = {}) {
+  if (!badge) {
+    return employeeBadgeSkeletonMarkup(options.emptyTitle || "Badge unavailable", options.emptyMessage || "Your employee badge is not ready yet.");
+  }
+  return EmployeeBadgeCard(badge, options);
+}
+
+export function QRIdentityCard(badge, options = {}) {
+  const normalizedBadge = normalizeEmployeeBadge(badge);
+  const qrImage = employeeBadgeQrImage(normalizedBadge);
+  const hasQrImage = hasUsableDataImage(firstString(
+    normalizedBadge.qrImageDataUri,
+    normalizedBadge.staticFallbackQrImageDataUri,
+    normalizedBadge.qrCodeImageDataUri,
+    normalizedBadge.qrCodeDataUri,
+  ));
+  const title = options.title || (hasQrImage ? "Reusable Identity QR" : "QR image pending");
+  const payload = normalizedBadge.qrPayload || "QR identity pending";
+  return `
+    <div>
+      <p class="eyebrow">${escapeHtml(options.eyebrow || "Static QR Code")}</p>
+      <h3>${escapeHtml(title)}</h3>
+    </div>
+    <img src="${escapeHtml(qrImage)}" alt="${hasQrImage ? "Static employee QR" : "Employee QR pending"}" />
+    <code data-i18n-ignore>${escapeHtml(payload)}</code>
+  `;
+}
+
+export function employeeBadgeSkeletonMarkup(title = "Loading credential", message = "Preparing your badge preview and static QR.") {
+  return `
+    <article class="employee-badge-skeleton" aria-busy="true">
+      <div>
+        <span></span>
+        <span></span>
+      </div>
+      <div>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <strong>${escapeHtml(title)}</strong>
+      <p>${escapeHtml(message)}</p>
+    </article>
+  `;
+}
+
+export function employeeBadgeMarkup(badge, options = {}) {
   const normalizedBadge = normalizeEmployeeBadge(badge);
   const qrImage = employeeBadgeQrImage(normalizedBadge);
   const hasQrImage = hasUsableDataImage(qrImage) && qrImage !== FALLBACK_QR;
+  const classes = ["employee-badge", options.compact ? "employee-badge--compact" : ""].filter(Boolean).join(" ");
   return `
-    <article class="employee-badge" data-employee-badge-card>
+    <article class="${escapeHtml(classes)}" data-employee-badge-card>
       <header class="employee-badge__header">
         <div class="employee-badge__brand">
           <img src="${escapeHtml(BRAND_ICON)}" alt="AccessFlow" />

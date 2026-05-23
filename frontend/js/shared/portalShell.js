@@ -746,10 +746,87 @@ function renderIdentityChip(session, portalProfile) {
   const parts = [displayName, scope, timezone, role].filter(Boolean);
   chip.title = parts.join(" · ");
   chip.dataset.i18nIgnore = "true";
+  chip.setAttribute("role", "button");
+  chip.setAttribute("tabindex", "0");
+  chip.setAttribute("aria-haspopup", "menu");
+  chip.setAttribute("aria-expanded", "false");
+  chip.setAttribute("aria-label", `Profile for ${displayName}`);
   chip.innerHTML = `
+    <span class="user-chip__avatar" aria-hidden="true">${escapeHtml(initials(displayName))}</span>
     <span class="user-chip__primary">${escapeHtml(displayName)}</span>
-    <span class="user-chip__meta">${escapeHtml([scope, timezone, role].filter(Boolean).join(" · "))}</span>
+    <span class="user-chip__chevron" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="m7 9 5 5 5-5 1.4 1.4L12 16.8l-6.4-6.4Z"/></svg>
+    </span>
   `;
+  renderIdentityMenu(chip, { displayName, scope, timezone, role });
+  bindIdentityMenu(chip);
+}
+
+function renderIdentityMenu(chip, identity) {
+  let menu = $("#profile-menu");
+  if (!menu) {
+    chip.insertAdjacentHTML("afterend", `<section class="profile-menu is-hidden" id="profile-menu" role="menu" aria-label="Profile context"></section>`);
+    menu = $("#profile-menu");
+  }
+  delete menu.dataset.i18nIgnore;
+  menu.innerHTML = `
+    <div class="profile-menu__header">
+      <span class="user-chip__avatar" aria-hidden="true">${escapeHtml(initials(identity.displayName))}</span>
+      <div>
+        <strong data-i18n-ignore>${escapeHtml(identity.displayName)}</strong>
+        <span data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</span>
+      </div>
+    </div>
+    <dl class="profile-menu__meta">
+      <div><dt>Organization</dt><dd data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</dd></div>
+      <div><dt>Role</dt><dd data-i18n-ignore>${escapeHtml(identity.role || "User")}</dd></div>
+      <div><dt>Timezone</dt><dd data-i18n-ignore>${escapeHtml(identity.timezone || "UTC")}</dd></div>
+    </dl>
+  `;
+}
+
+function bindIdentityMenu(chip) {
+  if (chip.dataset.menuBound === "true") {
+    return;
+  }
+  chip.dataset.menuBound = "true";
+  const closeMenu = () => {
+    $("#profile-menu")?.classList.add("is-hidden");
+    chip.setAttribute("aria-expanded", "false");
+  };
+  const toggleMenu = () => {
+    const menu = $("#profile-menu");
+    if (!menu) {
+      return;
+    }
+    const nextOpen = menu.classList.toggle("is-hidden") === false;
+    chip.setAttribute("aria-expanded", String(nextOpen));
+  };
+  chip.addEventListener("click", toggleMenu);
+  chip.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleMenu();
+    }
+    if (event.key === "Escape") {
+      closeMenu();
+    }
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#user-chip") && !event.target.closest("#profile-menu")) {
+      closeMenu();
+    }
+  });
+}
+
+function initials(value) {
+  const letters = String(value || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  return letters || "AF";
 }
 
 function emptyMarkup(title, message) {
