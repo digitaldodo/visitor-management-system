@@ -71,15 +71,9 @@ Crash reports attach only low-risk operational context:
 
 Crash reports do not include passwords, auth tokens, QR payloads, visitor details, names, emails, phone numbers, photos, credential payloads, or raw business payloads. User ids are converted to a local non-PII fingerprint before being sent to Crashlytics.
 
-## Diagnostics Screen
+## Runtime Diagnostics
 
-Authenticated profile screens include an expandable app diagnostics panel with:
-
-- app version, runtime version, build id, release channel, OTA status
-- Crashlytics configured/available state, native Firebase availability, previous-crash and unsent-report indicators
-- sync health, API reachability, network/offline mode, offline queue size, last offline sync, push permission, and runtime health
-
-The panel is operational metadata only and intentionally excludes API base URLs, auth state internals, visitor records, QR data, push tokens, and account PII.
+Diagnostics are captured through bounded local buffers, sanitized Crashlytics records, and sparse operational analytics. AccessFlow does not expose an in-app diagnostics panel in production builds.
 
 ## Production Validation
 

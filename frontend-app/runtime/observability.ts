@@ -2,6 +2,7 @@ import * as Device from 'expo-device';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { apiConfig } from '../api/apiConfig';
+import { sanitizeOperationalMessage, sanitizeOperationalRecord } from '../shared/utils/operationalSanitizer';
 import { recordDiagnosticEvent } from './diagnostics';
 import {
   getFirebaseCrashReportingState,
@@ -38,7 +39,6 @@ const FAILURE_STORM_WINDOW_MS = 60_000;
 const FAILURE_STORM_THRESHOLD = 3;
 const EVENT_LOOP_INTERVAL_MS = 60_000;
 const EVENT_LOOP_WARN_LAG_MS = 1_500;
-const SENSITIVE_KEY_PATTERN = /(token|password|secret|authorization|cookie|refresh|access|payload|qr|email|phone|name|visitor|address|otp|pin|credential|photo|image)/i;
 
 let initialized = false;
 let healthMonitorStarted = false;
@@ -357,34 +357,11 @@ function normalizePath(path: string) {
 }
 
 function sanitizeContext(context?: Record<string, unknown>) {
-  if (!context) {
-    return undefined;
-  }
-  return Object.fromEntries(
-    Object.entries(context)
-      .filter(([key, value]) => value !== undefined && !SENSITIVE_KEY_PATTERN.test(key))
-      .map(([key, value]) => [key, sanitizeContextValue(value)])
-      .filter(([, value]) => value !== undefined),
-  ) as Record<string, string | number | boolean | null>;
-}
-
-function sanitizeContextValue(value: unknown) {
-  if (value === null || typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : undefined;
-  }
-  if (typeof value === 'string') {
-    return sanitizeMessage(value).slice(0, 120);
-  }
-  return sanitizeMessage(JSON.stringify(value)).slice(0, 120);
+  return sanitizeOperationalRecord(context, { stringLimit: 120 });
 }
 
 function sanitizeMessage(message: string) {
-  return /(bearer\s+[a-z0-9._-]+|eyj[a-z0-9._-]+|password=|token=|authorization=)/i.test(message)
-    ? 'Sensitive runtime error details redacted.'
-    : message.slice(0, 240);
+  return sanitizeOperationalMessage(message);
 }
 
 function errorMessage(error: unknown, fallback: string) {

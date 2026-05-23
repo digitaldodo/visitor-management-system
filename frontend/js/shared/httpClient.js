@@ -97,12 +97,6 @@ async function refreshAccessToken() {
   const payload = await parseResponsePayload(response);
   const session = normalizeAuthResponse(payload, { context: "token refresh" });
   if (!response.ok || !session) {
-    if (typeof console !== "undefined" && typeof console.warn === "function") {
-      console.warn("[auth] Token refresh failed; clearing stored session.", {
-        status: response.status,
-        payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : [],
-      });
-    }
     clearSession();
     return false;
   }

@@ -26,6 +26,5 @@ export function logExpoGoNotificationBypass(scope: string) {
       return;
     }
     loggedExpoGoNotificationScopes.add(scope);
-    console.info('[AccessFlow] Native push notifications skipped in Expo Go. Use a development, preview, or production build to test push delivery.');
   }
 }

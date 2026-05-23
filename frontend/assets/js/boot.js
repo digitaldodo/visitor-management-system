@@ -128,17 +128,9 @@
   }
 
   function reportError(source, error, metadata = {}) {
-    if (typeof console === "undefined" || typeof console.warn !== "function") {
-      return;
-    }
-
-    console.warn("[runtime] AccessFlow recovery signal", {
-      source,
-      message: readableMessage(error),
-      version: currentVersion,
-      page: document.documentElement.dataset.accessflowPage || document.title || window.location.pathname,
-      ...metadata,
-    });
+    void source;
+    void error;
+    void metadata;
   }
 
   function isRecoverableError(error) {
@@ -471,12 +463,7 @@
         apiBaseUrl: typeof parsed.apiBaseUrl === "string" ? parsed.apiBaseUrl : "",
         appVersion: typeof parsed.appVersion === "string" ? parsed.appVersion : currentVersion,
       };
-    } catch (error) {
-      if (typeof console !== "undefined" && typeof console.warn === "function") {
-        console.warn("[runtime] AccessFlow could not refresh env.js before bootstrap.", {
-          message: readableMessage(error),
-        });
-      }
+    } catch {
       return { synced: false, reason: "env-fetch-failed" };
     } finally {
       window.clearTimeout(timeout);

@@ -99,8 +99,6 @@ function rolesOverlap(left = [], right = []) {
 }
 
 function logRoleGuardWarning(message, details) {
-  if (typeof console === "undefined" || typeof console.warn !== "function") {
-    return;
-  }
-  console.warn(`[auth] ${message}`, details);
+  void message;
+  void details;
 }

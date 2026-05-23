@@ -100,8 +100,6 @@ Allowed Android permissions are limited to camera scanning, notification prompts
 
 - `android.permission.CAMERA`
 - `android.permission.POST_NOTIFICATIONS`
-- `android.permission.USE_BIOMETRIC`
-- `android.permission.USE_FINGERPRINT`
 - `android.permission.READ_MEDIA_IMAGES`
 - `android.permission.READ_EXTERNAL_STORAGE` for older Android media pickers
 

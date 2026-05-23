@@ -199,24 +199,7 @@ function publishResolvedApiBaseUrl(config) {
 }
 
 function logApiDiagnostics(config) {
-  if (typeof console === "undefined" || typeof console.info !== "function") {
-    return;
-  }
-
-  const payload = {
-    apiHost: hostFromUrl(config.apiBaseUrl),
-    appVersion: readAppVersion(),
-    origin: getCurrentOrigin(),
-    source: config.source,
-    reason: config.reason,
-  };
-
-  if (config.usedFallback && typeof console.warn === "function") {
-    console.warn("[config] AccessFlow API configuration recovered with production fallback.", payload);
-    return;
-  }
-
-  console.info("[config] AccessFlow API endpoint ready.", payload);
+  void config;
 }
 
 function readStoredApiConfig() {

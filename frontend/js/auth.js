@@ -364,12 +364,6 @@ function resolveAuthenticatedRole(sessionRoles = [], tokenRoles = []) {
   const tokenRole = priority.find((role) => tokenRoles.includes(role)) || null;
 
   if (sessionRole && tokenRole && sessionRole !== tokenRole) {
-    if (typeof console !== "undefined" && typeof console.warn === "function") {
-      console.warn("[auth] Login role mismatch between response body and token claims.", {
-        sessionRole,
-        tokenRole,
-      });
-    }
     return null;
   }
 

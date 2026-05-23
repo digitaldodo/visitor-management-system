@@ -541,12 +541,8 @@ function emptyMarkup(title, message) {
 function safeShellInit(label, callback) {
   try {
     callback();
-  } catch (error) {
-    if (typeof console !== "undefined" && typeof console.warn === "function") {
-      console.warn(`[portal] ${label} initialization failed`, {
-        message: error?.message || String(error),
-      });
-    }
+  } catch {
+    void label;
   }
 }
 

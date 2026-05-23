@@ -96,16 +96,6 @@ export type DevicePostureState = {
   lastPolicySyncAt: string | null;
 };
 
-export type OfflineScanQueueItem = {
-  id: string;
-  payload: string;
-  payloadFingerprint: string;
-  kind: 'visitor' | 'employee' | 'unknown';
-  createdAt: string;
-  attempts: number;
-  lastError?: string | null;
-};
-
 export type NetworkReachabilityState = {
   isConnected: boolean | null;
   isInternetReachable: boolean | null;

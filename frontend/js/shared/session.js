@@ -230,18 +230,10 @@ function firstNullable(...values) {
 }
 
 function logAuthWarning(shouldLog, context, message, payload) {
-  if (!shouldLog || typeof console === "undefined" || typeof console.warn !== "function") {
-    return;
-  }
-
-  console.warn(`[auth] ${message}`, {
-    context,
-    payloadKeys: payload && typeof payload === "object" ? Object.keys(payload) : [],
-    hasDataEnvelope: Boolean(payload?.data && typeof payload.data === "object"),
-    hasUser: Boolean(payload?.user && typeof payload.user === "object"),
-    hasAccessToken: Boolean(payload?.accessToken),
-    hasRefreshToken: Boolean(payload?.refreshToken),
-  });
+  void shouldLog;
+  void context;
+  void message;
+  void payload;
 }
 
 function persistSessionEnvelope(session) {

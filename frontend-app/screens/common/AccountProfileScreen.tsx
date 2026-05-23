@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Alert, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { apiConfig } from '../../api/apiConfig';
 import { useAuth } from '../../auth/AuthProvider';
 import { PrimaryButton } from '../../components/buttons/PrimaryButton';
 import { SurfaceCard } from '../../components/cards/SurfaceCard';
@@ -25,12 +24,11 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useLocalization } from '../../localization/LocalizationProvider';
 import { showPermissionEducation } from '../../permissions/permissionEducation';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
-import { getObservabilitySnapshot } from '../../runtime/observability';
 import type { UploadAsset } from '../../services/accountService';
 import { theme } from '../../theme';
 import type { ActiveWorkspaceRole } from '../../types/auth';
 import type { UserProfile } from '../../types/domain';
-import { formatDateTime, formatShift } from '../../utils/employeeFormatting';
+import { formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
   { labelKey: 'common.english', value: 'en' },
@@ -77,10 +75,8 @@ export function AccountProfileScreen({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [legalOpen, setLegalOpen] = useState<LegalDocumentType | null>(null);
   const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
-  const [observabilitySnapshot, setObservabilitySnapshot] = useState<Awaited<ReturnType<typeof getObservabilitySnapshot>> | null>(null);
 
   const identity = profile.data;
   const role = session?.user.activeRole ?? identity?.roles?.[0] ?? 'EMPLOYEE';
@@ -88,7 +84,6 @@ export function AccountProfileScreen({
   const status = identity?.accountStatus || session?.user.accountStatus || (identity?.active === false ? 'INACTIVE' : 'ACTIVE');
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
-  const canViewDiagnostics = role === 'ADMIN' && apiConfig.release.diagnosticsUiEnabled;
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -102,13 +97,6 @@ export function AccountProfileScreen({
   useEffect(() => {
     setPreferredLanguage(language === 'hi' ? 'hi' : 'en');
   }, [language]);
-
-  useEffect(() => {
-    if (!advancedOpen) {
-      return;
-    }
-    void getObservabilitySnapshot().then(setObservabilitySnapshot).catch(() => setObservabilitySnapshot(null));
-  }, [advancedOpen, runtime.runtimeHealth, runtime.syncConnection.status, runtime.offlineOperationalQueueSize]);
 
   const refreshAll = async () => {
     await Promise.all([
@@ -424,45 +412,6 @@ export function AccountProfileScreen({
           </View>
         ) : null}
       </SurfaceCard>
-
-      {canViewDiagnostics ? (
-        <SurfaceCard>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Toggle internal diagnostics"
-            onPress={() => setAdvancedOpen((open) => !open)}
-            style={styles.advancedHeader}
-          >
-            <View style={styles.advancedTitle}>
-              <Ionicons name="construct-outline" size={20} color={theme.colors.info} />
-              <Text style={styles.panelTitle}>{tText('Internal diagnostics')}</Text>
-            </View>
-            <Ionicons name={advancedOpen ? 'chevron-up-outline' : 'chevron-down-outline'} size={22} color={theme.colors.textSecondary} />
-          </Pressable>
-          {advancedOpen ? (
-            <View style={styles.detailStack}>
-              <DetailRow label="Environment" value={apiConfig.environment} />
-              <DetailRow label="Distribution" value={apiConfig.distributionChannel} />
-              <DetailRow label="App version" value={apiConfig.appVersion} />
-              <DetailRow label="Runtime version" value={apiConfig.runtimeVersion} />
-              <DetailRow label="Build ID" value={apiConfig.buildId} />
-              <DetailRow label="Release channel" value={apiConfig.releaseChannel} />
-              <DetailRow label="OTA status" value={runtime.otaUpdate.updateDownloaded ? 'downloaded' : runtime.otaUpdate.updateAvailable ? 'available' : runtime.otaUpdate.enabled ? 'enabled' : 'disabled'} />
-              <DetailRow label="Crash reporting" value={observabilitySnapshot?.crashReportingAvailable ? 'enabled' : observabilitySnapshot?.crashReportingEnabled ? 'configured' : 'disabled'} />
-              <DetailRow label="Native Firebase" value={observabilitySnapshot?.crashReportingNativeAvailable ? 'available' : 'not loaded'} />
-              <DetailRow label="Previous crash" value={observabilitySnapshot?.didCrashPreviously ? 'detected' : 'none'} />
-              <DetailRow label="Unsent crash reports" value={observabilitySnapshot?.hasUnsentCrashReports ? 'pending' : 'none'} />
-              <DetailRow label="Sync health" value={`${runtime.syncConnection.status}${runtime.syncConnection.reconnectAttempt ? ` (${runtime.syncConnection.reconnectAttempt} retries)` : ''}`} />
-              <DetailRow label="API reachable" value={runtime.networkState.isApiReachable ? 'yes' : 'no'} />
-              <DetailRow label="Network" value={runtime.offlineOperationalMode} />
-              <DetailRow label="Offline queue" value={`${runtime.offlineOperationalQueueSize} operation${runtime.offlineOperationalQueueSize === 1 ? '' : 's'}`} />
-              <DetailRow label="Last offline sync" value={runtime.offlineLastSyncAt ? formatDateTime(runtime.offlineLastSyncAt) : 'Not recorded'} />
-              <DetailRow label="Push permission" value={runtime.pushPermissionStatus || 'Unknown'} />
-              <DetailRow label="Runtime health" value={runtime.runtimeHealth} />
-            </View>
-          ) : null}
-        </SurfaceCard>
-      ) : null}
 
       <SurfaceCard title="Legal and compliance" subtitle="Review the mobile policy experience from settings at any time.">
         <View style={[styles.legalActionRow, layout.fieldStacked ? styles.legalActionRowStacked : null]}>
@@ -800,9 +749,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  detailStack: {
     gap: theme.spacing.sm,
   },
   securityCenter: {

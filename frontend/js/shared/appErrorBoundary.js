@@ -82,11 +82,6 @@ export async function runSafely(label, action, options = {}) {
     if (!isIgnorableNetworkFailure(error)) {
       showToast(toastTitle, readableMessage(error));
     }
-    if (typeof console !== "undefined" && typeof console.warn === "function") {
-      console.warn(`[runtime] ${label} failed`, {
-        message: readableMessage(error),
-      });
-    }
     if (rethrow) {
       throw error;
     }
