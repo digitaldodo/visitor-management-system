@@ -90,13 +90,22 @@ export async function runSafely(label, action, options = {}) {
 }
 
 function readableMessage(reason) {
-  if (reason instanceof Error && reason.message) {
-    return reason.message;
+  const message = reason instanceof Error && reason.message
+    ? reason.message
+    : typeof reason === "string" && reason.trim()
+      ? reason.trim()
+      : "";
+
+  if (!message) {
+    return "Please try again. If the issue continues, refresh the page.";
   }
-  if (typeof reason === "string" && reason.trim()) {
-    return reason;
+  if (/Failed to fetch|NetworkError|AbortError|Load failed|timeout|timed out|ERR_/i.test(message)) {
+    return "Connection interrupted. Please try again.";
   }
-  return "Please try again. If the issue continues, refresh the page.";
+  if (/TypeError|ReferenceError|SyntaxError|undefined|null|stack|JSON|promise|async/i.test(message)) {
+    return "AccessFlow could not finish that action. Please try again.";
+  }
+  return message;
 }
 
 function isResourceLoadError(event) {

@@ -261,6 +261,20 @@ class VisitorManagementApplicationTests {
     }
 
     @Test
+    void corsPreflightAllowsProductionTracingAndAccessFlowHeaders() throws Exception {
+        mockMvc.perform(options("/api/v1/auth/login")
+                        .header(HttpHeaders.ORIGIN, "https://accessflow-web.onrender.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-accessflow-request-id,baggage,sentry-trace,traceparent"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://accessflow-web.onrender.com"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsStringIgnoringCase("x-accessflow-request-id")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsStringIgnoringCase("baggage")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsStringIgnoringCase("sentry-trace")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, org.hamcrest.Matchers.containsStringIgnoringCase("traceparent")));
+    }
+
+    @Test
     void corsPreflightAllowsLocalDevelopmentOrigin() throws Exception {
         mockMvc.perform(options("/api/v1/organizations/public")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")

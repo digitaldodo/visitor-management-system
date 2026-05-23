@@ -85,7 +85,25 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsOriginResolver.resolveAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With", "Cache-Control", "Pragma", "X-AccessFlow-Client", "X-AccessFlow-Role", "X-AccessFlow-App-Version", "X-AccessFlow-Build-Id", "X-AccessFlow-Environment"));
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Cache-Control",
+                "Pragma",
+                "X-AccessFlow-Client",
+                "X-AccessFlow-Role",
+                "X-AccessFlow-App-Version",
+                "X-AccessFlow-Build-Id",
+                "X-AccessFlow-Environment",
+                "X-AccessFlow-Request-Id",
+                "Traceparent",
+                "Tracestate",
+                "Baggage",
+                "Sentry-Trace"
+        ));
         configuration.setExposedHeaders(List.of("Authorization", "X-Request-Id"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

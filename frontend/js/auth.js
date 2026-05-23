@@ -16,6 +16,8 @@ const VERIFICATION_EMAIL_KEY = "visitorVerificationEmail";
 const VERIFICATION_EXPIRES_KEY = "visitorVerificationExpiresAt";
 const VERIFICATION_SENT_KEY = "visitorVerificationSentAt";
 const VERIFICATION_RESEND_READY_KEY = "visitorVerificationResendReadyAt";
+const SUBMITTING_FLAG = "authSubmitting";
+const REDIRECTING_FLAG = "authRedirecting";
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("login", async () => {
@@ -163,6 +165,7 @@ function initLoginForm() {
       setSession(session);
       hideLoginVerificationHelp();
       showToast("Signed in", `${formatStatus(role)} portal ready.`);
+      currentForm.dataset[REDIRECTING_FLAG] = "true";
       redirectToPortal(role, false);
     }, (error) => {
       if (isVerificationRequiredError(error) && data.audience === "visitor") {
@@ -174,7 +177,8 @@ function initLoginForm() {
         return;
       }
       hideLoginVerificationHelp();
-      showToast("Authentication failed", error.message);
+      const feedback = authErrorFeedback(error);
+      showToast(feedback.title, feedback.message);
     });
   });
 }
@@ -266,6 +270,11 @@ function initLoginVerificationAssist() {
 }
 
 async function withLoading(form, action, onError = defaultAuthErrorHandler) {
+  if (!form || form.dataset[SUBMITTING_FLAG] === "true") {
+    return;
+  }
+
+  form.dataset[SUBMITTING_FLAG] = "true";
   const button = form.querySelector(".auth-submit");
   button?.classList.add("is-loading");
   button?.setAttribute("disabled", "true");
@@ -276,14 +285,51 @@ async function withLoading(form, action, onError = defaultAuthErrorHandler) {
   } catch (error) {
     onError(error);
   } finally {
-    button?.classList.remove("is-loading");
-    button?.removeAttribute("disabled");
-    button?.removeAttribute("aria-busy");
+    delete form.dataset[SUBMITTING_FLAG];
+    if (form.dataset[REDIRECTING_FLAG] !== "true") {
+      button?.classList.remove("is-loading");
+      button?.removeAttribute("disabled");
+      button?.removeAttribute("aria-busy");
+    }
   }
 }
 
 function defaultAuthErrorHandler(error) {
-  showToast("Authentication failed", error.message);
+  const feedback = authErrorFeedback(error);
+  showToast(feedback.title, feedback.message);
+}
+
+function authErrorFeedback(error) {
+  const status = Number(error?.status || 0);
+  const code = String(error?.code || "");
+  const rawMessage = String(error?.userMessage || error?.message || "").trim();
+  const technical = /stack|TypeError|SyntaxError|Failed to fetch|NetworkError|AbortError|JSON|undefined|null|malformed|token role claims/i.test(rawMessage);
+
+  if (code.includes("TIMEOUT") || code.includes("NETWORK") || code.includes("TRANSIENT") || error?.retryable) {
+    return {
+      title: "Connection interrupted",
+      message: rawMessage && !technical ? rawMessage : "Unable to sign in right now. Check the connection and try again.",
+    };
+  }
+
+  if (status === 401 || status === 403) {
+    return {
+      title: "Unable to sign in",
+      message: rawMessage && !technical ? rawMessage : "Check your credentials and access option, then try again.",
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      title: "Unable to sign in right now",
+      message: "AccessFlow is temporarily unavailable. Please try again in a moment.",
+    };
+  }
+
+  return {
+    title: "Authentication failed",
+    message: rawMessage && !technical ? rawMessage : "Unable to sign in right now. Please try again.",
+  };
 }
 
 function getFormData(form) {

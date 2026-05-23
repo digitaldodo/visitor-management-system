@@ -1,27 +1,29 @@
 const SESSION_KEY = "visitor_management_session";
+const SESSION_FALLBACK_KEY = "visitor_management_session_fallback";
 const SESSION_SCHEMA_VERSION = 1;
 const ROLE_PRIORITY = ["SUPER_ADMIN", "ADMIN", "MANAGER", "OPERATOR", "RECEPTION", "EMPLOYEE", "SECURITY_GUARD", "VISITOR"];
 const ROLE_ALIASES = {
   SECURITY: "SECURITY_GUARD",
   SECURITY_ADMIN: "SECURITY_GUARD",
 };
+let memorySessionEnvelope = null;
 
 export function getSession() {
   try {
-    const rawSession = localStorage.getItem(SESSION_KEY);
+    const rawSession = readStoredSession();
     if (!rawSession) {
       return null;
     }
     const stored = JSON.parse(rawSession);
     const envelope = unwrapStoredSession(stored);
     if (!envelope) {
-      localStorage.removeItem(SESSION_KEY);
+      removeStoredSession();
       return null;
     }
 
     const session = normalizeAuthResponse(envelope.session, { context: "stored session", log: false });
     if (!session) {
-      localStorage.removeItem(SESSION_KEY);
+      removeStoredSession();
       return null;
     }
 
@@ -30,7 +32,7 @@ export function getSession() {
     }
     return session;
   } catch {
-    localStorage.removeItem(SESSION_KEY);
+    removeStoredSession();
     return null;
   }
 }
@@ -46,7 +48,7 @@ export function setSession(session) {
 }
 
 export function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
+  removeStoredSession();
   window.dispatchEvent(new CustomEvent("session:changed", { detail: null }));
 }
 
@@ -237,12 +239,23 @@ function logAuthWarning(shouldLog, context, message, payload) {
 }
 
 function persistSessionEnvelope(session) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({
+  const envelope = {
     schemaVersion: SESSION_SCHEMA_VERSION,
     appVersion: currentAppVersion(),
     persistedAt: new Date().toISOString(),
     session,
-  }));
+  };
+  const serialized = JSON.stringify(envelope);
+  memorySessionEnvelope = serialized;
+
+  if (writeStorage(window.localStorage, SESSION_KEY, serialized)) {
+    removeStorage(window.sessionStorage, SESSION_FALLBACK_KEY);
+    return;
+  }
+
+  if (!writeStorage(window.sessionStorage, SESSION_FALLBACK_KEY, serialized)) {
+    throw new Error("This browser is blocking session storage. Enable storage to sign in securely.");
+  }
 }
 
 function currentAppVersion() {
@@ -250,4 +263,41 @@ function currentAppVersion() {
     return window.APP_VERSION.trim();
   }
   return "dev-local";
+}
+
+function readStoredSession() {
+  return readStorage(window.localStorage, SESSION_KEY)
+    || readStorage(window.sessionStorage, SESSION_FALLBACK_KEY)
+    || memorySessionEnvelope;
+}
+
+function removeStoredSession() {
+  memorySessionEnvelope = null;
+  removeStorage(window.localStorage, SESSION_KEY);
+  removeStorage(window.sessionStorage, SESSION_FALLBACK_KEY);
+}
+
+function readStorage(storage, key) {
+  try {
+    return storage?.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStorage(storage, key, value) {
+  try {
+    storage?.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorage(storage, key) {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    // Storage cleanup must not break logout or failed session recovery.
+  }
 }

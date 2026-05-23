@@ -1,12 +1,15 @@
 import { buildApiUrl } from "./config.js";
-import { request } from "./httpClient.js";
+import { request, warmUpApi } from "./httpClient.js";
 import { normalizeAuthResponse } from "./session.js";
 
 export async function login(credentials) {
+  await warmUpApi();
   const response = await request("/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
     auth: false,
+    timeoutMs: 45000,
+    maxRetries: 0,
   });
   return normalizeAuthResponse(response?.raw || response, { context: "login response" });
 }
