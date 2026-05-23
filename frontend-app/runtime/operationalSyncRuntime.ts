@@ -13,6 +13,8 @@ type EventListener = (events: OperationalEvent[], batch: OperationalEventBatch) 
 type StateListener = (state: OperationalSyncConnectionState) => void;
 
 const MAX_SEEN_IDS = 400;
+const MAX_EVENTS_PER_NOTIFY = 50;
+const LIVE_ACTIVE_DELAY_MS = 2_500;
 const LIVE_IDLE_DELAY_MS = 4_000;
 const MAX_RECONNECT_DELAY_MS = 45_000;
 
@@ -35,6 +37,8 @@ class OperationalSyncRuntime {
   private active = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private inflight: Promise<void> | null = null;
+  private pendingEvents: OperationalEvent[] = [];
+  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
   private appState: AppStateStatus = AppState.currentState;
 
   subscribe(listener: EventListener) {
@@ -70,7 +74,12 @@ class OperationalSyncRuntime {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.notifyTimer) {
+      clearTimeout(this.notifyTimer);
+      this.notifyTimer = null;
+    }
     this.inflight = null;
+    this.pendingEvents = [];
     this.seenEventIds = [];
     this.seenEventIdSet.clear();
     this.setState(initialState);
@@ -160,9 +169,9 @@ class OperationalSyncRuntime {
           pendingEventCount: events.length,
         });
         if (events.length) {
-          this.eventListeners.forEach((listener) => listener(events, batch));
+          this.queueEventNotification(events, batch);
         }
-        this.schedule(events.length ? 650 : LIVE_IDLE_DELAY_MS);
+        this.schedule(events.length ? LIVE_ACTIVE_DELAY_MS : LIVE_IDLE_DELAY_MS);
       } catch (error) {
         const reconnectAttempt = this.state.reconnectAttempt + 1;
         this.setState({
@@ -200,6 +209,26 @@ class OperationalSyncRuntime {
       this.seenEventIdSet = new Set(retainedIds);
     }
     return nextEvents.sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
+  }
+
+  private queueEventNotification(events: OperationalEvent[], batch: OperationalEventBatch) {
+    this.pendingEvents = [...this.pendingEvents, ...events]
+      .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt))
+      .slice(-MAX_EVENTS_PER_NOTIFY);
+
+    if (this.notifyTimer) {
+      return;
+    }
+
+    this.notifyTimer = setTimeout(() => {
+      this.notifyTimer = null;
+      const nextEvents = this.pendingEvents;
+      this.pendingEvents = [];
+      if (!nextEvents.length || !this.active) {
+        return;
+      }
+      this.eventListeners.forEach((listener) => listener(nextEvents, batch));
+    }, 750);
   }
 
   private setState(patch: Partial<OperationalSyncConnectionState>) {

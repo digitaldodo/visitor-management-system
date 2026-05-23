@@ -31,6 +31,7 @@ import {
 } from "../shared/accessService.js";
 import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { getOperationalEvents } from "../shared/operationalEventApi.js";
+import { createNonOverlappingPoller } from "../shared/performance.js";
 import { showToast } from "../shared/toast.js";
 import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
 import { confirmAction, promptAction } from "../shared/actionModal.js";
@@ -55,7 +56,11 @@ const state = {
   activeVerification: null,
   activeScrollUntil: 0,
   approvedBadgeVisitors: [],
+  portalLoading: false,
+  portalLoadQueued: false,
+  portalLoadRevision: 0,
 };
+let securityPortalPoller;
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("security-portal", () => bootSecurityPortal(), {
@@ -95,7 +100,13 @@ async function bootSecurityPortal() {
   renderVerificationIdle();
   renderEmployeeScanIdle();
   await loadSecurityPortal();
-  window.setInterval(() => loadSecurityPortal(false), 15000);
+  securityPortalPoller = createNonOverlappingPoller(() => loadSecurityPortal(false), {
+    intervalMs: 30000,
+    backgroundIntervalMs: 120000,
+    immediate: false,
+  });
+  securityPortalPoller.start();
+  window.addEventListener("beforeunload", () => securityPortalPoller?.stop(), { once: true });
 }
 
 function groupSecurityNavigation() {
@@ -131,6 +142,15 @@ function groupSecurityNavigation() {
 }
 
 async function loadSecurityPortal(showErrors = true) {
+  if (state.portalLoading) {
+    state.portalLoadRevision += 1;
+    state.portalLoadQueued = true;
+    return;
+  }
+  const revision = ++state.portalLoadRevision;
+  state.portalLoading = true;
+  state.portalLoadQueued = false;
+
   if (showErrors) {
     renderMetrics([]);
     renderLoadingList("#queue-list");
@@ -166,6 +186,14 @@ async function loadSecurityPortal(showErrors = true) {
     getEmployeeAttendanceLogs("/security"),
     listSecurityWorkforceOnboardingRequests(),
   ]);
+
+  if (revision !== state.portalLoadRevision) {
+    state.portalLoading = false;
+    if (state.portalLoadQueued) {
+      void loadSecurityPortal(false);
+    }
+    return;
+  }
 
   if (overview.status === "fulfilled") {
     renderMetrics(overview.value?.data?.metrics || []);
@@ -247,6 +275,11 @@ async function loadSecurityPortal(showErrors = true) {
     renderSubmittedWorkforceRequests(workforceRequests.value?.data || []);
   } else if (showErrors) {
     renderWorkList("#workforce-request-list", [], (item) => item, "Submitted requests unavailable", workforceRequests.reason?.message || "Workforce approval status could not be loaded.");
+  }
+
+  state.portalLoading = false;
+  if (state.portalLoadQueued) {
+    void loadSecurityPortal(false);
   }
 }
 

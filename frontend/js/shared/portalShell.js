@@ -7,9 +7,11 @@ import { showToast } from "./toast.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
 import { formatDate, formatStatus, setDefaultTimezone, timezoneLabel } from "./formatters.js";
 import { initWebLocalization, localizedHtml, translateFragment } from "./localization.js";
+import { createNonOverlappingPoller, renderHtmlIfChanged, renderMappedList } from "./performance.js";
 
-let notificationPollTimer;
+let notificationPoller;
 let notificationHydrated = false;
+let notificationLoading = false;
 const seenNotificationIds = new Set();
 const browserNotificationIds = new Set();
 const OPERATIONAL_NOTIFICATION_FRESH_MS = 10 * 60 * 1000;
@@ -33,14 +35,16 @@ export function renderMetrics(metrics = []) {
     return;
   }
 
-  grid.innerHTML = metrics.length ? metrics.map((metric) => `
+  const html = metrics.length ? metrics.map((metric) => `
     <article class="metric-card">
       <span class="metric-card__label">${localizedHtml(metric.label)}</span>
       <strong>${escapeHtml(metric.value)}</strong>
       <small>${localizedHtml(metric.note)}</small>
     </article>
   `).join("") : emptyMarkup("No metrics yet", "Dashboard metrics will appear after visitor activity starts.");
-  translateFragment(grid);
+  if (renderHtmlIfChanged(grid, html)) {
+    translateFragment(grid);
+  }
 }
 
 export function renderLoadingList(selector, count = 3) {
@@ -49,13 +53,13 @@ export function renderLoadingList(selector, count = 3) {
     return;
   }
 
-  list.innerHTML = Array.from({ length: count }).map(() => `
+  renderHtmlIfChanged(list, Array.from({ length: count }).map(() => `
     <article class="work-card work-card--skeleton" aria-hidden="true">
       <span></span>
       <span></span>
       <span></span>
     </article>
-  `).join("");
+  `).join(""));
 }
 
 export function renderWorkList(selector, items = [], mapper, emptyTitle = "Nothing to show", emptyMessage = "New activity will appear here.") {
@@ -64,9 +68,10 @@ export function renderWorkList(selector, items = [], mapper, emptyTitle = "Nothi
     return;
   }
 
-  const safeItems = Array.isArray(items) ? items : [];
-  list.innerHTML = safeItems.length ? safeItems.map(mapper).join("") : emptyMarkup(emptyTitle, emptyMessage);
-  translateFragment(list);
+  renderMappedList(list, items, mapper, {
+    emptyHtml: emptyMarkup(emptyTitle, emptyMessage),
+    afterRender: translateFragment,
+  });
 }
 
 export function workCard(title, detail, meta = "") {
@@ -357,18 +362,29 @@ function initNotifications() {
     }
   });
 
-  loadNotifications(false);
-  window.clearInterval(notificationPollTimer);
-  notificationPollTimer = window.setInterval(() => loadNotifications(true), 15000);
-  window.addEventListener("beforeunload", () => window.clearInterval(notificationPollTimer), { once: true });
+  notificationPoller?.stop();
+  notificationPoller = createNonOverlappingPoller(() => loadNotifications(true), {
+    intervalMs: 30000,
+    backgroundIntervalMs: 120000,
+    immediate: false,
+  });
+  void loadNotifications(false);
+  notificationPoller.start();
+  window.addEventListener("beforeunload", () => notificationPoller?.stop(), { once: true });
 }
 
 async function loadNotifications(showNewToast) {
+  if (notificationLoading) {
+    return;
+  }
+  notificationLoading = true;
   try {
     const response = await getNotifications(20);
     renderNotifications(response?.data, showNewToast);
   } catch {
     renderNotifications({ unreadCount: 0, items: [] }, false);
+  } finally {
+    notificationLoading = false;
   }
 }
 
@@ -379,17 +395,22 @@ function renderNotifications(data, showNewToast) {
   const items = Array.isArray(data?.items) ? data.items : [];
 
   if (badge) {
-    badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+    const nextText = unreadCount > 9 ? "9+" : String(unreadCount);
+    if (badge.textContent !== nextText) {
+      badge.textContent = nextText;
+    }
     badge.classList.toggle("is-hidden", unreadCount === 0);
   }
 
   if (list) {
-    list.innerHTML = items.length ? items.map(notificationItem).join("") : `
+    renderMappedList(list, items, notificationItem, {
+      emptyHtml: `
       <article class="notification-empty">
         <strong>No notifications</strong>
         <span>New visitor activity will appear here.</span>
       </article>
-    `;
+    `,
+    });
   }
 
   const newUnreadItems = items.filter((item) => item?.id && !item.read && !seenNotificationIds.has(item.id) && isFreshOperationalNotification(item));

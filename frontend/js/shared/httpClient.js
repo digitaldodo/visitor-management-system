@@ -6,6 +6,7 @@ const REQUEST_TIMEOUT_MS = 30000;
 const TRANSIENT_STATUS_CODES = new Set([408, 425, 429, 502, 503, 504]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 let refreshPromise = null;
+const inFlightGetRequests = new Map();
 
 export async function request(path, options = {}) {
   const {
@@ -16,6 +17,7 @@ export async function request(path, options = {}) {
     maxRetries,
     retryDelayMs = 450,
     retryUnsafeTransientStatus = false,
+    dedupe = true,
     ...fetchOptions
   } = options;
   const method = String(fetchOptions.method || "GET").toUpperCase();
@@ -43,43 +45,61 @@ export async function request(path, options = {}) {
     method,
     headers,
   };
-  const response = await fetchWithRetry(url, requestOptions, {
-    maxRetries: retryBudget,
-    retryDelayMs,
-    timeoutMs,
-  });
+  const dedupeKey = dedupe ? getRequestDedupeKey(url, requestOptions, auth) : "";
+  if (dedupeKey && inFlightGetRequests.has(dedupeKey)) {
+    return inFlightGetRequests.get(dedupeKey);
+  }
 
-  if (response.status === 401 && auth && retry) {
-    const refreshResult = await refreshAccessTokenOnce();
-    if (refreshResult.refreshed) {
-      return request(path, { ...options, retry: false });
+  const requestPromise = (async () => {
+    const response = await fetchWithRetry(url, requestOptions, {
+      maxRetries: retryBudget,
+      retryDelayMs,
+      timeoutMs,
+    });
+
+    if (response.status === 401 && auth && retry) {
+      const refreshResult = await refreshAccessTokenOnce();
+      if (refreshResult.refreshed) {
+        return request(path, { ...options, retry: false, dedupe: false });
+      }
+      if (refreshResult.transient) {
+        throw refreshResult.error || apiError("Connection interrupted", "Your session is still saved. Check the connection and try again.", {
+          code: "AUTH_REFRESH_TRANSIENT",
+          retryable: true,
+        });
+      }
     }
-    if (refreshResult.transient) {
-      throw refreshResult.error || apiError("Connection interrupted", "Your session is still saved. Check the connection and try again.", {
-        code: "AUTH_REFRESH_TRANSIENT",
-        retryable: true,
+
+    const payload = await parseResponsePayload(response);
+
+    if (response.status === 401 && auth) {
+      handleUnauthorizedSession("unauthorized-response", {
+        message: "Your AccessFlow session expired. Returning to sign in...",
       });
     }
+
+    if (!response.ok) {
+      const message = payload?.message || payload?.error || `Request failed with ${response.status}`;
+      const error = new Error(message);
+      error.status = response.status;
+      error.details = payload?.errors || [];
+      error.payload = payload;
+      throw error;
+    }
+
+    return normalizeApiResponse(payload, response);
+  })();
+
+  if (dedupeKey) {
+    inFlightGetRequests.set(dedupeKey, requestPromise);
+    void requestPromise.finally(() => {
+      if (inFlightGetRequests.get(dedupeKey) === requestPromise) {
+        inFlightGetRequests.delete(dedupeKey);
+      }
+    }).catch(() => {});
   }
 
-  const payload = await parseResponsePayload(response);
-
-  if (response.status === 401 && auth) {
-    handleUnauthorizedSession("unauthorized-response", {
-      message: "Your AccessFlow session expired. Returning to sign in...",
-    });
-  }
-
-  if (!response.ok) {
-    const message = payload?.message || payload?.error || `Request failed with ${response.status}`;
-    const error = new Error(message);
-    error.status = response.status;
-    error.details = payload?.errors || [];
-    error.payload = payload;
-    throw error;
-  }
-
-  return normalizeApiResponse(payload, response);
+  return requestPromise;
 }
 
 export function warmUpApi(options = {}) {
@@ -214,6 +234,15 @@ function resolveRetryBudget({ maxRetries, method, retry, retryUnsafeTransientSta
     return 2;
   }
   return retryUnsafeTransientStatus ? 1 : 0;
+}
+
+function getRequestDedupeKey(url, options, auth) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" || options.body) {
+    return "";
+  }
+  const authorization = auth ? options.headers?.Authorization || "" : "";
+  return `${method}:${url}:${authorization}`;
 }
 
 function networkError(error) {

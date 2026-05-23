@@ -10,6 +10,7 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, requestWorkforceOnboardingModification, updateWorkforceOnboarding } from "../shared/accessService.js";
 import { getNotifications } from "../shared/notificationApi.js";
 import { getOperationalEvents } from "../shared/operationalEventApi.js";
+import { createNonOverlappingPoller, scheduleIdle } from "../shared/performance.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -51,9 +52,10 @@ let userDepartmentOrganizationId = "";
 let adminRouteState = null;
 let activeOrganizationWorkspace = null;
 let operationalEventCursor = "";
-let operationalEventPollTimer = 0;
+let operationalEventPoller = null;
 let operationalEventsHydrated = false;
 let recentOperationalEvents = [];
+let operationalFeedRenderHandle = 0;
 const seenOperationalEventIds = new Set();
 
 const DEFAULT_DEPARTMENT_PRESETS = [
@@ -1970,12 +1972,16 @@ async function loadNotificationsWorkspace() {
 }
 
 function startOperationalEventPolling() {
-  if (!currentSession?.organizationId || operationalEventPollTimer) {
+  if (!currentSession?.organizationId || operationalEventPoller) {
     return;
   }
-  pollOperationalEvents(false);
-  operationalEventPollTimer = window.setInterval(() => pollOperationalEvents(true), 12000);
-  window.addEventListener("beforeunload", () => window.clearInterval(operationalEventPollTimer), { once: true });
+  operationalEventPoller = createNonOverlappingPoller(({ visible }) => pollOperationalEvents(visible), {
+    intervalMs: 30000,
+    backgroundIntervalMs: 120000,
+    immediate: true,
+  });
+  operationalEventPoller.start();
+  window.addEventListener("beforeunload", () => operationalEventPoller?.stop(), { once: true });
 }
 
 async function pollOperationalEvents(announceNew) {
@@ -1996,13 +2002,25 @@ async function pollOperationalEvents(announceNew) {
         announceOperationalEvents(newEvents);
       }
       if (currentRoute === "notifications" || currentRoute === "reports" || currentRoute === "dashboard") {
-        renderOperationalFeedWorkspace(recentOperationalEvents);
+        scheduleOperationalFeedRender();
       }
     }
     operationalEventsHydrated = true;
   } catch {
     operationalEventsHydrated = true;
   }
+}
+
+function scheduleOperationalFeedRender() {
+  if (operationalFeedRenderHandle) {
+    return;
+  }
+  operationalFeedRenderHandle = scheduleIdle(() => {
+    operationalFeedRenderHandle = 0;
+    if (currentRoute === "notifications" || currentRoute === "reports" || currentRoute === "dashboard") {
+      renderOperationalFeedWorkspace(recentOperationalEvents);
+    }
+  }, 800);
 }
 
 function mergeOperationalEvents(events) {

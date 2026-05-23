@@ -51,6 +51,9 @@ type OfflineSnapshot = {
 };
 
 const FEED_LIMIT = 80;
+const FAST_FEED_REFETCH_MS = 45_000;
+const STANDARD_FEED_REFETCH_MS = 60_000;
+const SLOW_FEED_REFETCH_MS = 90_000;
 
 export function useOperationalActivityFeed() {
   const auth = useAuth();
@@ -70,21 +73,21 @@ export function useOperationalActivityFeed() {
     queryKey: ['security', 'monitoring', 'feed'],
     queryFn: () => getSecurityMonitoring(),
     enabled: securityEnabled,
-    refetchInterval: 20_000,
+    refetchInterval: FAST_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const securityVisitors = useQuery({
     queryKey: ['security', 'visitors', 'feed'],
     queryFn: () => getSecurityVisitors({ size: 30 }),
     enabled: securityEnabled,
-    refetchInterval: 25_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const securityAttendance = useQuery({
     queryKey: ['security', 'attendance', 'feed'],
     queryFn: getSecurityAttendance,
     enabled: securityEnabled,
-    refetchInterval: 25_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -92,28 +95,28 @@ export function useOperationalActivityFeed() {
     queryKey: ['admin', 'visitors', 'feed'],
     queryFn: () => getAdminVisitors({ size: 35 }),
     enabled: adminEnabled,
-    refetchInterval: 25_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const adminWorkforce = useQuery({
     queryKey: ['admin', 'workforce-onboarding', 'feed'],
     queryFn: getAdminWorkforceOnboarding,
     enabled: adminEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const adminUsers = useQuery({
     queryKey: ['admin', 'users', 'feed'],
     queryFn: getAdminUsers,
     enabled: adminEnabled,
-    refetchInterval: 45_000,
+    refetchInterval: SLOW_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const adminAttendance = useQuery({
     queryKey: ['admin', 'workforce-attendance', 'feed'],
     queryFn: getAdminWorkforceAttendance,
     enabled: adminEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -121,28 +124,28 @@ export function useOperationalActivityFeed() {
     queryKey: ['employee', 'approvals', 'feed'],
     queryFn: getEmployeeApprovals,
     enabled: employeeEnabled,
-    refetchInterval: 25_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const employeePreApprovals = useQuery({
     queryKey: ['employee', 'pre-approvals', 'feed'],
     queryFn: getEmployeePreApprovals,
     enabled: employeeEnabled,
-    refetchInterval: 35_000,
+    refetchInterval: SLOW_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const employeeAttendance = useQuery({
     queryKey: ['employee', 'attendance', 'feed'],
     queryFn: getEmployeeAttendance,
     enabled: employeeEnabled,
-    refetchInterval: 35_000,
+    refetchInterval: SLOW_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const employeeNotifications = useQuery({
     queryKey: ['employee', 'notifications', 'feed'],
     queryFn: () => getEmployeeNotifications(20),
     enabled: employeeEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -150,14 +153,14 @@ export function useOperationalActivityFeed() {
     queryKey: ['visitor', 'visits', 'feed'],
     queryFn: getVisitorVisits,
     enabled: visitorEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const visitorNotifications = useQuery({
     queryKey: ['visitor', 'notifications', 'feed'],
     queryFn: () => getVisitorNotifications(20),
     enabled: visitorEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -165,7 +168,7 @@ export function useOperationalActivityFeed() {
     queryKey: ['notifications', 'feed'],
     queryFn: () => getNotifications(25),
     enabled: opsEnabled && !visitorEnabled && !employeeEnabled,
-    refetchInterval: 30_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -173,14 +176,14 @@ export function useOperationalActivityFeed() {
     queryKey: ['emergency', 'state', 'feed'],
     queryFn: getEmergencyState,
     enabled: opsEnabled && !visitorEnabled,
-    refetchInterval: 20_000,
+    refetchInterval: FAST_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
   const emergencyFeed = useQuery({
     queryKey: ['emergency', 'feed', 'activity'],
     queryFn: getEmergencyFeed,
     enabled: opsEnabled && !visitorEnabled,
-    refetchInterval: 20_000,
+    refetchInterval: FAST_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 
@@ -194,7 +197,7 @@ export function useOperationalActivityFeed() {
       return { queue, cache };
     },
     enabled: adminFeedEnabled,
-    refetchInterval: 12_000,
+    refetchInterval: STANDARD_FEED_REFETCH_MS,
     placeholderData: (previous) => previous,
   });
 

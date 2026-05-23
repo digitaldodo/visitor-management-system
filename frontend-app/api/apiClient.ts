@@ -37,6 +37,7 @@ let getSession: SessionProvider = () => null;
 let handleSessionUpdate: SessionUpdater = async () => undefined;
 let handleSessionExpiry: SessionExpiryHandler = async () => undefined;
 let refreshPromise: Promise<AuthSession> | null = null;
+const inFlightPrivateGets = new Map<string, Promise<unknown>>();
 
 const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
 const RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
@@ -354,8 +355,24 @@ function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
 
 export async function request<T>(config: AccessFlowRequestConfig) {
   assertApiConfigured();
-  const response = await privateApi.request<T | ApiEnvelope<T>>(config);
-  return unwrapApiResponse<T>(response.data);
+  const dedupeKey = privateGetDedupeKey(config);
+  if (dedupeKey && inFlightPrivateGets.has(dedupeKey)) {
+    return inFlightPrivateGets.get(dedupeKey) as Promise<T>;
+  }
+
+  const promise = privateApi.request<T | ApiEnvelope<T>>(config)
+    .then((response) => unwrapApiResponse<T>(response.data));
+
+  if (dedupeKey) {
+    inFlightPrivateGets.set(dedupeKey, promise);
+    void promise.finally(() => {
+      if (inFlightPrivateGets.get(dedupeKey) === promise) {
+        inFlightPrivateGets.delete(dedupeKey);
+      }
+    }).catch(() => undefined);
+  }
+
+  return promise;
 }
 
 export async function publicRequest<T>(config: AccessFlowRequestConfig) {
@@ -368,6 +385,34 @@ function delay(durationMs: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, durationMs);
   });
+}
+
+function privateGetDedupeKey(config: AccessFlowRequestConfig) {
+  const method = String(config.method || 'get').toLowerCase();
+  if (method !== 'get' || config.data || config.signal) {
+    return '';
+  }
+  const session = getSession();
+  return [
+    session?.accessToken || '',
+    session?.user.activeRole || '',
+    config.baseURL || apiConfig.apiBaseUrl,
+    config.url || '',
+    stableSerialize(config.params),
+  ].join('|');
+}
+
+function stableSerialize(value: unknown): string {
+  if (!value || typeof value !== 'object') {
+    return String(value ?? '');
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(',')}]`;
+  }
+  return Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((key) => `${key}:${stableSerialize((value as Record<string, unknown>)[key])}`)
+    .join(',');
 }
 
 async function captureApiDiagnostic(error: AppError, config?: RetryableRequestConfig) {

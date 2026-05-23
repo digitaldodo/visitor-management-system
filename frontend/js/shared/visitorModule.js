@@ -17,6 +17,7 @@ import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, 
 import { initHostPicker } from "./hostPicker.js";
 import { initOrganizationSelectors } from "./organizationSelector.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
+import { createNonOverlappingPoller, renderHtmlIfChanged, renderMappedList } from "./performance.js";
 import { showToast } from "./toast.js";
 import { VISITOR_STATUS_LABELS as STATUS_LABELS, statusBadgeClass } from "./workflowEnums.js";
 import { promptAction } from "./actionModal.js";
@@ -47,6 +48,8 @@ export function initVisitorModule(selector, options) {
     photoAccepted: false,
     stream: null,
     loading: false,
+    pendingLoad: false,
+    loadRevision: 0,
   };
 
   root.classList.add("visitor-system");
@@ -261,18 +264,27 @@ export function initVisitorModule(selector, options) {
     }
   }
 
-  const pollInterval = options.pollIntervalMs ?? 15000;
-  let pollTimer;
+  const pollInterval = options.pollIntervalMs ?? 30000;
+  let poller;
   if (pollInterval > 0) {
-    pollTimer = window.setInterval(() => load(false), pollInterval);
-    window.addEventListener("beforeunload", () => window.clearInterval(pollTimer));
+    poller = createNonOverlappingPoller(() => load(false), {
+      intervalMs: pollInterval,
+      backgroundIntervalMs: Math.max(120000, pollInterval * 3),
+      immediate: false,
+    });
+    poller.start();
+    window.addEventListener("beforeunload", () => poller?.stop(), { once: true });
   }
 
   async function load(showSkeleton = true) {
-    if (state.loading && !showSkeleton) {
+    if (state.loading) {
+      state.loadRevision += 1;
+      state.pendingLoad = true;
       return;
     }
+    const revision = ++state.loadRevision;
     state.loading = true;
+    state.pendingLoad = false;
     if (showSkeleton) {
       renderSkeleton(root);
     }
@@ -286,17 +298,26 @@ export function initVisitorModule(selector, options) {
         direction: "desc",
       });
       const pageData = response?.data || {};
+      if (revision !== state.loadRevision) {
+        return;
+      }
       state.items = pageData.items || [];
       state.totalPages = pageData.totalPages || 0;
       renderRows(root, state, options);
       renderPagination(root, state, pageData.totalItems || 0);
     } catch (error) {
+      if (revision !== state.loadRevision) {
+        return;
+      }
       state.items = [];
       renderRows(root, state, options, error.message);
       renderPagination(root, state, 0);
       showToast("Visitors unavailable", error.message);
     } finally {
       state.loading = false;
+      if (state.pendingLoad) {
+        void load(false);
+      }
     }
   }
 
@@ -532,7 +553,7 @@ function renderSkeleton(root) {
   if (!rows) {
     return;
   }
-  rows.innerHTML = Array.from({ length: 5 }).map(() => `
+  renderHtmlIfChanged(rows, Array.from({ length: 5 }).map(() => `
     <tr class="visitor-row--skeleton">
       <td><span></span><small></small></td>
       <td><span></span></td>
@@ -543,7 +564,7 @@ function renderSkeleton(root) {
       <td><span></span></td>
       <td><span></span></td>
     </tr>
-  `).join("");
+  `).join(""));
 }
 
 function renderRows(root, state, options, errorMessage = "") {
@@ -561,7 +582,7 @@ function renderRows(root, state, options, errorMessage = "") {
     empty.querySelector("h3").textContent = "No visitor records";
     empty.querySelector("p").textContent = "Register a visitor or adjust the search filters.";
   }
-  rows.innerHTML = state.items.map((visitor) => row(visitor, options)).join("");
+  renderMappedList(rows, state.items, (visitor) => row(visitor, options), { batchSize: 25 });
 }
 
 function row(visitor, options) {
@@ -640,13 +661,13 @@ function renderPagination(root, state, totalItems) {
   }
   const start = totalItems === 0 ? 0 : state.page * state.size + 1;
   const end = Math.min((state.page + 1) * state.size, totalItems);
-  pagination.innerHTML = `
+  renderHtmlIfChanged(pagination, `
     <span>${start}-${end} of ${totalItems}</span>
     <div>
       <button class="button button--ghost" type="button" data-visitor-action="prev" ${state.page === 0 ? "disabled" : ""}>Previous</button>
       <button class="button button--ghost" type="button" data-visitor-action="next" ${state.page + 1 >= state.totalPages ? "disabled" : ""}>Next</button>
     </div>
-  `;
+  `);
 }
 
 function openDetail(root, visitor) {

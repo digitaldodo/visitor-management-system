@@ -11,12 +11,18 @@ import { downloadEmployeeBadge, employeeBadgeMarkup, printEmployeeBadge } from "
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
+import { createNonOverlappingPoller } from "../shared/performance.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 import { promptAction } from "../shared/actionModal.js";
 
 const ROUTES = ["dashboard", "credential", "attendance", "visitor-requests", "notifications", "settings"];
 let approvalPollTimer;
+let employeePortalLoading = false;
+let employeePortalQueued = false;
+let employeePortalRevision = 0;
+let approvalsLoading = false;
+let approvalsQueued = false;
 let activeEmployeeBadge = null;
 let activeEmployeeProfile = null;
 let credentialLoaded = false;
@@ -61,11 +67,25 @@ async function bootEmployeePortal() {
   initEmployeeRouteLoading();
   await loadEmployeePortal();
   await loadRouteData();
-  approvalPollTimer = window.setInterval(() => loadApprovals(false), 15000);
-  window.addEventListener("beforeunload", () => window.clearInterval(approvalPollTimer));
+  approvalPollTimer = createNonOverlappingPoller(() => loadApprovals(false), {
+    intervalMs: 30000,
+    backgroundIntervalMs: 120000,
+    immediate: false,
+  });
+  approvalPollTimer.start();
+  window.addEventListener("beforeunload", () => approvalPollTimer?.stop(), { once: true });
 }
 
 async function loadEmployeePortal() {
+  if (employeePortalLoading) {
+    employeePortalRevision += 1;
+    employeePortalQueued = true;
+    return;
+  }
+  const revision = ++employeePortalRevision;
+  employeePortalLoading = true;
+  employeePortalQueued = false;
+
   renderMetrics([]);
   renderLoadingList("#approvals-list");
   renderLoadingList("#notifications-list");
@@ -85,6 +105,14 @@ async function loadEmployeePortal() {
     getOwnEmployeeAttendance(),
     listEmployeeVisitorInvites(),
   ]);
+
+  if (revision !== employeePortalRevision) {
+    employeePortalLoading = false;
+    if (employeePortalQueued) {
+      void loadEmployeePortal();
+    }
+    return;
+  }
 
   if (overview.status === "fulfilled") {
     renderMetrics(overview.value?.data?.metrics || []);
@@ -125,6 +153,11 @@ async function loadEmployeePortal() {
   } else {
     renderWorkList("#employee-attendance-list", [], (item) => item, "Presence unavailable", attendance.reason?.message || "Presence history could not be loaded.");
     renderWorkList("#recent-activity-list", [], (item) => item, "Activity unavailable", attendance.reason?.message || "Activity could not be loaded.");
+  }
+
+  employeePortalLoading = false;
+  if (employeePortalQueued) {
+    void loadEmployeePortal();
   }
 }
 
@@ -676,11 +709,17 @@ function initVisitorInviteActions() {
 }
 
 async function loadApprovals(showToastOnSuccess) {
+  if (approvalsLoading) {
+    approvalsQueued = true;
+    return;
+  }
   const list = document.querySelector("#approvals-list");
   if (!list) {
     return;
   }
 
+  approvalsLoading = true;
+  approvalsQueued = false;
   try {
     const approvals = await request("/employee/approvals");
     const items = approvals?.data?.items || [];
@@ -695,6 +734,11 @@ async function loadApprovals(showToastOnSuccess) {
     }
   } catch (error) {
     showToast("Approvals unavailable", error.message);
+  } finally {
+    approvalsLoading = false;
+    if (approvalsQueued) {
+      void loadApprovals(false);
+    }
   }
 }
 
