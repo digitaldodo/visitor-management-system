@@ -13,6 +13,7 @@ import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
 import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
+import { promptAction } from "../shared/actionModal.js";
 
 const ROUTES = ["dashboard", "credential", "attendance", "visitor-requests", "notifications", "settings"];
 let approvalPollTimer;
@@ -649,7 +650,16 @@ function initVisitorInviteActions() {
         showToast("Invite resent", "Email delivery has been queued again.");
       }
       if (action === "revoke") {
-        const reason = window.prompt("Reason for revoking this visitor invite.");
+        const reason = await promptAction({
+          title: "Revoke visitor invite",
+          message: "Record why this invite should be closed before the visitor arrives.",
+          label: "Revocation reason",
+          placeholder: "Schedule cancelled, wrong recipient, or policy reason",
+          confirmLabel: "Revoke invite",
+          tone: "danger",
+          minLength: 4,
+          multiline: true,
+        });
         if (!reason?.trim()) {
           return;
         }
@@ -822,7 +832,16 @@ function initScheduledActions() {
           showToast("Reschedule approved", "The badge was regenerated for the new timing.");
         }
         if (decisionButton.dataset.approvalAction === "reject-reschedule") {
-          const note = window.prompt("Reason for rejecting this timing change.") || "Timing change declined by host employee.";
+          const note = await promptAction({
+            title: "Deny timing change",
+            message: "Add a short note for the visitor and audit trail.",
+            label: "Decision note",
+            placeholder: "Timing change declined by host employee.",
+            confirmLabel: "Deny timing",
+            minLength: 0,
+            required: false,
+            multiline: true,
+          }) || "Timing change declined by host employee.";
           await rejectRescheduleRequest("/employee", decisionButton.dataset.visitorId, note);
           showToast("Reschedule denied", "The original timing remains active.");
         }
@@ -836,7 +855,14 @@ function initScheduledActions() {
     if (!rescheduleButton) {
       return;
     }
-    const dateTime = window.prompt("Enter the new visit date and arrival time as YYYY-MM-DD HH:mm.");
+    const dateTime = await promptAction({
+      title: "Modify visitor timing",
+      message: "Enter the new visit date and arrival time in local workspace time.",
+      label: "New arrival time",
+      placeholder: "YYYY-MM-DD HH:mm",
+      confirmLabel: "Update timing",
+      minLength: 10,
+    });
     if (!dateTime) {
       return;
     }

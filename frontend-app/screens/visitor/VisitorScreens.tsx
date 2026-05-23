@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Linking, StyleSheet, Text, View } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { Alert, Image, Linking, StyleSheet, Text, View } from 'react-native';
+import ViewShot from 'react-native-view-shot';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 
@@ -37,7 +40,7 @@ import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider'
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
 import { isTransientVisitorRequestFailure } from '../../services/visitorRequestQueueService';
 import { enqueueVisitorRequest } from '../../storage/visitorRequestQueue';
-import { getVisitorHosts, type VisitorVisitPayload } from '../../services/visitorService';
+import { getVisitorHosts, type VisitorPass, type VisitorVisitPayload } from '../../services/visitorService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, NotificationRecord, VisitorInviteRecord, VisitorRecord } from '../../types/domain';
 import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from '../../types/workflow';
@@ -419,6 +422,44 @@ export function VisitorPassScreen() {
   const selectedVisit = useMemo(() => selectActiveVisit(visits.data ?? []) ?? (visits.data ?? [])[0] ?? null, [visits.data]);
   const approvedVisit = selectedVisit && ['APPROVED', 'CHECKED_IN'].includes(String(selectedVisit.status)) && selectedVisit.qrIssuedAt ? selectedVisit : null;
   const pass = useVisitorPass(approvedVisit?.id);
+  const passCaptureRef = useRef<ViewShot | null>(null);
+  const [isExportingPng, setIsExportingPng] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isSharingBadge, setIsSharingBadge] = useState(false);
+
+  const exportPng = async (mode: 'download' | 'share') => {
+    if (!passCaptureRef.current) {
+      return;
+    }
+    const setBusy = mode === 'share' ? setIsSharingBadge : setIsExportingPng;
+    setBusy(true);
+    try {
+      const uri = await passCaptureRef.current.capture?.();
+      if (!uri) {
+        throw new Error('The visitor badge preview could not be rendered.');
+      }
+      await shareFile(uri, mode === 'share' ? 'Share badge image' : 'Download badge PNG', 'image/png');
+    } catch (error) {
+      Alert.alert('Export failed', error instanceof Error ? error.message : 'The visitor badge image could not be exported.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportPdf = async () => {
+    if (!pass.data) {
+      return;
+    }
+    setIsExportingPdf(true);
+    try {
+      const pdf = await Print.printToFileAsync({ html: buildVisitorBadgeHtml(pass.data) });
+      await shareFile(pdf.uri, 'Download badge PDF', 'application/pdf');
+    } catch (error) {
+      Alert.alert('PDF export failed', error instanceof Error ? error.message : 'The visitor badge PDF could not be generated.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <AppScreen
@@ -431,16 +472,25 @@ export function VisitorPassScreen() {
     >
       <SurfaceCard title="Current badge" subtitle="Security can scan this QR after approval. Pending or denied requests do not expose valid entry access.">
         {pass.data?.qrImageDataUri ? (
-          <View style={styles.walletBadge}>
-            <View style={styles.walletHeader}>
-              <View>
-                <Text style={styles.walletEyebrow}>Approved access badge</Text>
-                <Text style={styles.walletTitle}>{pass.data.organizationName || pass.data.organizationCode || 'AccessFlow'}</Text>
+          <View style={styles.passExportStack}>
+            <ViewShot ref={passCaptureRef} options={{ format: 'png', quality: 1, result: 'tmpfile' }} style={styles.captureShell}>
+              <View style={styles.walletBadge}>
+                <View style={styles.walletHeader}>
+                  <View>
+                    <Text style={styles.walletEyebrow}>Approved access badge</Text>
+                    <Text style={styles.walletTitle}>{pass.data.organizationName || pass.data.organizationCode || 'AccessFlow'}</Text>
+                  </View>
+                  <StatusPill label={pass.data.valid ? 'Valid' : pass.data.statusLabel || 'Not valid'} tone={pass.data.valid ? 'success' : 'warning'} />
+                </View>
+                <Image source={{ uri: pass.data.qrImageDataUri }} style={styles.qrImage} resizeMode="contain" />
+                <Text style={styles.helperText}>Expires {pass.data.expiresAt ? formatDateTime(pass.data.expiresAt, pass.data.organizationTimezone) : 'after the approved access window'}</Text>
               </View>
-              <StatusPill label={pass.data.valid ? 'Valid' : pass.data.statusLabel || 'Not valid'} tone={pass.data.valid ? 'success' : 'warning'} />
+            </ViewShot>
+            <View style={styles.passActionGrid}>
+              <PrimaryButton label="Download PNG" onPress={() => void exportPng('download')} tone="secondary" loading={isExportingPng} />
+              <PrimaryButton label="Secure PDF" onPress={() => void exportPdf()} tone="secondary" loading={isExportingPdf} />
+              <PrimaryButton label="Share badge image" onPress={() => void exportPng('share')} tone="secondary" loading={isSharingBadge} />
             </View>
-            <Image source={{ uri: pass.data.qrImageDataUri }} style={styles.qrImage} resizeMode="contain" />
-            <Text style={styles.helperText}>Expires {pass.data.expiresAt ? formatDateTime(pass.data.expiresAt, pass.data.organizationTimezone) : 'after the approved access window'}</Text>
           </View>
         ) : selectedVisit ? (
           <EmptyState
@@ -489,6 +539,57 @@ export function VisitorPassScreen() {
       </SurfaceCard>
     </AppScreen>
   );
+}
+
+async function shareFile(uri: string, dialogTitle: string, mimeType: string) {
+  const sharingAvailable = await Sharing.isAvailableAsync();
+  if (!sharingAvailable) {
+    throw new Error('Native sharing is unavailable on this device.');
+  }
+  await Sharing.shareAsync(uri, { mimeType, dialogTitle });
+}
+
+function buildVisitorBadgeHtml(pass: VisitorPass) {
+  return `
+    <html>
+      <body style="margin:0;padding:32px;background:#09111e;font-family:Arial,sans-serif;">
+        <div style="max-width:520px;margin:0 auto;background:#0f1728;border:1px solid rgba(191,219,254,0.26);border-radius:24px;padding:28px;color:#ffffff;">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+            ${pass.photoUrl ? `<img src="${escapeReportHtml(pass.photoUrl)}" alt="Visitor photo" style="width:72px;height:72px;border-radius:20px;object-fit:cover;" />` : ''}
+            <div>
+              <div style="font-size:28px;font-weight:800;">${escapeReportHtml(pass.fullName || 'Visitor')}</div>
+              <div style="font-size:16px;color:#afbdd1;">${escapeReportHtml(pass.purposeOfVisit || pass.companyName || 'Visitor access')}</div>
+              <div style="font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#4f7cff;">${escapeReportHtml(pass.organizationName || pass.organizationCode || 'AccessFlow')}</div>
+            </div>
+          </div>
+          <div style="background:#ffffff;border-radius:20px;padding:20px;text-align:center;margin-bottom:24px;">
+            ${pass.qrImageDataUri ? `<img src="${pass.qrImageDataUri}" alt="Visitor QR" style="width:100%;max-width:300px;" />` : ''}
+            <div style="margin-top:12px;color:#5a6b7e;font-size:12px;letter-spacing:0.8px;text-transform:uppercase;">Approved visitor badge QR</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;row-gap:14px;column-gap:20px;font-size:14px;">
+            <div><strong>Badge ID</strong><br />${escapeReportHtml(pass.badgeId || 'Pending')}</div>
+            <div><strong>Status</strong><br />${escapeReportHtml(pass.statusLabel || (pass.valid ? 'Valid' : 'Not valid'))}</div>
+            <div><strong>Host</strong><br />${escapeReportHtml(pass.hostEmployee || 'Pending')}</div>
+            <div><strong>Pass code</strong><br />${escapeReportHtml(pass.passCode || 'Issued')}</div>
+            <div><strong>Issued</strong><br />${escapeReportHtml(pass.issuedAt || 'Recorded')}</div>
+            <div><strong>Expires</strong><br />${escapeReportHtml(pass.expiresAt || 'Access window')}</div>
+          </div>
+          <div style="margin-top:20px;padding:14px;border-radius:14px;background:rgba(79,124,255,0.14);color:#dbeafe;font-size:13px;line-height:1.45;">
+            This export is a timestamped copy. Security should still verify the live AccessFlow approval record at checkpoint scan time.
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function escapeReportHtml(value: string) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function VisitorNotificationsScreen() {
@@ -779,6 +880,15 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
     padding: theme.spacing.md,
+  },
+  captureShell: {
+    borderRadius: theme.radii.md,
+  },
+  passExportStack: {
+    gap: theme.spacing.sm,
+  },
+  passActionGrid: {
+    gap: theme.spacing.sm,
   },
   walletHeader: {
     width: '100%',

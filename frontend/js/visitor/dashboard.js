@@ -14,6 +14,7 @@ import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/ph
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
+import { promptAction } from "../shared/actionModal.js";
 
 const ROUTES = ["visits", "history", "invites", "request", "settings"];
 let activeBadge = null;
@@ -434,7 +435,14 @@ function initScheduleHints() {
 }
 
 async function handleRescheduleRequest(visitorId) {
-  const dateTime = window.prompt("Suggest a new visit date and arrival time as YYYY-MM-DD HH:mm.");
+  const dateTime = await promptAction({
+    title: "Request new visit time",
+    message: "Suggest a new visit date and arrival time in local workspace time.",
+    label: "New arrival time",
+    placeholder: "YYYY-MM-DD HH:mm",
+    confirmLabel: "Request reschedule",
+    minLength: 10,
+  });
   if (!dateTime) {
     return;
   }
@@ -443,7 +451,16 @@ async function handleRescheduleRequest(visitorId) {
     showToast("Invalid timing", "Enter a future date and time.");
     return;
   }
-  const note = window.prompt("Optional note for your host.") || "";
+  const note = await promptAction({
+    title: "Add host note",
+    message: "Optional context for the host reviewing this timing change.",
+    label: "Host note",
+    placeholder: "Optional note",
+    confirmLabel: "Continue",
+    required: false,
+    minLength: 0,
+    multiline: true,
+  }) || "";
   try {
     await requestVisitReschedule(visitorId, {
       scheduledStartTime,

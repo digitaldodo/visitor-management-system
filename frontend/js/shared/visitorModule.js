@@ -5,6 +5,7 @@ import { initOrganizationSelectors } from "./organizationSelector.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./phoneInput.js";
 import { showToast } from "./toast.js";
 import { VISITOR_STATUS_LABELS as STATUS_LABELS, statusBadgeClass } from "./workflowEnums.js";
+import { promptAction } from "./actionModal.js";
 
 const VISITOR_TYPE_LABELS = {
   ONE_TIME: "One-time visitor",
@@ -166,7 +167,15 @@ export function initVisitorModule(selector, options) {
         showToast("Checked in", "Visitor status updated.");
       }
       if (type === "override-check-in") {
-        const reason = window.prompt("Enter the override reason after verifying the visitor photo and identity.");
+        const reason = await promptAction({
+          title: "Manual visitor check-in",
+          message: "Record why this visitor can be checked in after photo and identity verification.",
+          label: "Override reason",
+          placeholder: "Photo and ID verified at checkpoint",
+          confirmLabel: "Record override",
+          minLength: 8,
+          multiline: true,
+        });
         if (!reason || reason.trim().length < 8) {
           showToast("Override reason required", "Enter at least 8 characters before manual check-in.");
           return;

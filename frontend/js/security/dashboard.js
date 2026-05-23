@@ -11,6 +11,8 @@ import { downloadEmployeeBadge, employeeBadgeDialogMarkup, printEmployeeBadge } 
 import { getOperationalEvents } from "../shared/operationalEventApi.js";
 import { showToast } from "../shared/toast.js";
 import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
+import { confirmAction, promptAction } from "../shared/actionModal.js";
+import { SECURITY_REPORTS, exportOperationalReport } from "../shared/reportExport.js";
 
 const ROUTES = ["emergency", "visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
 const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
@@ -221,6 +223,7 @@ async function loadSecurityPortal(showErrors = true) {
 function initOperationalWorkspace() {
   const activeRoute = resolveInitialActiveRoute();
   prepareOperationalModules(activeRoute);
+  mountSecurityReportExports();
   bindOperationalNavigation();
   initActiveSectionObserver();
   state.activeScrollUntil = Date.now() + 1200;
@@ -229,6 +232,52 @@ function initOperationalWorkspace() {
   if (!window.location.hash && activeRoute !== ROUTES[0]) {
     window.requestAnimationFrame(() => focusOperationalSection(activeRoute, { updateHash: false, smooth: false }));
   }
+}
+
+function mountSecurityReportExports() {
+  const target = document.querySelector("#monitoring .operational-module__body-inner") || document.querySelector("#monitoring");
+  if (!target || document.querySelector("#security-report-export-panel")) {
+    return;
+  }
+  const panel = document.createElement("article");
+  panel.className = "security-report-export-panel";
+  panel.id = "security-report-export-panel";
+  panel.innerHTML = `
+    <div class="panel__header">
+      <div>
+        <p class="eyebrow">Structured Reporting</p>
+        <h3>Security Report Exports</h3>
+        <p class="panel__subtle">Generate audit-safe CSV or print-ready PDF exports from backend reporting endpoints.</p>
+      </div>
+    </div>
+    <div class="security-report-export-grid">
+      ${SECURITY_REPORTS.map((report) => `
+        <article class="security-report-export-card">
+          <span>CSV / PDF</span>
+          <strong>${escapeHtml(report.title)}</strong>
+          <small>${escapeHtml(report.note)}</small>
+          <div class="security-report-export-card__actions">
+            <button class="button button--ghost button--small" type="button" data-security-report="${escapeHtml(report.type)}" data-export-format="CSV">Download CSV</button>
+            <button class="button button--primary button--small" type="button" data-security-report="${escapeHtml(report.type)}" data-export-format="PDF">Download PDF</button>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+  panel.querySelectorAll("[data-security-report]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.toggleAttribute("disabled", true);
+      try {
+        const report = await exportOperationalReport("/security", button.dataset.securityReport, button.dataset.exportFormat);
+        showToast("Security report ready", `${report.title} ${report.format} export generated.`);
+      } catch (error) {
+        showToast("Security report failed", error.message);
+      } finally {
+        button.toggleAttribute("disabled", false);
+      }
+    });
+  });
+  target.append(panel);
 }
 
 function prepareOperationalModules(activeRoute) {
@@ -469,7 +518,13 @@ function initEmergencyWorkspace() {
       showToast("Panic note required", "Record a short note before dispatching a panic alert.");
       return;
     }
-    if (!window.confirm("Dispatch a critical panic alert to emergency operations?")) {
+    const confirmed = await confirmAction({
+      title: "Dispatch panic alert",
+      message: "Dispatch a critical panic alert to emergency operations and audit this security action.",
+      confirmLabel: "Dispatch alert",
+      tone: "danger",
+    });
+    if (!confirmed) {
       return;
     }
     await submitEmergencyAction(form, () => triggerEmergencyPanic({ checkpoint, note, deliberate: true }), {
@@ -738,7 +793,15 @@ function initEmployeeAttendanceWorkspace() {
         openEmployeeBadgeModal(state.activeEmployeeBadge);
       }
       if (action === "check-in" || action === "check-out") {
-        const reason = window.prompt("Reason for manual workforce presence override.");
+        const reason = await promptAction({
+          title: action === "check-in" ? "Manual workforce check-in" : "Manual workforce check-out",
+          message: "Manual workforce presence overrides require an audit reason.",
+          label: "Override reason",
+          placeholder: "Identity verified at checkpoint",
+          confirmLabel: action === "check-in" ? "Check in" : "Check out",
+          minLength: 4,
+          multiline: true,
+        });
         if (!reason?.trim()) {
           showToast("Reason required", "Manual workforce overrides require a reason.");
           return;

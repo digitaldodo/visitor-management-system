@@ -6,6 +6,7 @@ import { clearSession, getRefreshToken } from "./session.js";
 import { showToast } from "./toast.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "./notificationApi.js";
 import { formatDate, formatStatus, setDefaultTimezone, timezoneLabel } from "./formatters.js";
+import { initWebLocalization, localizedHtml, translateFragment } from "./localization.js";
 
 let notificationPollTimer;
 let notificationHydrated = false;
@@ -20,6 +21,7 @@ export function initPortalShell(session, options = {}) {
   safeShellInit("route navigation", () => initRouteNavigation(options));
   safeShellInit("notifications", initNotifications);
   safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
+  safeShellInit("localization", initWebLocalization);
 
   renderIdentityChip(session, options.portalProfile);
   refreshHealth(false);
@@ -33,11 +35,12 @@ export function renderMetrics(metrics = []) {
 
   grid.innerHTML = metrics.length ? metrics.map((metric) => `
     <article class="metric-card">
-      <span class="metric-card__label">${escapeHtml(metric.label)}</span>
+      <span class="metric-card__label">${localizedHtml(metric.label)}</span>
       <strong>${escapeHtml(metric.value)}</strong>
-      <small>${escapeHtml(metric.note)}</small>
+      <small>${localizedHtml(metric.note)}</small>
     </article>
   `).join("") : emptyMarkup("No metrics yet", "Dashboard metrics will appear after visitor activity starts.");
+  translateFragment(grid);
 }
 
 export function renderLoadingList(selector, count = 3) {
@@ -63,14 +66,15 @@ export function renderWorkList(selector, items = [], mapper, emptyTitle = "Nothi
 
   const safeItems = Array.isArray(items) ? items : [];
   list.innerHTML = safeItems.length ? safeItems.map(mapper).join("") : emptyMarkup(emptyTitle, emptyMessage);
+  translateFragment(list);
 }
 
 export function workCard(title, detail, meta = "") {
   return `
     <article class="work-card">
-      <h3>${escapeHtml(title)}</h3>
-      <p>${escapeHtml(detail)}</p>
-      ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+      <h3>${localizedHtml(title)}</h3>
+      <p>${localizedHtml(detail)}</p>
+      ${meta ? `<small>${localizedHtml(meta)}</small>` : ""}
     </article>
   `;
 }
@@ -724,8 +728,8 @@ function renderIdentityChip(session, portalProfile) {
 function emptyMarkup(title, message) {
   return `
     <article class="empty-state empty-state--inline">
-      <h3>${escapeHtml(title)}</h3>
-      <p>${escapeHtml(message)}</p>
+      <h3>${localizedHtml(title)}</h3>
+      <p>${localizedHtml(message)}</p>
     </article>
   `;
 }

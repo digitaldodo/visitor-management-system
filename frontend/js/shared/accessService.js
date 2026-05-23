@@ -328,6 +328,10 @@ export function getOwnEmployeeAttendance() {
   return request("/employee/attendance");
 }
 
+export function prepareOperationalReportExport(basePath, reportType, format = "CSV") {
+  return request(`${basePath}/reports/export?reportType=${encodeURIComponent(reportType)}&format=${encodeURIComponent(format)}`);
+}
+
 export function getVisitorHistory(basePath, id) {
   if (basePath === "/visitor") {
     return request("/visitor/history");

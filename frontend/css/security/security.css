@@ -840,6 +840,51 @@ html {
   }
 }
 
+.security-report-export-panel {
+  background: rgba(14, 21, 35, 0.72);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.security-report-export-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+.security-report-export-card {
+  background: var(--panel-subtle-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+}
+
+.security-report-export-card span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.security-report-export-card small {
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
+.security-report-export-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.6rem;
+}
+
 @media (max-width: 900px) {
   .security-quick-actions {
     border-radius: 0;

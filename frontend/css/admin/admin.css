@@ -381,6 +381,13 @@
   margin: 0.2rem 0;
 }
 
+.report-export-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
 .operational-signal-card b {
   color: var(--role-accent);
   font-size: 1.25rem;

@@ -1192,6 +1192,111 @@ body.has-mobile-sidebar {
   width: min(100%, 44rem);
 }
 
+.language-control {
+  align-items: center;
+  background: var(--panel-subtle-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  display: inline-flex;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.75rem;
+}
+
+.language-control span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.language-control select {
+  background: var(--panel-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  min-height: 2rem;
+  padding: 0 1.8rem 0 0.75rem;
+}
+
+.enterprise-action-modal {
+  inset: 0;
+  position: fixed;
+  z-index: 1200;
+}
+
+.enterprise-action-modal__backdrop {
+  backdrop-filter: blur(8px);
+  background: rgba(2, 8, 23, 0.68);
+  inset: 0;
+  position: absolute;
+}
+
+.enterprise-action-modal__sheet {
+  background: var(--panel-bg-strong);
+  border: 1px solid rgba(191, 219, 254, 0.18);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 1rem;
+  left: 50%;
+  max-height: calc(100vh - 2rem);
+  max-width: min(92vw, 34rem);
+  overflow: auto;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 34rem);
+}
+
+.enterprise-action-modal__header h2 {
+  color: var(--color-text);
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  margin: 0.15rem 0 0;
+}
+
+.enterprise-action-modal__header p:not(.eyebrow) {
+  color: var(--color-muted);
+  line-height: 1.55;
+  margin: 0.5rem 0 0;
+}
+
+.enterprise-action-modal__form {
+  display: grid;
+  gap: 1rem;
+}
+
+.enterprise-action-modal__form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.enterprise-action-modal__error {
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.enterprise-action-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.button--danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.button--danger:hover {
+  filter: brightness(1.05);
+}
+
 .visitor-detail {
   display: grid;
   gap: 0.7rem;

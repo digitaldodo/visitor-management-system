@@ -16,6 +16,8 @@ import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/ph
 import { formatDate as formatOrgDate } from "../shared/formatters.js";
 import { initOrganizationSelector } from "../shared/organizationSelector.js";
 import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums.js";
+import { promptAction } from "../shared/actionModal.js";
+import { OPERATIONAL_REPORTS, exportOperationalReport } from "../shared/reportExport.js";
 import { ROUTE_DEFINITIONS, ROUTE_ICON_PATHS, buildPortalProfile } from "./portalProfiles.js";
 
 const ROUTE_ALIASES = {
@@ -1030,15 +1032,27 @@ function homepageToggleField(name, title, description) {
 
 function reportsTemplate() {
   return `
-    <article class="panel">
-      <div class="panel__header">
-        <div>
-          <p class="eyebrow">Exports</p>
-          <h3>Reports</h3>
+    <section class="workspace-stack">
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Structured Reporting</p>
+            <h3>Operational Exports</h3>
+            <p class="panel__subtle">Generate backend-backed CSV or print-ready PDF reports for visitor, workforce, incident, denied-entry, and audit workflows.</p>
+          </div>
         </div>
-      </div>
-      <div class="work-list" id="reports-list"></div>
-    </article>
+        <div class="operational-export-grid" id="reports-export-grid"></div>
+      </article>
+      <article class="panel">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Audit Oversight</p>
+            <h3>Recent Reports</h3>
+          </div>
+        </div>
+        <div class="work-list" id="reports-list"></div>
+      </article>
+    </section>
   `;
 }
 
@@ -1668,7 +1682,16 @@ function initWorkforceApprovalsWorkspace() {
         showToast("Workforce access activated", "Static QR and check-in/check-out access are now active.");
       }
       if (action === "reject") {
-        const reason = window.prompt("Reason for rejecting this workforce onboarding request.");
+        const reason = await promptAction({
+          title: "Deny workforce onboarding",
+          message: "Record the operational reason for denying this workforce access request.",
+          label: "Reason",
+          placeholder: "Policy, identity, or access concern",
+          confirmLabel: "Deny",
+          tone: "danger",
+          minLength: 4,
+          multiline: true,
+        });
         if (!reason?.trim()) {
           showToast("Reason required", "Rejections require an audit reason.");
           return;
@@ -1677,7 +1700,15 @@ function initWorkforceApprovalsWorkspace() {
         showToast("Workforce request denied", "The decision was audit logged.");
       }
       if (action === "changes") {
-        const reason = window.prompt("Describe the workforce onboarding details that security must correct.");
+        const reason = await promptAction({
+          title: "Request onboarding changes",
+          message: "Describe the exact workforce details that security must correct before approval.",
+          label: "Correction details",
+          placeholder: "Missing ID, shift, photo, department, or role information",
+          confirmLabel: "Request changes",
+          minLength: 4,
+          multiline: true,
+        });
         if (!reason?.trim()) {
           showToast("Details required", "Modification requests require an audit note.");
           return;
@@ -1760,6 +1791,7 @@ async function loadHomepageWorkspace() {
 }
 
 async function loadReportsWorkspace() {
+  renderReportExportCatalog("#reports-export-grid", OPERATIONAL_REPORTS, "/admin");
   renderLoadingList("#reports-list", 4);
   try {
     const reports = await request("/admin/reports");
@@ -1768,6 +1800,37 @@ async function loadReportsWorkspace() {
     renderWorkList("#reports-list", [], (item) => item, "Audit oversight unavailable", error.message);
     showToast("Reports unavailable", error.message);
   }
+}
+
+function renderReportExportCatalog(selector, reports, basePath) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    return;
+  }
+  element.innerHTML = reports.map((report) => `
+    <article class="operational-export-card">
+      <span>CSV / PDF</span>
+      <strong>${escapeHtml(report.title)}</strong>
+      <small>${escapeHtml(report.note)}</small>
+      <div class="report-export-card__actions">
+        <button class="button button--ghost button--small" type="button" data-report-export="${escapeHtml(report.type)}" data-export-format="CSV">Download CSV</button>
+        <button class="button button--primary button--small" type="button" data-report-export="${escapeHtml(report.type)}" data-export-format="PDF">Download PDF</button>
+      </div>
+    </article>
+  `).join("");
+  element.querySelectorAll("[data-report-export]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.toggleAttribute("disabled", true);
+      try {
+        const report = await exportOperationalReport(basePath, button.dataset.reportExport, button.dataset.exportFormat);
+        showToast("Report export ready", `${report.title} ${report.format} export generated.`);
+      } catch (error) {
+        showToast("Report export failed", error.message);
+      } finally {
+        button.toggleAttribute("disabled", false);
+      }
+    });
+  });
 }
 
 async function loadSecurityMonitoringWorkspace() {
@@ -2143,7 +2206,15 @@ function initAdminUserForm() {
     const id = button.dataset.userId;
     const action = button.dataset.userAction;
     const roleSelectField = button.closest(".admin-user-card")?.querySelector("[data-role-select]");
-    const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
+    const password = action === "reset-password" ? await promptAction({
+      title: "Reset temporary password",
+      message: "Enter the new temporary password issued through your approved internal process.",
+      label: "Temporary password",
+      placeholder: "Minimum 12 characters",
+      confirmLabel: "Reset password",
+      type: "password",
+      minLength: 12,
+    }) : null;
     if (action === "reset-password" && !password) {
       return;
     }
@@ -2722,7 +2793,15 @@ async function handleOrganizationAdminAction(button) {
   const action = button.dataset.organizationAdminAction;
   const card = button.closest("[data-organization-admin-card]");
   const roleField = card?.querySelector("[data-role-select]");
-  const password = action === "reset-password" ? window.prompt("Enter a new temporary password for this account.") : null;
+  const password = action === "reset-password" ? await promptAction({
+    title: "Reset temporary password",
+    message: "Enter the new temporary password issued through your approved internal process.",
+    label: "Temporary password",
+    placeholder: "Minimum 12 characters",
+    confirmLabel: "Reset password",
+    type: "password",
+    minLength: 12,
+  }) : null;
   if (action === "reset-password" && !password) {
     return;
   }
@@ -3301,14 +3380,19 @@ function renderOperationalExports(items, analytics) {
     return;
   }
   const rows = normalizeArray(items);
-  element.innerHTML = rows.length ? rows.map((item) => `
+  const catalog = rows.length ? rows : [
+    { label: "Operational Summary", reportType: "operational-summary", format: "CSV", note: "Backend-backed operational export." },
+    { label: "Security Incident Report", reportType: "incident-report", format: "PDF", note: "Print-ready security incident export." },
+    { label: "Workforce Activity Report", reportType: "workforce-activity", format: "CSV", note: "Employee presence and checkpoint activity." },
+  ];
+  element.innerHTML = catalog.map((item) => `
     <article class="operational-export-card">
       <span>${escapeHtml(item.format || "CSV")}</span>
       <strong>${escapeHtml(item.label || "Operational report")}</strong>
       <small>${escapeHtml(item.note || "Exportable operational snapshot")}</small>
-      <button class="button button--ghost button--small" type="button" data-export-snapshot="${escapeHtml(item.label || "snapshot")}" data-export-format="${escapeHtml(item.format || "CSV")}">Export ${escapeHtml(item.format || "CSV")}</button>
+      <button class="button button--ghost button--small" type="button" data-export-snapshot="${escapeHtml(item.reportType || item.label || "snapshot")}" data-export-format="${escapeHtml(item.format || "CSV")}">Export ${escapeHtml(item.format || "CSV")}</button>
     </article>
-  `).join("") : emptyInline("No export snapshots", "Visitor, denial, incident, workforce, and operational snapshots will appear here.");
+  `).join("");
   element.querySelectorAll("[data-export-snapshot]").forEach((button) => {
     button.addEventListener("click", () => exportOperationalSnapshot(button.dataset.exportSnapshot, button.dataset.exportFormat, analytics));
   });
@@ -3337,8 +3421,18 @@ function heatmapChart(rows) {
   `;
 }
 
-function exportOperationalSnapshot(label, format, analytics) {
+async function exportOperationalSnapshot(label, format, analytics) {
   const normalizedFormat = String(format || "CSV").toUpperCase();
+  const reportType = reportTypeForExportLabel(label);
+  if (reportType && (normalizedFormat === "CSV" || normalizedFormat === "PDF")) {
+    try {
+      const report = await exportOperationalReport("/admin", reportType, normalizedFormat);
+      showToast("Report export ready", `${report.title} ${report.format} export generated.`);
+      return;
+    } catch (error) {
+      showToast("Backend export unavailable", error.message);
+    }
+  }
   const filename = `${String(label || "operational-snapshot").toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "") || "operational-snapshot"}-${new Date().toISOString().slice(0, 10)}`;
   if (normalizedFormat === "PDF") {
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
@@ -3360,6 +3454,35 @@ function exportOperationalSnapshot(label, format, analytics) {
   link.download = `${filename}.csv`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function reportTypeForExportLabel(label) {
+  const normalized = String(label || "").toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
+  if (!normalized) {
+    return "operational-summary";
+  }
+  if (OPERATIONAL_REPORTS.some((report) => report.type === normalized)) {
+    return normalized;
+  }
+  if (normalized.includes("workforce")) {
+    return "workforce-activity";
+  }
+  if (normalized.includes("incident") || normalized.includes("security")) {
+    return "incident-report";
+  }
+  if (normalized.includes("denied") || normalized.includes("denial")) {
+    return "denied-entry-report";
+  }
+  if (normalized.includes("audit")) {
+    return "operational-audit-log";
+  }
+  if (normalized.includes("checkpoint")) {
+    return "checkpoint-activity";
+  }
+  if (normalized.includes("visitor")) {
+    return "visitor-register";
+  }
+  return "operational-summary";
 }
 
 function operationalCsv(label, analytics) {

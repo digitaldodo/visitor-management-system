@@ -1,14 +1,17 @@
-import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { MetricCard } from '../../components/cards/MetricCard';
 import { RecordCard } from '../../components/cards/RecordCard';
 import { AppScreen } from '../../components/layout/AppScreen';
 import { NotificationCenter } from '../../components/notifications/NotificationCenter';
+import { PrimaryButton } from '../../components/buttons/PrimaryButton';
+import { SurfaceCard } from '../../components/cards/SurfaceCard';
 import { useNotificationsQuery } from '../../hooks/useNotificationsQuery';
 import { useSecurityMonitoring } from '../../hooks/useSecurityWorkspace';
 import { markAllNotificationsRead, markNotificationRead } from '../../services/notificationService';
+import { shareOperationalReport } from '../../services/operationalExportService';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import { theme } from '../../theme';
 import type { NotificationRecord } from '../../types/domain';
@@ -21,6 +24,8 @@ export function AlertsScreen() {
   const notifications = useNotificationsQuery(20);
   const markReadMutation = useMutation({ mutationFn: markNotificationRead });
   const markAllReadMutation = useMutation({ mutationFn: markAllNotificationsRead });
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportingType, setExportingType] = useState<string | null>(null);
 
   const securityItems = useMemo(
     () => (notifications.data?.items ?? []).filter((item) => ['SECURITY', 'VISITOR', 'WORKFORCE'].includes(String(item.category || '').toUpperCase())),
@@ -48,6 +53,18 @@ export function AlertsScreen() {
     }
     await markReadMutation.mutateAsync(notification.id);
     await refreshWorkspace();
+  };
+
+  const exportSecurityReport = async (reportType: string, format: 'CSV' | 'PDF') => {
+    setExportingType(`${reportType}:${format}`);
+    try {
+      const report = await shareOperationalReport({ role: 'SECURITY_GUARD', reportType, format });
+      setExportMessage(`${report.title} ${format} export generated.`);
+    } catch {
+      setExportMessage('Security report export could not be generated on this device.');
+    } finally {
+      setExportingType(null);
+    }
   };
 
   return (
@@ -86,6 +103,31 @@ export function AlertsScreen() {
         ))}
       </View>
 
+      <SurfaceCard title="Security exports" subtitle="Lightweight CSV/PDF reports for incident, denied-entry, checkpoint, and operational review.">
+        {exportMessage ? <Text style={styles.exportMessage}>{exportMessage}</Text> : null}
+        <View style={styles.exportGrid}>
+          {SECURITY_EXPORTS.map((item) => (
+            <View key={item.reportType} style={styles.exportCard}>
+              <RecordCard title={item.title} subtitle={item.subtitle} status="Export" tone="info" />
+              <View style={styles.exportActions}>
+                <PrimaryButton
+                  label="CSV"
+                  tone="secondary"
+                  onPress={() => void exportSecurityReport(item.reportType, 'CSV')}
+                  loading={exportingType === `${item.reportType}:CSV`}
+                />
+                <PrimaryButton
+                  label="PDF"
+                  tone="secondary"
+                  onPress={() => void exportSecurityReport(item.reportType, 'PDF')}
+                  loading={exportingType === `${item.reportType}:PDF`}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      </SurfaceCard>
+
       <NotificationCenter
         title="Recent alerts"
         subtitle="Prioritized operational notifications stay grouped to reduce noise while keeping checkpoint visibility high."
@@ -106,6 +148,12 @@ export function AlertsScreen() {
   );
 }
 
+const SECURITY_EXPORTS = [
+  { reportType: 'incident-report', title: 'Security Incident Report', subtitle: 'Emergency, suspicious activity, and escalation records.' },
+  { reportType: 'denied-entry-report', title: 'Denied Entry Report', subtitle: 'Rejected access and denied checkpoint outcomes.' },
+  { reportType: 'checkpoint-activity', title: 'Checkpoint Activity Report', subtitle: 'Recent operational audit trail for checkpoint review.' },
+] as const;
+
 const styles = StyleSheet.create({
   metricGrid: {
     flexDirection: 'row',
@@ -114,5 +162,20 @@ const styles = StyleSheet.create({
   },
   alertSection: {
     gap: theme.spacing.sm,
+  },
+  exportGrid: {
+    gap: theme.spacing.sm,
+  },
+  exportCard: {
+    gap: theme.spacing.sm,
+  },
+  exportActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  exportMessage: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 22,
   },
 });
