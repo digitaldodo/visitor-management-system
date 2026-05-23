@@ -41,7 +41,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 "Visitor approval requested",
                 "%s is waiting for your approval.".formatted(visitor.getFullName()),
                 visitor,
-                "/pages/employee/#approvals"
+                "/employee/requests"
         );
     }
 
@@ -53,7 +53,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 "Visitor pre-approved",
                 "%s has been pre-approved for the scheduled visit window.".formatted(visitor.getFullName()),
                 visitor,
-                "/pages/employee/#scheduled"
+                "/employee/requests"
         );
         sendApprovedBadgeEmail(visitor);
     }
@@ -63,7 +63,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
         String message = visitor.getQrIssuedAt() == null
                 ? "%s has been approved.".formatted(visitor.getFullName())
                 : "%s has been approved. The visitor badge is ready.".formatted(visitor.getFullName());
-        notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/pages/employee/#scheduled", null);
+        notifyHost(visitor, NotificationType.VISITOR_APPROVED, "Visitor approved", message, "/employee/requests", null);
         markInviteQrIssued(visitor);
         notifyVisitorAccount(visitor, NotificationType.VISITOR_APPROVED, "Badge issued", "Your visit has been approved and your QR badge is ready in AccessFlow.", "/visitor/pass", "badge-issued");
         sendApprovedBadgeEmail(visitor);
@@ -98,7 +98,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
                 NotificationType.VISITOR_WAITING_AT_RECEPTION,
                 "Visitor waiting at reception",
                 "%s's badge was verified at reception and is awaiting check-in.".formatted(visitor.getFullName()),
-                "/pages/employee/#requests",
+                "/employee/requests",
                 "visitor:%s:waiting:%d".formatted(visitor.getId(), Instant.now().getEpochSecond() / 1200)
         );
     }
@@ -141,7 +141,7 @@ public class VisitorLifecycleNotificationService implements VisitorNotificationS
     }
 
     private void notifyHost(Visitor visitor, NotificationType type, String title, String message) {
-        notifyHost(visitor, type, title, message, "/pages/employee/#history", null);
+        notifyHost(visitor, type, title, message, "/employee/history", null);
     }
 
     private void notifyHost(Visitor visitor, NotificationType type, String title, String message, String actionUrl, String dedupeKey) {

@@ -80,6 +80,8 @@ public class User {
 
     private String preferredLanguage;
 
+    private String preferredTimezone;
+
     private Boolean notificationEmailEnabled = Boolean.TRUE;
 
     private Boolean notificationInAppEnabled = Boolean.TRUE;
@@ -367,6 +369,14 @@ public class User {
 
     public void setPreferredLanguage(String preferredLanguage) {
         this.preferredLanguage = preferredLanguage;
+    }
+
+    public String getPreferredTimezone() {
+        return preferredTimezone;
+    }
+
+    public void setPreferredTimezone(String preferredTimezone) {
+        this.preferredTimezone = preferredTimezone;
     }
 
     public Boolean getNotificationEmailEnabled() {

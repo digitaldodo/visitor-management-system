@@ -444,6 +444,7 @@ public class AuthService {
                 user.getPhoneCountryCode(),
                 user.getEmergencyContact(),
                 user.getPreferredLanguage(),
+                user.getPreferredTimezone(),
                 user.getNotificationEmailEnabled(),
                 user.getNotificationInAppEnabled(),
                 user.isActive(),

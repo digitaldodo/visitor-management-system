@@ -530,7 +530,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     if (portalPath.includes("/visitor")) {
       return "#visits";
     }
-    return "#visitor-requests";
+    return employeeTarget("requests");
   }
   if (normalized.includes("BADGE")) {
     if (portalPath.includes("/admin")) {
@@ -540,9 +540,9 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
       return "#badges";
     }
     if (portalPath.includes("/employee") && normalized.includes("EMPLOYEE")) {
-      return "#credential";
+      return employeeTarget("badge");
     }
-    return portalPath.includes("/visitor") ? "#visits" : "#visitor-requests";
+    return portalPath.includes("/visitor") ? "#visits" : employeeTarget("requests");
   }
   if (normalized.includes("EMERGENCY") || normalized.includes("INCIDENT") || normalized.includes("SUSPICIOUS")) {
     return portalPath.includes("/admin") ? adminTarget("emergency-ops") : "#monitoring";
@@ -551,7 +551,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     return portalPath.includes("/admin") ? adminTarget("workforce-approvals") : "#workforce-onboarding";
   }
   if (normalized.includes("APPROVAL")) {
-    return portalPath.includes("/admin") ? adminTarget("visitor-access") : "#visitor-requests";
+    return portalPath.includes("/admin") ? adminTarget("visitor-access") : employeeTarget("requests");
   }
   if (normalized.includes("VISITOR") || normalized.includes("BADGE") || resolvedTargetId) {
     if (portalPath.includes("/admin")) {
@@ -563,13 +563,17 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     if (portalPath.includes("/visitor")) {
       return "#visits";
     }
-    return "#visitor-requests";
+    return employeeTarget("requests");
   }
-  return portalPath.includes("/admin") ? adminTarget("notifications") : "#notifications";
+  return portalPath.includes("/admin") ? adminTarget("notifications") : employeeTarget("notifications");
 }
 
 function adminTarget(route) {
   return window.location.pathname.toLowerCase().includes("/pages/admin") ? `#${route}` : `/admin/${route}`;
+}
+
+function employeeTarget(route) {
+  return `/employee/${route}`;
 }
 
 function parseOperationalDeepLink(value) {

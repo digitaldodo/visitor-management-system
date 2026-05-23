@@ -1,11 +1,10 @@
 import { request } from "../shared/httpClient.js";
-import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
+import { initAppErrorBoundary } from "../shared/appErrorBoundary.js";
 import { bootstrapApplication } from "../shared/appRuntime.js";
 import { formatDate, formatStatus, formatTime, getDefaultTimezone, timezoneLabel, toDatetimeLocal, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
 import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
-import { initVisitorModule } from "../shared/visitorModule.js";
-import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
+import { approveRescheduleRequest, approveVisitor, createEmployeeVisitorInvite, getEmployeeProfile, getOwnEmployeeAttendance, hostRescheduleVisitor, listEmployeeVisitorInvites, preApproveVisitor, rejectRescheduleRequest, rejectVisitor, resendEmployeeVisitorInvite, revokeEmployeeVisitorInvite, updateEmployeePassword, updateEmployeeProfile, uploadEmployeeProfilePhoto } from "../shared/accessService.js";
 import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
 import { BadgePreviewPanel, QRIdentityCard, downloadEmployeeBadge, employeeBadgeQrImage, employeeBadgeSkeletonMarkup, printEmployeeBadge } from "../shared/employeeBadgeStudio.js";
 import { loadEmployeeBadgeIdentity, updateEmployeeBadgeCache } from "../shared/employeeBadgeProvider.js";
@@ -17,7 +16,73 @@ import { showToast } from "../shared/toast.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
 import { promptAction } from "../shared/actionModal.js";
 
-const ROUTES = ["dashboard", "credential", "attendance", "visitor-requests", "notifications", "settings"];
+const ROUTES = ["dashboard", "badge", "presence", "requests", "history", "notifications", "profile", "settings"];
+const ROUTE_DEFINITIONS = {
+  dashboard: {
+    href: "/employee/dashboard",
+    title: "Employee Dashboard",
+    eyebrow: "Workflow Workspace",
+    loader: () => import("./routes/dashboardPage.js"),
+  },
+  badge: {
+    href: "/employee/badge",
+    title: "Badge",
+    eyebrow: "Identity Center",
+    loader: () => import("./routes/badgePage.js"),
+  },
+  presence: {
+    href: "/employee/presence",
+    title: "Presence",
+    eyebrow: "Attendance Workspace",
+    loader: () => import("./routes/presencePage.js"),
+  },
+  requests: {
+    href: "/employee/requests",
+    title: "Requests",
+    eyebrow: "Approval Workspace",
+    loader: () => import("./routes/requestsPage.js"),
+  },
+  history: {
+    href: "/employee/history",
+    title: "Visitor History",
+    eyebrow: "Hosted Visitor Timeline",
+    loader: () => import("./routes/historyPage.js"),
+  },
+  notifications: {
+    href: "/employee/notifications",
+    title: "Notifications",
+    eyebrow: "Updates",
+    loader: () => import("./routes/notificationsPage.js"),
+  },
+  profile: {
+    href: "/employee/profile",
+    title: "Profile",
+    eyebrow: "Account Settings",
+    loader: () => import("./routes/profilePage.js"),
+  },
+  settings: {
+    href: "/employee/settings",
+    title: "Settings",
+    eyebrow: "Preferences",
+    loader: () => import("./routes/settingsPage.js"),
+  },
+};
+const ROUTE_ALIASES = {
+  "": "dashboard",
+  employee: "dashboard",
+  credential: "badge",
+  attendance: "presence",
+  "visitor-requests": "requests",
+  approvals: "requests",
+  requests: "requests",
+  scheduled: "requests",
+  history: "history",
+  badge: "badge",
+  dashboard: "dashboard",
+  notifications: "notifications",
+  settings: "settings",
+  profile: "profile",
+};
 let approvalPollTimer;
 let employeePortalLoading = false;
 let employeePortalQueued = false;
@@ -28,6 +93,14 @@ let activeEmployeeBadge = null;
 let activeEmployeeProfile = null;
 let credentialLoaded = false;
 let settingsLoaded = false;
+let profileLoaded = false;
+let historyState = {
+  page: 0,
+  size: 20,
+  totalPages: 0,
+  filters: {},
+  loading: false,
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("employee-portal", () => bootEmployeePortal(), {
@@ -38,27 +111,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function bootEmployeePortal() {
   initAppErrorBoundary();
+  migrateLegacyEmployeeRoute();
 
   const session = requireRole("EMPLOYEE");
   if (!session) {
     return;
   }
+  const initialRoute = currentEmployeeRoute();
 
   initPortalShell(session, {
     allowedRoutes: ROUTES,
+    routeMap: ROUTE_DEFINITIONS,
+    activeRoute: initialRoute,
+    defaultHref: ROUTE_DEFINITIONS.dashboard.href,
     onRefresh: async () => {
       await loadEmployeePortal({ forceBadge: true });
       await loadRouteData({ force: true });
     },
   });
-  await runSafely("employee visitor module", () => initVisitorModule("[data-employee-visitors]", {
-    basePath: "/employee",
-    title: "Visitor Registration and History",
-    eyebrow: "Personal Records",
-    showHostFields: false,
-    showCompanyField: false,
-    canDelete: false,
-  }), { toastTitle: "Visitor history unavailable" });
+  bindEmployeeWorkspaceNavigation();
+  await renderEmployeeRoute(initialRoute, { replace: true });
   initApprovalActions();
   initScheduledActions();
   initPreApprovalForm();
@@ -66,11 +138,10 @@ async function bootEmployeePortal() {
   initVisitorInviteActions();
   initEmployeeBadgeActions();
   initCredentialPhotoForm();
+  initEmployeeProfileForm();
+  initSafeDeleteActions();
   initEmployeeSettingsForm();
   initEmployeePasswordForm();
-  initEmployeeRouteLoading();
-  await loadEmployeePortal();
-  await loadRouteData();
   approvalPollTimer = createNonOverlappingPoller(() => loadApprovals(false), {
     intervalMs: 30000,
     backgroundIntervalMs: 120000,
@@ -78,6 +149,148 @@ async function bootEmployeePortal() {
   });
   approvalPollTimer.start();
   window.addEventListener("beforeunload", () => approvalPollTimer?.stop(), { once: true });
+}
+
+function migrateLegacyEmployeeRoute() {
+  const hashRoute = routeFromHash(window.location.hash);
+  if (hashRoute) {
+    window.history.replaceState({}, "", ROUTE_DEFINITIONS[hashRoute].href);
+    return;
+  }
+
+  const route = currentEmployeeRoute();
+  const definition = ROUTE_DEFINITIONS[route] || ROUTE_DEFINITIONS.dashboard;
+  if (window.location.pathname !== definition.href) {
+    window.history.replaceState({}, "", definition.href);
+  }
+}
+
+function routeFromHash(hash) {
+  const value = String(hash || "").replace("#", "").trim().toLowerCase();
+  return value ? ROUTE_ALIASES[value] || "" : "";
+}
+
+function currentEmployeeRoute() {
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  const rawRoute = segments[0] === "employee" ? segments[1] || "dashboard" : "dashboard";
+  return ROUTE_ALIASES[rawRoute] || (ROUTES.includes(rawRoute) ? rawRoute : "dashboard");
+}
+
+async function renderEmployeeRoute(route = currentEmployeeRoute(), options = {}) {
+  const resolvedRoute = ROUTES.includes(route) ? route : "dashboard";
+  const definition = ROUTE_DEFINITIONS[resolvedRoute];
+  const host = document.querySelector("#main-content");
+  if (!host || !definition) {
+    return;
+  }
+
+  if (!options.replace && window.location.pathname !== definition.href) {
+    window.history.pushState({}, "", definition.href);
+  } else if (options.replace && window.location.pathname !== definition.href) {
+    window.history.replaceState({}, "", definition.href);
+  }
+
+  setActiveRoute(resolvedRoute);
+  setPageTitle(definition);
+  host.classList.add("is-transitioning");
+  host.innerHTML = `
+    <section class="employee-route panel route-loading-state">
+      <div class="employee-badge-skeleton">
+        <div>
+          <strong>Loading ${escapeHtml(definition.title)}</strong>
+          <p>Preparing this workspace.</p>
+        </div>
+        <span></span><span></span><span></span>
+      </div>
+    </section>
+  `;
+
+  try {
+    const pageModule = await definition.loader();
+    host.innerHTML = pageModule.render();
+    host.dataset.activeRoute = resolvedRoute;
+    await initializeRenderedRoute(resolvedRoute);
+    host.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    host.innerHTML = `
+      <section class="employee-route panel">
+        <div class="empty-state empty-state--inline">
+          <h3>Workspace unavailable</h3>
+          <p>${escapeHtml(error?.message || "This employee workspace could not be loaded.")}</p>
+        </div>
+      </section>
+    `;
+    showToast("Workspace unavailable", error?.message || "Route module could not be loaded.");
+  } finally {
+    requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+  }
+}
+
+async function initializeRenderedRoute(route) {
+  if (route === "requests") {
+    initPreApprovalForm();
+    initVisitorInviteForm();
+  }
+  if (route === "badge") {
+    initCredentialPhotoForm();
+  }
+  if (route === "profile") {
+    initEmployeeProfileForm();
+  }
+  if (route === "settings") {
+    initEmployeeSettingsForm();
+    initEmployeePasswordForm();
+  }
+  if (route === "history") {
+    initVisitorHistoryFilters();
+  }
+  await loadEmployeePortal();
+  await loadRouteData({ force: false });
+}
+
+function bindEmployeeWorkspaceNavigation() {
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || link.target || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    const url = new URL(link.href, window.location.origin);
+    if (url.origin !== window.location.origin || !url.pathname.startsWith("/employee")) {
+      return;
+    }
+    event.preventDefault();
+    void renderEmployeeRoute(ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard");
+  });
+
+  window.addEventListener("popstate", () => {
+    void renderEmployeeRoute(currentEmployeeRoute(), { replace: true });
+  });
+}
+
+function setActiveRoute(route) {
+  document.querySelectorAll("#sidebar-nav .nav-link").forEach((link) => {
+    const isActive = link.dataset.route === route;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+  if (window.matchMedia("(max-width: 1024px)").matches) {
+    const shell = document.querySelector(".portal-shell");
+    if (shell) {
+      shell.dataset.sidebarState = "closed";
+    }
+    document.body.classList.remove("has-mobile-sidebar");
+  }
+}
+
+function setPageTitle(definition) {
+  setText(".topbar__title .eyebrow", definition.eyebrow || "Workflow Workspace");
+  setText(".topbar__title h1", definition.title || "Employee Dashboard");
+  document.title = `AccessFlow | ${definition.title || "Employee Portal"}`;
 }
 
 async function loadEmployeePortal(options = {}) {
@@ -310,10 +523,10 @@ function renderDashboardBadge(badge, error = "") {
     </div>
     <div class="dashboard-badge-card__footer">
       <span>${escapeHtml(badge.organizationName || badge.organizationCode || "Organization context pending")}</span>
-      <a class="button button--ghost" href="#credential">Open badge</a>
+      <a class="button button--ghost" href="/employee/badge">Open badge</a>
     </div>
   ` : `
-    ${BadgePreviewPanel(null, {
+      ${BadgePreviewPanel(null, {
       emptyTitle: "Badge unavailable",
       emptyMessage: error || "Your reusable employee badge will appear here once available.",
     })}
@@ -372,7 +585,11 @@ function setCredentialActionsState(enabled) {
 }
 
 function initEmployeeBadgeActions() {
-  document.querySelector("#credential")?.addEventListener("click", async (event) => {
+  if (document.body.dataset.employeeBadgeActionsBound === "true") {
+    return;
+  }
+  document.body.dataset.employeeBadgeActionsBound = "true";
+  document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-own-badge-action]");
     if (!button || !activeEmployeeBadge) {
       return;
@@ -392,32 +609,18 @@ function initEmployeeBadgeActions() {
   });
 }
 
-function initEmployeeRouteLoading() {
-  syncEmployeeRouteVisibility();
-  window.addEventListener("hashchange", () => {
-    syncEmployeeRouteVisibility();
-    void loadRouteData();
-  });
-}
-
 async function loadRouteData(options = {}) {
   const { force = false } = options;
-  const route = window.location.hash.replace("#", "") || "dashboard";
-  if (route === "credential") {
+  const route = currentEmployeeRoute();
+  if (route === "badge") {
     await loadCredentialPage(force);
   }
-  if (route === "settings") {
+  if (route === "settings" || route === "profile") {
     await loadEmployeeSettings(force);
   }
-}
-
-function syncEmployeeRouteVisibility() {
-  const route = ROUTES.includes(window.location.hash.replace("#", ""))
-    ? window.location.hash.replace("#", "")
-    : "dashboard";
-  document.querySelectorAll(".employee-route").forEach((section) => {
-    section.hidden = section.id !== route;
-  });
+  if (route === "history") {
+    await loadVisitorHistory(force);
+  }
 }
 
 async function loadCredentialPage(force = false) {
@@ -458,6 +661,10 @@ function initCredentialPhotoForm() {
   if (!form || !input) {
     return;
   }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
   input.addEventListener("change", async () => {
     const file = input.files?.[0];
     if (!file) {
@@ -499,28 +706,156 @@ function initCredentialPhotoForm() {
   });
 }
 
-function initEmployeeSettingsForm() {
-  const form = document.querySelector("#employee-settings-form");
+function initEmployeeProfileForm() {
+  const form = document.querySelector("#employee-profile-form");
   if (!form) {
     return;
   }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
   initPhoneInput(form);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
+    if (!trim(data.fullName)) {
+      showToast("Check profile", "Display name is required.");
+      return;
+    }
     const phone = phonePayload(data);
     const phoneError = validatePhonePayload(phone, { required: false });
     if (phoneError) {
       showToast("Check phone", phoneError);
       return;
     }
+
+    setFormLoading(form, true);
+    try {
+      let employeePhotoUrl;
+      const photoFile = form.querySelector("input[name='profilePhoto']")?.files?.[0];
+      if (photoFile) {
+        if (!photoFile.type.startsWith("image/")) {
+          throw new Error("Choose a JPEG, PNG, or WebP image.");
+        }
+        const upload = await uploadEmployeeProfilePhoto(photoFile);
+        employeePhotoUrl = upload?.data?.url;
+        if (!employeePhotoUrl) {
+          throw new Error("Photo upload completed without a usable URL.");
+        }
+      }
+
+      const payload = {
+        fullName: trim(data.fullName),
+        phoneCountryCode: phone.phone ? phone.phoneCountryCode : null,
+        phone: phone.phone,
+        designation: trim(data.designation),
+        emergencyContact: trim(data.emergencyContact),
+        preferredLanguage: trim(data.preferredLanguage),
+        preferredTimezone: trim(data.preferredTimezone),
+      };
+      if (employeePhotoUrl) {
+        payload.employeePhotoUrl = employeePhotoUrl;
+      }
+
+      const response = await updateEmployeeProfile(payload);
+      activeEmployeeProfile = response?.data || null;
+      profileLoaded = Boolean(activeEmployeeProfile);
+      settingsLoaded = Boolean(activeEmployeeProfile);
+      credentialLoaded = false;
+      renderSettingsProfile(activeEmployeeProfile);
+      await loadCredentialPage(true);
+      showToast("Profile saved", "Your employee-owned profile details were updated.");
+      form.querySelector("input[name='profilePhoto']").value = "";
+    } catch (error) {
+      showToast("Profile update failed", error.message);
+    } finally {
+      setFormLoading(form, false);
+    }
+  });
+}
+
+function initSafeDeleteActions() {
+  if (document.body.dataset.employeeSafeDeletesBound === "true") {
+    return;
+  }
+  document.body.dataset.employeeSafeDeletesBound = "true";
+  document.addEventListener("click", async (event) => {
+    const removePhoto = event.target.closest("[data-profile-remove-photo]");
+    const clearPreferences = event.target.closest("[data-clear-preferences]");
+    const clearDownloads = event.target.closest("[data-clear-download-cache]");
+    const revokeExports = event.target.closest("[data-revoke-badge-exports]");
+    if (!removePhoto && !clearPreferences && !clearDownloads && !revokeExports) {
+      return;
+    }
+
+    try {
+      if (removePhoto) {
+        await updateEmployeeProfile({ employeePhotoUrl: "" });
+        activeEmployeeProfile = { ...(activeEmployeeProfile || {}), employeePhotoUrl: "" };
+        if (activeEmployeeBadge) {
+          activeEmployeeBadge = { ...activeEmployeeBadge, employeePhotoUrl: "" };
+          updateEmployeeBadgeCache(activeEmployeeBadge, activeEmployeeProfile);
+        }
+        credentialLoaded = false;
+        profileLoaded = false;
+        settingsLoaded = false;
+        await loadEmployeeSettings(true);
+        await loadCredentialPage(true);
+        showToast("Photo removed", "Your optional profile photo was removed.");
+      }
+      if (clearPreferences) {
+        await updateEmployeeProfile({
+          preferredLanguage: "",
+          preferredTimezone: "",
+          notificationEmailEnabled: true,
+          notificationInAppEnabled: true,
+        });
+        settingsLoaded = false;
+        profileLoaded = false;
+        await loadEmployeeSettings(true);
+        showToast("Preferences deleted", "Optional saved preferences were reset to organization defaults.");
+      }
+      if (clearDownloads || revokeExports) {
+        clearEmployeeDownloadCache();
+        showToast(revokeExports ? "Badge exports revoked" : "Download cache cleared", "Local employee-owned export records were removed from this browser.");
+      }
+    } catch (error) {
+      showToast("Remove action failed", error.message);
+    }
+  });
+}
+
+function clearEmployeeDownloadCache() {
+  const prefixes = ["accessflow.employee.badge", "accessflow.employee.export", "accessflow.badge.export"];
+  [window.localStorage, window.sessionStorage].forEach((storage) => {
+    try {
+      Object.keys(storage)
+        .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
+        .forEach((key) => storage.removeItem(key));
+    } catch {
+      // Browser storage may be disabled; export generation remains stateless.
+    }
+  });
+}
+
+function initEmployeeSettingsForm() {
+  const form = document.querySelector("#employee-settings-form");
+  if (!form) {
+    return;
+  }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
     setFormLoading(form, true);
     try {
       const response = await updateEmployeeProfile({
-        phoneCountryCode: phone.phoneCountryCode,
-        phone: phone.phone,
-        emergencyContact: trim(data.emergencyContact),
         preferredLanguage: trim(data.preferredLanguage),
+        preferredTimezone: trim(data.preferredTimezone),
         notificationInAppEnabled: Boolean(data.notificationInAppEnabled),
         notificationEmailEnabled: Boolean(data.notificationEmailEnabled),
       });
@@ -540,6 +875,10 @@ function initEmployeePasswordForm() {
   if (!form) {
     return;
   }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
@@ -571,6 +910,7 @@ function initEmployeePasswordForm() {
 
 async function loadEmployeeSettings(force = false) {
   if (settingsLoaded && !force) {
+    renderSettingsProfile(activeEmployeeProfile);
     return;
   }
   try {
@@ -585,7 +925,28 @@ async function loadEmployeeSettings(force = false) {
 
 function renderSettingsProfile(profile) {
   const form = document.querySelector("#employee-settings-form");
-  if (!profile || !form) {
+  if (!profile) {
+    return;
+  }
+  if (form) {
+    setFieldValue(form, "preferredLanguage", profile.preferredLanguage || "");
+    setFieldValue(form, "preferredTimezone", profile.preferredTimezone || "");
+    const inApp = form.querySelector("input[name='notificationInAppEnabled']");
+    const email = form.querySelector("input[name='notificationEmailEnabled']");
+    if (inApp) {
+      inApp.checked = profile.notificationInAppEnabled !== false;
+    }
+    if (email) {
+      email.checked = profile.notificationEmailEnabled !== false;
+    }
+  }
+  renderProfileForm(profile);
+  renderRestrictedProfile(profile);
+}
+
+function renderProfileForm(profile) {
+  const form = document.querySelector("#employee-profile-form");
+  if (!form) {
     return;
   }
   const phoneInput = form.querySelector("input[name='phone']");
@@ -596,17 +957,11 @@ function renderSettingsProfile(profile) {
   if (phoneCode && profile.phoneCountryCode) {
     phoneCode.value = profile.phoneCountryCode;
   }
+  setFieldValue(form, "fullName", profile.fullName || "");
+  setFieldValue(form, "designation", profile.designation || "");
   setFieldValue(form, "emergencyContact", profile.emergencyContact || "");
   setFieldValue(form, "preferredLanguage", profile.preferredLanguage || "");
-  const inApp = form.querySelector("input[name='notificationInAppEnabled']");
-  const email = form.querySelector("input[name='notificationEmailEnabled']");
-  if (inApp) {
-    inApp.checked = profile.notificationInAppEnabled !== false;
-  }
-  if (email) {
-    email.checked = profile.notificationEmailEnabled !== false;
-  }
-  renderRestrictedProfile(profile);
+  setFieldValue(form, "preferredTimezone", profile.preferredTimezone || "");
 }
 
 function renderRestrictedProfile(profile) {
@@ -616,14 +971,15 @@ function renderRestrictedProfile(profile) {
   }
   card.innerHTML = `
     <div>
-      <p class="eyebrow">Admin-Controlled</p>
-      <h3>Identity Fields</h3>
+      <p class="eyebrow">Account Context</p>
+      <h3>Workforce Fields</h3>
     </div>
     <dl>
       ${profileDetail("Full name", profile.fullName)}
       ${profileDetail("Employee ID", profile.employeeId)}
       ${profileDetail("Department", profile.department, "Department pending")}
       ${profileDetail("Designation", profile.designation, "Designation pending")}
+      ${profileDetail("Preferred timezone", profile.preferredTimezone || profile.organizationTimezone, "Organization default")}
       ${profileDetail("Role", formatStatus(profile.roles?.[0] || "EMPLOYEE"))}
       ${profileDetail("Shift", formatShiftLabel(profile), "Shift pending")}
       ${profileDetail("Organization", profile.organizationName || profile.organizationCode)}
@@ -648,11 +1004,150 @@ function formatShiftLabel(profile) {
   return `${profile.shiftName || "Shift pending"} · ${timing}`;
 }
 
+async function loadVisitorHistory(force = false) {
+  const list = document.querySelector("#visitor-history-list");
+  if (!list) {
+    return;
+  }
+  if (historyState.loading && !force) {
+    return;
+  }
+  historyState.loading = true;
+  renderLoadingList("#visitor-history-list", 4);
+  try {
+    const query = new URLSearchParams({
+      page: String(historyState.page),
+      size: String(historyState.size),
+      sortBy: "createdAt",
+      direction: "desc",
+    });
+    Object.entries(historyState.filters).forEach(([key, value]) => {
+      if (value) {
+        query.set(key, value);
+      }
+    });
+    const response = await request(`/employee/history?${query.toString()}`);
+    const page = response?.data || {};
+    historyState.totalPages = page.totalPages || 0;
+    renderVisitorHistory(page.items || [], page.totalItems || 0);
+  } catch (error) {
+    renderWorkList("#visitor-history-list", [], (item) => item, "Visitor history unavailable", error.message);
+  } finally {
+    historyState.loading = false;
+  }
+}
+
+function initVisitorHistoryFilters() {
+  const form = document.querySelector("#visitor-history-filter");
+  if (!form || form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    historyState.page = 0;
+    historyState.filters = historyFilters(form);
+    await loadVisitorHistory(true);
+  });
+  form.querySelector("[data-history-clear]")?.addEventListener("click", async () => {
+    form.reset();
+    historyState.page = 0;
+    historyState.filters = {};
+    await loadVisitorHistory(true);
+  });
+  document.querySelector("#visitor-history-pagination")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-history-page]");
+    if (!button) {
+      return;
+    }
+    historyState.page = Math.max(0, historyState.page + Number(button.dataset.historyPage || 0));
+    await loadVisitorHistory(true);
+  });
+}
+
+function historyFilters(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  return {
+    query: trim(data.query),
+    status: trim(data.status),
+    department: trim(data.department),
+    visitorType: trim(data.visitorType),
+    from: dateStartInstant(data.from),
+    to: dateEndInstant(data.to),
+  };
+}
+
+function renderVisitorHistory(items, totalItems) {
+  renderWorkList("#visitor-history-list", items, historyCard, "No visitor history", "Hosted visitors will appear here after requests, approvals, or completed visits.");
+  const pagination = document.querySelector("#visitor-history-pagination");
+  if (!pagination) {
+    return;
+  }
+  const start = totalItems === 0 ? 0 : historyState.page * historyState.size + 1;
+  const end = Math.min((historyState.page + 1) * historyState.size, totalItems);
+  pagination.innerHTML = `
+    <span>${escapeHtml(start)}-${escapeHtml(end)} of ${escapeHtml(totalItems)}</span>
+    <div>
+      <button class="button button--ghost" type="button" data-history-page="-1" ${historyState.page === 0 ? "disabled" : ""}>Previous</button>
+      <button class="button button--ghost" type="button" data-history-page="1" ${historyState.page + 1 >= historyState.totalPages ? "disabled" : ""}>Next</button>
+    </div>
+  `;
+}
+
+function historyCard(visitor) {
+  const timeline = (visitor.statusHistory || []).slice(-4).map((entry) => `
+    <li>
+      <strong>${escapeHtml(formatStatus(entry.status))}</strong>
+      <span>${escapeHtml(formatDate(entry.timestamp))}</span>
+      ${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ""}
+    </li>
+  `).join("");
+  return `
+    <article class="scheduled-card history-card">
+      <div>
+        <h3>${escapeHtml(visitor.fullName || "Visitor")}</h3>
+        <p>${escapeHtml([visitor.companyName || visitor.vendorCompanyName, visitor.purposeOfVisit].filter(Boolean).join(" · ") || "Hosted visitor")}</p>
+      </div>
+      <dl>
+        <div><dt>Status</dt><dd><span class="status-badge ${escapeHtml(statusBadgeClass(visitor.status))}">${escapeHtml(formatStatus(visitor.status))}</span></dd></div>
+        <div><dt>Visitor type</dt><dd>${escapeHtml(formatStatus(visitor.visitorType || "ONE_TIME"))}</dd></div>
+        <div><dt>Department</dt><dd>${escapeHtml(visitor.department || visitor.hostEmployeeDepartment || "Not recorded")}</dd></div>
+        <div><dt>Approved</dt><dd>${escapeHtml(visitor.approvedAt ? formatDate(visitor.approvedAt) : "Not approved")}</dd></div>
+        <div><dt>Check-in</dt><dd>${escapeHtml(formatDate(visitor.checkInTime))}</dd></div>
+        <div><dt>Check-out</dt><dd>${escapeHtml(formatDate(visitor.checkOutTime))}</dd></div>
+      </dl>
+      <ol class="approval-timeline">${timeline || "<li><strong>No status history</strong></li>"}</ol>
+    </article>
+  `;
+}
+
+function dateStartInstant(value) {
+  const text = trim(value);
+  if (!text) {
+    return null;
+  }
+  const date = new Date(`${text}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function dateEndInstant(value) {
+  const text = trim(value);
+  if (!text) {
+    return null;
+  }
+  const date = new Date(`${text}T23:59:59.999`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function initPreApprovalForm() {
   const form = document.querySelector("#preapproval-form");
   if (!form) {
     return;
   }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
 
   initPhoneInput(form);
   const timezone = getDefaultTimezone();
@@ -691,6 +1186,10 @@ function initVisitorInviteForm() {
   if (!form) {
     return;
   }
+  if (form.dataset.bound === "true") {
+    return;
+  }
+  form.dataset.bound = "true";
 
   initPhoneInput(form);
   const timezone = getDefaultTimezone();
@@ -729,7 +1228,11 @@ function initVisitorInviteForm() {
 }
 
 function initVisitorInviteActions() {
-  document.querySelector("#visitor-invite-list")?.addEventListener("click", async (event) => {
+  if (document.body.dataset.employeeInviteActionsBound === "true") {
+    return;
+  }
+  document.body.dataset.employeeInviteActionsBound = "true";
+  document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-invite-action]");
     if (!button) {
       return;
@@ -811,7 +1314,15 @@ async function loadApprovals(showToastOnSuccess) {
 }
 
 function initApprovalActions() {
-  document.querySelector("#approvals-list")?.addEventListener("click", async (event) => {
+  if (document.body.dataset.employeeApprovalActionsBound === "true") {
+    return;
+  }
+  document.body.dataset.employeeApprovalActionsBound = "true";
+  document.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-refresh-approvals]")) {
+      await loadApprovals(true);
+      return;
+    }
     const button = event.target.closest("[data-approval-action]");
     if (!button) {
       return;
@@ -935,7 +1446,14 @@ function scheduledCard(visitor) {
 }
 
 function initScheduledActions() {
-  document.querySelector("#scheduled-list")?.addEventListener("click", async (event) => {
+  if (document.body.dataset.employeeScheduledActionsBound === "true") {
+    return;
+  }
+  document.body.dataset.employeeScheduledActionsBound = "true";
+  document.addEventListener("click", async (event) => {
+    if (!event.target.closest("#scheduled-list")) {
+      return;
+    }
     const decisionButton = event.target.closest("[data-approval-action]");
     if (decisionButton) {
       try {

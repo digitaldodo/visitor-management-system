@@ -12,7 +12,7 @@
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell employee-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Employee navigation">
-        <a class="brand logo-link" href="#dashboard" aria-label="Employee portal home">
+        <a class="brand logo-link" href="/employee/dashboard" aria-label="Employee portal home">
           <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
           <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
         </a>
@@ -22,27 +22,35 @@
         <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
-          <a class="nav-link is-active" href="#dashboard" data-route="dashboard">
+          <a class="nav-link is-active" href="/employee/dashboard" data-route="dashboard">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3Z"/></svg></span>
             Dashboard
           </a>
-          <a class="nav-link" href="#credential" data-route="credential">
+          <a class="nav-link" href="/employee/badge" data-route="badge">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
             Badge
           </a>
-          <a class="nav-link" href="#attendance" data-route="attendance">
+          <a class="nav-link" href="/employee/presence" data-route="presence">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4Zm0 4h16v10H4Zm3 3v4h3v-4Zm5 0v4h5v-4Z"/></svg></span>
             Presence
           </a>
-          <a class="nav-link" href="#visitor-requests" data-route="visitor-requests">
+          <a class="nav-link" href="/employee/requests" data-route="requests">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h2v2h6V2h2v2h3v18H4V4h3Zm11 8H6v10h12Z"/></svg></span>
             Requests
           </a>
-          <a class="nav-link" href="#notifications" data-route="notifications">
+          <a class="nav-link" href="/employee/history" data-route="history">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-2.3-5.7L15 9h7V2l-2.8 2.8A10 10 0 0 0 12 2Zm1 5h-2v6l5 3 1-1.7-4-2.3Z"/></svg></span>
+            History
+          </a>
+          <a class="nav-link" href="/employee/notifications" data-route="notifications">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22a2.4 2.4 0 0 0 2.3-1.8H9.7A2.4 2.4 0 0 0 12 22Zm7-5-2-2v-4a5 5 0 0 0-10 0v4l-2 2v1h14Z"/></svg></span>
             Notifications
           </a>
-          <a class="nav-link" href="#settings" data-route="settings">
+          <a class="nav-link" href="/employee/profile" data-route="profile">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm-9 9a9 9 0 0 1 18 0Z"/></svg></span>
+            Profile
+          </a>
+          <a class="nav-link" href="/employee/settings" data-route="settings">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.6-2-3.5-2.5 1a7 7 0 0 0-2.6-1.5L14 2h-4l-.4 2.9A7 7 0 0 0 7 6.4l-2.5-1-2 3.5 2 1.6L4.4 12l.1 1.5-2 1.6 2 3.5 2.5-1a7 7 0 0 0 2.6 1.5L10 22h4l.4-2.9a7 7 0 0 0 2.6-1.5l2.5 1 2-3.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg></span>
             Settings
           </a>
@@ -62,7 +70,7 @@
           <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
           </button>
-          <a class="topbar__brand logo-link" href="#dashboard" aria-label="Employee dashboard home">
+          <a class="topbar__brand logo-link" href="/employee/dashboard" aria-label="Employee dashboard home">
             <img class="brand-logo brand-logo--full brand-logo--dark" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
             <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
           </a>
@@ -83,368 +91,7 @@
           </div>
         </header>
 
-        <main class="portal-main" id="main-content" tabindex="-1">
-          <section class="employee-route" id="dashboard">
-            <section class="metric-grid" id="metric-grid" aria-label="Employee metrics"></section>
-
-            <section class="portal-grid employee-dashboard-grid">
-              <article class="panel employee-presence-card">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Current state</p>
-                    <h2>Presence</h2>
-                  </div>
-                  <a class="button button--ghost" href="#attendance">Open presence</a>
-                </div>
-                <div class="employee-presence" id="presence-summary"></div>
-              </article>
-
-              <article class="panel dashboard-badge-card">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Reusable Identity</p>
-                    <h2>Employee Badge</h2>
-                  </div>
-                  <a class="button button--ghost" href="#credential">Manage</a>
-                </div>
-                <div id="dashboard-badge-panel"></div>
-              </article>
-            </section>
-
-            <section class="portal-grid employee-dashboard-grid">
-              <article class="panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Upcoming</p>
-                    <h2>Requests</h2>
-                  </div>
-                  <a class="button button--primary" href="#visitor-requests">Manage</a>
-                </div>
-                <div class="work-list work-list--compact" id="dashboard-upcoming-list"></div>
-              </article>
-              <article class="panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Recent Activity</p>
-                    <h2>Activity Stream</h2>
-                  </div>
-                </div>
-                <div class="work-list work-list--compact" id="recent-activity-list"></div>
-              </article>
-            </section>
-
-            <section class="portal-grid employee-dashboard-grid">
-              <article class="panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Quick Actions</p>
-                    <h2>Workspace</h2>
-                  </div>
-                </div>
-                <div class="quick-action-grid">
-                  <a class="quick-action" href="#visitor-requests"><strong>Review visitors</strong><span>Approve arrivals and timing changes</span></a>
-                  <a class="quick-action" href="#visitor-requests"><strong>Schedule visit</strong><span>Create a pre-approval</span></a>
-                  <a class="quick-action" href="#credential"><strong>Open credential</strong><span>Export or print your badge</span></a>
-                  <a class="quick-action" href="#settings"><strong>Update settings</strong><span>Manage contact and alerts</span></a>
-                </div>
-              </article>
-            </section>
-
-            <section class="portal-grid employee-dashboard-grid">
-              <article class="panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Notifications</p>
-                    <h2>Latest Updates</h2>
-                  </div>
-                  <a class="button button--ghost" href="#notifications">View all</a>
-                </div>
-                <div class="work-list work-list--compact" id="dashboard-notifications-list"></div>
-              </article>
-
-              <article class="panel">
-                <div class="panel__header">
-                  <div>
-                    <p class="eyebrow">Attendance</p>
-                    <h2>Today Summary</h2>
-                  </div>
-                </div>
-                <div class="employee-summary-list" id="attendance-summary"></div>
-              </article>
-            </section>
-          </section>
-
-          <section class="employee-route panel credential-page" id="credential">
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Identity Center</p>
-                <h2>Badge</h2>
-                <p class="panel__lede">Manage your reusable employee badge, static QR, exports, and profile photo.</p>
-              </div>
-            </div>
-            <div class="credential-layout">
-              <article class="credential-preview-card">
-                <div id="employee-badge-panel"></div>
-                <div class="credential-actions">
-                  <button class="button button--ghost" type="button" data-own-badge-action="print">Print badge</button>
-                  <button class="button button--ghost" type="button" data-own-badge-action="png">PNG export</button>
-                  <button class="button button--primary" type="button" data-own-badge-action="pdf">PDF download</button>
-                </div>
-              </article>
-              <aside class="credential-side">
-                <article class="credential-qr-card" id="credential-qr-panel"></article>
-                <article class="credential-mobile-card" id="credential-mobile-preview"></article>
-                <article class="credential-photo-card">
-                  <div>
-                    <p class="eyebrow">Profile Photo</p>
-                    <h3>Badge Photo</h3>
-                  </div>
-                  <form id="credential-photo-form" novalidate>
-                    <label class="form-field">
-                      <span>Upload photo</span>
-                      <input name="profilePhoto" type="file" accept="image/*" />
-                    </label>
-                    <p id="credential-photo-status">Your QR identity remains unchanged when the photo updates.</p>
-                  </form>
-                </article>
-              </aside>
-            </div>
-          </section>
-
-          <section class="employee-route panel" id="attendance">
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Access presence</p>
-                <h2>Presence</h2>
-              </div>
-            </div>
-            <div class="work-list" id="employee-attendance-list"></div>
-          </section>
-
-          <section class="employee-route visitor-request-page" id="visitor-requests">
-            <article class="panel" id="approvals">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Action Needed</p>
-                  <h2>Visitor Approvals</h2>
-                </div>
-                <a class="button button--primary" href="#visitor-requests">Review queue</a>
-              </div>
-              <div class="work-list" id="approvals-list"></div>
-            </article>
-
-            <article class="panel" id="pre-approvals">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Planning</p>
-                  <h2>Schedule Visitor</h2>
-                </div>
-              </div>
-              <form class="preapproval-form" id="preapproval-form" novalidate>
-                <label class="form-field">
-                  <span>Full Name</span>
-                  <input name="fullName" type="text" autocomplete="name" placeholder="Visitor full name" required />
-                </label>
-                <label class="form-field">
-                  <span>Phone</span>
-                  <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" required />
-                </label>
-                <label class="form-field">
-                  <span>Email</span>
-                  <input name="email" type="email" autocomplete="email" placeholder="visitor@company.com" />
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Purpose</span>
-                  <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
-                </label>
-                <label class="form-field">
-                  <span>Start</span>
-                  <input name="scheduledStartTime" type="datetime-local" required />
-                </label>
-                <label class="form-field">
-                  <span>End</span>
-                  <input name="scheduledEndTime" type="datetime-local" required />
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Additional Note for Visitor</span>
-                  <textarea name="note" maxlength="240" rows="4" placeholder="Parking, gate, reception, room, or personal instructions"></textarea>
-                </label>
-                <div class="preapproval-form__footer form-field--wide">
-                  <span id="preapproval-timezone">Timezone detected</span>
-                  <button class="button button--primary" type="submit">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3v18H4V4h3Zm11 8H6v10h12Zm-7 8-3-3 1.4-1.4 1.6 1.6 4.6-4.6L17 12Z"/></svg>
-                    <span>Pre-approve</span>
-                  </button>
-                </div>
-              </form>
-            </article>
-
-            <article class="panel" id="visitor-invites">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Pre-registration</p>
-                  <h2>Visitor Invite Management</h2>
-                  <p class="panel__lede">Create, share, resend, revoke, and track secure visitor invite links through the same lifecycle used by mobile.</p>
-                </div>
-              </div>
-              <form class="preapproval-form" id="visitor-invite-form" novalidate>
-                <label class="form-field">
-                  <span>Visitor Name</span>
-                  <input name="visitorName" type="text" autocomplete="name" placeholder="Visitor full name" required />
-                </label>
-                <label class="form-field">
-                  <span>Email</span>
-                  <input name="visitorEmail" type="email" autocomplete="email" placeholder="visitor@company.com" />
-                </label>
-                <label class="form-field">
-                  <span>Phone</span>
-                  <input name="phone" type="tel" autocomplete="tel" placeholder="+1 555 0100" />
-                </label>
-                <label class="form-field">
-                  <span>Company</span>
-                  <input name="companyName" type="text" placeholder="Visitor company" />
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Purpose</span>
-                  <input name="purposeOfVisit" type="text" placeholder="Purpose of visit" required />
-                </label>
-                <label class="form-field">
-                  <span>Arrival</span>
-                  <input name="scheduledStartTime" type="datetime-local" required />
-                </label>
-                <label class="form-field">
-                  <span>Expected duration</span>
-                  <select name="expectedDurationMinutes">
-                    <option value="60">1 hour</option>
-                    <option value="30">30 minutes</option>
-                    <option value="90">1.5 hours</option>
-                    <option value="120">2 hours</option>
-                    <option value="240">4 hours</option>
-                    <option value="480">Full day</option>
-                  </select>
-                </label>
-                <label class="form-field">
-                  <span>Invite expiry</span>
-                  <select name="expiresInHours">
-                    <option value="72">72 hours</option>
-                    <option value="24">24 hours</option>
-                    <option value="168">7 days</option>
-                    <option value="336">14 days</option>
-                  </select>
-                </label>
-                <label class="form-field form-field--wide">
-                  <span>Visitor note</span>
-                  <textarea name="note" maxlength="500" rows="3" placeholder="Parking, gate, reception, room, or personal instructions"></textarea>
-                </label>
-                <div class="preapproval-form__footer form-field--wide">
-                  <span id="visitor-invite-timezone">Timezone detected</span>
-                  <button class="button button--primary" type="submit">Create invite</button>
-                </div>
-              </form>
-              <div class="work-list" id="visitor-invite-list"></div>
-            </article>
-
-            <article class="panel" id="scheduled">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Calendar</p>
-                  <h2>Scheduled Visitors</h2>
-                </div>
-              </div>
-              <div class="work-list" id="scheduled-list"></div>
-            </article>
-
-            <article class="panel" id="history" data-employee-visitors>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Personal Records</p>
-                  <h2>Visitor History</h2>
-                </div>
-              </div>
-            </article>
-          </section>
-
-          <section class="employee-route panel" id="notifications">
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Updates</p>
-                <h2>Notifications</h2>
-              </div>
-            </div>
-            <div class="work-list" id="notifications-list"></div>
-          </section>
-
-          <section class="employee-route settings-page" id="settings">
-            <article class="panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Self-Managed Profile</p>
-                  <h2>Settings</h2>
-                  <p class="panel__lede">Contact, language, password, and notification preferences are employee-managed. Identity and workforce fields are controlled by administrators.</p>
-                </div>
-              </div>
-              <div class="settings-layout">
-                <form class="settings-form" id="employee-settings-form" novalidate>
-                  <label class="form-field">
-                    <span>Phone number</span>
-                    <input name="phone" type="tel" autocomplete="tel" />
-                  </label>
-                  <label class="form-field">
-                    <span>Emergency contact</span>
-                    <input name="emergencyContact" type="text" maxlength="160" autocomplete="tel" />
-                  </label>
-                  <label class="form-field">
-                    <span>Preferred language</span>
-                    <select name="preferredLanguage">
-                      <option value="">Use organization default</option>
-                      <option value="en">English</option>
-                      <option value="hi">Hindi</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                    </select>
-                  </label>
-                  <fieldset class="settings-fieldset">
-                    <legend>Notification preferences</legend>
-                    <label class="toggle-row">
-                      <input name="notificationInAppEnabled" type="checkbox" />
-                      <span>In-app notifications</span>
-                    </label>
-                    <label class="toggle-row">
-                      <input name="notificationEmailEnabled" type="checkbox" />
-                      <span>Email notifications</span>
-                    </label>
-                  </fieldset>
-                  <button class="button button--primary" type="submit">Save settings</button>
-                </form>
-                <aside class="restricted-profile-card" id="restricted-profile-card"></aside>
-              </div>
-            </article>
-
-            <article class="panel">
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Security</p>
-                  <h2>Password</h2>
-                </div>
-              </div>
-              <form class="settings-form settings-form--password" id="employee-password-form" novalidate>
-                <label class="form-field">
-                  <span>Current password</span>
-                  <input name="currentPassword" type="password" autocomplete="current-password" required />
-                </label>
-                <label class="form-field">
-                  <span>New password</span>
-                  <input name="newPassword" type="password" autocomplete="new-password" required />
-                </label>
-                <label class="form-field">
-                  <span>Confirm new password</span>
-                  <input name="confirmPassword" type="password" autocomplete="new-password" required />
-                </label>
-                <button class="button button--primary" type="submit">Update password</button>
-              </form>
-            </article>
-          </section>
-        </main>
+        <main class="portal-main employee-page-host" id="main-content" tabindex="-1" aria-live="polite"></main>
       </div>
     </div>
 

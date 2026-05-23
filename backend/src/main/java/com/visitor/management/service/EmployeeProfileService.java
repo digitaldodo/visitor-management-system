@@ -16,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.DateTimeException;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -48,6 +50,17 @@ public class EmployeeProfileService {
     public UserProfileResponse updateProfile(String actorId, EmployeeProfileUpdateRequest request) {
         User employee = currentEmployee(actorId);
 
+        if (request.fullName() != null) {
+            String fullName = trimToNull(request.fullName());
+            if (fullName == null) {
+                throw new BadRequestException("Display name is required.");
+            }
+            employee.setFullName(fullName);
+        }
+        if (request.designation() != null) {
+            employee.setDesignation(trimToNull(request.designation()));
+        }
+
         if (request.phone() != null || request.phoneCountryCode() != null) {
             PhoneNumberService.NormalizedPhone phone = phoneNumberService.normalize(
                     request.phoneCountryCode() != null ? request.phoneCountryCode() : employee.getPhoneCountryCode(),
@@ -66,6 +79,9 @@ public class EmployeeProfileService {
         }
         if (request.preferredLanguage() != null) {
             employee.setPreferredLanguage(normalizeLanguage(request.preferredLanguage()));
+        }
+        if (request.preferredTimezone() != null) {
+            employee.setPreferredTimezone(normalizeTimezone(request.preferredTimezone()));
         }
         if (request.notificationEmailEnabled() != null) {
             employee.setNotificationEmailEnabled(request.notificationEmailEnabled());
@@ -126,6 +142,7 @@ public class EmployeeProfileService {
                 user.getPhoneCountryCode(),
                 user.getEmergencyContact(),
                 user.getPreferredLanguage(),
+                user.getPreferredTimezone(),
                 user.getNotificationEmailEnabled(),
                 user.getNotificationInAppEnabled(),
                 user.isActive(),
@@ -148,6 +165,18 @@ public class EmployeeProfileService {
     private String normalizeLanguage(String value) {
         String language = trimToNull(value);
         return language == null ? null : language.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeTimezone(String value) {
+        String timezone = trimToNull(value);
+        if (timezone == null) {
+            return null;
+        }
+        try {
+            return ZoneId.of(timezone).getId();
+        } catch (DateTimeException ex) {
+            throw new BadRequestException("Preferred timezone is not valid.");
+        }
     }
 
     private String trimToNull(String value) {

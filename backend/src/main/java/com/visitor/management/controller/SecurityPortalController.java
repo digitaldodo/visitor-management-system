@@ -100,6 +100,8 @@ public class SecurityPortalController {
                 request.sortBy(),
                 request.direction(),
                 VisitorStatus.CHECKED_IN,
+                request.department(),
+                request.visitorType(),
                 request.hostEmployeeId(),
                 request.from(),
                 request.to()
@@ -136,6 +138,8 @@ public class SecurityPortalController {
                 request.sortBy(),
                 request.direction(),
                 VisitorStatus.APPROVED,
+                request.department(),
+                request.visitorType(),
                 request.hostEmployeeId(),
                 request.from(),
                 request.to()
@@ -152,6 +156,8 @@ public class SecurityPortalController {
                 request.sortBy(),
                 request.direction(),
                 VisitorStatus.APPROVED,
+                request.department(),
+                request.visitorType(),
                 request.hostEmployeeId(),
                 request.from(),
                 request.to()

@@ -452,7 +452,7 @@ public class AdminUserService {
                     "Workforce access revoked",
                     "Your workforce access was revoked by an administrator. Contact your administrator if this is unexpected.",
                     null,
-                    "/pages/employee/#notifications",
+                    "/employee/notifications",
                     actor.getFullName()
             );
         }

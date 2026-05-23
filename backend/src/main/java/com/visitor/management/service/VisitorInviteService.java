@@ -116,7 +116,7 @@ public class VisitorInviteService {
                 "Visitor invite created",
                 inviteCreatedMessage(saved),
                 null,
-                "/pages/employee/#requests",
+                "/employee/requests",
                 null,
                 saved.getOrganizationId(),
                 "invite:%s:created:recipient:%s".formatted(saved.getId(), host.getId()),
@@ -177,7 +177,7 @@ public class VisitorInviteService {
                 "Visitor invite viewed",
                 "%s opened the pre-registration invite.".formatted(invite.getVisitorName()),
                     null,
-                    "/pages/employee/#requests"
+                    "/employee/requests"
             );
         }
         return toResponse(invite, null);
@@ -235,7 +235,7 @@ public class VisitorInviteService {
                 "Visitor pre-registration completed",
                 "%s completed pre-registration. Approval is pending; no badge has been issued yet.".formatted(visitor.fullName()),
                 null,
-                "/pages/employee/#requests"
+                "/employee/requests"
         );
         notificationService.notifyOrganizationRoles(
                 invite.getOrganizationId(),
@@ -282,7 +282,7 @@ public class VisitorInviteService {
                 "Visitor invite revoked",
                 "%s's visitor invite was revoked. %s".formatted(invite.getVisitorName(), invite.getRevocationReason()),
                 null,
-                "/pages/employee/#requests"
+                "/employee/requests"
         );
         return toResponse(saved, passIfReady(saved));
     }
@@ -325,7 +325,7 @@ public class VisitorInviteService {
                 "Visitor invite resent",
                 "%s's pre-registration invite was resent.".formatted(invite.getVisitorName()),
                 null,
-                "/pages/employee/#requests",
+                "/employee/requests",
                 null,
                 saved.getOrganizationId(),
                 "invite:%s:resent:recipient:%s:%s".formatted(saved.getId(), invite.getHostEmployeeId(), now.toEpochMilli()),

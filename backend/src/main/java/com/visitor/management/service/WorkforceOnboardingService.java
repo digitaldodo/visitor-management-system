@@ -218,7 +218,7 @@ public class WorkforceOnboardingService {
                 "Workforce onboarding approved",
                 "Your workforce access has been approved and your credential is now active.",
                 null,
-                "/pages/employee/#badge",
+                "/employee/badge",
                 admin.getFullName()
         );
         notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_APPROVED, "Workforce request approved",
@@ -251,7 +251,7 @@ public class WorkforceOnboardingService {
                 "Workforce onboarding rejected",
                 "Your workforce onboarding request was rejected. Contact your administrator for next steps.",
                 null,
-                "/pages/employee/#notifications",
+                "/employee/notifications",
                 admin.getFullName()
         );
         notifyRequester(saved, NotificationType.WORKFORCE_ONBOARDING_REJECTED, "Workforce request rejected",

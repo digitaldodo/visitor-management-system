@@ -29,7 +29,7 @@ public class VisitorOperationalReminderService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter
             .ofLocalizedTime(FormatStyle.SHORT)
             .withLocale(Locale.ENGLISH);
-    private static final String EMPLOYEE_VISITOR_ACTION_URL = "/pages/employee/#requests";
+    private static final String EMPLOYEE_VISITOR_ACTION_URL = "/employee/requests";
     private static final String SECURITY_VISITOR_ACTION_URL = "/pages/security/#visitors";
 
     private final MongoTemplate mongoTemplate;

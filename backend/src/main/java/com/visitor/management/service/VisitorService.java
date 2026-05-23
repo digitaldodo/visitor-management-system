@@ -378,7 +378,7 @@ public class VisitorService {
     }
 
     public PageResponse<VisitorResponse> pendingApprovals(String hostEmployeeId) {
-        SearchRequest request = new SearchRequest(null, 0, 50, "createdAt", "desc", VisitorStatus.PENDING, null, null, null);
+        SearchRequest request = new SearchRequest(null, 0, 50, "createdAt", "desc", VisitorStatus.PENDING, null, null, null, null, null);
         return search(request, hostEmployeeId);
     }
 
@@ -1137,6 +1137,17 @@ public class VisitorService {
 
         if (request.status() != null) {
             criteria.add(Criteria.where("status").is(request.status()));
+        }
+        if (request.visitorType() != null) {
+            criteria.add(Criteria.where("visitorType").is(request.visitorType()));
+        }
+        String department = trimToNull(request.department());
+        if (department != null) {
+            Pattern departmentPattern = Pattern.compile(Pattern.quote(department), Pattern.CASE_INSENSITIVE);
+            criteria.add(new Criteria().orOperator(
+                    Criteria.where("department").regex(departmentPattern),
+                    Criteria.where("hostEmployeeDepartment").regex(departmentPattern)
+            ));
         }
 
         String hostEmployeeId = actor != null && hasRole(actor, Role.EMPLOYEE) ? actor.getId() : trimToNull(request.hostEmployeeId());

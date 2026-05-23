@@ -1,6 +1,7 @@
 package com.visitor.management.dto;
 
 import com.visitor.management.entity.VisitorStatus;
+import com.visitor.management.entity.VisitorType;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
@@ -13,6 +14,8 @@ public record SearchRequest(
         String sortBy,
         String direction,
         VisitorStatus status,
+        String department,
+        VisitorType visitorType,
         String hostEmployeeId,
         Instant from,
         Instant to

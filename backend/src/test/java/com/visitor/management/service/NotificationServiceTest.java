@@ -74,7 +74,7 @@ class NotificationServiceTest {
                 "Visitor arriving soon",
                 "Your visitor is arriving in 15 minutes.",
                 visitor,
-                "/pages/employee/#requests",
+                "/employee/requests",
                 null,
                 null,
                 "visitor:visitor-1:arrival:15",
@@ -101,7 +101,7 @@ class NotificationServiceTest {
                 "Visitor arriving soon",
                 "Your visitor is arriving in 15 minutes.",
                 visitor,
-                "/pages/employee/#requests",
+                "/employee/requests",
                 null,
                 null,
                 "visitor:visitor-1:arrival:15",
@@ -128,7 +128,7 @@ class NotificationServiceTest {
                 "Visitor arriving soon",
                 "Your visitor is arriving in 15 minutes.",
                 visitor("visitor-1", "org-a", "employee-1"),
-                "/pages/employee/#requests",
+                "/employee/requests",
                 null,
                 "org-a",
                 "visitor:visitor-1:arrival:15",
@@ -155,7 +155,7 @@ class NotificationServiceTest {
                 "Approval required",
                 "A visitor needs approval.",
                 visitor,
-                "/pages/employee/#requests"
+                "/employee/requests"
         );
 
         ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
@@ -179,7 +179,7 @@ class NotificationServiceTest {
                 "Visitor arriving soon",
                 "Your visitor is arriving in 15 minutes.",
                 visitor,
-                "/pages/employee/#requests"
+                "/employee/requests"
         );
 
         assertThat(saved).isNull();

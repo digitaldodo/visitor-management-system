@@ -257,6 +257,7 @@ body.has-mobile-sidebar {
 }
 
 .notification-button {
+  min-width: 2.65rem;
   overflow: visible;
   position: relative;
 }
@@ -276,7 +277,7 @@ body.has-mobile-sidebar {
   min-width: 1.15rem;
   padding: 0 0.25rem;
   position: absolute;
-  right: -0.2rem;
+  right: 0;
   top: -0.25rem;
 }
 

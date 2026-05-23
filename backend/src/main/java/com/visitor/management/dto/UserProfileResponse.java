@@ -21,6 +21,7 @@ public record UserProfileResponse(
         String phoneCountryCode,
         String emergencyContact,
         String preferredLanguage,
+        String preferredTimezone,
         Boolean notificationEmailEnabled,
         Boolean notificationInAppEnabled,
         Boolean active,

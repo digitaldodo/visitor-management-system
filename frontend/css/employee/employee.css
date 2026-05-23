@@ -263,8 +263,18 @@
   min-width: 0;
 }
 
-.employee-route + .employee-route {
-  margin-top: 1rem;
+.employee-page-host {
+  min-height: calc(100vh - 7.5rem);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.employee-page-host.is-transitioning {
+  opacity: 0.68;
+  transform: translateY(0.25rem);
+}
+
+.route-loading-state {
+  min-height: 18rem;
 }
 
 .panel__lede {
@@ -496,6 +506,17 @@
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.7fr);
 }
 
+.settings-layout--single,
+.profile-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.55fr);
+}
+
+.settings-layout--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .settings-form {
   background: rgba(11, 18, 31, 0.58);
   border: 1px solid var(--color-line);
@@ -508,6 +529,23 @@
 
 .settings-form--password {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+.profile-form {
+  align-content: start;
+}
+
+.form-actions,
+.danger-zone {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.danger-zone--compact {
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .settings-fieldset {
@@ -555,6 +593,61 @@
 
 .visitor-request-page {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.presence-workspace {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1fr);
+}
+
+.history-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.history-filter-bar {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(min(100%, 18rem), 1.4fr) repeat(5, minmax(9rem, 1fr)) auto;
+}
+
+.history-filter-bar .search-field {
+  align-self: end;
+  min-height: 3.1rem;
+}
+
+.history-filter-bar .form-actions {
+  align-self: end;
+}
+
+.history-list {
+  gap: 0.9rem;
+}
+
+.history-card .approval-timeline {
+  background: rgba(9, 16, 29, 0.5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 0.75rem;
+}
+
+.history-pagination {
+  align-items: center;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.86rem;
+  font-weight: 800;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.history-pagination > div {
+  display: flex;
+  gap: 0.6rem;
 }
 
 .approval-card {
@@ -754,8 +847,14 @@
   }
 
   .credential-layout,
-  .settings-layout {
+  .settings-layout,
+  .profile-layout,
+  .presence-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .history-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .credential-actions {
@@ -773,9 +872,16 @@
   .preapproval-form__footer,
   .scheduled-card__footer,
   .scheduled-card__actions,
-  .credential-actions {
+  .credential-actions,
+  .history-pagination,
+  .history-pagination > div,
+  .form-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .history-filter-bar {
+    grid-template-columns: 1fr;
   }
 
   .mobile-badge-preview {
