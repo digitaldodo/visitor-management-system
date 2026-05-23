@@ -1763,7 +1763,7 @@ function EmployeeList({
                   latest?.checkInTime ? `Last in ${formatDateTime(latest.checkInTime)}` : 'No presence today',
                   user.active ? 'Badge active' : 'Badge inactive',
                 ].filter(Boolean).join(' - ')}
-                status={String(user.accountStatus || (user.active ? 'ACTIVE' : 'DISABLED')).replaceAll('_', ' ')}
+                status={enterpriseStatusLabel(user.accountStatus || (user.active ? 'ACTIVE' : 'DISABLED'), 'workforce')}
                 tone={user.active ? 'success' : 'danger'}
               />
               <FieldGrid

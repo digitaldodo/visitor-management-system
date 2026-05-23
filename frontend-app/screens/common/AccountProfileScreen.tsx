@@ -28,6 +28,7 @@ import type { UploadAsset } from '../../services/accountService';
 import { theme } from '../../theme';
 import type { ActiveWorkspaceRole } from '../../types/auth';
 import type { UserProfile } from '../../types/domain';
+import { enterpriseStatusLabel } from '../../types/workflow';
 import { formatShift } from '../../utils/employeeFormatting';
 
 const LANGUAGE_OPTIONS = [
@@ -583,7 +584,7 @@ function roleLabel(role: ActiveWorkspaceRole | string) {
 }
 
 function statusLabel(status?: string | null) {
-  return String(status || 'ACTIVE').replaceAll('_', ' ');
+  return enterpriseStatusLabel(status || 'ACTIVE', 'workforce');
 }
 
 const styles = StyleSheet.create({

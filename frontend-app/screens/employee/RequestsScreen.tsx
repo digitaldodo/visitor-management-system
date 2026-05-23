@@ -28,7 +28,7 @@ import {
 } from '../../hooks/useEmployeeWorkspace';
 import type { VisitorReschedulePayload } from '../../services/employeeService';
 import type { VisitorRecord } from '../../types/domain';
-import { canonicalVisitorInviteStage } from '../../types/workflow';
+import { canonicalVisitorInviteStage, enterpriseStatusLabel, visitorInviteStatusLabel } from '../../types/workflow';
 import { theme } from '../../theme';
 import {
   accessWindowLabel,
@@ -341,7 +341,7 @@ export function RequestsScreen() {
                   title={invite.visitorName}
                   subtitle={[invite.companyName, invite.purposeOfVisit].filter(Boolean).join(' · ')}
                   meta={invite.scheduledStartTime ? formatDateTime(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Arrival time pending'}
-                  status={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')}
+                  status={invite.lifecycleLabel || visitorInviteStatusLabel(invite.status)}
                   tone={inviteStatusTone(invite)}
                 />
                 <OperationalFieldList
@@ -351,7 +351,7 @@ export function RequestsScreen() {
                     { label: 'Viewed', value: invite.viewedAt ? formatDateTime(invite.viewedAt, invite.timezone || invite.organizationTimezone) : 'Not viewed yet' },
                     { label: 'QR status', value: invite.qrIssuedAt ? `Issued ${formatDateTime(invite.qrIssuedAt, invite.timezone || invite.organizationTimezone)}` : 'Not issued before approval' },
                     { label: 'Next step', value: invite.nextAction || 'Monitor invite lifecycle' },
-                    { label: 'Email', value: invite.visitorEmail ? `${invite.emailStatus?.replaceAll('_', ' ') || 'Queued'}${invite.emailSentAt ? ` ${formatDateTime(invite.emailSentAt, invite.timezone || invite.organizationTimezone)}` : ''}` : 'No visitor email provided' },
+                    { label: 'Email', value: invite.visitorEmail ? `${enterpriseStatusLabel(invite.emailStatus || 'Queued')}${invite.emailSentAt ? ` ${formatDateTime(invite.emailSentAt, invite.timezone || invite.organizationTimezone)}` : ''}` : 'No visitor email provided' },
                     { label: 'Visitor note', value: invite.note || 'No additional note' },
                   ]}
                 />

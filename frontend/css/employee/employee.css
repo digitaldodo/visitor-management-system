@@ -62,7 +62,7 @@
 }
 
 .employee-badge__identity h4 {
-  font-size: clamp(1.4rem, 4vw, 2.4rem);
+  font-size: 2rem;
   line-height: 1;
 }
 
@@ -183,17 +183,17 @@
 }
 
 .presence-indicator {
-  background: #f59e0b;
+  background: var(--status-warning-indicator);
   border-radius: 999px;
-  box-shadow: 0 0 0 0.45rem rgba(245, 158, 11, 0.16);
+  box-shadow: 0 0 0 0.45rem var(--status-warning-bg);
   flex: 0 0 auto;
   height: 0.8rem;
   width: 0.8rem;
 }
 
 .presence-indicator.is-present {
-  background: #22c55e;
-  box-shadow: 0 0 0 0.45rem rgba(34, 197, 94, 0.16);
+  background: var(--status-success-indicator);
+  box-shadow: 0 0 0 0.45rem var(--status-success-bg);
 }
 
 .quick-action-grid,

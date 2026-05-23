@@ -9,7 +9,7 @@ export const ROUTE_DEFINITIONS = {
   },
   employees: {
     slug: "employees",
-    navLabel: "Employees",
+    navLabel: "Workforce",
     eyebrow: "Workforce Directory",
     title: "Employee Management",
     description: "Create employee and security accounts, manage organization access, and keep workforce identity scoped to this organization.",
@@ -25,15 +25,15 @@ export const ROUTE_DEFINITIONS = {
   },
   "visitor-access": {
     slug: "visitor-access",
-    navLabel: "Visitor Access",
-    eyebrow: "Live Operations",
-    title: "Visitor Access Workspace",
+    navLabel: "Visitors",
+    eyebrow: "Visitor Operations",
+    title: "Visitor Operations Workspace",
     description: "Run live visitor registration, approvals, check-ins, and record management for this organization.",
     badges: ["Organization scoped", "Frontline workflows", "Live records"],
   },
   "workforce-approvals": {
     slug: "workforce-approvals",
-    navLabel: "Workforce Approvals",
+    navLabel: "Approvals",
     eyebrow: "Access Activation",
     title: "Workforce Approval Workspace",
     description: "Approve security-assisted workforce onboarding, assign final access details, and keep QR activation admin-controlled.",
@@ -41,7 +41,7 @@ export const ROUTE_DEFINITIONS = {
   },
   "attendance-presence": {
     slug: "attendance-presence",
-    navLabel: "Attendance / Presence",
+    navLabel: "Presence",
     eyebrow: "Workforce Presence",
     title: "Attendance and Presence",
     description: "Review employee presence, check-in history, and active workforce coverage for this organization.",
@@ -49,7 +49,7 @@ export const ROUTE_DEFINITIONS = {
   },
   "emergency-ops": {
     slug: "emergency-ops",
-    navLabel: "Emergency Ops",
+    navLabel: "Alerts",
     eyebrow: "Emergency Workflows",
     title: "Emergency Operations",
     description: "Run lockdown controls, broadcasts, evacuation review, and incident monitoring with the same backend workflow used by mobile.",
@@ -203,7 +203,7 @@ const ADMIN_PROFILE = {
   ],
   navSections: [
     { label: "Operate", routes: ["dashboard", "visitor-access", "workforce-approvals", "attendance-presence", "emergency-ops"] },
-    { label: "Workforce", routes: ["employees", "departments"] },
+    { label: "Manage", routes: ["employees", "departments"] },
     { label: "Review", routes: ["reports", "notifications", "organization-settings"] },
   ],
   aliases: {

@@ -1,37 +1,10 @@
-export const VISITOR_STATUS_LABELS = Object.freeze({
-  PENDING: "Pending approval",
-  APPROVED: "Approved",
-  REJECTED: "Denied",
-  CHECKED_IN: "Checked in",
-  CHECKED_OUT: "Checked out",
-  EXPIRED: "Expired",
-  SUSPENDED: "Suspended",
-});
+import { ENTERPRISE_STATUS_LABELS, ENTERPRISE_STATUS_TONES } from "./enterpriseDesign.js";
 
-export const VISITOR_INVITE_STATUS_LABELS = Object.freeze({
-  INVITED: "Invited",
-  PRE_REGISTRATION_PENDING: "Pre-registration pending",
-  PRE_REGISTERED: "Pre-registered",
-  PENDING_APPROVAL: "Pending approval",
-  APPROVED: "Approved",
-  BADGE_ISSUED: "Badge issued",
-  REJECTED: "Denied",
-  CHECKED_IN: "Checked in",
-  CHECKED_OUT: "Checked out",
-  EXPIRED: "Expired",
-  REVOKED: "Revoked",
-});
+export const VISITOR_STATUS_LABELS = ENTERPRISE_STATUS_LABELS.visitor;
 
-export const WORKFORCE_STATUS_LABELS = Object.freeze({
-  ACTIVE: "Active",
-  UNVERIFIED: "Unverified",
-  PENDING_APPROVAL: "Pending approval",
-  CHANGES_REQUESTED: "Changes requested",
-  REJECTED: "Denied",
-  INACTIVE: "Disabled",
-  DISABLED: "Disabled",
-  LOCKED: "Locked",
-});
+export const VISITOR_INVITE_STATUS_LABELS = ENTERPRISE_STATUS_LABELS.invite;
+
+export const WORKFORCE_STATUS_LABELS = ENTERPRISE_STATUS_LABELS.workforce;
 
 export const ROLE_LABELS = Object.freeze({
   SUPER_ADMIN: "Super admin",
@@ -47,6 +20,7 @@ export const ROLE_LABELS = Object.freeze({
 export const NOTIFICATION_EVENT_TYPES = Object.freeze([
   "VISITOR_APPROVAL_REQUEST",
   "VISITOR_APPROVED",
+  "VISITOR_ARRIVED",
   "VISITOR_INVITE_SENT",
   "VISITOR_INVITE_VIEWED",
   "VISITOR_PRE_REGISTRATION_COMPLETED",
@@ -127,54 +101,7 @@ export function enterpriseStatusLabel(status, domain = "generic") {
 }
 
 export function enterpriseStatusTone(status) {
-  switch (normalizeStatus(status)) {
-    case "APPROVED":
-    case "ACTIVE":
-    case "BADGE_ISSUED":
-    case "CHECKED_IN":
-    case "INSIDE":
-    case "IN":
-    case "PRESENT":
-    case "VALID":
-    case "SUCCESS":
-      return "success";
-    case "PENDING":
-    case "PENDING_APPROVAL":
-    case "PRE_REGISTERED":
-    case "CHANGES_REQUESTED":
-    case "LATE":
-    case "NOT_ACTIVE_YET":
-    case "OVERDUE_VISIT":
-    case "SUSPENDED":
-    case "WARNING":
-      return "warning";
-    case "REJECTED":
-    case "DENIED":
-    case "DISABLED":
-    case "INACTIVE":
-    case "LOCKED":
-    case "EXPIRED":
-    case "REVOKED":
-    case "CANCELLED":
-    case "SUSPENDED_VISITOR":
-    case "DANGER":
-      return "danger";
-    case "CHECKED_OUT":
-    case "OUT":
-    case "OUTSIDE":
-    case "UNVERIFIED":
-    case "INVITED":
-    case "PRE_REGISTRATION_PENDING":
-    case "SENT":
-    case "VIEWED":
-    case "INFO":
-      return "info";
-    case "DEFAULT":
-    case "NEUTRAL":
-      return "neutral";
-    default:
-      return "neutral";
-  }
+  return ENTERPRISE_STATUS_TONES[normalizeStatus(status)] || "neutral";
 }
 
 export function statusBadgeClass(status) {

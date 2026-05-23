@@ -29,6 +29,7 @@ import { getSecurityEmployees } from '../../services/securityService';
 import { readCachedAttendance, searchCachedEmployees } from '../../storage/offlineOperationalStore';
 import { theme } from '../../theme';
 import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry, WorkforceOnboardingRecord } from '../../types/domain';
+import { enterpriseStatusLabel } from '../../types/workflow';
 import { employeePresenceLabel, formatDateTime, relativePresenceSummary, statusTone } from '../../utils/securityFormatting';
 
 type WorkforceAction =
@@ -483,7 +484,7 @@ function SubmittedRequestList({ requests }: { requests: WorkforceOnboardingRecor
             request.workforceRejectedAt ? `Decision ${formatDateTime(request.workforceRejectedAt)}` : null,
             request.workforceRejectionReason || null,
           ].filter(Boolean).join(' · ')}
-          status={String(request.accountStatus || 'PENDING_APPROVAL').replaceAll('_', ' ')}
+          status={enterpriseStatusLabel(request.accountStatus || 'PENDING_APPROVAL', 'workforce')}
           tone={statusTone(request.accountStatus)}
         />
       ))}

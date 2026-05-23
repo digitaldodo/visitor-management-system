@@ -18,6 +18,7 @@ import { ReasonCaptureModal } from '../../components/security/ReasonCaptureModal
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useOperationalAutocomplete } from '../../hooks/useOperationalAutocomplete';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { useLocalization } from '../../localization/LocalizationProvider';
 import { useOperationalRuntime } from '../../runtime/OperationalRuntimeProvider';
 import {
   useCheckInVisitorMutation,
@@ -64,6 +65,7 @@ export function VisitorsScreen() {
   const navigation = useNavigation<{ navigate: (screen: string, params?: unknown) => void }>();
   const queryClient = useQueryClient();
   const layout = useResponsiveLayout();
+  const { tText } = useLocalization();
   const { showSnackbar } = useOperationalSnackbar();
   const runtime = useOperationalRuntime();
   const [search, setSearch] = useState('');
@@ -410,7 +412,7 @@ export function VisitorsScreen() {
                 onPress={() => setStatusFilter(status as typeof statusFilter)}
                 style={[styles.segment, statusFilter === status ? styles.segmentActive : null]}
               >
-                <Text style={[styles.segmentLabel, statusFilter === status ? styles.segmentLabelActive : null]}>{status.replaceAll('_', ' ')}</Text>
+                <Text style={[styles.segmentLabel, statusFilter === status ? styles.segmentLabelActive : null]}>{tText(formatStatusFilterLabel(status))}</Text>
               </Pressable>
             ))}
           </View>
@@ -520,6 +522,10 @@ export function VisitorsScreen() {
       ) : null}
     </>
   );
+}
+
+function formatStatusFilterLabel(status: string) {
+  return status === 'ALL' ? 'All' : visitorStatusLabel(status as VisitorRecord['status']);
 }
 
 function OperationalHighlightCard({

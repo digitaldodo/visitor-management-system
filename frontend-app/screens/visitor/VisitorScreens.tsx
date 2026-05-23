@@ -40,7 +40,7 @@ import { enqueueVisitorRequest } from '../../storage/visitorRequestQueue';
 import { getVisitorHosts, type VisitorVisitPayload } from '../../services/visitorService';
 import { theme } from '../../theme';
 import type { HostDirectoryEntry, NotificationRecord, VisitorInviteRecord, VisitorRecord } from '../../types/domain';
-import { canonicalVisitorInviteStage } from '../../types/workflow';
+import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from '../../types/workflow';
 import { formatDateTime } from '../../utils/employeeFormatting';
 import { formatVisitorWindow, statusTone, visitorStatusLabel } from '../../utils/securityFormatting';
 
@@ -90,7 +90,7 @@ export function VisitorHomeScreen() {
                 title={`${invite.hostEmployeeName || 'Your host'} invited you to ${invite.organizationName || 'AccessFlow'}`}
                 subtitle={invite.purposeOfVisit || 'Visitor pre-registration'}
                 meta={invite.scheduledStartTime ? formatDateTime(invite.scheduledStartTime, invite.timezone || invite.organizationTimezone) : 'Schedule pending'}
-                status={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')}
+                status={invite.lifecycleLabel || visitorInviteStatusLabel(invite.status)}
                 tone={inviteTone(invite)}
               />
               <Text style={styles.helperText}>{invite.nextAction || 'Complete your visitor registration.'}</Text>

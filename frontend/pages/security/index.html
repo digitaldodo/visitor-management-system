@@ -24,11 +24,11 @@
         <nav class="nav-list" id="sidebar-nav">
           <a class="nav-link is-active" href="#visitor-registration" data-route="visitor-registration">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 1 0 4 4 4 4 0 0 0-4-4ZM5 21a7 7 0 0 1 14 0Zm14-10h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
-            Register Visitor
+            Register visitor
           </a>
           <a class="nav-link" href="#queue" data-route="queue">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v2H4Zm0 4h16v2H4Zm0 4h10v2H4Z"/></svg></span>
-            Live Queue
+            Live register
           </a>
           <a class="nav-link" href="#monitoring" data-route="monitoring">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17h4V7H4Zm6 0h4V3h-4Zm6 0h4V11h-4Z"/></svg></span>
@@ -36,11 +36,11 @@
           </a>
           <a class="nav-link" href="#check-in" data-route="check-in">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z"/></svg></span>
-            Check-in/out
+            Check-in / Check-out
           </a>
           <a class="nav-link" href="#photo" data-route="photo">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h4l2-2h4l2 2h4v14H4Zm8 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/></svg></span>
-            Webcam Capture
+            Photo capture
           </a>
           <a class="nav-link" href="#qr" data-route="qr">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4Zm2 2v3h3V6Zm7-2h7v7h-7Zm2 2v3h3V6ZM4 13h7v7H4Zm2 2v3h3v-3Zm8-2h2v2h-2Zm4 0h2v4h-2Zm-4 4h4v3h-2v-1h-2Z"/></svg></span>
@@ -48,7 +48,7 @@
           </a>
           <a class="nav-link" href="#badges" data-route="badges">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
-            Badge Printing
+            Badge and QR
           </a>
           <a class="nav-link" href="#employee-check-in" data-route="employee-check-in">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v4h3v14H4V7h3Zm2 4h6V5H9Zm3 7a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
@@ -109,7 +109,7 @@
           <nav class="security-quick-actions" aria-label="Security quick actions">
             <a class="security-quick-action" href="#visitor-registration" data-route="visitor-registration">
               <span aria-hidden="true">+</span>
-              Register Visitor
+              Register visitor
             </a>
             <a class="security-quick-action" href="#qr" data-route="qr">
               <span aria-hidden="true">QR</span>
@@ -117,15 +117,15 @@
             </a>
             <a class="security-quick-action" href="#employee-check-in" data-route="employee-check-in">
               <span aria-hidden="true">IN</span>
-              Workforce Check-In
+              Workforce check-in
             </a>
             <a class="security-quick-action" href="#badges" data-route="badges">
               <span aria-hidden="true">ID</span>
-              Verify Badge
+              Verify badge
             </a>
             <a class="security-quick-action" href="#workforce-onboarding" data-route="workforce-onboarding">
               <span aria-hidden="true">UP</span>
-              Workforce Onboarding
+              Workforce onboarding
             </a>
           </nav>
 
@@ -135,7 +135,7 @@
                 <p class="eyebrow">Visitor Operations</p>
                 <h2 id="visitor-operations-title">Visitor Desk</h2>
               </div>
-              <span>Registration, arrivals, QR checks, photos, and badges</span>
+              <span>Registration, arrivals, QR verification, photos, and badge readiness</span>
             </div>
 
           <section class="panel" id="visitor-registration" data-security-visitors data-operational-module></section>
@@ -240,7 +240,7 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Live Desk</p>
-                  <h2>Approved Arrival Queue</h2>
+                  <h2>Approved Arrival Register</h2>
                 </div>
               </div>
               <div class="work-list" id="queue-list"></div>
@@ -250,7 +250,7 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Identity</p>
-                  <h2>Photo Capture Workflow</h2>
+                  <h2>Photo Capture</h2>
                 </div>
               </div>
               <div class="camera-frame" id="camera-frame-status">
@@ -299,7 +299,7 @@
               <div class="panel__header">
                 <div>
                   <p class="eyebrow">Print Station</p>
-                  <h2>Badge Printing</h2>
+                  <h2>Badge and QR</h2>
                 </div>
               </div>
               <div class="work-list" id="badge-list"></div>

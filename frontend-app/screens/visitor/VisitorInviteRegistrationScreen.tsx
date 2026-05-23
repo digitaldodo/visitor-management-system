@@ -18,7 +18,7 @@ import {
 } from '../../services/visitorInviteService';
 import { theme } from '../../theme';
 import type { VisitorInviteRecord } from '../../types/domain';
-import { canonicalVisitorInviteStage } from '../../types/workflow';
+import { canonicalVisitorInviteStage, visitorInviteStatusLabel } from '../../types/workflow';
 
 type RouteParams = {
   token?: string;
@@ -145,7 +145,7 @@ export function VisitorInviteRegistrationScreen() {
         {invite ? (
           <>
             <SurfaceCard title="Lifecycle status" subtitle={invite.nextAction || 'AccessFlow is keeping the invite, approval, and badge state synchronized.'}>
-              <StatusPill label={invite.lifecycleLabel || invite.status.replaceAll('_', ' ')} tone={inviteStatusTone(invite)} />
+              <StatusPill label={invite.lifecycleLabel || visitorInviteStatusLabel(invite.status)} tone={inviteStatusTone(invite)} />
               {registrationSubmitted && !invite.pass?.qrImageDataUri ? (
                 <Text style={styles.bodyText}>Pending approval. You do not need to submit this form again; AccessFlow will notify you when the approved badge is issued.</Text>
               ) : null}

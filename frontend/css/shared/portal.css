@@ -209,7 +209,7 @@ body.has-mobile-sidebar {
 }
 
 .topbar h1 {
-  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  font-size: 1.55rem;
   letter-spacing: 0;
 }
 
@@ -450,11 +450,11 @@ body.has-mobile-sidebar {
 .metric-card__label {
   font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .metric-card strong {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-size: 2rem;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
@@ -980,6 +980,8 @@ body.has-mobile-sidebar {
 }
 
 .status-badge {
+  --status-indicator: var(--status-neutral-indicator);
+  align-items: center;
   background: var(--status-neutral-bg);
   border: 1px solid transparent;
   border-radius: 999px;
@@ -988,12 +990,22 @@ body.has-mobile-sidebar {
   display: inline-flex;
   font-size: 0.78rem;
   font-weight: 800;
+  gap: 0.38rem;
   line-height: 1;
   max-width: 100%;
   padding: 0.42rem 0.6rem;
   overflow-wrap: anywhere;
   text-transform: uppercase;
   white-space: normal;
+}
+
+.status-badge::before {
+  background: var(--status-indicator);
+  border-radius: 999px;
+  content: "";
+  flex: 0 0 auto;
+  height: 0.4rem;
+  width: 0.4rem;
 }
 
 .status-badge--tone-success,
@@ -1007,6 +1019,7 @@ body.has-mobile-sidebar {
   background: var(--status-success-bg);
   border-color: var(--status-success-border);
   color: var(--status-success-text);
+  --status-indicator: var(--status-success-indicator);
 }
 
 .status-badge--tone-warning,
@@ -1021,6 +1034,7 @@ body.has-mobile-sidebar {
   background: var(--status-warning-bg);
   border-color: var(--status-warning-border);
   color: var(--status-warning-text);
+  --status-indicator: var(--status-warning-indicator);
 }
 
 .status-badge--tone-danger,
@@ -1035,6 +1049,7 @@ body.has-mobile-sidebar {
   background: var(--status-danger-bg);
   border-color: var(--status-danger-border);
   color: var(--status-danger-text);
+  --status-indicator: var(--status-danger-indicator);
 }
 
 .status-badge--tone-info,
@@ -1048,12 +1063,67 @@ body.has-mobile-sidebar {
   background: var(--status-info-bg);
   border-color: var(--status-info-border);
   color: var(--status-info-text);
+  --status-indicator: var(--status-info-indicator);
 }
 
 .status-badge--tone-neutral {
   background: var(--status-neutral-bg);
   border-color: var(--status-neutral-border);
   color: var(--status-neutral-text);
+  --status-indicator: var(--status-neutral-indicator);
+}
+
+.operational-indicator,
+.approval-indicator {
+  align-items: center;
+  background: var(--status-neutral-bg);
+  border: 1px solid var(--status-neutral-border);
+  border-radius: var(--radius-pill);
+  color: var(--status-neutral-text);
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 0.38rem;
+  line-height: 1;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  text-transform: uppercase;
+}
+
+.operational-indicator::before,
+.approval-indicator::before {
+  background: currentColor;
+  border-radius: var(--radius-pill);
+  content: "";
+  height: 0.4rem;
+  width: 0.4rem;
+}
+
+.operational-indicator--live,
+.approval-indicator--approved {
+  background: var(--status-success-bg);
+  border-color: var(--status-success-border);
+  color: var(--status-success-text);
+}
+
+.operational-indicator--attention,
+.approval-indicator--pending {
+  background: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
+}
+
+.operational-indicator--blocked,
+.approval-indicator--denied {
+  background: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
+  color: var(--status-danger-text);
+}
+
+.operational-indicator--info {
+  background: var(--status-info-bg);
+  border-color: var(--status-info-border);
+  color: var(--status-info-text);
 }
 
 .visitor-row--skeleton span,
@@ -1421,7 +1491,7 @@ body.has-mobile-sidebar {
   color: #475467;
   font-size: 0.72rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   margin: 0 0 0.2rem;
   text-transform: uppercase;
 }
@@ -1501,7 +1571,7 @@ body.has-mobile-sidebar {
 }
 
 .enterprise-badge__identity-copy h4 {
-  font-size: clamp(1.4rem, 2vw, 1.8rem);
+  font-size: 1.65rem;
   line-height: 1.05;
 }
 
@@ -1557,7 +1627,7 @@ body.has-mobile-sidebar {
   color: #5c6b80;
   font-size: 0.73rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   margin-bottom: 0.35rem;
   text-transform: uppercase;
 }
