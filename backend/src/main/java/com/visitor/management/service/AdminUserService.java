@@ -304,6 +304,9 @@ public class AdminUserService {
         Role effectiveRole = (user.getRoles() == null || user.getRoles().isEmpty()) ? Role.EMPLOYEE : user.getRoles().iterator().next();
         if (request.role() != null && !user.getRoles().contains(request.role())) {
             validateReassignableRole(request.role(), authentication, actor);
+            if (user.getRoles().contains(Role.ADMIN) && request.role() != Role.ADMIN) {
+                ensureNotFinalActiveOrganizationAdmin(user, "The final active organization admin cannot be reassigned.");
+            }
             Set<Role> previousRoles = Set.copyOf(user.getRoles());
             effectiveRole = request.role();
             user.setRoles(Set.of(effectiveRole));
@@ -324,6 +327,9 @@ public class AdminUserService {
         }
         if (request.active() != null) {
             user.setActive(request.active());
+        }
+        if (user.getRoles().contains(Role.ADMIN) && !isActiveAdmin(user)) {
+            ensureNotFinalActiveOrganizationAdmin(user, "The final active organization admin cannot be deactivated.");
         }
 
         User saved = userRepository.save(user);
@@ -428,6 +434,7 @@ public class AdminUserService {
         User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
+        ensureNotFinalActiveOrganizationAdmin(user, "The final active organization admin cannot be disabled.");
         user.setActive(false);
         user.setAccountStatus(AccountStatus.DISABLED);
         if (isAnyWorkforceUser(user)) {
@@ -456,6 +463,8 @@ public class AdminUserService {
         User actor = currentUser(authentication);
         User user = findUser(id);
         validateMutableAccount(user, authentication);
+        boolean organizationAdmin = user.getRoles() != null && user.getRoles().contains(Role.ADMIN);
+        ensureNotFinalActiveOrganizationAdmin(user, "The final active organization admin cannot be removed.");
         user.setActive(false);
         user.setAccountStatus(AccountStatus.DISABLED);
         if (isAnyWorkforceUser(user)) {
@@ -464,8 +473,15 @@ public class AdminUserService {
         User saved = userRepository.save(user);
         revokeAllRefreshTokens(saved.getId());
         expirePasswordResetTokens(saved.getId());
-        notificationService.deactivateUserDevices(saved.getId(), "Workforce account was archived.");
-        accessAuditService.recordAccountStateChanged(actor, saved, "WORKFORCE_ACCESS_ARCHIVED", "Workforce account was archived and operational access was revoked.");
+        notificationService.deactivateUserDevices(saved.getId(), organizationAdmin ? "Organization admin access was removed." : "Workforce account was archived.");
+        accessAuditService.recordAccountStateChanged(
+                actor,
+                saved,
+                organizationAdmin ? "ORGANIZATION_ADMIN_REMOVED" : "WORKFORCE_ACCESS_ARCHIVED",
+                organizationAdmin
+                        ? "Organization admin access was removed from the tenant workspace."
+                        : "Workforce account was archived and operational access was revoked."
+        );
         return toResponse(saved);
     }
 
@@ -584,6 +600,9 @@ public class AdminUserService {
         if (user.getRoles().contains(role) && user.getRoles().size() == 1) {
             return toResponse(user);
         }
+        if (user.getRoles().contains(Role.ADMIN) && role != Role.ADMIN) {
+            ensureNotFinalActiveOrganizationAdmin(user, "The final active organization admin cannot be reassigned.");
+        }
         Set<Role> previousRoles = Set.copyOf(user.getRoles());
         user.setRoles(Set.of(role));
         DepartmentService.DepartmentAssignment departmentAssignment = resolveDepartmentAssignment(
@@ -652,6 +671,31 @@ public class AdminUserService {
         if (authentication != null && user.getId() != null && user.getId().equals(authentication.getName())) {
             throw new BadRequestException("You cannot change your own access state from this panel.");
         }
+    }
+
+    private void ensureNotFinalActiveOrganizationAdmin(User user, String message) {
+        if (user.getRoles() == null || !user.getRoles().contains(Role.ADMIN) || !isActiveAdmin(user)) {
+            return;
+        }
+        String organizationId = trimToNull(user.getOrganizationId());
+        if (organizationId == null) {
+            return;
+        }
+        long activeAdmins = userRepository.countByOrganizationIdAndRolesContainingAndActiveTrueAndAccountStatus(
+                organizationId,
+                Role.ADMIN,
+                AccountStatus.ACTIVE
+        );
+        if (activeAdmins <= 1) {
+            throw new BadRequestException(message);
+        }
+    }
+
+    private boolean isActiveAdmin(User user) {
+        return user.getRoles() != null
+                && user.getRoles().contains(Role.ADMIN)
+                && user.isActive()
+                && user.getAccountStatus() == AccountStatus.ACTIVE;
     }
 
     private void validateReadableAccount(User user, Authentication authentication) {

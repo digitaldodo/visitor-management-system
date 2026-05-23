@@ -1436,6 +1436,151 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 
+.organization-page-shell,
+.organization-workspace {
+  display: grid;
+  gap: 1rem;
+  grid-template-rows: none;
+  max-height: none;
+  max-width: none;
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
+  width: 100%;
+}
+
+.organization-page-loading {
+  background: rgba(11, 18, 31, 0.58);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 1.8vw, 1.2rem);
+}
+
+.organization-breadcrumbs {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 0.5rem;
+}
+
+.organization-breadcrumbs a {
+  color: #bfdbfe;
+  text-decoration: none;
+}
+
+.organization-breadcrumbs span::before,
+.organization-breadcrumbs strong::before {
+  color: rgba(226, 232, 240, 0.46);
+  content: "/";
+  margin-right: 0.5rem;
+}
+
+.organization-breadcrumbs strong {
+  color: var(--color-text);
+}
+
+.organization-context-header {
+  align-items: end;
+  background:
+    linear-gradient(135deg, rgba(13, 30, 54, 0.94), rgba(7, 13, 24, 0.96)),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.16), rgba(20, 184, 166, 0.12));
+  border: 1px solid rgba(191, 219, 254, 0.14);
+  border-radius: var(--radius-card);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 1.35rem);
+}
+
+.organization-context-header__copy {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.organization-context-header__copy h2,
+.organization-context-header__copy p {
+  margin: 0;
+}
+
+.organization-context-header__copy p:last-child {
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.organization-context-header__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.organization-workspace__body {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.organization-admin-table-wrap {
+  background: rgba(10, 16, 28, 0.42);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.organization-admin-table {
+  border-collapse: collapse;
+  min-width: 58rem;
+  width: 100%;
+}
+
+.organization-admin-table th,
+.organization-admin-table td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.85rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.organization-admin-table th {
+  background: var(--table-head-bg);
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.organization-admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.organization-admin-table__role {
+  min-width: 10rem;
+}
+
+.organization-admin-table__role select {
+  min-height: 2.35rem;
+}
+
+.organization-settings-card {
+  align-content: start;
+  min-height: 100%;
+}
+
+.sr-only {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
 @media (max-width: 1120px) {
   .workspace-grid--split {
     grid-template-columns: 1fr;
@@ -1558,7 +1703,7 @@
   }
 
   .organization-workspace {
-    width: min(96vw, 84rem);
+    width: auto;
   }
 
   .organization-table,
@@ -1589,6 +1734,56 @@
   }
 
   .organization-table td::before {
+    color: var(--color-muted);
+    content: attr(data-label);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .organization-context-header,
+  .organization-context-header__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .organization-admin-table-wrap {
+    border: 0;
+    overflow: visible;
+  }
+
+  .organization-admin-table {
+    min-width: 0;
+  }
+
+  .organization-admin-table,
+  .organization-admin-table thead,
+  .organization-admin-table tbody,
+  .organization-admin-table tr,
+  .organization-admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .organization-admin-table thead {
+    display: none;
+  }
+
+  .organization-admin-table tr {
+    background: rgba(11, 18, 31, 0.84);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+
+  .organization-admin-table td {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: minmax(7rem, 34%) minmax(0, 1fr);
+  }
+
+  .organization-admin-table td::before {
     color: var(--color-muted);
     content: attr(data-label);
     font-size: 0.76rem;

@@ -49,4 +49,6 @@ public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByEmployeeQrToken(String employeeQrToken);
 
     long countByRolesContainingAndActiveTrueAndAccountStatus(Role role, AccountStatus accountStatus);
+
+    long countByOrganizationIdAndRolesContainingAndActiveTrueAndAccountStatus(String organizationId, Role role, AccountStatus accountStatus);
 }

@@ -51,6 +51,7 @@ let userDepartmentOptions = [];
 let userDepartmentOrganizationId = "";
 let adminRouteState = null;
 let activeOrganizationWorkspace = null;
+let currentOrganizationWorkspaceId = "";
 let operationalEventCursor = "";
 let operationalEventPoller = null;
 let operationalEventsHydrated = false;
@@ -149,6 +150,7 @@ async function bootAdminPortal() {
   }
 
   currentRoute = routeContext.routeKey;
+  currentOrganizationWorkspaceId = routeContext.organizationId || "";
   renderPortalChrome(routeContext.routeMap);
   adminRouteState = {
     allowedRoutes,
@@ -189,11 +191,13 @@ function resolveRouteContext(allowedRoutes) {
     return { redirectTo: routeMap[targetRoute]?.href || routeMap[defaultRoute]?.href || "/admin/dashboard", routeMap, legacyMode };
   }
 
-  if (normalizedPath.startsWith("/admin/")) {
-    const slug = normalizedPath.slice("/admin/".length).split("/")[0];
+  if (normalizedPath.startsWith("/admin/") || normalizedPath.startsWith("/super-admin/")) {
+    const basePath = normalizedPath.startsWith("/super-admin/") ? "/super-admin/" : "/admin/";
+    const segments = normalizedPath.slice(basePath.length).split("/");
+    const slug = segments[0];
     const routeKey = resolveAlias(slug);
     if (allowedRoutes.includes(routeKey)) {
-      return { routeKey, routeMap, legacyMode };
+      return { routeKey, routeMap, legacyMode, organizationId: routeKey === "organizations" ? (segments[1] || "") : "" };
     }
     return { redirectTo: routeMap[defaultRoute]?.href || "/admin/dashboard", routeMap, legacyMode };
   }
@@ -222,6 +226,17 @@ function normalizePath(pathname) {
 function resolveAlias(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return portalProfile?.aliases?.[normalized] || ROUTE_ALIASES[normalized] || (ROUTE_DEFINITIONS[normalized] ? normalized : "");
+}
+
+function resolveOrganizationWorkspaceRouteId(pathname) {
+  const normalizedPath = normalizePath(pathname);
+  const basePath = normalizedPath.startsWith("/super-admin/") ? "/super-admin/" : normalizedPath.startsWith("/admin/") ? "/admin/" : "";
+  if (!basePath) {
+    return "";
+  }
+  const segments = normalizedPath.slice(basePath.length).split("/");
+  const routeKey = resolveAlias(segments[0]);
+  return routeKey === "organizations" ? (segments[1] || "") : "";
 }
 
 function renderPortalChrome(routeMap) {
@@ -301,7 +316,7 @@ function workspaceTemplate(routeKey) {
     case "departments":
       return departmentsTemplate();
     case "organizations":
-      return organizationsTemplate();
+      return currentOrganizationWorkspaceId ? organizationManagementPageTemplate() : organizationsTemplate();
     case "platform-settings":
       return homepageControlsTemplate();
     case "tenant-health":
@@ -926,7 +941,31 @@ function organizationsTemplate() {
         </div>
       </article>
     </section>
-    <div class="visitor-modal is-hidden organization-workspace-modal" id="organization-workspace-modal"></div>
+  `;
+}
+
+function organizationManagementPageTemplate() {
+  return `
+    <section class="organization-page-shell" id="organization-workspace-page" aria-live="polite">
+      <article class="organization-page-loading">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Organization Workspace</p>
+            <h3>${currentOrganizationWorkspaceId === "new" ? "Preparing setup" : "Loading tenant workspace"}</h3>
+          </div>
+          <a class="button button--ghost" href="${escapeHtml(adminRouteState?.routeMap?.organizations?.href || "/admin/organizations")}" data-organization-back>Back to organizations</a>
+        </div>
+        <div class="organization-summary-grid">
+          ${Array.from({ length: 4 }).map(() => `
+            <article class="organization-summary-card organization-summary-card--skeleton">
+              <span></span>
+              <strong></strong>
+              <small></small>
+            </article>
+          `).join("")}
+        </div>
+      </article>
+    </section>
   `;
 }
 
@@ -1354,11 +1393,13 @@ async function syncRouteFromLocation() {
     return;
   }
 
-  if (routeContext.routeKey === currentRoute) {
+  const nextOrganizationWorkspaceId = routeContext.organizationId || "";
+  if (routeContext.routeKey === currentRoute && nextOrganizationWorkspaceId === currentOrganizationWorkspaceId) {
     syncAdminRouteNavigation(currentRoute);
     return;
   }
 
+  currentOrganizationWorkspaceId = nextOrganizationWorkspaceId;
   await activateAdminRoute(routeContext.routeKey, { preserveToasts: true });
 }
 
@@ -1368,7 +1409,12 @@ async function navigateToAdminRoute(routeKey) {
   }
 
   if (routeKey === currentRoute) {
+    currentOrganizationWorkspaceId = "";
     collapseAdminSidebarForNavigation();
+    if (routeKey === "organizations") {
+      window.history.pushState({}, "", adminRouteState.routeMap?.[routeKey]?.href || "/admin/organizations");
+      await activateAdminRoute(routeKey, { preserveToasts: true });
+    }
     return;
   }
 
@@ -1383,6 +1429,7 @@ async function navigateToAdminRoute(routeKey) {
   }
 
   window.history.pushState({}, "", href);
+  currentOrganizationWorkspaceId = "";
   await activateAdminRoute(routeKey, { preserveToasts: true });
 }
 
@@ -1421,6 +1468,7 @@ async function activateAdminRoute(routeKey, options = {}) {
   }
 
   currentRoute = routeKey;
+  currentOrganizationWorkspaceId = routeKey === "organizations" ? resolveOrganizationWorkspaceRouteId(window.location.pathname) : "";
   collapseAdminSidebarForNavigation();
   syncAdminRouteNavigation(routeKey);
   renderWorkspaceFrame(ROUTE_DEFINITIONS[routeKey]);
@@ -1731,20 +1779,29 @@ function initWorkforceApprovalsWorkspace() {
 }
 
 async function loadOrganizationsWorkspace() {
+  if (currentOrganizationWorkspaceId) {
+    await loadOrganizationManagementWorkspace(currentOrganizationWorkspaceId);
+    return;
+  }
+
   renderOrganizationWorkspaceLoading();
   try {
-    const [workspaceResponse, organizationsResponse] = await Promise.all([
-      listOrganizationWorkspaceItems(),
-      listManagedOrganizations(),
-    ]);
-    organizationWorkspaceItems = workspaceResponse?.data || [];
-    managedOrganizations = organizationsResponse?.data || [];
+    await refreshOrganizationsCache();
     renderOrganizations(organizationWorkspaceItems);
   } catch (error) {
     organizationWorkspaceItems = [];
     renderOrganizations([]);
     showToast("Organizations unavailable", error.message);
   }
+}
+
+async function refreshOrganizationsCache() {
+  const [workspaceResponse, organizationsResponse] = await Promise.all([
+    listOrganizationWorkspaceItems(),
+    listManagedOrganizations(),
+  ]);
+  organizationWorkspaceItems = workspaceResponse?.data || [];
+  managedOrganizations = organizationsResponse?.data || [];
 }
 
 async function loadDepartmentsWorkspace() {
@@ -2423,7 +2480,12 @@ function initHomepageSettingsForm() {
 }
 
 function initOrganizationsWorkspace() {
-  const modal = document.querySelector("#organization-workspace-modal");
+  const page = document.querySelector("#organization-workspace-page");
+  if (page) {
+    initOrganizationManagementPage(page);
+    return;
+  }
+
   document.querySelector("#organization-search")?.addEventListener("input", () => renderOrganizations(organizationWorkspaceItems));
   document.querySelector("#organization-status-filter")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
   document.querySelector("#organization-sort")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
@@ -2431,7 +2493,7 @@ function initOrganizationsWorkspace() {
     await loadOrganizationsWorkspace();
   });
   document.querySelector("#organization-create-open")?.addEventListener("click", () => {
-    openOrganizationWorkspaceModal();
+    void navigateToOrganizationWorkspace("new");
   });
 
   document.querySelector("#organizations-list")?.addEventListener("click", async (event) => {
@@ -2445,7 +2507,7 @@ function initOrganizationsWorkspace() {
       return;
     }
     if (button.dataset.organizationAction === "open") {
-      await openOrganizationWorkspaceModal(organization.id);
+      await navigateToOrganizationWorkspace(organization.id);
       return;
     }
     if (button.dataset.organizationAction !== "toggle") {
@@ -2465,7 +2527,7 @@ function initOrganizationsWorkspace() {
       showToast("Organization updated", organization.activeStatus ? "Organization access has been paused." : "Organization is active again.");
       await loadOrganizationsWorkspace();
       if (activeOrganizationWorkspace?.organization?.id === organization.id) {
-        await openOrganizationWorkspaceModal(organization.id, { activeTab: "settings" });
+        await loadOrganizationManagementWorkspace(organization.id, { activeTab: "settings" });
       }
     } catch (error) {
       showToast("Organization update failed", error.message);
@@ -2473,10 +2535,14 @@ function initOrganizationsWorkspace() {
       button.toggleAttribute("disabled", false);
     }
   });
+}
 
-  modal?.addEventListener("click", async (event) => {
-    if (event.target === modal || event.target.closest("[data-organization-close]")) {
-      closeOrganizationWorkspaceModal();
+function initOrganizationManagementPage(page) {
+  page.addEventListener("click", async (event) => {
+    const backLink = event.target.closest("[data-organization-back]");
+    if (backLink) {
+      event.preventDefault();
+      await navigateToAdminRoute("organizations");
       return;
     }
 
@@ -2516,18 +2582,14 @@ function initOrganizationsWorkspace() {
     }
   });
 
-  modal?.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeOrganizationWorkspaceModal();
-      return;
-    }
+  page.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target?.id === "organization-department-input") {
       event.preventDefault();
       addOrganizationDepartmentFromInput();
     }
   });
 
-  modal?.addEventListener("submit", async (event) => {
+  page.addEventListener("submit", async (event) => {
     const form = event.target.closest("form");
     if (!form) {
       return;
@@ -2554,36 +2616,44 @@ function initOrganizationsWorkspace() {
   });
 }
 
-async function openOrganizationWorkspaceModal(organizationId = "", options = {}) {
+async function navigateToOrganizationWorkspace(organizationId, options = {}) {
+  if (!adminRouteState || !isAllowedAdminRoute("organizations")) {
+    return;
+  }
+  const normalizedId = String(organizationId || "new");
+  const href = `${adminRouteState.routeMap?.organizations?.href || "/admin/organizations"}/${encodeURIComponent(normalizedId)}`;
+  currentOrganizationWorkspaceId = normalizedId;
+  window.history.pushState({}, "", href);
+  await activateAdminRoute("organizations", { preserveToasts: true, ...options });
+}
+
+async function loadOrganizationManagementWorkspace(organizationId = "", options = {}) {
   const { activeTab = "overview" } = options;
-  const modal = document.querySelector("#organization-workspace-modal");
-  if (!modal) {
+  const page = document.querySelector("#organization-workspace-page");
+  if (!page) {
     return;
   }
 
-  modal.classList.remove("is-hidden");
-  modal.innerHTML = `
-    <div class="visitor-modal__dialog organization-workspace organization-workspace--loading" role="dialog" aria-modal="true" aria-label="Organization workspace">
+  page.innerHTML = `
+    <article class="organization-page-loading">
       <div class="panel__header">
         <div>
           <p class="eyebrow">Organization Workspace</p>
-          <h2>${organizationId ? "Loading organization" : "Create organization"}</h2>
+          <h3>${organizationId === "new" ? "Preparing setup" : "Loading tenant workspace"}</h3>
         </div>
-        <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
-        </button>
+        <a class="button button--ghost" href="${escapeHtml(adminRouteState?.routeMap?.organizations?.href || "/admin/organizations")}" data-organization-back>Back to organizations</a>
       </div>
       <div class="empty-state empty-state--inline">
-        <h3>${organizationId ? "Loading workspace" : "Preparing setup workspace"}</h3>
-        <p>${organizationId ? "Fetching organization detail, activity, and admin controls." : "Opening the organization setup flow."}</p>
+        <h3>${organizationId === "new" ? "Creating a tenant setup workspace" : "Fetching organization detail"}</h3>
+        <p>${organizationId === "new" ? "Tenant setup will open in this workspace." : "Admin roster, departments, activity, and audit controls are loading."}</p>
       </div>
-    </div>
+    </article>
   `;
 
-  if (!organizationId) {
+  if (organizationId === "new") {
     activeOrganizationWorkspace = null;
     resetOrganizationDepartmentDraft(true);
-    renderOrganizationWorkspaceModal(null, { mode: "create", activeTab: "settings" });
+    renderOrganizationWorkspacePage(null, { mode: "create", activeTab: "settings" });
     return;
   }
 
@@ -2594,63 +2664,51 @@ async function openOrganizationWorkspaceModal(organizationId = "", options = {})
       throw new Error("Organization workspace response was empty.");
     }
     organizationDepartmentDraft = (activeOrganizationWorkspace?.departments || []).map((department) => department.departmentName);
-    renderOrganizationWorkspaceModal(activeOrganizationWorkspace, { mode: "manage", activeTab });
+    renderOrganizationWorkspacePage(activeOrganizationWorkspace, { mode: "manage", activeTab });
   } catch (error) {
-    modal.innerHTML = `
-      <div class="visitor-modal__dialog organization-workspace" role="dialog" aria-modal="true" aria-label="Organization workspace">
+    page.innerHTML = `
+      <article class="organization-workspace">
         <div class="panel__header">
           <div>
             <p class="eyebrow">Organization Workspace</p>
-            <h2>Workspace unavailable</h2>
+            <h3>Workspace unavailable</h3>
           </div>
-          <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
-          </button>
+          <a class="button button--ghost" href="${escapeHtml(adminRouteState?.routeMap?.organizations?.href || "/admin/organizations")}" data-organization-back>Back to organizations</a>
         </div>
         <article class="empty-state empty-state--inline">
           <h3>Organization workspace unavailable</h3>
           <p>${escapeHtml(error.message)}</p>
         </article>
-      </div>
+      </article>
     `;
   }
 }
 
-function closeOrganizationWorkspaceModal() {
-  const modal = document.querySelector("#organization-workspace-modal");
-  if (!modal) {
-    return;
-  }
-  modal.classList.add("is-hidden");
-  modal.innerHTML = "";
-  activeOrganizationWorkspace = null;
-}
-
 function setOrganizationWorkspaceTab(tab) {
-  const modal = document.querySelector("#organization-workspace-modal");
-  if (!modal) {
+  const page = document.querySelector("#organization-workspace-page");
+  if (!page) {
     return;
   }
-  modal.querySelectorAll("[data-organization-tab]").forEach((button) => {
+  page.querySelectorAll("[data-organization-tab]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.organizationTab === tab);
   });
-  modal.querySelectorAll("[data-organization-panel]").forEach((panel) => {
+  page.querySelectorAll("[data-organization-panel]").forEach((panel) => {
     panel.hidden = panel.dataset.organizationPanel !== tab;
   });
 }
 
-function renderOrganizationWorkspaceModal(workspace, options = {}) {
+function renderOrganizationWorkspacePage(workspace, options = {}) {
   const { mode = "manage", activeTab = "overview" } = options;
-  const modal = document.querySelector("#organization-workspace-modal");
-  if (!modal) {
+  const page = document.querySelector("#organization-workspace-page");
+  if (!page) {
     return;
   }
 
-  modal.innerHTML = organizationWorkspaceModalMarkup(workspace, mode);
+  page.innerHTML = organizationWorkspacePageMarkup(workspace, mode);
   renderOrganizationDepartmentEditor();
-  initPhoneInput(modal.querySelector("#organization-admin-form"));
+  initPhoneInput(page.querySelector("#organization-admin-form"));
 
-  const form = modal.querySelector("#organization-form");
+  const form = page.querySelector("#organization-form");
   if (form && workspace?.organization) {
     populateOrganizationForm(form, workspace.organization, workspace.departments || []);
   } else if (form) {
@@ -2690,8 +2748,14 @@ async function submitOrganizationWorkspaceForm(form) {
       ? await updateOrganization(organizationId, payload)
       : await createOrganization(payload);
     showToast(organizationId ? "Organization updated" : "Organization created", organizationId ? "Tenant details were saved." : "Tenant is ready for admin and visitor setup.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(response?.data?.id || organizationId, { activeTab: "overview" });
+    const nextId = response?.data?.id || organizationId;
+    if (!organizationId && nextId) {
+      const href = `${adminRouteState?.routeMap?.organizations?.href || "/admin/organizations"}/${encodeURIComponent(nextId)}`;
+      currentOrganizationWorkspaceId = nextId;
+      window.history.replaceState({}, "", href);
+    }
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(nextId, { activeTab: "overview" });
   } catch (submitError) {
     showToast("Organization save failed", submitError.message);
   } finally {
@@ -2722,6 +2786,12 @@ async function submitOrganizationAdminForm(form) {
     showToast("Check account", error);
     return;
   }
+  const duplicateAdmin = (activeOrganizationWorkspace.admins || [])
+    .some((admin) => String(admin.email || "").toLowerCase() === String(payload.email || "").toLowerCase());
+  if (duplicateAdmin) {
+    showToast("Admin already assigned", "That email is already an organization admin for this tenant.");
+    return;
+  }
 
   setFormLoading(form, true);
   try {
@@ -2731,8 +2801,8 @@ async function submitOrganizationAdminForm(form) {
     });
     form.reset();
     showToast("Admin created", "The organization admin account is ready for provisioning.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
   } catch (submitError) {
     showToast("Admin creation failed", submitError.message);
   } finally {
@@ -2757,8 +2827,8 @@ async function submitOrganizationDepartmentForm(form) {
     await createDepartment({ organizationId, departmentName });
     form.reset();
     showToast("Department added", "The department is ready for organization-scoped assignment.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(organizationId, { activeTab: "departments" });
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(organizationId, { activeTab: "departments" });
   } catch (submitError) {
     showToast("Department save failed", submitError.message);
   } finally {
@@ -2778,8 +2848,8 @@ async function submitOrganizationDepartmentRename(form, departmentId) {
   try {
     await updateDepartment(departmentId, { departmentName });
     showToast("Department renamed", "Department updates are now reflected in organization setup.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
   } catch (submitError) {
     showToast("Department rename failed", submitError.message);
   } finally {
@@ -2797,8 +2867,8 @@ async function handleOrganizationDepartmentToggle(button) {
   try {
     await updateDepartment(department.id, { activeStatus: !department.activeStatus });
     showToast("Department updated", department.activeStatus ? "Department deactivated for future assignments." : "Department reactivated for assignment.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(activeOrganizationWorkspace.organization.id, { activeTab: "departments" });
   } catch (error) {
     showToast("Department update failed", error.message);
   } finally {
@@ -2836,8 +2906,8 @@ async function handleOrganizationAdminAction(button) {
       body: JSON.stringify(requestBody),
     });
     showToast("Account updated", "Organization admin access controls were updated.");
-    await loadOrganizationsWorkspace();
-    await openOrganizationWorkspaceModal(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
+    await refreshOrganizationsCache();
+    await loadOrganizationManagementWorkspace(activeOrganizationWorkspace.organization.id, { activeTab: "admins" });
   } catch (error) {
     showToast("Update failed", error.message);
   } finally {
@@ -4149,32 +4219,39 @@ function compareOrganizationSort(left, right, sortBy) {
   return String(left.companyName || "").localeCompare(String(right.companyName || ""));
 }
 
-function organizationWorkspaceModalMarkup(workspace, mode) {
+function organizationWorkspacePageMarkup(workspace, mode) {
   const organization = workspace?.organization || {};
   const summary = workspace?.summary || {};
+  const backHref = adminRouteState?.routeMap?.organizations?.href || "/admin/organizations";
   const tabs = mode === "create"
     ? ""
     : `
       <div class="organization-workspace__tabs">
-        ${["overview", "admins", "departments", "activity", "audit", "settings"].map((tab) => `
+        ${["overview", "admins", "departments", "visitor-settings", "security-settings", "audit", "settings"].map((tab) => `
           <button class="organization-tab" type="button" data-organization-tab="${tab}">${escapeHtml(formatTabLabel(tab))}</button>
         `).join("")}
       </div>
     `;
 
   return `
-    <div class="visitor-modal__dialog organization-workspace" role="dialog" aria-modal="true" aria-label="Organization workspace">
-      <div class="panel__header organization-workspace__header">
-        <div>
-          <p class="eyebrow">${mode === "create" ? "New tenant" : "Organization workspace"}</p>
+    <article class="organization-workspace" aria-label="Organization workspace">
+      <nav class="organization-breadcrumbs" aria-label="Breadcrumb">
+        <a href="${escapeHtml(backHref)}" data-organization-back>Super Admin</a>
+        <span>Organizations</span>
+        <strong>${escapeHtml(mode === "create" ? "New organization" : organization.companyName || "Organization")}</strong>
+      </nav>
+      <div class="organization-context-header">
+        <div class="organization-context-header__copy">
+          <p class="eyebrow">${mode === "create" ? "New tenant" : "Tenant Workspace"}</p>
           <h2>${escapeHtml(mode === "create" ? "Create organization" : organization.companyName || "Organization")}</h2>
-          <p class="enterprise-badge-dialog__lead">${escapeHtml(mode === "create"
-            ? "Create a new tenant with clean presets and activation controls."
-            : `${organization.companyCode || "ORG"} · ${organization.contactEmail || "No contact email on file"}`)}</p>
+          <p>${escapeHtml(mode === "create"
+            ? "Configure the tenant profile, departments, and activation state."
+            : `${organization.companyCode || "ORG"} · ${organization.contactEmail || "No contact email on file"} · ${organization.timezone || "UTC"}`)}</p>
         </div>
-        <button class="icon-button" type="button" data-organization-close aria-label="Close organization workspace">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4Zm12.6 1.4L6.4 19 5 17.6 17.6 5Z"/></svg>
-        </button>
+        <div class="organization-context-header__actions">
+          ${mode === "create" ? "" : `<span class="status-badge ${escapeHtml(statusBadgeClass(organization.activeStatus ? "ACTIVE" : "DISABLED"))}">${organization.activeStatus ? "Active" : "Disabled"}</span>`}
+          <a class="button button--ghost" href="${escapeHtml(backHref)}" data-organization-back>Back</a>
+        </div>
       </div>
       ${tabs}
       <div class="organization-workspace__body">
@@ -4240,14 +4317,7 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
                   <h3>Manage admins</h3>
                 </div>
               </div>
-              <div class="organization-admin-list">
-                ${(workspace?.admins || []).length ? workspace.admins.map((admin) => organizationAdminCard(admin)).join("") : `
-                  <article class="empty-state empty-state--inline">
-                    <h3>No admins assigned</h3>
-                    <p>Create the first tenant admin below so this organization can operate independently.</p>
-                  </article>
-                `}
-              </div>
+              ${organizationAdminRoster(workspace?.admins || [])}
             </article>
             <article class="organization-overview-card">
               <div class="panel__header">
@@ -4338,34 +4408,44 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
           </div>
         </section>
 
-        <section class="organization-tab-panel" data-organization-panel="activity" hidden>
-          <article class="organization-overview-card">
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Visitor activity</p>
-                <h3>Latest visitor records</h3>
-              </div>
-            </div>
-            <div class="organization-activity-list">
-              ${(workspace?.recentVisitors || []).length ? workspace.recentVisitors.map((visitor) => `
-                <article class="organization-activity-item">
-                  <div>
-                    <strong>${escapeHtml(visitor.fullName || "Visitor")}</strong>
-                    <p>${escapeHtml(visitor.companyName || "Independent visitor")}</p>
-                  </div>
-                  <div class="organization-activity-item__meta">
-                    ${statusBadge(visitor.status)}
-                    <small>${escapeHtml(visitor.hostEmployee || "No host")} · ${escapeHtml(formatRelativeTime(visitor.updatedAt || visitor.createdAt))}</small>
-                  </div>
-                </article>
-              `).join("") : `
-                <article class="empty-state empty-state--inline">
-                  <h3>No recent visitor activity</h3>
-                  <p>Recent visitor registrations, approvals, and check-ins will appear here.</p>
-                </article>
-              `}
-            </div>
-          </article>
+        <section class="organization-tab-panel" data-organization-panel="visitor-settings" hidden>
+          <div class="organization-workspace__grid">
+            ${organizationSettingsCard("Invite settings", [
+              ["Invite mode", "Admin and workforce initiated"],
+              ["Approval workflow", "Organization admin approval"],
+              ["Recent pending visitors", summary.pendingVisitors ?? 0],
+            ])}
+            ${organizationSettingsCard("Badge settings", [
+              ["Badge verification", "Organization scoped"],
+              ["Active visitors", summary.activeVisitors ?? 0],
+              ["Last visitor activity", summary.lastVisitorActivityAt ? formatDateTime(summary.lastVisitorActivityAt) : "No activity yet"],
+            ])}
+            ${organizationSettingsCard("Approval workflows", [
+              ["Visitor approvals", "Admin controlled"],
+              ["Workforce approvals", "Organization admin controlled"],
+              ["Audit status", "Enabled"],
+            ])}
+          </div>
+        </section>
+
+        <section class="organization-tab-panel" data-organization-panel="security-settings" hidden>
+          <div class="organization-workspace__grid">
+            ${organizationSettingsCard("Visitor retention", [
+              ["Visitor records", `${summary.totalVisitors ?? 0} retained`],
+              ["Audit trail", "Organization scoped"],
+              ["Data boundary", organization.companyCode || "Tenant scope"],
+            ])}
+            ${organizationSettingsCard("Emergency policies", [
+              ["Operational controls", organization.activeStatus ? "Available" : "Paused"],
+              ["Emergency actions", "Admin and security scoped"],
+              ["Timezone", organization.timezone || "UTC"],
+            ])}
+            ${organizationSettingsCard("Operational controls", [
+              ["Public directory", summary.publicDirectoryVisible ? "Visible" : "Hidden"],
+              ["Admin coverage", `${summary.adminCount ?? 0} assigned`],
+              ["Departments active", `${summary.activeDepartmentCount ?? 0} active`],
+            ])}
+          </div>
         </section>
 
         <section class="organization-tab-panel" data-organization-panel="audit" hidden>
@@ -4465,7 +4545,7 @@ function organizationWorkspaceModalMarkup(workspace, mode) {
           </article>
         </section>
       </div>
-    </div>
+    </article>
   `;
 }
 
@@ -4519,12 +4599,93 @@ function summaryCard(label, value, note) {
   `;
 }
 
+function organizationSettingsCard(title, rows) {
+  return `
+    <article class="organization-overview-card organization-settings-card">
+      <div class="settings-card__header">
+        <h4>${escapeHtml(title)}</h4>
+      </div>
+      <dl class="organization-overview-list">
+        ${rows.map(([label, value]) => `
+          <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
+        `).join("")}
+      </dl>
+    </article>
+  `;
+}
+
+function organizationAdminRoster(admins) {
+  if (!admins.length) {
+    return `
+      <article class="empty-state empty-state--inline">
+        <h3>No admins assigned</h3>
+        <p>Create the first tenant admin below so this organization can operate independently.</p>
+      </article>
+    `;
+  }
+
+  return `
+    <div class="organization-admin-table-wrap">
+      <table class="organization-admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Last active</th>
+            <th>Permissions</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${admins.map((admin) => organizationAdminRow(admin)).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function organizationAdminRow(user) {
+  const disabled = !user.active || user.accountStatus === "DISABLED";
+  const role = (user.roles || [])[0] || "ADMIN";
+  const permissions = role === "ADMIN" ? "Tenant administration" : formatInternalRole(role);
+  return `
+    <tr data-organization-admin-card>
+      <td data-label="Name">
+        <div class="organization-row__identity">
+          <strong>${escapeHtml(user.fullName || user.email || "Unknown user")}</strong>
+          <small>${escapeHtml(user.email || "No email")} · ${escapeHtml(user.username || "No username")}</small>
+        </div>
+      </td>
+      <td data-label="Role">
+        <label class="form-field organization-admin-table__role">
+          <span class="sr-only">Role</span>
+          <select data-role-select>
+            ${internalRoleOptions(role)}
+          </select>
+        </label>
+      </td>
+      <td data-label="Status"><span class="status-badge ${escapeHtml(statusBadgeClass(disabled ? "DISABLED" : "ACTIVE"))}">${disabled ? "Disabled" : "Active"}</span></td>
+      <td data-label="Last active">${escapeHtml(formatRelativeTime(user.updatedAt || user.createdAt))}</td>
+      <td data-label="Permissions">${escapeHtml(permissions)}</td>
+      <td data-label="Actions">
+        <div class="organization-row__actions">
+          <button class="button button--ghost button--small" type="button" data-organization-admin-action="role" data-user-id="${escapeHtml(user.id)}">Edit role</button>
+          <button class="button ${disabled ? "button--primary" : "button--ghost"} button--small" type="button" data-organization-admin-action="${disabled ? "enable" : "disable"}" data-user-id="${escapeHtml(user.id)}">${disabled ? "Enable" : "Disable"}</button>
+          <button class="button button--ghost button--small" type="button" data-organization-admin-action="archive" data-user-id="${escapeHtml(user.id)}">Remove</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 function formatTabLabel(tab) {
   return {
     overview: "Overview",
     admins: "Admins",
     departments: "Departments",
-    activity: "Visitor Activity",
+    "visitor-settings": "Visitor Settings",
+    "security-settings": "Security Settings",
     audit: "Audit Logs",
     settings: "Settings",
   }[tab] || tab;
