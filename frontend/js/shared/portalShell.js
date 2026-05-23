@@ -755,15 +755,46 @@ function renderIdentityChip(session, portalProfile) {
   chip.setAttribute("aria-haspopup", "menu");
   chip.setAttribute("aria-expanded", "false");
   chip.setAttribute("aria-label", `Profile for ${displayName}`);
-  chip.innerHTML = `
-    <span class="user-chip__avatar" aria-hidden="true">${escapeHtml(initials(displayName))}</span>
-    <span class="user-chip__primary">${escapeHtml(displayName)}</span>
+  chip.innerHTML = WorkspaceProfileChip({ displayName });
+  renderIdentityMenu(chip, { displayName, scope, timezone, role });
+  bindIdentityMenu(chip);
+}
+
+function AvatarChip(value, options = {}) {
+  const safeInitials = initials(value);
+  const label = options.label || `${value || "AccessFlow"} profile`;
+  const imageUrl = String(options.imageUrl || "").trim();
+  const sizeClass = options.size ? ` avatar-chip--${options.size}` : "";
+  const imageMarkup = imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
+    : `<span class="avatar-chip__initials" aria-hidden="true">${escapeHtml(safeInitials)}</span>`;
+  return `
+    <span class="avatar-chip${sizeClass}" aria-label="${escapeHtml(label)}" data-initial-count="${escapeHtml(String(graphemeLength(safeInitials)))}">
+      ${imageMarkup}
+    </span>
+  `;
+}
+
+function UserIdentityBadge(identity) {
+  return `
+    <div class="user-identity-badge">
+      ${AvatarChip(identity.displayName, { size: "lg", label: `${identity.displayName} profile`, imageUrl: identity.imageUrl })}
+      <div class="user-identity-badge__copy">
+        <strong data-i18n-ignore>${escapeHtml(identity.displayName)}</strong>
+        <span data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</span>
+      </div>
+    </div>
+  `;
+}
+
+function WorkspaceProfileChip(identity) {
+  return `
+    ${AvatarChip(identity.displayName, { label: `${identity.displayName} profile`, imageUrl: identity.imageUrl })}
+    <span class="user-chip__primary">${escapeHtml(identity.displayName)}</span>
     <span class="user-chip__chevron" aria-hidden="true">
       <svg viewBox="0 0 24 24"><path d="m7 9 5 5 5-5 1.4 1.4L12 16.8l-6.4-6.4Z"/></svg>
     </span>
   `;
-  renderIdentityMenu(chip, { displayName, scope, timezone, role });
-  bindIdentityMenu(chip);
 }
 
 function renderIdentityMenu(chip, identity) {
@@ -775,11 +806,7 @@ function renderIdentityMenu(chip, identity) {
   delete menu.dataset.i18nIgnore;
   menu.innerHTML = `
     <div class="profile-menu__header">
-      <span class="user-chip__avatar" aria-hidden="true">${escapeHtml(initials(identity.displayName))}</span>
-      <div>
-        <strong data-i18n-ignore>${escapeHtml(identity.displayName)}</strong>
-        <span data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</span>
-      </div>
+      ${UserIdentityBadge(identity)}
     </div>
     <dl class="profile-menu__meta">
       <div><dt>Organization</dt><dd data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</dd></div>
@@ -824,13 +851,42 @@ function bindIdentityMenu(chip) {
 }
 
 function initials(value) {
-  const letters = String(value || "")
+  const source = String(value || "").trim();
+  const displaySource = source.includes("@") ? source.split("@")[0] : source;
+  const words = displaySource
+    .replace(/[_.,;:()[\]{}<>/\\|+="'`~!?@#$%^&*-]+/g, " ")
     .split(/\s+/)
     .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-  return letters || "AF";
+    .slice(0, 2);
+  const letters = words.map((part) => firstGrapheme(part).toLocaleUpperCase()).join("");
+  if (letters) {
+    return letters;
+  }
+  return firstGrapheme(displaySource).toLocaleUpperCase() || "AF";
+}
+
+function firstGrapheme(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    const first = segmenter.segment(text)[Symbol.iterator]().next();
+    return first?.value?.segment || "";
+  }
+  return Array.from(text)[0] || "";
+}
+
+function graphemeLength(value) {
+  const text = String(value || "");
+  if (!text) {
+    return 0;
+  }
+  if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+    return Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)).length;
+  }
+  return Array.from(text).length;
 }
 
 function emptyMarkup(title, message) {

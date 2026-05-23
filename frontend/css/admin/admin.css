@@ -768,14 +768,68 @@
   overflow-wrap: anywhere;
 }
 
-.department-toolbar {
-  background: rgba(11, 18, 31, 0.56);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
+.department-workspace {
+  align-items: start;
   display: grid;
-  gap: 0.9rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.5rem), 1fr));
-  padding: 1rem;
+  gap: clamp(1rem, 1.8vw, 1.35rem);
+  grid-template-columns: minmax(18rem, 0.42fr) minmax(0, 1fr);
+}
+
+.department-management-rail {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.department-overview-panel,
+.department-add-panel,
+.department-directory-panel {
+  align-self: start;
+}
+
+.department-summary {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.department-summary div {
+  background: rgba(9, 16, 29, 0.58);
+  border: 1px solid rgba(191, 219, 254, 0.12);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 0.72rem 0.75rem;
+}
+
+.department-summary span,
+.department-overview-panel__note {
+  color: var(--color-muted);
+}
+
+.department-summary span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.department-summary strong {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1.1;
+  margin-top: 0.2rem;
+}
+
+.department-overview-panel__note {
+  line-height: 1.45;
+  margin: 0.9rem 0 0;
+}
+
+.department-toolbar {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr;
 }
 
 .department-toolbar__field {
@@ -783,21 +837,23 @@
 }
 
 .department-toolbar__field--grow {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .department-toolbar__actions {
-  align-items: center;
+  align-items: stretch;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.85rem;
-  grid-column: 1 / -1;
-  justify-content: space-between;
+  gap: 0.65rem;
+  justify-content: flex-end;
 }
 
-.department-toolbar__actions p {
-  color: var(--color-muted);
-  margin: 0;
+.department-toolbar__actions .button {
+  width: 100%;
+}
+
+.department-list {
+  gap: 0.75rem;
 }
 
 .department-card {
@@ -805,16 +861,16 @@
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
-  gap: 0.85rem;
-  padding: 1rem;
+  gap: 0.72rem;
+  padding: 0.9rem;
 }
 
 .department-card__header,
 .department-card__footer {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.65rem;
   justify-content: space-between;
 }
 
@@ -828,11 +884,35 @@
   color: var(--color-muted);
 }
 
+.department-card h3 {
+  font-size: 1rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.department-card p {
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
 .department-card__editor {
   align-items: end;
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, auto);
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.department-card__editor .button,
+.department-card__footer .button {
+  min-height: 2.3rem;
+  padding-inline: 0.85rem;
+}
+
+.department-card__footer {
+  align-items: center;
+  border-top: 1px solid rgba(191, 219, 254, 0.09);
+  padding-top: 0.7rem;
 }
 
 .department-preset-editor {
@@ -1586,6 +1666,14 @@
     grid-template-columns: 1fr;
   }
 
+  .department-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .department-management-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .homepage-controls-layout {
     grid-template-columns: 1fr;
   }
@@ -1611,6 +1699,10 @@
   }
 
   .workspace-grid--split {
+    grid-template-columns: 1fr;
+  }
+
+  .department-management-rail {
     grid-template-columns: 1fr;
   }
 
@@ -1702,6 +1794,10 @@
     grid-template-columns: 1fr;
   }
 
+  .department-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .organization-workspace {
     width: auto;
   }
@@ -1789,5 +1885,16 @@
     font-size: 0.76rem;
     font-weight: 800;
     text-transform: uppercase;
+  }
+}
+
+@media (max-width: 520px) {
+  .department-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .department-card__editor .button,
+  .department-card__footer .button {
+    width: 100%;
   }
 }

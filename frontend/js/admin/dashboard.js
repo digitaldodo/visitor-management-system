@@ -843,35 +843,60 @@ function departmentsTemplate() {
   ` : "";
 
   return `
-    <section class="workspace-grid workspace-grid--split">
-      <article class="panel">
-        <div class="panel__header">
-          <div>
-            <p class="eyebrow">Department Controls</p>
-            <h3>Manage Departments</h3>
+    <section class="department-workspace">
+      <aside class="department-management-rail" aria-label="Department management controls">
+        <article class="panel department-overview-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Department Controls</p>
+              <h3>Manage Departments</h3>
+            </div>
           </div>
-        </div>
-        <form class="department-toolbar" id="department-form" novalidate>
-          ${organizationField}
-          <label class="form-field department-toolbar__field department-toolbar__field--grow">
-            <span>New department</span>
-            <input name="departmentName" type="text" autocomplete="organization-title" placeholder="Procurement" />
-          </label>
-          <div class="department-toolbar__actions">
-            <p id="department-management-meta">Departments stay isolated to each organization and remain available for fast account setup.</p>
-            <button class="button button--primary" type="submit">Add department</button>
+          <div class="department-summary" id="department-summary">
+            <div>
+              <span>Total</span>
+              <strong>0</strong>
+            </div>
+            <div>
+              <span>Active</span>
+              <strong>0</strong>
+            </div>
+            <div>
+              <span>Disabled</span>
+              <strong>0</strong>
+            </div>
           </div>
-        </form>
-      </article>
+          <p class="department-overview-panel__note" id="department-management-meta">Departments stay isolated to each organization and remain available for fast account setup.</p>
+        </article>
 
-      <article class="panel">
+        <article class="panel department-add-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">New Team</p>
+              <h3>Add Department</h3>
+            </div>
+          </div>
+          <form class="department-toolbar" id="department-form" novalidate>
+            ${organizationField}
+            <label class="form-field department-toolbar__field department-toolbar__field--grow">
+              <span>New department</span>
+              <input name="departmentName" type="text" autocomplete="organization-title" placeholder="Procurement" />
+            </label>
+            <div class="department-toolbar__actions">
+              <button class="button button--primary" type="submit">Add department</button>
+            </div>
+          </form>
+        </article>
+      </aside>
+
+      <article class="panel department-directory-panel">
         <div class="panel__header">
           <div>
             <p class="eyebrow">Department Directory</p>
             <h3>Configured Departments</h3>
           </div>
         </div>
-        <div class="work-list" id="departments-list"></div>
+        <div class="work-list department-list" id="departments-list"></div>
       </article>
     </section>
   `;
@@ -4061,6 +4086,7 @@ function renderOrganizations(items) {
 }
 
 function renderDepartmentWorkspaceItems() {
+  renderDepartmentSummary();
   const list = document.querySelector("#departments-list");
   if (!list) {
     return;
@@ -4072,6 +4098,27 @@ function renderDepartmentWorkspaceItems() {
       <p>Create operational teams here so account creation stays fast and standardized.</p>
     </article>
   `;
+}
+
+function renderDepartmentSummary() {
+  const summary = document.querySelector("#department-summary");
+  if (!summary) {
+    return;
+  }
+
+  const total = departmentWorkspaceItems.length;
+  const active = departmentWorkspaceItems.filter((department) => department.activeStatus).length;
+  const disabled = Math.max(total - active, 0);
+  summary.innerHTML = [
+    ["Total", total],
+    ["Active", active],
+    ["Disabled", disabled],
+  ].map(([label, value]) => `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `).join("");
 }
 
 function departmentCard(department) {
