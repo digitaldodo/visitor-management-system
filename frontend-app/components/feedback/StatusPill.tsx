@@ -15,7 +15,7 @@ export function StatusPill({ label, tone = 'default' }: Props) {
   return (
     <View style={[styles.pill, { backgroundColor: palette.background, borderColor: palette.border }]}>
       <View style={[styles.indicator, { backgroundColor: palette.indicator }]} />
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={[styles.label, { color: palette.foreground }]}>{tText(label)}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} maxFontSizeMultiplier={1.08} style={[styles.label, { color: palette.foreground }]}>{tText(label)}</Text>
     </View>
   );
 }
@@ -23,6 +23,8 @@ export function StatusPill({ label, tone = 'default' }: Props) {
 const styles = StyleSheet.create({
   pill: {
     alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
@@ -37,6 +39,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
   },
   label: {
+    flexShrink: 1,
     fontSize: theme.typography.caption.fontSize,
     fontWeight: theme.typography.caption.fontWeight,
     textTransform: 'uppercase',

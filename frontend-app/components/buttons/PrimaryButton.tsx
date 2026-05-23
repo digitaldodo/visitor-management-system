@@ -55,10 +55,10 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={toneStyles.labelColor} />
-          <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
+          <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
         </View>
       ) : (
-        <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
+        <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82} maxFontSizeMultiplier={1.12} style={[styles.label, { color: toneStyles.labelColor }]}>{translatedLabel}</Text>
       )}
     </Pressable>
   );
@@ -75,10 +75,13 @@ const styles = StyleSheet.create({
     ...theme.shadows.card,
   },
   label: {
+    maxWidth: '100%',
     fontSize: theme.typography.bodyStrong.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
+    textAlign: 'center',
   },
   loadingRow: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,

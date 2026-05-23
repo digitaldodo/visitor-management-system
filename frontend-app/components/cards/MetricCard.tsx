@@ -22,9 +22,9 @@ export function MetricCard({ label, value, tone = 'default' }: Props) {
   }[tone];
 
   return (
-    <View style={[styles.card, { backgroundColor: accent, minWidth: layout.isSmallPhone ? 132 : 144, padding: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md }]}>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={styles.label}>{tText(label)}</Text>
-      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.value, layout.isSmallPhone ? styles.valueCompact : null]}>{value}</Text>
+    <View style={[styles.card, { backgroundColor: accent, minWidth: layout.isSmallPhone ? 128 : 140, padding: layout.isSmallPhone ? theme.spacing.sm : theme.spacing.md }]}>
+      <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82} maxFontSizeMultiplier={1.08} style={styles.label}>{tText(label)}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.74} style={[styles.value, layout.isSmallPhone ? styles.valueCompact : null]}>{value}</Text>
     </View>
   );
 }
@@ -32,6 +32,7 @@ export function MetricCard({ label, value, tone = 'default' }: Props) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
+    minWidth: 0,
     gap: theme.spacing.xs,
     borderRadius: theme.radii.lg,
     borderWidth: 1,
@@ -40,6 +41,7 @@ const styles = StyleSheet.create({
     ...theme.shadows.card,
   },
   label: {
+    minHeight: 30,
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption.fontSize,
     fontWeight: theme.typography.caption.fontWeight,
@@ -47,6 +49,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   value: {
+    maxWidth: '100%',
     color: theme.colors.textPrimary,
     fontSize: theme.typography.metric.fontSize,
     fontWeight: theme.typography.metric.fontWeight,

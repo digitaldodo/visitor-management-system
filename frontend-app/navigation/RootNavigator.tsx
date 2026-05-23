@@ -41,6 +41,7 @@ import {
   AdminApprovalsScreen,
   AdminDashboardScreen,
   AdminEmployeesScreen,
+  AdminHelpScreen,
   AdminMoreScreen,
   AdminOrganizationScreen,
   AdminRegisterScreen,
@@ -74,6 +75,7 @@ const adminRouteFocusMap: Record<string, string> = {
   Live: 'Dashboard',
   Employees: 'Workforce',
   Emergency: 'More',
+  Help: 'More',
   Register: 'Visitors',
   Reports: 'More',
   Organization: 'More',
@@ -271,6 +273,7 @@ function AdminNavigator() {
       <AdminTabs.Screen name="Employees" component={AdminEmployeesScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Reports" component={AdminReportsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Organization" component={AdminOrganizationScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Help" component={AdminHelpScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Profile" component={AdminSettingsScreen} options={{ tabBarButton: () => null }} />
     </AdminTabs.Navigator>
   );
@@ -469,6 +472,7 @@ function navLabelKeyForRoute(routeName: string): TranslationKey {
     Employees: 'nav.employees',
     Reports: 'nav.reports',
     Organization: 'nav.organization',
+    Help: 'nav.help',
     Live: 'nav.activity',
     More: 'nav.more',
   };
@@ -499,6 +503,7 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Employees: 'id-card-outline',
     Reports: 'document-text-outline',
     Organization: 'business-outline',
+    Help: 'help-circle-outline',
     Live: 'pulse-outline',
     More: 'ellipsis-horizontal-circle-outline',
   };

@@ -92,12 +92,14 @@ export function OperationalFeedScreen() {
         <View style={{ width: '100%', maxWidth: listMaxWidth }}>
           <FeedRow
             item={item}
-            first={index === 0}
-            last={index === filteredItems.length - 1}
             onPress={() => openItem(item)}
           />
         </View>
       )}
+      ItemSeparatorComponent={() => <View style={styles.feedSeparator} />}
+      initialNumToRender={10}
+      maxToRenderPerBatch={10}
+      windowSize={9}
       refreshing={feed.isRefetching}
       onRefresh={feed.refetch}
       contentMaxWidth={layout.isLargeTablet ? 1180 : undefined}
@@ -167,26 +169,33 @@ function SyncRecoveryPanel({
   const queued = runtime.offlineOperationalQueueSize;
   const scans = runtime.offlineScanQueueSize;
   const lastEvent = runtime.syncConnection.lastEventAt ? relativeTime(runtime.syncConnection.lastEventAt) : 'No events';
+  const stateLabel = runtime.isSyncingOfflineOperations
+    ? 'Syncing'
+    : runtime.syncConnection.status === 'live'
+      ? 'Connected'
+      : runtime.syncConnection.status === 'offline' || runtime.offlineOperationalMode === 'offline'
+        ? 'Offline'
+        : 'Limited';
 
   return (
-    <View style={styles.offlinePanel}>
-      <View style={styles.offlineIcon}>
-        <Ionicons
-          name={runtime.offlineOperationalMode === 'offline' ? 'cloud-offline-outline' : 'radio-outline'}
-          size={22}
-          color={connectionTone === 'success' ? theme.colors.success : connectionTone === 'warning' ? theme.colors.warning : theme.colors.info}
-        />
-      </View>
-      <View style={styles.offlineCopy}>
-        <View style={styles.offlineHeader}>
-          <Text style={styles.offlineTitle}>Operational sync</Text>
-          <StatusPill label={runtime.isSyncingOfflineOperations ? 'Syncing' : runtime.syncConnection.status} tone={connectionTone} />
+    <View style={styles.syncPanel}>
+      <View style={styles.syncStatusRow}>
+        <View style={styles.syncIcon}>
+          <Ionicons
+            name={runtime.offlineOperationalMode === 'offline' ? 'cloud-offline-outline' : 'radio-outline'}
+            size={18}
+            color={connectionTone === 'success' ? theme.colors.success : connectionTone === 'warning' ? theme.colors.warning : theme.colors.info}
+          />
         </View>
-        <Text style={styles.offlineBody}>
-          {queued
-            ? `${queued} queued action${queued === 1 ? '' : 's'}${scans ? `, ${scans} scan${scans === 1 ? '' : 's'}` : ''}. Recovery runs silently and avoids repeated retry prompts.`
-            : `Live feed connected with ${lastEvent} as the latest event. Offline records remain visible if connectivity changes.`}
-        </Text>
+        <View style={styles.syncCopy}>
+          <Text numberOfLines={1} style={styles.syncTitle}>Operational sync</Text>
+          <Text numberOfLines={1} style={styles.syncMeta}>
+            {queued
+              ? `${queued} queued${scans ? `, ${scans} scans` : ''}`
+              : `Latest event ${lastEvent}`}
+          </Text>
+        </View>
+        <StatusPill label={stateLabel} tone={connectionTone} />
       </View>
     </View>
   );
@@ -207,10 +216,14 @@ function SummaryTile({
   return (
     <View style={styles.summaryTile}>
       <View style={[styles.summaryIcon, { backgroundColor: softTone(tone) }]}>
-        <Ionicons name={icon} size={21} color={color} />
+        <Ionicons
+          name={icon}
+          size={19}
+          color={color}
+        />
       </View>
       <View style={styles.summaryCopy}>
-        <Text style={styles.summaryLabel}>{label}</Text>
+        <Text numberOfLines={1} style={styles.summaryLabel}>{label}</Text>
         <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.summaryValue, { color }]}>{value}</Text>
       </View>
     </View>
@@ -219,13 +232,9 @@ function SummaryTile({
 
 function FeedRow({
   item,
-  first,
-  last,
   onPress,
 }: {
   item: OperationalFeedItem;
-  first: boolean;
-  last: boolean;
   onPress: () => void;
 }) {
   const { t } = useLocalization();
@@ -238,25 +247,23 @@ function FeedRow({
       android_ripple={{ color: theme.colors.primarySoft }}
       style={({ pressed }) => [styles.feedRow, pressed ? styles.feedRowPressed : null]}
     >
-      <View style={styles.timelineRail}>
-        {!first ? <View style={styles.railLine} /> : <View style={styles.railLineSpacer} />}
-        <View style={[styles.timelineIcon, { borderColor: tone.color, backgroundColor: tone.background }]}>
+      <View style={styles.feedIconColumn}>
+        <View style={[styles.feedIcon, { borderColor: tone.color, backgroundColor: tone.background }]}>
           <Ionicons name={severityIcon(item.severity, item.category)} size={18} color={tone.color} />
         </View>
-        {!last ? <View style={styles.railLine} /> : <View style={styles.railLineSpacer} />}
       </View>
       <View style={[styles.feedCard, { borderLeftColor: tone.color }]}>
         <View style={styles.feedHeader}>
           <View style={styles.feedTitleBlock}>
-            <Text maxFontSizeMultiplier={1.12} style={styles.feedTitle}>{item.title}</Text>
-            <Text maxFontSizeMultiplier={1.08} style={styles.feedMeta}>
+            <Text numberOfLines={2} maxFontSizeMultiplier={1.12} style={styles.feedTitle}>{item.title}</Text>
+            <Text numberOfLines={2} maxFontSizeMultiplier={1.08} style={styles.feedMeta}>
               {[item.actor, relativeTime(item.occurredAt), item.organization].filter(Boolean).join(' · ')}
             </Text>
           </View>
           <StatusPill label={severityLabel(item.severity, t)} tone={statusTone(item.severity)} />
         </View>
 
-        {item.detail ? <Text maxFontSizeMultiplier={1.08} style={styles.feedDetail}>{item.detail}</Text> : null}
+        {item.detail ? <Text numberOfLines={3} maxFontSizeMultiplier={1.08} style={styles.feedDetail}>{item.detail}</Text> : null}
 
         <View style={styles.feedFooter}>
           <View style={styles.sourcePill}>
@@ -390,30 +397,31 @@ function relativeTime(value: string) {
 
 const styles = StyleSheet.create({
   summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
   summaryGridWide: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   summaryTile: {
     flexGrow: 1,
     flexBasis: '46%',
-    minHeight: 82,
+    minWidth: 136,
+    minHeight: 74,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
-    borderRadius: theme.radii.lg,
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
+    padding: theme.spacing.sm,
     ...theme.shadows.card,
   },
   summaryIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: theme.radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -424,56 +432,54 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     color: theme.colors.textSecondary,
-    fontSize: theme.typography.caption.fontSize,
+    fontSize: 11,
     fontWeight: theme.typography.caption.fontWeight,
     textTransform: 'uppercase',
   },
   summaryValue: {
     color: theme.colors.textPrimary,
-    fontSize: theme.typography.heading.fontSize,
+    fontSize: 20,
     fontWeight: theme.typography.heading.fontWeight,
     textTransform: 'capitalize',
   },
-  offlinePanel: {
-    minHeight: 76,
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    alignItems: 'flex-start',
-    borderRadius: theme.radii.lg,
+  syncPanel: {
+    borderRadius: theme.radii.md,
     borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.28)',
-    backgroundColor: theme.colors.warningSoft,
-    padding: theme.spacing.md,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
   },
-  offlineIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  syncStatusRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  syncIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceRaised,
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  offlineCopy: {
+  syncCopy: {
     flex: 1,
-    gap: theme.spacing.xs,
+    minWidth: 0,
+    gap: 2,
   },
-  offlineHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
-  },
-  offlineTitle: {
+  syncTitle: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.bodyStrong.fontSize,
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
-  offlineBody: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: 22,
+  syncMeta: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: '700',
   },
   filterRow: {
     flexDirection: 'row',
@@ -501,30 +507,23 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: theme.colors.textPrimary,
   },
-  timeline: {
-    gap: theme.spacing.xs,
-  },
   feedRow: {
+    width: '100%',
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
   },
   feedRowPressed: {
     opacity: 0.84,
   },
-  timelineRail: {
-    width: 34,
+  feedSeparator: {
+    height: theme.spacing.sm,
+  },
+  feedIconColumn: {
+    width: 40,
+    paddingTop: theme.spacing.sm,
     alignItems: 'center',
   },
-  railLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: theme.colors.border,
-  },
-  railLineSpacer: {
-    width: 2,
-    flex: 1,
-  },
-  timelineIcon: {
+  feedIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -540,8 +539,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
-    padding: theme.spacing.md,
-    marginVertical: theme.spacing.xs,
+    padding: theme.spacing.sm,
   },
   feedHeader: {
     flexDirection: 'row',
@@ -572,6 +570,7 @@ const styles = StyleSheet.create({
   feedFooter: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: theme.spacing.xs,
   },
   sourcePill: {

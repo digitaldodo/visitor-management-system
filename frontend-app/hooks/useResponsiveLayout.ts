@@ -8,18 +8,29 @@ export function useResponsiveLayout() {
   const { width, height, fontScale } = useWindowDimensions();
   const shortestSide = Math.min(width, height);
   const isLandscape = width > height;
+  const isFoldable = shortestSide >= 540 && shortestSide < 700;
   const isSmallPhone = shortestSide < 360;
   const isPhone = shortestSide < 600;
   const isTablet = shortestSide >= 600;
   const isLargeTablet = shortestSide >= 900;
-  const isTwoColumn = width >= 840 && (isTablet || isLandscape);
+  const isTwoColumn = width >= 760 && (isTablet || isLandscape || isFoldable);
   const isCompactHeight = height < 720;
   const density = clamp(shortestSide / 390, 0.88, 1.18);
-  const contentPadding = isLargeTablet ? 28 : isTablet ? 24 : isSmallPhone ? 14 : 16;
-  const cardPadding = isLargeTablet ? 22 : isTablet ? 20 : isSmallPhone ? 14 : 16;
-  const cardSpacing = isTablet ? 18 : isSmallPhone ? 12 : 14;
+  const contentPadding = isLargeTablet ? 28 : isTablet || isFoldable ? 24 : isSmallPhone ? 12 : 16;
+  const cardPadding = isLargeTablet ? 22 : isTablet || isFoldable ? 20 : isSmallPhone ? 12 : 16;
+  const cardSpacing = isTablet || isFoldable ? 16 : isSmallPhone ? 10 : 14;
   const touchTarget = isSmallPhone ? 48 : 52;
   const tabBarHeight = isTablet ? 86 : isSmallPhone ? 72 : 78;
+  const compactGridColumns = isLargeTablet
+    ? 4
+    : isTablet || (isLandscape && width >= 760)
+      ? 3
+      : 2;
+  const balancedGridColumns = isLargeTablet
+    ? 3
+    : isTablet || isFoldable || isTwoColumn
+      ? 2
+      : 1;
 
   return {
     width,
@@ -27,6 +38,7 @@ export function useResponsiveLayout() {
     fontScale,
     shortestSide,
     isLandscape,
+    isFoldable,
     isSmallPhone,
     isPhone,
     isTablet,
@@ -34,7 +46,9 @@ export function useResponsiveLayout() {
     isTwoColumn,
     isCompactHeight,
     density,
-    contentMaxWidth: isLargeTablet ? 1180 : isTablet ? 980 : 560,
+    compactGridColumns,
+    balancedGridColumns,
+    contentMaxWidth: isLargeTablet ? 1120 : isTablet || isFoldable ? 920 : 560,
     contentPadding,
     cardPadding,
     cardSpacing,

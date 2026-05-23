@@ -1,5 +1,7 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Constants from 'expo-constants';
 import { Children, useMemo, useState, type ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -96,7 +98,7 @@ type AdminAction =
   | { type: 'disable-user'; user: WorkforceOnboardingRecord };
 
 type SectionProps = {
-  section: 'dashboard' | 'analytics' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'reports' | 'organization' | 'settings' | 'more';
+  section: 'dashboard' | 'analytics' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'reports' | 'organization' | 'settings' | 'more' | 'help';
 };
 
 const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
@@ -153,6 +155,10 @@ export function AdminAlertsScreen() {
 
 export function AdminMoreScreen() {
   return <AdminOperationalScreen section="more" />;
+}
+
+export function AdminHelpScreen() {
+  return <AdminOperationalScreen section="help" />;
 }
 
 export function AdminRegisterScreen() {
@@ -765,6 +771,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
     organization: ['Organization Settings', 'Tenant identity, department options, and organization-scoped operating preferences.'],
     settings: ['Admin Settings', 'Mobile role scope, session controls, and operational readiness.'],
     more: ['More', 'Secondary admin tools, profile controls, and operational shortcuts.'],
+    help: ['Help', 'Support guidance, operational onboarding, and system information for mobile admins.'],
   }[section];
 
   return (
@@ -787,14 +794,14 @@ function AdminOperationalScreen({ section }: SectionProps) {
               <MetricCard label="Critical alerts" value={criticalAlertCount} tone={criticalAlertCount ? 'danger' : 'default'} />
             </View>
             <SurfaceCard title="Action hub" subtitle="Choose one workspace and keep the current screen lightweight.">
-              <View style={styles.workspaceGrid}>
+              <ResponsiveGrid columns={layout.compactGridColumns} minItemWidth={layout.isSmallPhone ? 136 : 150}>
                 <AdminWorkspaceButton title="Workforce" subtitle="People, roles, presence" meta={`${pendingWorkforceCount} approvals`} onPress={() => navigation.navigate('Workforce')} />
                 <AdminWorkspaceButton title="Visitors" subtitle="Active, pending, denied" meta={`${activeVisitorCount} inside`} onPress={() => navigation.navigate('Visitors')} />
                 <AdminWorkspaceButton title="Approvals" subtitle="Host and workforce queues" meta={`${pendingVisitorCount + pendingWorkforceCount} pending`} tone={pendingVisitorCount + pendingWorkforceCount ? 'warning' : 'default'} onPress={() => navigation.navigate('Approvals')} />
                 <AdminWorkspaceButton title="Analytics" subtitle="Trends and exports" meta={`${exportSnapshotsForAnalytics(analytics.data).length} reports`} onPress={() => navigation.navigate('Analytics')} />
                 <AdminWorkspaceButton title="Incidents" subtitle="Alerts and exceptions" meta={`${criticalAlertCount} critical`} tone={criticalAlertCount ? 'danger' : 'default'} onPress={() => navigation.navigate('Alerts')} />
                 <AdminWorkspaceButton title="Reports" subtitle="Audit snapshots" meta={`${reports.data?.length ?? 0} events`} onPress={() => navigation.navigate('Reports')} />
-              </View>
+              </ResponsiveGrid>
             </SurfaceCard>
             <SplitPane>
               <SurfaceCard title="Priority approvals" subtitle="Only the first few items appear here; open Approvals for the full queue.">
@@ -960,28 +967,28 @@ function AdminOperationalScreen({ section }: SectionProps) {
               <AdminMenuGroup
                 title="ACCOUNT"
                 items={[
-                  ['Profile', 'Account, session, and access security', () => navigation.navigate('Profile')],
-                  ['Notifications', `${notifications.data?.unreadCount ?? 0} unread operational notifications`, () => navigation.navigate('Alerts')],
-                  ['Language', 'Use device and workspace language preferences', () => setActionMessage('Language preferences remain managed from Profile and device settings.')],
+                  ['Profile', 'Account, session, and access security', () => navigation.navigate('Profile'), 'person-circle-outline'],
+                  ['Notifications', `${notifications.data?.unreadCount ?? 0} unread operational notifications`, () => navigation.navigate('Alerts'), 'notifications-outline'],
+                  ['Language', 'Use device and workspace language preferences', () => setActionMessage('Language preferences remain managed from Profile and device settings.'), 'language-outline'],
                 ]}
               />
               <AdminMenuGroup
                 title="OPERATIONS"
                 items={[
-                  ['Register', 'Search visitor and workforce audit history', () => navigation.navigate('Register')],
-                  ['Employee access', 'Directory, roles, sessions, and invites', () => navigation.navigate('Employees')],
-                  ['Analytics', 'Operational intelligence and trends', () => navigation.navigate('Analytics')],
-                  ['Reports', 'CSV/PDF snapshots and audit exports', () => navigation.navigate('Reports')],
-                  ['Activity feed', 'Organization-scoped live operational updates', () => navigation.navigate('Live')],
+                  ['Register', 'Search visitor and workforce audit history', () => navigation.navigate('Register'), 'reader-outline'],
+                  ['Employee access', 'Directory, roles, sessions, and invites', () => navigation.navigate('Employees'), 'id-card-outline'],
+                  ['Analytics', 'Operational intelligence and trends', () => navigation.navigate('Analytics'), 'analytics-outline'],
+                  ['Reports', 'CSV/PDF snapshots and audit exports', () => navigation.navigate('Reports'), 'document-text-outline'],
+                  ['Activity feed', 'Organization-scoped live operational updates', () => navigation.navigate('Live'), 'pulse-outline'],
                 ]}
               />
               <AdminMenuGroup
                 title="SYSTEM"
                 items={[
-                  ['Incidents', 'Alerts, exceptions, and emergency operations', () => navigation.navigate('Alerts')],
-                  ['Emergency ops', 'Evacuation, lockdown, and response controls', () => navigation.navigate('Emergency')],
-                  ['Organization', 'Tenant identity and department settings', () => navigation.navigate('Organization')],
-                  ['Help', 'Mobile admin support and policy guidance', () => setActionMessage('Help and support guidance will open from the configured enterprise help destination.')],
+                  ['Incidents', 'Alerts, exceptions, and emergency operations', () => navigation.navigate('Alerts'), 'alert-circle-outline'],
+                  ['Emergency ops', 'Evacuation, lockdown, and response controls', () => navigation.navigate('Emergency'), 'warning-outline'],
+                  ['Organization', 'Tenant identity and department settings', () => navigation.navigate('Organization'), 'business-outline'],
+                  ['Help', 'Mobile admin support and policy guidance', () => navigation.navigate('Help'), 'help-circle-outline'],
                 ]}
               />
             </SurfaceCard>
@@ -996,6 +1003,15 @@ function AdminOperationalScreen({ section }: SectionProps) {
               </View>
             </SurfaceCard>
           </>
+        ) : null}
+
+        {section === 'help' ? (
+          <AdminHelpWorkspace
+            appVersion={Constants.expoConfig?.version ?? '1.5.0'}
+            buildId={String(Constants.expoConfig?.extra?.accessflowBuildId ?? Constants.expoConfig?.runtimeVersion ?? 'preview')}
+            releaseChannel={String(Constants.expoConfig?.extra?.accessflowReleaseChannel ?? 'preview')}
+            environment={String(Constants.expoConfig?.extra?.accessflowEnvironment ?? 'internal')}
+          />
         ) : null}
 
         {section === 'register' ? (
@@ -1224,6 +1240,38 @@ function SplitPane({ children }: { children: ReactNode }) {
   );
 }
 
+function ResponsiveGrid({
+  children,
+  columns,
+  minItemWidth,
+}: {
+  children: ReactNode;
+  columns: number;
+  minItemWidth: number;
+}) {
+  const layout = useResponsiveLayout();
+  const gap = theme.spacing.sm;
+  const itemBasis = `${Math.max(42, Math.floor(100 / columns) - 2)}%` as DimensionValue;
+
+  return (
+    <View style={[styles.responsiveGrid, { gap }]}>
+      {Children.map(children, (child) => (
+        <View
+          style={[
+            styles.responsiveGridItem,
+            {
+              flexBasis: itemBasis,
+              minWidth: Math.min(minItemWidth, Math.max(128, Math.floor(layout.width / columns) - layout.contentPadding - gap)),
+            },
+          ]}
+        >
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function AdminWorkspaceButton({
   title,
   subtitle,
@@ -1246,10 +1294,12 @@ function AdminWorkspaceButton({
   return (
     <Pressable accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.workspaceButton, toneStyle, pressed ? styles.shortcutPressed : null]}>
       <View style={styles.workspaceButtonHeader}>
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.08} style={styles.shortcutTitle}>{title}</Text>
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.02} style={styles.workspaceMeta}>{meta}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} maxFontSizeMultiplier={1.08} style={styles.shortcutTitle}>{title}</Text>
+        <View style={styles.workspaceMetaPill}>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} maxFontSizeMultiplier={1.02} style={styles.workspaceMeta}>{meta}</Text>
+        </View>
       </View>
-      <Text numberOfLines={1} maxFontSizeMultiplier={1.04} style={styles.shortcutSubtitle}>{subtitle}</Text>
+      <Text numberOfLines={2} maxFontSizeMultiplier={1.04} style={styles.shortcutSubtitle}>{subtitle}</Text>
     </Pressable>
   );
 }
@@ -1259,21 +1309,98 @@ function AdminMenuGroup({
   items,
 }: {
   title: string;
-  items: [string, string, () => void][];
+  items: [string, string, () => void, keyof typeof Ionicons.glyphMap][];
 }) {
   return (
     <View style={styles.menuGroup}>
       <Text style={styles.sectionLabel}>{title}</Text>
       <View style={styles.menuList}>
-        {items.map(([label, detail, onPress]) => (
+        {items.map(([label, detail, onPress, icon]) => (
           <Pressable key={label} accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.menuRow, pressed ? styles.shortcutPressed : null]}>
+            <View style={styles.menuIcon}>
+              <Ionicons name={icon} size={19} color={theme.colors.textSecondary} />
+            </View>
             <View style={styles.menuCopy}>
               <Text numberOfLines={1} style={styles.menuTitle}>{label}</Text>
-              <Text numberOfLines={1} style={styles.menuDetail}>{detail}</Text>
+              <Text numberOfLines={2} style={styles.menuDetail}>{detail}</Text>
             </View>
             <Text style={styles.menuChevron}>{'>'}</Text>
           </Pressable>
         ))}
+      </View>
+    </View>
+  );
+}
+
+function AdminHelpWorkspace({
+  appVersion,
+  buildId,
+  releaseChannel,
+  environment,
+}: {
+  appVersion: string;
+  buildId: string;
+  releaseChannel: string;
+  environment: string;
+}) {
+  return (
+    <>
+      <SurfaceCard title="Support guidance" subtitle="Operational help for mobile organization administrators.">
+        <View style={styles.helpStack}>
+          <HelpRow icon="checkmark-done-outline" title="Approval triage" body="Review photo, host, department, shift, and status history before approving visitor or workforce access." />
+          <HelpRow icon="shield-checkmark-outline" title="Access exceptions" body="Use Alerts for denied, suspended, escalated, and mismatch records. Emergency controls remain under More." />
+          <HelpRow icon="cloud-done-outline" title="Offline recovery" body="Queued scans and admin actions sync silently when connectivity returns. Keep the app open during weak-network recovery." />
+        </View>
+      </SurfaceCard>
+      <SplitPane>
+        <SurfaceCard title="FAQs">
+          <View style={styles.helpStack}>
+            <HelpRow title="Why can a record look stale?" body="Pull to refresh the workspace. Live activity also appears in Activity feed when the organization event stream is available." />
+            <HelpRow title="Where are exports?" body="Open Reports for audit snapshots and Analytics for operational trend exports." />
+            <HelpRow title="How do admins manage people?" body="Use Workforce for approvals and Employees for active directory, roles, sessions, invites, and account controls." />
+          </View>
+        </SurfaceCard>
+        <SurfaceCard title="Contact options">
+          <View style={styles.helpStack}>
+            <HelpRow icon="mail-outline" title="Enterprise support" body="Contact your workspace owner or AccessFlow support channel with organization, user role, app version, and timestamp." />
+            <HelpRow icon="document-text-outline" title="Audit-ready reports" body="Include visitor IDs, employee IDs, and exported report names when requesting operational support." />
+            <HelpRow icon="school-outline" title="Onboarding" body="Train admins to check Approvals, Visitors, Workforce, Alerts, Reports, and Activity feed at the start of each shift." />
+          </View>
+        </SurfaceCard>
+      </SplitPane>
+      <SurfaceCard title="System info" subtitle="Share this information when escalating mobile admin issues.">
+        <FieldGrid
+          items={[
+            ['App version', appVersion],
+            ['Build', buildId],
+            ['Channel', releaseChannel],
+            ['Environment', environment],
+          ]}
+        />
+      </SurfaceCard>
+    </>
+  );
+}
+
+function HelpRow({
+  icon,
+  title,
+  body,
+}: {
+  icon?: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+}) {
+  return (
+    <View style={styles.helpRow}>
+      {icon ? (
+        <View style={styles.helpIcon}>
+          <Ionicons name={icon} size={18} color={theme.colors.info} />
+        </View>
+      ) : null}
+      <View style={styles.helpCopy}>
+        <Text style={styles.helpTitle}>{title}</Text>
+        <Text style={styles.helpBody}>{body}</Text>
       </View>
     </View>
   );
@@ -2538,22 +2665,33 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     padding: theme.spacing.sm,
   },
+  responsiveGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+  },
+  responsiveGridItem: {
+    flexGrow: 1,
+    minWidth: 0,
+  },
   workspaceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
   workspaceButton: {
-    flexGrow: 1,
-    flexBasis: 158,
-    minHeight: 76,
-    justifyContent: 'center',
+    flex: 1,
+    minWidth: 0,
+    minHeight: 92,
+    justifyContent: 'space-between',
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
-    paddingHorizontal: theme.spacing.md,
+    overflow: 'hidden',
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
   },
   workspaceButtonWarning: {
@@ -2565,14 +2703,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.dangerSoft,
   },
   workspaceButtonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  workspaceMetaPill: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    minHeight: 24,
+    justifyContent: 'center',
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    paddingHorizontal: theme.spacing.xs,
   },
   workspaceMeta: {
     color: theme.colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
@@ -2581,7 +2727,7 @@ const styles = StyleSheet.create({
   },
   shortcutTitle: {
     color: theme.colors.textPrimary,
-    fontSize: theme.typography.bodyStrong.fontSize,
+    fontSize: 15,
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   shortcutSubtitle: {
@@ -2600,14 +2746,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   menuRow: {
-    minHeight: 58,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
+  },
+  menuIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuCopy: {
     flex: 1,
@@ -2622,11 +2778,50 @@ const styles = StyleSheet.create({
   menuDetail: {
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption.fontSize,
+    lineHeight: 17,
   },
   menuChevron: {
     color: theme.colors.textMuted,
     fontSize: 18,
     fontWeight: '800',
+  },
+  helpStack: {
+    gap: theme.spacing.sm,
+  },
+  helpRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.sm,
+  },
+  helpIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  helpTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  helpBody: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: 21,
   },
   paginationRow: {
     flexDirection: 'row',
