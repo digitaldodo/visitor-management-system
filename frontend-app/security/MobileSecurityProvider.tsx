@@ -255,16 +255,19 @@ async function initializeCertificatePinning(
 
   const pinHosts = Object.keys(apiConfig.security.certificatePins);
   if (!pinHosts.length) {
+    const diagnosticMessage = 'TLS pinning is enabled but no certificate pins are configured.';
     await recordDiagnosticEvent({
       level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
       scope: 'security',
       code: 'TLS_PINNING_NOT_CONFIGURED',
-      message: 'TLS pinning is enabled but no certificate pins are configured.',
+      message: diagnosticMessage,
       context: {
         environment: apiConfig.environment,
       },
     });
-    return null;
+    return apiConfig.security.certificatePinningEnforced
+      ? 'Secure connection verification is not fully configured for this build.'
+      : null;
   }
 
   try {
@@ -288,7 +291,9 @@ async function initializeCertificatePinning(
           environment: apiConfig.environment,
         },
       });
-      return null;
+      return apiConfig.security.certificatePinningEnforced
+        ? 'Secure connection verification is unavailable in this runtime.'
+        : null;
     }
 
     const configuration = Object.fromEntries(
@@ -329,7 +334,9 @@ async function initializeCertificatePinning(
         environment: apiConfig.environment,
       },
     });
-    return null;
+    return apiConfig.security.certificatePinningEnforced
+      ? 'Secure connection verification could not be initialized for this build.'
+      : null;
   }
 }
 
