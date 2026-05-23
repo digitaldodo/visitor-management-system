@@ -37,6 +37,7 @@ import { VisitorsScreen } from '../screens/security/VisitorsScreen';
 import { WorkforceScreen } from '../screens/security/WorkforceScreen';
 import {
   AdminAlertsScreen,
+  AdminAnalyticsScreen,
   AdminApprovalsScreen,
   AdminDashboardScreen,
   AdminEmployeesScreen,
@@ -65,12 +66,14 @@ const VisitorTabs = createBottomTabNavigator();
 const AdminTabs = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
 
-const adminPrimaryRoutes = ['Approvals', 'Workforce', 'Visitors', 'Alerts', 'Dashboard', 'More'];
+const adminPrimaryRoutes = ['Dashboard', 'Approvals', 'Visitors', 'Workforce', 'More'];
 
 const adminRouteFocusMap: Record<string, string> = {
+  Analytics: 'Dashboard',
+  Alerts: 'Dashboard',
   Live: 'Dashboard',
   Employees: 'Workforce',
-  Emergency: 'Alerts',
+  Emergency: 'More',
   Register: 'Visitors',
   Reports: 'More',
   Organization: 'More',
@@ -254,13 +257,14 @@ function AdminNavigator() {
   const screenOptions = useMobileTabOptions();
 
   return (
-    <AdminTabs.Navigator backBehavior="history" initialRouteName="Approvals" screenOptions={screenOptions} tabBar={(props) => <AdminBottomTabBar {...props} />}>
-      <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
-      <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
-      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
-      <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} />
+    <AdminTabs.Navigator backBehavior="history" initialRouteName="Dashboard" screenOptions={screenOptions} tabBar={(props) => <AdminBottomTabBar {...props} />}>
       <AdminTabs.Screen name="Dashboard" component={AdminDashboardScreen} />
+      <AdminTabs.Screen name="Approvals" component={AdminApprovalsScreen} />
+      <AdminTabs.Screen name="Visitors" component={AdminVisitorsScreen} />
+      <AdminTabs.Screen name="Workforce" component={AdminWorkforceScreen} />
       <AdminTabs.Screen name="More" component={AdminMoreScreen} />
+      <AdminTabs.Screen name="Analytics" component={AdminAnalyticsScreen} options={{ tabBarButton: () => null }} />
+      <AdminTabs.Screen name="Alerts" component={AdminAlertsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Live" component={OperationalFeedScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Emergency" component={EmergencyOpsScreen} options={{ tabBarButton: () => null }} />
       <AdminTabs.Screen name="Register" component={AdminRegisterScreen} options={{ tabBarButton: () => null }} />
@@ -459,7 +463,8 @@ function navLabelKeyForRoute(routeName: string): TranslationKey {
     Home: 'nav.home',
     Request: 'nav.request',
     Pass: 'nav.pass',
-    Dashboard: 'nav.analytics',
+    Dashboard: 'nav.home',
+    Analytics: 'nav.analytics',
     Approvals: 'nav.approvals',
     Employees: 'nav.employees',
     Reports: 'nav.reports',
@@ -488,7 +493,8 @@ function iconForRoute(routeName: string): keyof typeof Ionicons.glyphMap {
     Home: 'home-outline',
     Request: 'add-circle-outline',
     Pass: 'ticket-outline',
-    Dashboard: 'analytics-outline',
+    Dashboard: 'home-outline',
+    Analytics: 'analytics-outline',
     Approvals: 'checkmark-done-outline',
     Employees: 'id-card-outline',
     Reports: 'document-text-outline',

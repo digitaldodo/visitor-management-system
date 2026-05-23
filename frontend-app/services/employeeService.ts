@@ -81,6 +81,19 @@ export async function getEmployeePreApprovals() {
   });
 }
 
+export async function getEmployeeVisitorHistory(query = '', status?: string, page = 0, size = 30) {
+  return request<PageResponse<VisitorRecord>>({
+    url: '/employee/history',
+    method: 'GET',
+    params: {
+      query: query || undefined,
+      status,
+      page,
+      size,
+    },
+  });
+}
+
 export async function createEmployeePreApproval(payload: PreApprovalCreatePayload) {
   const response = await request<VisitorRecord>({
     url: '/employee/pre-approvals',

@@ -11,6 +11,7 @@ import {
   getEmployeeNotifications,
   getEmployeeOverview,
   getEmployeePreApprovals,
+  getEmployeeVisitorHistory,
   getEmployeeVisitorInvites,
   getEmployeeProfile,
   markAllEmployeeNotificationsRead,
@@ -56,6 +57,14 @@ export function useEmployeePreApprovals() {
   return useQuery({
     queryKey: ['employee', 'pre-approvals'],
     queryFn: getEmployeePreApprovals,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useEmployeeVisitorHistory(query = '', status?: string, page = 0, size = 30) {
+  return useQuery({
+    queryKey: ['employee', 'history', query, status ?? 'ALL', page, size],
+    queryFn: () => getEmployeeVisitorHistory(query, status, page, size),
     placeholderData: (previous) => previous,
   });
 }

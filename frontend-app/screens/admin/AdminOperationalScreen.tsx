@@ -96,7 +96,7 @@ type AdminAction =
   | { type: 'disable-user'; user: WorkforceOnboardingRecord };
 
 type SectionProps = {
-  section: 'dashboard' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'reports' | 'organization' | 'settings' | 'more';
+  section: 'dashboard' | 'analytics' | 'approvals' | 'visitors' | 'workforce' | 'alerts' | 'register' | 'employees' | 'reports' | 'organization' | 'settings' | 'more';
 };
 
 const REGISTER_STATUSES: { label: string; value: 'ALL' | VisitorStatus }[] = [
@@ -129,6 +129,10 @@ const ADMIN_WORKFORCE_ROLES = [
 
 export function AdminDashboardScreen() {
   return <AdminOperationalScreen section="dashboard" />;
+}
+
+export function AdminAnalyticsScreen() {
+  return <AdminOperationalScreen section="analytics" />;
 }
 
 export function AdminApprovalsScreen() {
@@ -749,7 +753,8 @@ function AdminOperationalScreen({ section }: SectionProps) {
   };
 
   const screenCopy = {
-    dashboard: ['Admin Dashboard', 'Approvals, visitors, alerts, workforce, and access operations.'],
+    dashboard: ['Admin Home', 'Operational summary and focused workspaces for organization administration.'],
+    analytics: ['Analytics', 'Focused operational intelligence, trends, reports, and export-ready snapshots.'],
     approvals: ['Approval Queue', 'Photo-backed workforce and visitor approvals with auditable decisions.'],
     visitors: ['Visitor Control', 'Inspect pending, active, denied, recurring, and high-priority visitor access.'],
     workforce: ['Workforce Control', 'Approve onboarding, verify workforce member details, and monitor employee presence.'],
@@ -781,20 +786,18 @@ function AdminOperationalScreen({ section }: SectionProps) {
               <MetricCard label="Active visitors" value={activeVisitorCount} tone={activeVisitorCount ? 'success' : 'default'} />
               <MetricCard label="Critical alerts" value={criticalAlertCount} tone={criticalAlertCount ? 'danger' : 'default'} />
             </View>
-            <EnterpriseAnalytics data={analytics.data} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
-            <SurfaceCard title="Quick actions" subtitle="Fast mobile entry points for common admin decisions.">
-              <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-                <PrimaryButton label="Approve workforce" onPress={() => navigation.navigate('Approvals')} />
-                <PrimaryButton label="Scan QR" onPress={() => setActionMessage('QR scanning remains assigned to Security Mobile. Admin can review scan outcomes here.')} tone="secondary" />
-                <PrimaryButton label="Create visitor pass" onPress={() => navigation.navigate('Visitors')} tone="secondary" />
-                <PrimaryButton label="Emergency lockdown" onPress={() => setActionMessage('Lockdown command is staged as a protected control pending backend policy enablement.')} tone="danger" />
-                <PrimaryButton label="Active visitors" onPress={() => navigation.navigate('Visitors')} tone="secondary" />
-                <PrimaryButton label="Search employee" onPress={() => navigation.navigate('Employees')} tone="secondary" />
-                <PrimaryButton label="Open register" onPress={() => navigation.navigate('Register')} tone="secondary" />
+            <SurfaceCard title="Action hub" subtitle="Choose one workspace and keep the current screen lightweight.">
+              <View style={styles.workspaceGrid}>
+                <AdminWorkspaceButton title="Workforce" subtitle="People, roles, presence" meta={`${pendingWorkforceCount} approvals`} onPress={() => navigation.navigate('Workforce')} />
+                <AdminWorkspaceButton title="Visitors" subtitle="Active, pending, denied" meta={`${activeVisitorCount} inside`} onPress={() => navigation.navigate('Visitors')} />
+                <AdminWorkspaceButton title="Approvals" subtitle="Host and workforce queues" meta={`${pendingVisitorCount + pendingWorkforceCount} pending`} tone={pendingVisitorCount + pendingWorkforceCount ? 'warning' : 'default'} onPress={() => navigation.navigate('Approvals')} />
+                <AdminWorkspaceButton title="Analytics" subtitle="Trends and exports" meta={`${exportSnapshotsForAnalytics(analytics.data).length} reports`} onPress={() => navigation.navigate('Analytics')} />
+                <AdminWorkspaceButton title="Incidents" subtitle="Alerts and exceptions" meta={`${criticalAlertCount} critical`} tone={criticalAlertCount ? 'danger' : 'default'} onPress={() => navigation.navigate('Alerts')} />
+                <AdminWorkspaceButton title="Reports" subtitle="Audit snapshots" meta={`${reports.data?.length ?? 0} events`} onPress={() => navigation.navigate('Reports')} />
               </View>
             </SurfaceCard>
             <SplitPane>
-              <SurfaceCard title="Workforce needing approval">
+              <SurfaceCard title="Priority approvals" subtitle="Only the first few items appear here; open Approvals for the full queue.">
                 <WorkforceList
                   workers={(workforceOnboarding.data ?? []).slice(0, 4)}
                   onApprove={approveWorkforce}
@@ -803,7 +806,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
                   loading={approveWorkforceMutation.isPending}
                 />
               </SurfaceCard>
-              <SurfaceCard title="Visitor exceptions">
+              <SurfaceCard title="Important alerts" subtitle="Denied, suspended, and critical records that need fast review.">
                 <VisitorList
                   visitors={[...(deniedVisitors.data?.items ?? []), ...(suspendedVisitors.data?.items ?? [])].slice(0, 4)}
                   onApprove={approveVisitor}
@@ -820,6 +823,10 @@ function AdminOperationalScreen({ section }: SectionProps) {
               </SurfaceCard>
             </SplitPane>
           </>
+        ) : null}
+
+        {section === 'analytics' ? (
+          <EnterpriseAnalytics data={analytics.data} onExport={(snapshot) => exportOperationalSnapshot(snapshot, analytics.data)} />
         ) : null}
 
         {section === 'approvals' ? (
@@ -949,17 +956,34 @@ function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'more' ? (
           <>
-            <SurfaceCard title="Priority shortcuts" subtitle="Keep the tab bar focused while preserving full admin reach from one place.">
-              <View style={styles.shortcutGrid}>
-                <AdminShortcut title="Visitor control" subtitle="Pending, active, denied, and recurring access" tone="info" onPress={() => navigation.navigate('Visitors')} />
-                <AdminShortcut title="Register" subtitle="History, audit lookup, and paged operational records" tone="default" onPress={() => navigation.navigate('Register')} />
-                <AdminShortcut title="Employee access" subtitle="Badge state, presence, suspend, and reactivate" tone="default" onPress={() => navigation.navigate('Employees')} />
-                <AdminShortcut title="Organization activity" subtitle="Scoped visitor, workforce, approval, and incident updates" tone="info" onPress={() => navigation.navigate('Live')} />
-                <AdminShortcut title="Emergency ops" subtitle="Incidents, evacuation, and lockdown controls" tone="danger" onPress={() => navigation.navigate('Emergency')} />
-                <AdminShortcut title="Reports" subtitle="Audit oversight, CSV/PDF snapshots, and share actions" tone="default" onPress={() => navigation.navigate('Reports')} />
-                <AdminShortcut title="Organization settings" subtitle="Tenant identity, departments, timezone, and scope" tone="default" onPress={() => navigation.navigate('Organization')} />
-                <AdminShortcut title="Profile" subtitle="Account and access security" tone="default" onPress={() => navigation.navigate('Profile')} />
-              </View>
+            <SurfaceCard title="Admin menu" subtitle="Grouped compact access to secondary tools.">
+              <AdminMenuGroup
+                title="ACCOUNT"
+                items={[
+                  ['Profile', 'Account, session, and access security', () => navigation.navigate('Profile')],
+                  ['Notifications', `${notifications.data?.unreadCount ?? 0} unread operational notifications`, () => navigation.navigate('Alerts')],
+                  ['Language', 'Use device and workspace language preferences', () => setActionMessage('Language preferences remain managed from Profile and device settings.')],
+                ]}
+              />
+              <AdminMenuGroup
+                title="OPERATIONS"
+                items={[
+                  ['Register', 'Search visitor and workforce audit history', () => navigation.navigate('Register')],
+                  ['Employee access', 'Directory, roles, sessions, and invites', () => navigation.navigate('Employees')],
+                  ['Analytics', 'Operational intelligence and trends', () => navigation.navigate('Analytics')],
+                  ['Reports', 'CSV/PDF snapshots and audit exports', () => navigation.navigate('Reports')],
+                  ['Activity feed', 'Organization-scoped live operational updates', () => navigation.navigate('Live')],
+                ]}
+              />
+              <AdminMenuGroup
+                title="SYSTEM"
+                items={[
+                  ['Incidents', 'Alerts, exceptions, and emergency operations', () => navigation.navigate('Alerts')],
+                  ['Emergency ops', 'Evacuation, lockdown, and response controls', () => navigation.navigate('Emergency')],
+                  ['Organization', 'Tenant identity and department settings', () => navigation.navigate('Organization')],
+                  ['Help', 'Mobile admin support and policy guidance', () => setActionMessage('Help and support guidance will open from the configured enterprise help destination.')],
+                ]}
+              />
             </SurfaceCard>
             <SurfaceCard title="Admin workspace focus" subtitle="Mobile admin prioritizes approvals, workforce, alerts, and quick intervention over desktop parity.">
               <View style={styles.metricsGrid}>
@@ -1143,7 +1167,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
           </SurfaceCard>
         ) : null}
 
-        {reports.data?.length && section === 'dashboard' ? (
+        {reports.data?.length && section === 'analytics' ? (
           <SurfaceCard title="Audit oversight">
             {reports.data.slice(0, 4).map((report, index) => (
               <RecordCard key={`${report.title}-${index}`} title={report.title} subtitle={report.status} status="Oversight" tone="default" />
@@ -1200,28 +1224,58 @@ function SplitPane({ children }: { children: ReactNode }) {
   );
 }
 
-function AdminShortcut({
+function AdminWorkspaceButton({
   title,
   subtitle,
+  meta,
   tone,
   onPress,
 }: {
   title: string;
   subtitle: string;
-  tone: 'default' | 'info' | 'danger';
+  meta: string;
+  tone?: 'default' | 'warning' | 'danger';
   onPress: () => void;
 }) {
   const toneStyle = tone === 'danger'
-    ? styles.shortcutDanger
-    : tone === 'info'
-      ? styles.shortcutInfo
+    ? styles.workspaceButtonDanger
+    : tone === 'warning'
+      ? styles.workspaceButtonWarning
       : null;
 
   return (
-    <Pressable accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.shortcut, toneStyle, pressed ? styles.shortcutPressed : null]}>
-      <Text numberOfLines={1} maxFontSizeMultiplier={1.1} style={styles.shortcutTitle}>{title}</Text>
-      <Text numberOfLines={2} maxFontSizeMultiplier={1.06} style={styles.shortcutSubtitle}>{subtitle}</Text>
+    <Pressable accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.workspaceButton, toneStyle, pressed ? styles.shortcutPressed : null]}>
+      <View style={styles.workspaceButtonHeader}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={1.08} style={styles.shortcutTitle}>{title}</Text>
+        <Text numberOfLines={1} maxFontSizeMultiplier={1.02} style={styles.workspaceMeta}>{meta}</Text>
+      </View>
+      <Text numberOfLines={1} maxFontSizeMultiplier={1.04} style={styles.shortcutSubtitle}>{subtitle}</Text>
     </Pressable>
+  );
+}
+
+function AdminMenuGroup({
+  title,
+  items,
+}: {
+  title: string;
+  items: [string, string, () => void][];
+}) {
+  return (
+    <View style={styles.menuGroup}>
+      <Text style={styles.sectionLabel}>{title}</Text>
+      <View style={styles.menuList}>
+        {items.map(([label, detail, onPress]) => (
+          <Pressable key={label} accessibilityRole="button" hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.menuRow, pressed ? styles.shortcutPressed : null]}>
+            <View style={styles.menuCopy}>
+              <Text numberOfLines={1} style={styles.menuTitle}>{label}</Text>
+              <Text numberOfLines={1} style={styles.menuDetail}>{detail}</Text>
+            </View>
+            <Text style={styles.menuChevron}>{'>'}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -1718,53 +1772,70 @@ function VisitorList({
   onCheckOut: (visitor: VisitorRecord) => void | Promise<void>;
 }) {
   const layout = useResponsiveLayout();
+  const [expandedVisitorId, setExpandedVisitorId] = useState<string | null>(null);
   if (!visitors.length) {
     return <EmptyState title="No visitor records" body="Live visitor requests, active passes, denied entries, and recurring access will appear here." />;
   }
   return (
     <View style={styles.listStack}>
-      {visitors.map((visitor) => (
-        <View key={visitor.id} style={[styles.operationalCard, layout.isPhone ? styles.operationalCardCompact : null]}>
-          <IdentityPhoto uri={visitor.photoUrl} fallback="No photo" compact={layout.isPhone} />
-          <View style={styles.cardBody}>
-            <RecordCard
-              title={visitor.fullName}
-              subtitle={[visitorTypeLabel(visitor.visitorType), visitor.companyName || visitor.organizationName, visitor.hostEmployee ? `Host: ${visitor.hostEmployee}` : null].filter(Boolean).join(' - ')}
-              meta={[
-                visitor.badgeId ? `Badge ${visitor.badgeId}` : 'Badge pending',
-                visitor.scheduledStartTime || visitor.accessWindowStartTime ? formatVisitorWindow(visitor) : null,
-                visitor.createdAt ? `Submitted ${formatDateTime(visitor.createdAt)}` : null,
-              ].filter(Boolean).join(' - ')}
-              status={visitorStatusLabel(visitor.status)}
-              tone={statusTone(visitor.status)}
-            />
-            <FieldGrid
-              items={[
-                ['Photo', visitor.photoUrl ? 'Verified asset' : 'Missing'],
-                ['Host', visitor.hostEmployee || 'Unassigned'],
-                ['History', `${visitor.statusHistory?.length ?? 0} events`],
-                ['Purpose', visitor.purposeOfVisit || 'Not recorded'],
-              ]}
-            />
-            <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
-              {visitor.status === 'PENDING' ? <PrimaryButton label="Approve" onPress={() => void onApprove(visitor)} /> : null}
-              {visitor.status === 'PENDING' ? <PrimaryButton label="Deny request" onPress={() => onReject(visitor)} tone="danger" /> : null}
-              {visitor.status === 'APPROVED' ? <PrimaryButton label="Check in" onPress={() => void onCheckIn(visitor)} /> : null}
-              {visitor.status === 'CHECKED_IN' ? <PrimaryButton label="Check out" onPress={() => void onCheckOut(visitor)} /> : null}
-              {visitor.status === 'SUSPENDED' ? <PrimaryButton label="Reactivate" onPress={() => void onReactivate(visitor)} tone="secondary" /> : null}
-              {visitor.status !== 'REJECTED' ? <PrimaryButton label="Deny" onPress={() => onDeny(visitor)} tone="danger" /> : null}
-              {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'SUSPENDED' ? (
-                <PrimaryButton label="Suspend" onPress={() => onSuspend(visitor)} tone="secondary" />
-              ) : null}
-              {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'REJECTED' ? (
-                <PrimaryButton label="Revoke access" onPress={() => onRevoke(visitor)} tone="danger" />
-              ) : null}
-              <PrimaryButton label="Mismatch" onPress={() => onMismatch(visitor)} tone="secondary" />
-              <PrimaryButton label="Escalate" onPress={() => onEscalate(visitor)} tone="secondary" />
-            </View>
+      {visitors.map((visitor) => {
+        const expanded = expandedVisitorId === visitor.id;
+        const timelineCount = visitor.statusHistory?.length ?? 0;
+        return (
+          <View key={visitor.id} style={styles.compactRecord}>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={6}
+              onPress={() => setExpandedVisitorId((current) => current === visitor.id ? null : visitor.id)}
+              style={({ pressed }) => [styles.compactRecordHeader, pressed ? styles.shortcutPressed : null]}
+            >
+              <IdentityPhoto uri={visitor.photoUrl} fallback="No photo" compact />
+              <View style={styles.compactRecordBody}>
+                <View style={styles.compactRecordTop}>
+                  <Text numberOfLines={1} style={styles.compactRecordTitle}>{visitor.fullName}</Text>
+                  <StatusPill label={visitorStatusLabel(visitor.status)} tone={statusTone(visitor.status)} />
+                </View>
+                <Text numberOfLines={1} style={styles.compactRecordMeta}>
+                  {[visitor.companyName || visitor.organizationName, visitor.purposeOfVisit || visitorTypeLabel(visitor.visitorType), visitor.hostEmployee ? `Host ${visitor.hostEmployee}` : null].filter(Boolean).join(' - ')}
+                </Text>
+                <Text numberOfLines={1} style={styles.compactRecordMeta}>
+                  {[visitor.badgeId ? `Badge ${visitor.badgeId}` : 'Badge pending', visitor.scheduledStartTime || visitor.accessWindowStartTime ? formatVisitorWindow(visitor) : null, `${timelineCount} events`].filter(Boolean).join(' - ')}
+                </Text>
+              </View>
+            </Pressable>
+            {expanded ? (
+              <View style={styles.compactRecordDetail}>
+                <FieldGrid
+                  items={[
+                    ['Photo', visitor.photoUrl ? 'Verified asset' : 'Missing'],
+                    ['Host', visitor.hostEmployee || 'Unassigned'],
+                    ['Organization', visitor.companyName || visitor.organizationName || 'Not recorded'],
+                    ['Purpose', visitor.purposeOfVisit || 'Not recorded'],
+                    ['Timeline', timelineSummary(visitor)],
+                    ['Badge', visitor.badgePrintedAt ? `Printed ${formatDateTime(visitor.badgePrintedAt)}` : visitor.badgeId || 'Pending'],
+                  ]}
+                />
+                <View style={[styles.actionGrid, layout.isTablet ? styles.actionGridWide : null]}>
+                  {visitor.status === 'PENDING' ? <PrimaryButton label="Approve" onPress={() => void onApprove(visitor)} /> : null}
+                  {visitor.status === 'PENDING' ? <PrimaryButton label="Deny request" onPress={() => onReject(visitor)} tone="danger" /> : null}
+                  {visitor.status === 'APPROVED' ? <PrimaryButton label="Check in" onPress={() => void onCheckIn(visitor)} /> : null}
+                  {visitor.status === 'CHECKED_IN' ? <PrimaryButton label="Check out" onPress={() => void onCheckOut(visitor)} /> : null}
+                  {visitor.status === 'SUSPENDED' ? <PrimaryButton label="Reactivate" onPress={() => void onReactivate(visitor)} tone="secondary" /> : null}
+                  {visitor.status !== 'REJECTED' ? <PrimaryButton label="Deny" onPress={() => onDeny(visitor)} tone="danger" /> : null}
+                  {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'SUSPENDED' ? (
+                    <PrimaryButton label="Suspend" onPress={() => onSuspend(visitor)} tone="secondary" />
+                  ) : null}
+                  {['RECURRING', 'CONTRACTOR_VENDOR'].includes(String(visitor.visitorType || '')) && visitor.status !== 'REJECTED' ? (
+                    <PrimaryButton label="Revoke access" onPress={() => onRevoke(visitor)} tone="danger" />
+                  ) : null}
+                  <PrimaryButton label="Mismatch" onPress={() => onMismatch(visitor)} tone="secondary" />
+                  <PrimaryButton label="Escalate" onPress={() => onEscalate(visitor)} tone="secondary" />
+                </View>
+              </View>
+            ) : null}
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -1971,6 +2042,23 @@ function FieldGrid({ items }: { items: [string, string][] }) {
       ))}
     </View>
   );
+}
+
+function timelineSummary(visitor: VisitorRecord) {
+  if (visitor.checkInTime || visitor.checkOutTime) {
+    return [
+      visitor.checkInTime ? `In ${formatDateTime(visitor.checkInTime)}` : null,
+      visitor.checkOutTime ? `Out ${formatDateTime(visitor.checkOutTime)}` : null,
+    ].filter(Boolean).join(' - ');
+  }
+  const latest = [...(visitor.statusHistory ?? [])].reverse().find((entry) => entry.timestamp || entry.action || entry.status);
+  if (latest) {
+    return [
+      latest.action || visitorStatusLabel(latest.status),
+      latest.timestamp ? formatDateTime(latest.timestamp) : null,
+    ].filter(Boolean).join(' - ');
+  }
+  return visitor.createdAt ? `Created ${formatDateTime(visitor.createdAt)}` : 'No timeline yet';
 }
 
 function matchesAttendance(entry: EmployeeAttendanceRecord, query: string) {
@@ -2289,6 +2377,48 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     padding: theme.spacing.sm,
   },
+  compactRecord: {
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    overflow: 'hidden',
+  },
+  compactRecordHeader: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+  },
+  compactRecordBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  compactRecordTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  compactRecordTitle: {
+    flex: 1,
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  compactRecordMeta: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+    lineHeight: 17,
+  },
+  compactRecordDetail: {
+    gap: theme.spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+    padding: theme.spacing.sm,
+  },
   cardBody: {
     flex: 1,
     gap: theme.spacing.md,
@@ -2408,30 +2538,43 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     padding: theme.spacing.sm,
   },
-  shortcutGrid: {
+  workspaceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
-  shortcut: {
+  workspaceButton: {
     flexGrow: 1,
-    flexBasis: 150,
-    minHeight: 88,
+    flexBasis: 158,
+    minHeight: 76,
     justifyContent: 'center',
     gap: theme.spacing.xs,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceRaised,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
-  shortcutInfo: {
+  workspaceButtonWarning: {
     borderColor: theme.colors.primaryLine,
-    backgroundColor: theme.colors.infoSoft,
+    backgroundColor: theme.colors.warningSoft,
   },
-  shortcutDanger: {
+  workspaceButtonDanger: {
     borderColor: 'rgba(248, 113, 113, 0.34)',
     backgroundColor: theme.colors.dangerSoft,
+  },
+  workspaceButtonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  workspaceMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   shortcutPressed: {
     opacity: 0.82,
@@ -2444,7 +2587,46 @@ const styles = StyleSheet.create({
   shortcutSubtitle: {
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption.fontSize,
-    lineHeight: 18,
+    lineHeight: 17,
+  },
+  menuGroup: {
+    gap: theme.spacing.xs,
+  },
+  menuList: {
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceRaised,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  menuCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  menuTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.bodyStrong.fontSize,
+    fontWeight: theme.typography.bodyStrong.fontWeight,
+  },
+  menuDetail: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption.fontSize,
+  },
+  menuChevron: {
+    color: theme.colors.textMuted,
+    fontSize: 18,
+    fontWeight: '800',
   },
   paginationRow: {
     flexDirection: 'row',
