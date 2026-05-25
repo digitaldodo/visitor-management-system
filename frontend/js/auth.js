@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initLoginVerificationAssist();
     initRegisterForm();
     initForgotPassword();
-    setAuthTab("visitor", { scroll: false });
+    setAuthTab(resolveInitialAuthTab(), { scroll: false });
   }, {
     failureMessage: "AccessFlow had trouble restoring the sign-in screen. Refreshing...",
   });
@@ -242,7 +242,7 @@ function initForgotPassword() {
     if (identifier && isUsernameOrEmail(identifier)) {
       sessionStorage.setItem("passwordResetIdentifier", identifier);
     }
-    window.location.href = "./pages/forgot-password/index.html";
+    window.location.href = "/forgot-password";
   });
 }
 
@@ -388,12 +388,26 @@ function updateLoginVerificationLink(identifier) {
 }
 
 function buildVerificationPageUrl(identifier) {
-  const url = new URL("./pages/verify-email/index.html", window.location.href);
+  const url = new URL("/verify-email", window.location.origin);
   const value = String(identifier || "").trim();
   if (value) {
     url.searchParams.set("identifier", value);
   }
   return url.toString();
+}
+
+function resolveInitialAuthTab() {
+  const path = window.location.pathname.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  const requestedTab = (params.get("tab") || params.get("mode") || "").toLowerCase();
+
+  if (requestedTab === "register" || path.endsWith("/register") || path.endsWith("/signup")) {
+    return "register";
+  }
+  if (["admin", "employee", "security", "super-admin", "visitor"].includes(requestedTab)) {
+    return requestedTab;
+  }
+  return "visitor";
 }
 
 function secondsFromNow(seconds) {

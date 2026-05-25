@@ -184,7 +184,7 @@ async function rewriteFiles(targetDir, assetToken) {
     let nextContent = content;
 
     if (extension === ".html") {
-      nextContent = rewriteHtmlAssets(nextContent, assetToken);
+      nextContent = rewriteHtmlAssets(nextContent, assetToken, fullPath, targetDir);
     }
     if (extension === ".js") {
       nextContent = rewriteJavaScriptImports(nextContent, assetToken);
@@ -199,18 +199,18 @@ async function rewriteFiles(targetDir, assetToken) {
   }
 }
 
-function rewriteHtmlAssets(content, assetToken) {
-  return content.replace(/(?<prefix>\b(?:src|href)=["'])(?<value>[^"']+\.(?:js|css))(?<suffix>(?:\?[^"']*)?["'])/gi, (match, prefix, value, suffix) => {
-    if (!isLocalAsset(value)) {
-      return match;
-    }
-    return `${prefix}${withVersion(value, assetToken)}${suffix.endsWith('"') || suffix.endsWith("'") ? suffix.slice(-1) : suffix}`;
-  }).replace(/(?<prefix>\b(?:src|href)=["'])(?<value>[^"']+\.(?:js|css)\?[^"']*)(?<suffix>["'])/gi, (match, prefix, value, suffix) => {
+function rewriteHtmlAssets(content, assetToken, htmlFilePath, targetDir) {
+  return content.replace(/(?<prefix>\b(?:src|href)=["'])(?<value>[^"']+)(?<suffix>["'])/gi, (match, prefix, value, suffix) => {
     const cleaned = stripQueryAndHash(value);
-    if (!isLocalAsset(cleaned)) {
+    if (!isLocalAsset(cleaned) || !isHtmlAsset(cleaned)) {
       return match;
     }
-    return `${prefix}${withVersion(cleaned, assetToken)}${suffix}`;
+
+    const rootPath = toRootAbsoluteAssetPath(cleaned, htmlFilePath, targetDir);
+    const nextValue = isVersionedHtmlAsset(rootPath)
+      ? withVersion(rootPath, assetToken, hashFragment(value))
+      : `${rootPath}${hashFragment(value)}`;
+    return `${prefix}${nextValue}${suffix}`;
   });
 }
 
@@ -248,10 +248,8 @@ function rewriteCssImports(content, assetToken) {
     });
 }
 
-function withVersion(value, assetToken) {
+function withVersion(value, assetToken, hash = "") {
   const cleaned = stripQueryAndHash(value);
-  const hashIndex = value.indexOf("#");
-  const hash = hashIndex === -1 ? "" : value.slice(hashIndex);
   return `${cleaned}?v=${assetToken}${hash}`;
 }
 
@@ -264,8 +262,31 @@ function isLocalAsset(value) {
   return !/^(?:[a-z]+:)?\/\//i.test(normalized) && !normalized.startsWith("data:");
 }
 
+function isHtmlAsset(value) {
+  return /\.(?:css|js|png|jpe?g|webp|svg|ico|json)$/i.test(stripQueryAndHash(value));
+}
+
+function isVersionedHtmlAsset(value) {
+  return /\.(?:css|js)$/i.test(stripQueryAndHash(value));
+}
+
 function isRelativeModule(value) {
   return /^\.{1,2}\//.test(stripQueryAndHash(value)) && /\.js$/i.test(stripQueryAndHash(value));
+}
+
+function toRootAbsoluteAssetPath(value, htmlFilePath, targetDir) {
+  if (value.startsWith("/")) {
+    return value.replace(/\\/g, "/");
+  }
+
+  const relativeHtmlDir = path.relative(targetDir, path.dirname(htmlFilePath)).split(path.sep).join("/");
+  const basePath = relativeHtmlDir ? `/${relativeHtmlDir}/` : "/";
+  return new URL(value, `https://accessflow.local${basePath}`).pathname;
+}
+
+function hashFragment(value) {
+  const hashIndex = String(value).indexOf("#");
+  return hashIndex === -1 ? "" : String(value).slice(hashIndex);
 }
 
 function pad(value) {
