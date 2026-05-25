@@ -30,7 +30,7 @@ public class VisitorOperationalReminderService {
             .ofLocalizedTime(FormatStyle.SHORT)
             .withLocale(Locale.ENGLISH);
     private static final String EMPLOYEE_VISITOR_ACTION_URL = "/employee/requests";
-    private static final String SECURITY_VISITOR_ACTION_URL = "/pages/security/#visitors";
+    private static final String SECURITY_VISITOR_ACTION_URL = "/security/visitors";
 
     private final MongoTemplate mongoTemplate;
     private final NotificationService notificationService;

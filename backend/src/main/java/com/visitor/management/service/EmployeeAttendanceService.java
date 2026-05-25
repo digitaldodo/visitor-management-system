@@ -784,7 +784,7 @@ public class EmployeeAttendanceService {
                 "Invalid workforce credential",
                 detail == null || detail.isBlank() ? "A workforce QR credential could not be validated." : detail,
                 null,
-                "/pages/security/#alerts",
+                "/security/incidents",
                 guard.getFullName()
         );
     }

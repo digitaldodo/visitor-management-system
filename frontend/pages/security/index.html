@@ -12,7 +12,7 @@
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="portal-shell security-shell" data-sidebar-state="expanded">
       <aside class="sidebar" aria-label="Security navigation">
-        <a class="brand logo-link" href="#emergency" aria-label="Security portal home">
+        <a class="brand logo-link" href="/security/dashboard" aria-label="Security portal home">
           <img class="brand-logo brand-logo--full brand-logo--light" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
           <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
         </a>
@@ -22,53 +22,53 @@
         <p class="sidebar__tagline">Smart. Secure. Seamless Visitor Management.</p>
 
         <nav class="nav-list" id="sidebar-nav">
-          <a class="nav-link is-active" href="#emergency" data-route="emergency">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 2 21h20Zm1 14h-2v2h2Zm0-7h-2v5h2Z"/></svg></span>
-            Emergency Ops
+          <a class="nav-link is-active" href="/security/dashboard" data-route="dashboard">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3Z"/></svg></span>
+            Dashboard
           </a>
-          <a class="nav-link" href="#visitor-registration" data-route="visitor-registration">
+          <a class="nav-link" href="/security/verification" data-route="verification">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
+            Visitor Verification
+          </a>
+          <a class="nav-link" href="/security/scanner" data-route="scanner">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4Zm2 2v3h3V6Zm7-2h7v7h-7Zm2 2v3h3V6ZM4 13h7v7H4Zm2 2v3h3v-3Zm8-2h2v2h-2Zm4 0h2v4h-2Zm-4 4h4v3h-2v-1h-2Z"/></svg></span>
+            QR Scanner
+          </a>
+          <a class="nav-link" href="/security/visitors" data-route="visitors">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 1 0 4 4 4 4 0 0 0-4-4ZM5 21a7 7 0 0 1 14 0Zm14-10h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
-            Register visitor
+            Active Visitors
           </a>
-          <a class="nav-link" href="#queue" data-route="queue">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v2H4Zm0 4h16v2H4Zm0 4h10v2H4Z"/></svg></span>
-            Live register
-          </a>
-          <a class="nav-link" href="#monitoring" data-route="monitoring">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17h4V7H4Zm6 0h4V3h-4Zm6 0h4V11h-4Z"/></svg></span>
-            Monitoring
-          </a>
-          <a class="nav-link" href="#check-in" data-route="check-in">
+          <a class="nav-link" href="/security/checkins" data-route="checkins">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z"/></svg></span>
             Check-in / Check-out
           </a>
-          <a class="nav-link" href="#photo" data-route="photo">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h4l2-2h4l2 2h4v14H4Zm8 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"/></svg></span>
-            Photo capture
+          <a class="nav-link" href="/security/approvals" data-route="approvals">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h2v2h6V2h2v2h3v18H4V4h3Zm11 8H6v10h12Z"/></svg></span>
+            Pending Approvals
           </a>
-          <a class="nav-link" href="#qr" data-route="qr">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4Zm2 2v3h3V6Zm7-2h7v7h-7Zm2 2v3h3V6ZM4 13h7v7H4Zm2 2v3h3v-3Zm8-2h2v2h-2Zm4 0h2v4h-2Zm-4 4h4v3h-2v-1h-2Z"/></svg></span>
-            QR Verification
+          <a class="nav-link" href="/security/incidents" data-route="incidents">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2 2 21h20Zm1 14h-2v2h2Zm0-7h-2v5h2Z"/></svg></span>
+            Incident Reports
           </a>
-          <a class="nav-link" href="#badges" data-route="badges">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2h10v4h3v16H4V6h3Zm2 4h6V4H9Zm3 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
-            Badge and QR
+          <a class="nav-link" href="/security/emergency" data-route="emergency">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 3 4 14h7l-1 7 9-11h-7Z"/></svg></span>
+            Emergency Actions
           </a>
-          <a class="nav-link" href="#employee-check-in" data-route="employee-check-in">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v4h3v14H4V7h3Zm2 4h6V5H9Zm3 7a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-5 5h10a5 5 0 0 0-10 0Z"/></svg></span>
-            Workforce Check-In
+          <a class="nav-link" href="/security/notifications" data-route="notifications">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22a2.4 2.4 0 0 0 2.3-1.8H9.7A2.4 2.4 0 0 0 12 22Zm7-5-2-2v-4a5 5 0 0 0-10 0v4l-2 2v1h14Z"/></svg></span>
+            Notifications
           </a>
-          <a class="nav-link" href="#workforce-onboarding" data-route="workforce-onboarding">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Zm14-8h2v3h3v2h-3v3h-2v-3h-3v-2h3Z"/></svg></span>
-            Workforce Onboarding
-          </a>
-          <a class="nav-link" href="#employee-attendance" data-route="employee-attendance">
-            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4Zm0 4h16v10H4Zm3 3v4h3v-4Zm5 0v4h5v-4Z"/></svg></span>
-            Workforce Presence
-          </a>
-          <a class="nav-link" href="#workforce-logs" data-route="workforce-logs">
+          <a class="nav-link" href="/security/logs" data-route="logs">
             <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18H5Zm4 5h6v2H9Zm0 4h6v2H9Zm0 4h3v2H9Z"/></svg></span>
-            Workforce Logs
+            Security Logs
+          </a>
+          <a class="nav-link" href="/security/settings" data-route="settings">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.6-2-3.5-2.5 1a7 7 0 0 0-2.6-1.5L14 2h-4l-.4 2.9A7 7 0 0 0 7 6.4l-2.5-1-2 3.5 2 1.6L4.4 12l.1 1.5-2 1.6 2 3.5 2.5-1a7 7 0 0 0 2.6 1.5L10 22h4l.4-2.9a7 7 0 0 0 2.6-1.5l2.5 1 2-3.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg></span>
+            Settings
+          </a>
+          <a class="nav-link" href="/security/profile" data-route="profile">
+            <span class="nav-link__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm-9 9a9 9 0 0 1 18 0Z"/></svg></span>
+            Profile
           </a>
         </nav>
 
@@ -86,7 +86,7 @@
           <button class="icon-button topbar__menu" id="sidebar-toggle" type="button" aria-label="Open navigation">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4Zm0 5h16v2H4Zm0 5h16v2H4Z"/></svg>
           </button>
-          <a class="topbar__brand logo-link" href="#emergency" aria-label="Security dashboard home">
+          <a class="topbar__brand logo-link" href="/security/dashboard" aria-label="Security dashboard home">
             <img class="brand-logo brand-logo--full brand-logo--dark" src="../../assets/branding/logo-light.png" alt="AccessFlow" />
             <img class="brand-logo brand-logo--icon" src="../../assets/branding/logo-icon.png" alt="AccessFlow" />
           </a>
@@ -107,525 +107,7 @@
           </div>
         </header>
 
-        <main class="portal-main" id="main-content" tabindex="-1">
-          <section class="metric-grid" id="metric-grid" aria-label="Security metrics"></section>
-
-          <nav class="security-quick-actions" aria-label="Security quick actions">
-            <a class="security-quick-action" href="#emergency" data-route="emergency">
-              <span aria-hidden="true">!</span>
-              Emergency ops
-            </a>
-            <a class="security-quick-action" href="#visitor-registration" data-route="visitor-registration">
-              <span aria-hidden="true">+</span>
-              Register visitor
-            </a>
-            <a class="security-quick-action" href="#qr" data-route="qr">
-              <span aria-hidden="true">QR</span>
-              Scan QR
-            </a>
-            <a class="security-quick-action" href="#employee-check-in" data-route="employee-check-in">
-              <span aria-hidden="true">IN</span>
-              Workforce check-in
-            </a>
-            <a class="security-quick-action" href="#badges" data-route="badges">
-              <span aria-hidden="true">ID</span>
-              Verify badge
-            </a>
-            <a class="security-quick-action" href="#workforce-onboarding" data-route="workforce-onboarding">
-              <span aria-hidden="true">UP</span>
-              Workforce onboarding
-            </a>
-          </nav>
-
-          <section class="operations-zone operations-zone--emergency" aria-labelledby="emergency-operations-title">
-            <div class="operations-zone__header">
-              <div>
-                <p class="eyebrow">Emergency Operations</p>
-                <h2 id="emergency-operations-title">Incident Response</h2>
-              </div>
-              <span>Panic alerts, suspicious activity, evacuation register, and realtime operational updates</span>
-            </div>
-
-            <section class="panel emergency-panel" id="emergency" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Operational Security</p>
-                  <h2>Emergency Command</h2>
-                </div>
-              </div>
-
-              <div class="emergency-alert-card" id="emergency-alert-card">
-                <div>
-                  <p class="eyebrow">Emergency Alerts</p>
-                  <h3 id="emergency-alert-title">Emergency operations clear</h3>
-                  <p id="emergency-alert-body">No active lockdown, evacuation, or panic alert.</p>
-                </div>
-                <span class="status-badge status-badge--tone-info" id="emergency-lockdown-state">Clear</span>
-              </div>
-
-              <div class="security-emergency-metrics">
-                <article class="security-emergency-metric">
-                  <span>Active incidents</span>
-                  <strong id="emergency-active-count">0</strong>
-                </article>
-                <article class="security-emergency-metric">
-                  <span>Panic alerts</span>
-                  <strong id="emergency-panic-count">0</strong>
-                </article>
-                <article class="security-emergency-metric">
-                  <span>Unaccounted</span>
-                  <strong id="emergency-unaccounted-count">0</strong>
-                </article>
-              </div>
-
-              <div class="security-emergency-grid">
-                <article class="security-monitor-card">
-                  <div class="security-monitor-card__header">
-                    <div>
-                      <p class="eyebrow">Panic Workflow</p>
-                      <h3>Dispatch Critical Alert</h3>
-                    </div>
-                  </div>
-                  <form class="emergency-form" id="panic-form">
-                    <label class="form-field">
-                      <span>Checkpoint</span>
-                      <input name="checkpoint" type="text" maxlength="120" placeholder="Main gate, lobby, dock" value="Main Gate" />
-                    </label>
-                    <label class="form-field">
-                      <span>Situation note</span>
-                      <textarea name="note" maxlength="500" placeholder="Short note for responding operators" required></textarea>
-                    </label>
-                    <button class="button button--primary button--danger" type="submit">Dispatch panic alert</button>
-                  </form>
-                </article>
-
-                <article class="security-monitor-card">
-                  <div class="security-monitor-card__header">
-                    <div>
-                      <p class="eyebrow">Suspicious Activity</p>
-                      <h3>Visitor Incident</h3>
-                    </div>
-                  </div>
-                  <form class="emergency-form" id="suspicious-visitor-form">
-                    <label class="form-field">
-                      <span>Visitor record ID</span>
-                      <input name="id" type="text" maxlength="80" placeholder="Paste visitor ID" required />
-                    </label>
-                    <label class="form-field">
-                      <span>Checkpoint</span>
-                      <input name="checkpoint" type="text" maxlength="120" placeholder="Gate or desk location" />
-                    </label>
-                    <label class="form-field">
-                      <span>Security note</span>
-                      <textarea name="note" maxlength="500" placeholder="What was observed?" required></textarea>
-                    </label>
-                    <button class="button button--ghost" type="submit">Flag visitor</button>
-                  </form>
-                </article>
-
-                <article class="security-monitor-card">
-                  <div class="security-monitor-card__header">
-                    <div>
-                      <p class="eyebrow">Suspicious Activity</p>
-                      <h3>Workforce Incident</h3>
-                    </div>
-                  </div>
-                  <form class="emergency-form" id="suspicious-workforce-form">
-                    <label class="form-field">
-                      <span>Workforce user ID</span>
-                      <input name="id" type="text" maxlength="80" placeholder="Paste workforce user ID" required />
-                    </label>
-                    <label class="form-field">
-                      <span>Checkpoint</span>
-                      <input name="checkpoint" type="text" maxlength="120" placeholder="Gate or desk location" />
-                    </label>
-                    <label class="form-field">
-                      <span>Security note</span>
-                      <textarea name="note" maxlength="500" placeholder="What was observed?" required></textarea>
-                    </label>
-                    <button class="button button--ghost" type="submit">Flag workforce</button>
-                  </form>
-                </article>
-              </div>
-
-              <div class="security-emergency-grid security-emergency-grid--wide">
-                <article class="security-monitor-card">
-                  <div class="security-monitor-card__header">
-                    <div>
-                      <p class="eyebrow">Evacuation Register</p>
-                      <h3>People Currently Inside</h3>
-                    </div>
-                    <div class="emergency-counts">
-                      <span>Visitors <b id="evacuation-visitor-count">0</b></span>
-                      <span>Workforce <b id="evacuation-workforce-count">0</b></span>
-                      <span>Unaccounted <b id="evacuation-unaccounted-count">0</b></span>
-                    </div>
-                  </div>
-                  <div class="work-list" id="evacuation-register-list"></div>
-                </article>
-
-                <article class="security-monitor-card">
-                  <div class="security-monitor-card__header">
-                    <div>
-                      <p class="eyebrow">Incident Stream</p>
-                      <h3>Emergency Feed</h3>
-                    </div>
-                    <label class="form-field emergency-filter">
-                      <span>Filter</span>
-                      <select id="emergency-incident-filter">
-                        <option value="ALL">All incidents</option>
-                        <option value="PANIC_TRIGGERED">Panic</option>
-                        <option value="SUSPICIOUS_VISITOR">Suspicious visitor</option>
-                        <option value="SUSPICIOUS_WORKFORCE">Suspicious workforce</option>
-                        <option value="CRITICAL">Critical</option>
-                        <option value="ACTIVE">Active</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div class="work-list" id="emergency-feed-list"></div>
-                </article>
-              </div>
-
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Realtime Operations</p>
-                    <h3>Visitor Alerts, Incidents, and Approval Updates</h3>
-                  </div>
-                </div>
-                <div class="work-list" id="operational-feed-list"></div>
-              </article>
-            </section>
-          </section>
-
-          <section class="operations-zone operations-zone--visitor" aria-labelledby="visitor-operations-title">
-            <div class="operations-zone__header">
-              <div>
-                <p class="eyebrow">Visitor Operations</p>
-                <h2 id="visitor-operations-title">Visitor Desk</h2>
-              </div>
-              <span>Registration, arrivals, QR verification, photos, and badge readiness</span>
-            </div>
-
-          <section class="panel" id="visitor-registration" data-security-visitors data-operational-module></section>
-
-          <section class="panel" id="monitoring" data-operational-module>
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Operations Monitor</p>
-                <h2>Active Visitor Lifecycle</h2>
-              </div>
-              <label class="search-field security-monitor-search">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 18.6-4.2-4.2a7 7 0 1 0-1.4 1.4l4.2 4.2ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"/></svg>
-                <input id="monitoring-search" type="search" placeholder="Search visitor, host, company, QR" />
-              </label>
-            </div>
-            <div class="security-monitor-grid">
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">On Site</p>
-                    <h3>Currently Inside</h3>
-                  </div>
-                  <span class="status-badge status-badge--checked-in" id="monitor-count-inside">0</span>
-                </div>
-                <div class="work-list" id="monitor-inside-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Attention</p>
-                    <h3>Overdue Visitors</h3>
-                  </div>
-                  <span class="status-badge status-badge--expired" id="monitor-count-overdue">0</span>
-                </div>
-                <div class="work-list" id="monitor-overdue-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Completed</p>
-                    <h3>Checked-out</h3>
-                  </div>
-                  <span class="status-badge status-badge--checked-out" id="monitor-count-checkedout">0</span>
-                </div>
-                <div class="work-list" id="monitor-checkedout-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Denied</p>
-                    <h3>Denied Visitors</h3>
-                  </div>
-                  <span class="status-badge status-badge--rejected" id="monitor-count-rejected">0</span>
-                </div>
-                <div class="work-list" id="monitor-rejected-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Recurring</p>
-                    <h3>Active Profiles</h3>
-                  </div>
-                  <span class="status-badge status-badge--approved" id="monitor-count-recurring-active">0</span>
-                </div>
-                <div class="work-list" id="monitor-recurring-active-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Recurring</p>
-                    <h3>Expired Profiles</h3>
-                  </div>
-                  <span class="status-badge status-badge--expired" id="monitor-count-recurring-expired">0</span>
-                </div>
-                <div class="work-list" id="monitor-recurring-expired-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Restricted</p>
-                    <h3>Suspended Visitors</h3>
-                  </div>
-                  <span class="status-badge status-badge--suspended" id="monitor-count-suspended">0</span>
-                </div>
-                <div class="work-list" id="monitor-suspended-list"></div>
-              </article>
-              <article class="security-monitor-card">
-                <div class="security-monitor-card__header">
-                  <div>
-                    <p class="eyebrow">Presence</p>
-                    <h3>Daily Logs</h3>
-                  </div>
-                  <span class="status-badge status-badge--checked-in" id="monitor-count-attendance">0</span>
-                </div>
-                <div class="work-list" id="monitor-attendance-list"></div>
-              </article>
-            </div>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="queue" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Live Desk</p>
-                  <h2>Approved Arrival Register</h2>
-                </div>
-              </div>
-              <div class="work-list" id="queue-list"></div>
-            </article>
-
-            <aside class="panel" id="photo" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Identity</p>
-                  <h2>Photo Capture</h2>
-                </div>
-              </div>
-              <div class="camera-frame" id="camera-frame-status">
-                Photo capture starts from the desk browser or secure file picker.
-              </div>
-              <div class="work-list" id="photo-list"></div>
-            </aside>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="check-in" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Access</p>
-                  <h2>Check-in / Check-out</h2>
-                </div>
-              </div>
-              <div class="work-list" id="checkins-list"></div>
-            </article>
-
-            <article class="panel" id="qr" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Verification</p>
-                  <h2>QR Verification</h2>
-                </div>
-              </div>
-              <form class="qr-verify-form" id="qr-verify-form">
-                <label class="form-field">
-                  <span>Badge scan or verification link</span>
-                  <input id="qr-payload-input" type="text" autocomplete="off" inputmode="url" placeholder="Scan a badge URL or paste the verification link" />
-                </label>
-                <div class="qr-verify-form__actions">
-                  <button class="button button--ghost" id="qr-camera-button" type="button">Camera Scan</button>
-                  <button class="button button--primary" type="submit">Verify</button>
-                </div>
-              </form>
-              <p class="qr-verify-form__note">Only live AccessFlow visitor badges are accepted. Each scan resolves the public pass link, then validates approval state, timing, and organization scope.</p>
-              <video class="qr-scan-video is-hidden" id="qr-scan-video" autoplay playsinline muted></video>
-              <div id="qr-result"></div>
-            </article>
-          </section>
-
-          <section>
-            <article class="panel" id="badges" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Print Station</p>
-                  <h2>Badge and QR</h2>
-                </div>
-              </div>
-              <div class="work-list" id="badge-list"></div>
-            </article>
-          </section>
-          </section>
-
-          <section class="operations-zone operations-zone--workforce" aria-labelledby="workforce-operations-title">
-            <div class="operations-zone__header">
-              <div>
-                <p class="eyebrow">Workforce Operations</p>
-                <h2 id="workforce-operations-title">Workforce Access</h2>
-              </div>
-              <span>Employee scans, assisted overrides, onboarding, and presence logs</span>
-            </div>
-
-          <section class="panel" id="workforce-onboarding" data-operational-module>
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Admin Approval Required</p>
-                <h2>Workforce Onboarding</h2>
-              </div>
-            </div>
-            <form class="workforce-onboarding-form" id="workforce-onboarding-form" novalidate>
-              <label class="form-field">
-                <span>Workforce member name</span>
-                <input name="fullName" type="text" autocomplete="name" placeholder="Full name" required />
-              </label>
-              <label class="form-field">
-                <span>Username</span>
-                <input name="username" type="text" autocomplete="username" placeholder="worker_001" />
-              </label>
-              <label class="form-field">
-                <span>Email</span>
-                <input name="email" type="email" autocomplete="email" placeholder="workforce@company.com" />
-              </label>
-              <label class="form-field">
-                <span>Proposed access role</span>
-                <select name="role">
-                  <option value="EMPLOYEE">Employee portal</option>
-                  <option value="SECURITY_GUARD">Security portal</option>
-                  <option value="RECEPTION">Reception/front desk</option>
-                  <option value="OPERATOR">Operator</option>
-                  <option value="MANAGER">Manager</option>
-                </select>
-              </label>
-              <label class="form-field">
-                <span>Phone code</span>
-                <input name="phoneCountryCode" type="tel" autocomplete="tel-country-code" placeholder="+1" value="+1" />
-              </label>
-              <label class="form-field">
-                <span>Mobile</span>
-                <input name="phone" type="tel" autocomplete="tel" placeholder="Optional mobile number" />
-              </label>
-              <label class="form-field">
-                <span>Department</span>
-                <input name="department" type="text" autocomplete="organization-title" placeholder="Facilities" />
-              </label>
-              <label class="form-field">
-                <span>Workforce category</span>
-                <select name="employeeType">
-                  <option value="CLEANER">Cleaner</option>
-                  <option value="SWEEPER">Sweeper</option>
-                  <option value="GARDENER">Gardener</option>
-                  <option value="HELPER">Helper</option>
-                  <option value="MAINTENANCE">Maintenance</option>
-                  <option value="CONTRACT_LABOR">Contract labor</option>
-                  <option value="SUPPORT_STAFF">Support staff</option>
-                </select>
-              </label>
-              <label class="form-field">
-                <span>Designation</span>
-                <input name="designation" type="text" autocomplete="organization-title" placeholder="Housekeeping support" />
-              </label>
-              <label class="form-field">
-                <span>Shift name</span>
-                <input name="shiftName" type="text" placeholder="Morning Shift" />
-              </label>
-              <label class="form-field">
-                <span>Shift start</span>
-                <input name="shiftStartTime" type="time" />
-              </label>
-              <label class="form-field">
-                <span>Shift end</span>
-                <input name="shiftEndTime" type="time" />
-              </label>
-              <input name="employeePhotoUrl" type="hidden" />
-              <div class="workforce-onboarding-form__photo">
-                <button class="button button--ghost" id="workforce-photo-button" type="button">Capture photo</button>
-                <span id="workforce-photo-status">Photo optional before admin approval</span>
-              </div>
-              <div class="admin-user-form__footer">
-                <p>Security can submit details and print a receipt. QR and badge access activate only after organization admin approval.</p>
-                <button class="button button--primary" type="submit">Submit for approval</button>
-              </div>
-            </form>
-            <div id="workforce-onboarding-result"></div>
-          </section>
-
-          <section class="panel" id="workforce-submitted-requests" data-operational-module>
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Submitted Requests</p>
-                <h2>Admin Decision Tracker</h2>
-              </div>
-            </div>
-            <div class="work-list" id="workforce-request-list"></div>
-          </section>
-
-          <section class="portal-grid">
-            <article class="panel" id="employee-check-in" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Workforce Access</p>
-                  <h2>Workforce Check-In</h2>
-                </div>
-              </div>
-              <form class="qr-verify-form" id="employee-qr-form">
-                <label class="form-field">
-                  <span>Employee badge scan</span>
-                  <input id="employee-qr-input" type="text" autocomplete="off" placeholder="Scan or paste the static employee QR payload" />
-                </label>
-                <div class="qr-verify-form__actions">
-                  <button class="button button--ghost" id="employee-qr-camera-button" type="button">Camera Scan</button>
-                  <button class="button button--primary" type="submit">Scan employee</button>
-                </div>
-              </form>
-              <video class="qr-scan-video is-hidden" id="employee-qr-scan-video" autoplay playsinline muted></video>
-              <div id="employee-qr-result"></div>
-            </article>
-
-            <article class="panel" id="employee-attendance" data-operational-module>
-              <div class="panel__header">
-                <div>
-                  <p class="eyebrow">Guard Assist</p>
-                  <h2>Workforce Presence</h2>
-                </div>
-                <label class="search-field security-monitor-search">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 18.6-4.2-4.2a7 7 0 1 0-1.4 1.4l4.2 4.2ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"/></svg>
-                  <input id="employee-search" type="search" placeholder="Search employee, department, ID" />
-                </label>
-              </div>
-              <div class="work-list" id="employee-directory-list"></div>
-            </article>
-          </section>
-
-          <section class="panel" id="workforce-logs" data-operational-module>
-            <div class="panel__header">
-              <div>
-                <p class="eyebrow">Audit Trail</p>
-                <h2>Workforce Presence Logs</h2>
-              </div>
-            </div>
-            <div class="work-list" id="employee-attendance-log-list"></div>
-          </section>
-          </section>
-        </main>
+        <main class="portal-main security-page-host" id="main-content" tabindex="-1" aria-live="polite"></main>
       </div>
     </div>
 

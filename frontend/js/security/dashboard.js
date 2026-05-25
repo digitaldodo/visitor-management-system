@@ -37,10 +37,117 @@ import { enterpriseStatusLabel, statusBadgeClass } from "../shared/workflowEnums
 import { confirmAction, promptAction } from "../shared/actionModal.js";
 import { SECURITY_REPORTS, exportOperationalReport } from "../shared/reportExport.js";
 
-const ROUTES = ["emergency", "visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges", "employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"];
+const ROUTES = ["dashboard", "verification", "scanner", "visitors", "checkins", "approvals", "incidents", "emergency", "notifications", "logs", "settings", "profile"];
+const ROUTE_DEFINITIONS = {
+  dashboard: {
+    href: "/security/dashboard",
+    title: "Security Dashboard",
+    eyebrow: "Front Desk Operations",
+    loader: () => import("./routes/dashboardPage.js"),
+  },
+  verification: {
+    href: "/security/verification",
+    title: "Visitor Verification",
+    eyebrow: "Identity Workspace",
+    loader: () => import("./routes/verificationPage.js"),
+  },
+  scanner: {
+    href: "/security/scanner",
+    title: "QR Scanner",
+    eyebrow: "Verification Workspace",
+    loader: () => import("./routes/scannerPage.js"),
+  },
+  visitors: {
+    href: "/security/visitors",
+    title: "Active Visitors",
+    eyebrow: "Visitor Operations",
+    loader: () => import("./routes/visitorsPage.js"),
+  },
+  checkins: {
+    href: "/security/checkins",
+    title: "Check-in / Check-out",
+    eyebrow: "Access Desk",
+    loader: () => import("./routes/checkinsPage.js"),
+  },
+  approvals: {
+    href: "/security/approvals",
+    title: "Pending Approvals",
+    eyebrow: "Approval Workflow",
+    loader: () => import("./routes/approvalsPage.js"),
+  },
+  incidents: {
+    href: "/security/incidents",
+    title: "Incident Reports",
+    eyebrow: "Incident Workflow",
+    loader: () => import("./routes/incidentsPage.js"),
+  },
+  emergency: {
+    href: "/security/emergency",
+    title: "Emergency Actions",
+    eyebrow: "Emergency Command",
+    loader: () => import("./routes/emergencyPage.js"),
+  },
+  notifications: {
+    href: "/security/notifications",
+    title: "Notifications",
+    eyebrow: "Operational Updates",
+    loader: () => import("./routes/notificationsPage.js"),
+  },
+  logs: {
+    href: "/security/logs",
+    title: "Security Logs",
+    eyebrow: "Audit Workspace",
+    loader: () => import("./routes/logsPage.js"),
+  },
+  settings: {
+    href: "/security/settings",
+    title: "Settings",
+    eyebrow: "Preferences",
+    loader: () => import("./routes/settingsPage.js"),
+  },
+  profile: {
+    href: "/security/profile",
+    title: "Profile",
+    eyebrow: "Account",
+    loader: () => import("./routes/profilePage.js"),
+  },
+};
+const ROUTE_ALIASES = {
+  "": "dashboard",
+  security: "dashboard",
+  dashboard: "dashboard",
+  "visitor-verification": "verification",
+  verification: "verification",
+  badges: "verification",
+  badge: "verification",
+  photo: "verification",
+  qr: "scanner",
+  scanner: "scanner",
+  scan: "scanner",
+  visitors: "visitors",
+  "visitor-registration": "visitors",
+  queue: "visitors",
+  monitoring: "visitors",
+  checkins: "checkins",
+  "check-in": "checkins",
+  checkin: "checkins",
+  "employee-check-in": "checkins",
+  "employee-attendance": "checkins",
+  approvals: "approvals",
+  "workforce-onboarding": "approvals",
+  incidents: "incidents",
+  alerts: "incidents",
+  emergency: "emergency",
+  notifications: "notifications",
+  logs: "logs",
+  "workforce-logs": "logs",
+  settings: "settings",
+  profile: "profile",
+};
 const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
 const MODULE_STATE_PREFIX = "accessflow.security.module";
 const state = {
+  session: null,
   monitoringQuery: "",
   monitoringDebounce: 0,
   emergencyIncidentFilter: "ALL",
@@ -61,6 +168,10 @@ const state = {
   portalLoadRevision: 0,
 };
 let securityPortalPoller;
+let securityRouteRenderId = 0;
+let securityInviteActionsBound = false;
+let securityBadgeActionsBound = false;
+let employeeBadgeActionsBound = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("security-portal", () => bootSecurityPortal(), {
@@ -71,35 +182,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function bootSecurityPortal() {
   initAppErrorBoundary();
+  migrateLegacySecurityRoute();
 
   const session = requireRole("SECURITY_GUARD");
   if (!session) {
     return;
   }
+  state.session = session;
+  const initialRoute = currentSecurityRoute();
 
   groupSecurityNavigation();
   initPortalShell(session, {
     allowedRoutes: ROUTES,
+    routeMap: ROUTE_DEFINITIONS,
+    activeRoute: initialRoute,
+    defaultHref: ROUTE_DEFINITIONS.dashboard.href,
     onRefresh: () => loadSecurityPortal(false),
   });
-  await runSafely("security visitor module", () => initVisitorModule("[data-security-visitors]", {
-    basePath: "/security",
-    title: "Front Desk Registration",
-    eyebrow: "Reception Operations",
-    canDelete: false,
-    enableRecurring: true,
-  }), { toastTitle: "Visitor registration unavailable" });
-  initOperationalWorkspace();
-  initQrVerification();
-  initEmployeeAttendanceWorkspace();
-  initWorkforceOnboarding();
+  bindSecurityWorkspaceNavigation();
+  initSecurityInviteActions();
   initBadgeActions();
   initEmployeeBadgeActions();
-  initMonitoringSearch();
-  initEmergencyWorkspace();
-  renderVerificationIdle();
-  renderEmployeeScanIdle();
-  await loadSecurityPortal();
+  await renderSecurityRoute(initialRoute, { replace: true });
   securityPortalPoller = createNonOverlappingPoller(() => loadSecurityPortal(false), {
     intervalMs: 30000,
     backgroundIntervalMs: 120000,
@@ -115,9 +219,9 @@ function groupSecurityNavigation() {
     return;
   }
   const sections = [
-    { label: "Emergency operations", routes: ["emergency"] },
-    { label: "Visitor operations", routes: ["visitor-registration", "queue", "monitoring", "check-in", "photo", "qr", "badges"] },
-    { label: "Workforce operations", routes: ["employee-check-in", "workforce-onboarding", "employee-attendance", "workforce-logs"] },
+    { label: "Command center", routes: ["dashboard", "notifications"] },
+    { label: "Visitor operations", routes: ["verification", "scanner", "visitors", "checkins", "approvals"] },
+    { label: "Response and audit", routes: ["incidents", "emergency", "logs", "settings", "profile"] },
   ];
   const linksByRoute = new Map(Array.from(nav.querySelectorAll(".nav-link")).map((link) => [link.dataset.route, link]));
   nav.replaceChildren(...sections.map((section) => {
@@ -139,6 +243,181 @@ function groupSecurityNavigation() {
     return wrapper;
   }));
   nav.dataset.grouped = "true";
+}
+
+function migrateLegacySecurityRoute() {
+  const hashRoute = routeFromHash(window.location.hash);
+  if (hashRoute) {
+    window.history.replaceState({}, "", ROUTE_DEFINITIONS[hashRoute].href);
+    return;
+  }
+
+  const route = currentSecurityRoute();
+  const definition = ROUTE_DEFINITIONS[route] || ROUTE_DEFINITIONS.dashboard;
+  if (window.location.pathname !== definition.href) {
+    window.history.replaceState({}, "", definition.href);
+  }
+}
+
+function routeFromHash(hash) {
+  const value = String(hash || "").replace("#", "").trim().toLowerCase();
+  return value ? ROUTE_ALIASES[value] || "" : "";
+}
+
+function currentSecurityRoute() {
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  const rawRoute = segments[0] === "security" ? segments[1] || "dashboard" : "dashboard";
+  return ROUTE_ALIASES[rawRoute] || (ROUTES.includes(rawRoute) ? rawRoute : "dashboard");
+}
+
+async function renderSecurityRoute(route = currentSecurityRoute(), options = {}) {
+  const resolvedRoute = ROUTES.includes(route) ? route : "dashboard";
+  const definition = ROUTE_DEFINITIONS[resolvedRoute];
+  const host = document.querySelector("#main-content");
+  if (!host || !definition) {
+    return;
+  }
+  if (!options.replace && host.dataset.activeRoute === resolvedRoute && window.location.pathname === definition.href && !host.classList.contains("is-transitioning")) {
+    setActiveRoute(resolvedRoute);
+    return;
+  }
+
+  const renderId = ++securityRouteRenderId;
+
+  if (!options.replace && window.location.pathname !== definition.href) {
+    window.history.pushState({}, "", definition.href);
+  } else if (options.replace && window.location.pathname !== definition.href) {
+    window.history.replaceState({}, "", definition.href);
+  }
+
+  setActiveRoute(resolvedRoute);
+  setPageTitle(definition);
+  host.classList.add("is-transitioning");
+  host.innerHTML = `
+    <section class="security-route panel route-loading-state">
+      <div class="employee-badge-skeleton">
+        <div>
+          <strong>Loading ${escapeHtml(definition.title)}</strong>
+          <p>Preparing this security workspace.</p>
+        </div>
+        <span></span><span></span><span></span>
+      </div>
+    </section>
+  `;
+
+  try {
+    const pageModule = await definition.loader();
+    if (renderId !== securityRouteRenderId) {
+      return;
+    }
+    host.innerHTML = pageModule.render({ session: state.session });
+    host.dataset.activeRoute = resolvedRoute;
+    await initializeRenderedRoute(resolvedRoute, renderId);
+    if (renderId !== securityRouteRenderId) {
+      return;
+    }
+    host.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    if (renderId !== securityRouteRenderId) {
+      return;
+    }
+    host.innerHTML = `
+      <section class="security-route panel">
+        <div class="empty-state empty-state--inline">
+          <h3>Workspace unavailable</h3>
+          <p>${escapeHtml(error?.message || "This security workspace could not be loaded.")}</p>
+        </div>
+      </section>
+    `;
+    showToast("Workspace unavailable", error?.message || "Route module could not be loaded.");
+  } finally {
+    if (renderId === securityRouteRenderId) {
+      requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+    }
+  }
+}
+
+async function initializeRenderedRoute(route, renderId) {
+  if (route === "visitors") {
+    await runSafely("security visitor module", () => initVisitorModule("[data-security-visitors]", {
+      basePath: "/security",
+      title: "Front Desk Registration",
+      eyebrow: "Reception Operations",
+      canDelete: false,
+      enableRecurring: true,
+    }), { toastTitle: "Visitor registration unavailable" });
+    initMonitoringSearch();
+  }
+  if (route === "scanner") {
+    initQrVerification();
+    renderVerificationIdle();
+  }
+  if (route === "checkins") {
+    initEmployeeAttendanceWorkspace();
+    renderEmployeeScanIdle();
+  }
+  if (route === "approvals") {
+    initWorkforceOnboarding();
+  }
+  if (route === "incidents" || route === "emergency") {
+    initEmergencyWorkspace();
+  }
+  if (route === "logs") {
+    mountSecurityReportExports();
+  }
+  if (route === "verification") {
+    await refreshBadgeListIfVisible(true);
+  }
+  if (renderId !== securityRouteRenderId) {
+    return;
+  }
+  await loadSecurityPortal();
+}
+
+function bindSecurityWorkspaceNavigation() {
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || link.target || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    const url = new URL(link.href, window.location.origin);
+    if (url.origin !== window.location.origin || !url.pathname.startsWith("/security")) {
+      return;
+    }
+    event.preventDefault();
+    const nextRoute = ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard";
+    void renderSecurityRoute(nextRoute);
+  });
+
+  window.addEventListener("popstate", () => {
+    void renderSecurityRoute(currentSecurityRoute(), { replace: true });
+  });
+}
+
+function setActiveRoute(route) {
+  document.querySelectorAll("#sidebar-nav .nav-link").forEach((link) => {
+    const isActive = link.dataset.route === route;
+    link.classList.toggle("is-active", isActive);
+    if (isActive) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+  if (window.matchMedia("(max-width: 1024px)").matches) {
+    const shell = document.querySelector(".portal-shell");
+    if (shell) {
+      shell.dataset.sidebarState = "closed";
+    }
+    document.body.classList.remove("has-mobile-sidebar");
+  }
+}
+
+function setPageTitle(definition) {
+  setText(".topbar__title .eyebrow", definition.eyebrow || "Front Desk Operations");
+  setText(".topbar__title h1", definition.title || "Security Dashboard");
+  document.title = `AccessFlow | ${definition.title || "Security Portal"}`;
 }
 
 async function loadSecurityPortal(showErrors = true) {
@@ -170,6 +449,9 @@ async function loadSecurityPortal(showErrors = true) {
     renderLoadingList("#employee-directory-list");
     renderLoadingList("#employee-attendance-log-list");
     renderLoadingList("#workforce-request-list");
+    renderLoadingList("#dashboard-active-visitors", 2);
+    renderLoadingList("#dashboard-pending-approvals", 2);
+    renderLoadingList("#dashboard-checkin-activity", 2);
   }
 
   const [overview, queue, photo, monitoring, visitorInvites, emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
@@ -277,10 +559,79 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#workforce-request-list", [], (item) => item, "Submitted requests unavailable", workforceRequests.reason?.message || "Workforce approval status could not be loaded.");
   }
 
+  renderSecurityDashboard({
+    queue: queue.status === "fulfilled" ? queue.value?.data?.items || [] : [],
+    monitoring: monitoring.status === "fulfilled" ? monitoring.value?.data || {} : {},
+    visitorInvites: visitorInvites.status === "fulfilled" ? visitorInvites.value?.data || [] : [],
+    workforceRequests: workforceRequests.status === "fulfilled" ? workforceRequests.value?.data || [] : [],
+    employeeLogs: employeeLogs.status === "fulfilled" ? employeeLogs.value?.data || [] : [],
+  });
+
   state.portalLoading = false;
   if (state.portalLoadQueued) {
     void loadSecurityPortal(false);
   }
+}
+
+function renderSecurityDashboard(data = {}) {
+  const monitoring = data.monitoring || {};
+  const activeVisitors = monitoring.currentlyInside || [];
+  const pendingVisitorInvites = (data.visitorInvites || []).filter((invite) => {
+    const stage = canonicalInviteStage(invite);
+    return !["CHECKED_IN", "CHECKED_OUT", "REVOKED", "EXPIRED", "REJECTED"].includes(stage);
+  });
+  const pendingWorkforce = (data.workforceRequests || []).filter((worker) => {
+    const status = String(worker.accountStatus || "PENDING_APPROVAL").toUpperCase();
+    return status.includes("PENDING") || status.includes("CHANGE");
+  });
+  const movement = [
+    ...activeVisitors.slice(0, 3).map((visitor) => ({
+      title: visitor.fullName || "Visitor",
+      detail: visitor.hostEmployee || visitor.companyName || "Checked in visitor",
+      at: visitor.checkInTime || visitor.createdAt,
+    })),
+    ...(data.employeeLogs || []).slice(0, 3).map((log) => ({
+      title: log.fullName || log.employeeName || "Workforce member",
+      detail: formatPresenceStatus(log),
+      at: log.checkOutTime || log.checkInTime || log.createdAt,
+    })),
+  ].sort((left, right) => new Date(right.at || 0) - new Date(left.at || 0)).slice(0, 4);
+
+  renderWorkList("#dashboard-active-visitors", activeVisitors.slice(0, 4), checkedInCard, "No active visitors", "Checked-in visitors will appear here.");
+  renderWorkList("#dashboard-pending-approvals", [
+    ...pendingVisitorInvites.slice(0, 3).map((invite) => ({
+      title: invite.visitorName || "Visitor invite",
+      detail: invite.companyName || invite.purposeOfVisit || "Visitor verification",
+      meta: invite.scheduledStartTime ? `Arrival ${formatDate(invite.scheduledStartTime)}` : "Arrival pending",
+    })),
+    ...pendingWorkforce.slice(0, 3).map((worker) => ({
+      title: worker.fullName || "Workforce request",
+      detail: formatInternalRole((worker.roles || [])[0] || "EMPLOYEE"),
+      meta: formatDate(worker.workforceOnboardingCreatedAt || worker.createdAt),
+    })),
+  ].slice(0, 4), (item) => workCard(item.title, item.detail, item.meta), "No pending approvals", "Visitor and workforce approval workflows will appear here.");
+  renderWorkList("#dashboard-checkin-activity", movement, (item) => workCard(item.title, item.detail, formatDate(item.at)), "No recent movement", "Check-in and check-out activity will appear here.");
+
+  const summary = document.querySelector("#security-dashboard-summary");
+  if (summary) {
+    const counts = monitoring.counts || {};
+    const activeIncidents = (state.emergencyFeed || []).filter((incident) => incident.status !== "RESOLVED").length;
+    summary.innerHTML = `
+      ${summaryTile("Inside now", counts.currentlyInside || activeVisitors.length || 0)}
+      ${summaryTile("Pending approvals", pendingVisitorInvites.length + pendingWorkforce.length)}
+      ${summaryTile("Emergency alerts", activeIncidents)}
+      ${summaryTile("Overdue visitors", counts.overdueVisitors || 0)}
+    `;
+  }
+}
+
+function summaryTile(label, value) {
+  return `
+    <div class="employee-summary-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
 }
 
 function initOperationalWorkspace() {
@@ -300,7 +651,9 @@ function initOperationalWorkspace() {
 }
 
 function mountSecurityReportExports() {
-  const target = document.querySelector("#monitoring .operational-module__body-inner") || document.querySelector("#monitoring");
+  const target = document.querySelector("#security-report-export-target")
+    || document.querySelector("#monitoring .operational-module__body-inner")
+    || document.querySelector("#monitoring");
   if (!target || document.querySelector("#security-report-export-panel")) {
     return;
   }
@@ -367,6 +720,10 @@ function mountSecurityInviteLifecycle() {
 }
 
 function initSecurityInviteActions() {
+  if (securityInviteActionsBound) {
+    return;
+  }
+  securityInviteActionsBound = true;
   document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-security-invite-action]");
     if (!button) {
@@ -1322,6 +1679,10 @@ function employeeLogCard(log) {
 }
 
 function initEmployeeBadgeActions() {
+  if (employeeBadgeActionsBound) {
+    return;
+  }
+  employeeBadgeActionsBound = true;
   const modal = document.querySelector("#employee-badge-modal");
   modal?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-employee-badge-action]");
@@ -1456,7 +1817,12 @@ function passCard(pass) {
 }
 
 function initBadgeActions() {
-  document.querySelector("#badge-list")?.addEventListener("click", async (event) => {
+  if (securityBadgeActionsBound) {
+    return;
+  }
+  securityBadgeActionsBound = true;
+
+  document.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-badge-open]");
     if (!button) {
       return;
@@ -1473,8 +1839,7 @@ function initBadgeActions() {
     }
   });
 
-  const modal = document.querySelector("#security-badge-modal");
-  modal?.addEventListener("click", async (event) => {
+  document.querySelector("#security-badge-modal")?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-badge-action]");
     if (!button || !state.activeBadge) {
       if (event.target === modal) {

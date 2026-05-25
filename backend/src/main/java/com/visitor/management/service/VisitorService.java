@@ -2749,7 +2749,7 @@ public class VisitorService {
                 title,
                 message,
                 visitor,
-                "/pages/security/#alerts",
+                "/security/incidents",
                 actor.getFullName()
         );
     }

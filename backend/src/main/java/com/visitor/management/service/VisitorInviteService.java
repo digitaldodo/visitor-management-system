@@ -245,7 +245,7 @@ public class VisitorInviteService {
                 "Visitor pre-registration completed",
                 "%s completed invite registration for %s.".formatted(visitor.fullName(), invite.getHostEmployeeName()),
                 null,
-                "/pages/security/#visitors",
+                "/security/visitors",
                 invite.getHostEmployeeName()
         );
         notifyRegisteredVisitorPreRegistrationPending(saved, visitor);
