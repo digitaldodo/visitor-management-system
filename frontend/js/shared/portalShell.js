@@ -775,10 +775,23 @@ function renderIdentityChip(session, portalProfile) {
   chip.setAttribute("tabindex", "0");
   chip.setAttribute("aria-haspopup", "menu");
   chip.setAttribute("aria-expanded", "false");
+  chip.setAttribute("aria-controls", "profile-menu");
   chip.setAttribute("aria-label", `Profile for ${displayName}`);
   chip.innerHTML = WorkspaceProfileChip({ displayName });
+  ensureIdentityChipAnchor(chip);
   renderIdentityMenu(chip, { displayName, scope, timezone, role });
   bindIdentityMenu(chip);
+}
+
+function ensureIdentityChipAnchor(chip) {
+  if (chip.parentElement?.classList.contains("profile-chip-shell")) {
+    return chip.parentElement;
+  }
+  const anchor = document.createElement("span");
+  anchor.className = "profile-chip-shell";
+  chip.parentElement?.insertBefore(anchor, chip);
+  anchor.append(chip);
+  return anchor;
 }
 
 function AvatarChip(value, options = {}) {
@@ -801,8 +814,8 @@ function UserIdentityBadge(identity) {
     <div class="user-identity-badge">
       ${AvatarChip(identity.displayName, { size: "lg", label: `${identity.displayName} profile`, imageUrl: identity.imageUrl })}
       <div class="user-identity-badge__copy">
-        <strong data-i18n-ignore>${escapeHtml(identity.displayName)}</strong>
-        <span data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</span>
+        <strong data-i18n-ignore title="${escapeHtml(identity.displayName)}">${escapeHtml(identity.displayName)}</strong>
+        <span data-i18n-ignore title="${escapeHtml(identity.scope || "Platform")}">${escapeHtml(identity.scope || "Platform")}</span>
       </div>
     </div>
   `;
@@ -811,7 +824,7 @@ function UserIdentityBadge(identity) {
 function WorkspaceProfileChip(identity) {
   return `
     ${AvatarChip(identity.displayName, { label: `${identity.displayName} profile`, imageUrl: identity.imageUrl })}
-    <span class="user-chip__primary">${escapeHtml(identity.displayName)}</span>
+    <span class="user-chip__primary" title="${escapeHtml(identity.displayName)}">${escapeHtml(identity.displayName)}</span>
     <span class="user-chip__chevron" aria-hidden="true">
       <svg viewBox="0 0 24 24"><path d="m7 9 5 5 5-5 1.4 1.4L12 16.8l-6.4-6.4Z"/></svg>
     </span>
@@ -819,20 +832,24 @@ function WorkspaceProfileChip(identity) {
 }
 
 function renderIdentityMenu(chip, identity) {
+  const anchor = ensureIdentityChipAnchor(chip);
   let menu = $("#profile-menu");
   if (!menu) {
-    chip.insertAdjacentHTML("afterend", `<section class="profile-menu is-hidden" id="profile-menu" role="menu" aria-label="Profile context"></section>`);
+    anchor.insertAdjacentHTML("beforeend", `<section class="profile-menu is-hidden" id="profile-menu" role="menu" aria-label="Profile context"></section>`);
     menu = $("#profile-menu");
+  } else if (menu.parentElement !== anchor) {
+    anchor.append(menu);
   }
   delete menu.dataset.i18nIgnore;
+  menu.setAttribute("aria-labelledby", "user-chip");
   menu.innerHTML = `
     <div class="profile-menu__header">
       ${UserIdentityBadge(identity)}
     </div>
     <dl class="profile-menu__meta">
-      <div><dt>Organization</dt><dd data-i18n-ignore>${escapeHtml(identity.scope || "Platform")}</dd></div>
-      <div><dt>Role</dt><dd data-i18n-ignore>${escapeHtml(identity.role || "User")}</dd></div>
-      <div><dt>Timezone</dt><dd data-i18n-ignore>${escapeHtml(identity.timezone || "UTC")}</dd></div>
+      <div><dt>Organization</dt><dd data-i18n-ignore title="${escapeHtml(identity.scope || "Platform")}">${escapeHtml(identity.scope || "Platform")}</dd></div>
+      <div><dt>Role</dt><dd data-i18n-ignore title="${escapeHtml(identity.role || "User")}">${escapeHtml(identity.role || "User")}</dd></div>
+      <div><dt>Timezone</dt><dd data-i18n-ignore title="${escapeHtml(identity.timezone || "UTC")}">${escapeHtml(identity.timezone || "UTC")}</dd></div>
     </dl>
   `;
 }
@@ -853,6 +870,15 @@ function bindIdentityMenu(chip) {
     }
     const nextOpen = menu.classList.toggle("is-hidden") === false;
     chip.setAttribute("aria-expanded", String(nextOpen));
+    if (nextOpen) {
+      positionIdentityMenu(chip, menu);
+    }
+  };
+  const syncMenuPosition = () => {
+    const menu = $("#profile-menu");
+    if (menu && !menu.classList.contains("is-hidden")) {
+      positionIdentityMenu(chip, menu);
+    }
   };
   chip.addEventListener("click", toggleMenu);
   chip.addEventListener("keydown", (event) => {
@@ -864,11 +890,45 @@ function bindIdentityMenu(chip) {
       closeMenu();
     }
   });
+  window.addEventListener("resize", syncMenuPosition);
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#user-chip") && !event.target.closest("#profile-menu")) {
       closeMenu();
     }
   });
+}
+
+function positionIdentityMenu(chip, menu) {
+  const anchor = chip.closest(".profile-chip-shell") || chip;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportPadding = 12;
+  if (!viewportWidth) {
+    return;
+  }
+
+  menu.style.left = "";
+  menu.style.right = "";
+  menu.style.width = "";
+  menu.style.minWidth = "";
+
+  const anchorRect = anchor.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const maxMenuWidth = viewportWidth - (viewportPadding * 2);
+  if (menuRect.width > maxMenuWidth) {
+    menu.style.width = `${maxMenuWidth}px`;
+    menu.style.minWidth = "0";
+  }
+
+  const resolvedMenuWidth = Math.min(menuRect.width, maxMenuWidth);
+  const leftEdgeWithDefaultRight = anchorRect.right - resolvedMenuWidth;
+  if (leftEdgeWithDefaultRight < viewportPadding) {
+    menu.style.right = `${anchorRect.right - resolvedMenuWidth - viewportPadding}px`;
+    return;
+  }
+
+  if (anchorRect.right > viewportWidth - viewportPadding) {
+    menu.style.right = `${anchorRect.right - viewportWidth + viewportPadding}px`;
+  }
 }
 
 function initials(value) {
