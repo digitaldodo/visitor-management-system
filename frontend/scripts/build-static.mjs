@@ -18,6 +18,7 @@ await rm(distDir, { recursive: true, force: true });
 await copyWorkspace(rootDir, distDir);
 await writeGeneratedAssets(distDir, apiBaseUrl, buildMeta);
 await rewriteFiles(distDir, buildMeta.assetToken);
+await writeRouteAliases(distDir);
 
 console.log(`AccessFlow frontend prepared in ${distDir}`);
 console.log(`Version: ${buildMeta.version}`);
@@ -197,6 +198,125 @@ async function rewriteFiles(targetDir, assetToken) {
       await writeFile(fullPath, nextContent);
     }
   }
+}
+
+async function writeRouteAliases(targetDir) {
+  const aliases = [
+    {
+      source: "index.html",
+      routes: ["auth", "login", "visitor/login", "visitor/register", "visitor/sign-in"],
+    },
+    {
+      source: "pages/admin/index.html",
+      routes: [
+        "admin",
+        "admin/dashboard",
+        "admin/employees",
+        "admin/departments",
+        "admin/visitor-access",
+        "admin/visitors",
+        "admin/workforce-approvals",
+        "admin/attendance-presence",
+        "admin/emergency-ops",
+        "admin/reports",
+        "admin/notifications",
+        "admin/organization-settings",
+        "admin/platform-analytics",
+        "admin/organizations",
+        "admin/tenant-health",
+        "admin/global-audit",
+        "admin/workforce-oversight",
+        "admin/security-monitoring",
+        "admin/platform-settings",
+        "admin/homepage-settings",
+        "admin/homepage-controls",
+        "admin/system-monitoring",
+        "admin/runtime-status",
+        "admin/feature-flags",
+        "admin/api-health",
+      ],
+    },
+    {
+      source: "pages/employee/index.html",
+      routes: [
+        "employee",
+        "employee/dashboard",
+        "employee/badge",
+        "employee/requests",
+        "employee/presence",
+        "employee/history",
+        "employee/profile",
+        "employee/notifications",
+        "employee/settings",
+      ],
+    },
+    {
+      source: "pages/security/index.html",
+      routes: [
+        "security",
+        "security/emergency",
+        "security/visitor-registration",
+        "security/queue",
+        "security/monitoring",
+        "security/check-in",
+        "security/photo",
+        "security/qr",
+        "security/badges",
+        "security/employee-check-in",
+        "security/workforce-onboarding",
+        "security/employee-attendance",
+        "security/workforce-logs",
+      ],
+    },
+    {
+      source: "pages/visitor/index.html",
+      routes: [
+        "visitor",
+        "visitor/dashboard",
+        "visitor/badge",
+        "visitor/requests",
+        "visitor/history",
+        "visitor/profile",
+        "visitor/notifications",
+        "visitor/settings",
+        "visitor/pre-registration",
+      ],
+    },
+    {
+      source: "pages/forgot-password/index.html",
+      routes: ["forgot-password"],
+    },
+    {
+      source: "pages/verify-otp/index.html",
+      routes: ["verify-otp"],
+    },
+    {
+      source: "pages/verify-email/index.html",
+      routes: ["verify-email"],
+    },
+    {
+      source: "pages/invite/index.html",
+      routes: ["visitor-invite", "pre-registration"],
+    },
+    {
+      source: "pages/reset-password/index.html",
+      routes: ["reset-password"],
+    },
+  ];
+
+  for (const alias of aliases) {
+    const sourcePath = path.join(targetDir, alias.source);
+    const content = await readFile(sourcePath, "utf8");
+    for (const route of alias.routes) {
+      await writeRouteAlias(targetDir, route, content);
+    }
+  }
+}
+
+async function writeRouteAlias(targetDir, route, content) {
+  const routePath = path.join(targetDir, ...route.split("/"), "index.html");
+  await mkdir(path.dirname(routePath), { recursive: true });
+  await writeFile(routePath, content);
 }
 
 function rewriteHtmlAssets(content, assetToken, htmlFilePath, targetDir) {

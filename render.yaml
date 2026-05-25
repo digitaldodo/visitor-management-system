@@ -88,6 +88,12 @@ services:
       - path: /employee/*
         name: Cache-Control
         value: no-store
+      - path: /visitor
+        name: Cache-Control
+        value: no-store
+      - path: /visitor/*
+        name: Cache-Control
+        value: no-store
       - path: /visitor/login
         name: Cache-Control
         value: no-store
@@ -182,6 +188,9 @@ services:
       - type: rewrite
         source: /visitor/sign-in
         destination: /index.html
+      - type: rewrite
+        source: /visitor/dashboard
+        destination: /pages/visitor/index.html
       - type: rewrite
         source: /visitor
         destination: /pages/visitor/index.html

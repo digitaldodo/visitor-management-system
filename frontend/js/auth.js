@@ -6,7 +6,7 @@ import { formatStatus } from "./shared/formatters.js";
 import { getHomepageContent } from "./shared/homepageApi.js";
 import { initOrganizationSelectors } from "./shared/organizationSelector.js";
 import { redirectAuthenticatedFromLogin, redirectToPortal } from "./shared/roleGuard.js";
-import { getTokenRoles, setSession } from "./shared/session.js";
+import { getPrimaryRole, getTokenRoles, isAuthenticated, setSession } from "./shared/session.js";
 import { showToast } from "./shared/toast.js";
 import { attachFieldValidator, isEmail, isUsernameOrEmail, validateLoginIdentifier, validateUsername } from "./shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "./shared/phoneInput.js";
@@ -22,6 +22,10 @@ const REDIRECTING_FLAG = "authRedirecting";
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("login", async () => {
     initAppErrorBoundary();
+
+    if (redirectAuthenticatedPortalPathFromPublicPage()) {
+      return;
+    }
 
     if (redirectAuthenticatedFromLogin()) {
       return;
@@ -408,6 +412,143 @@ function resolveInitialAuthTab() {
     return requestedTab;
   }
   return "visitor";
+}
+
+function redirectAuthenticatedPortalPathFromPublicPage() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+
+  const role = getPrimaryRole();
+  const fallbackUrl = authenticatedPortalFallbackUrl(role);
+  if (!fallbackUrl) {
+    return false;
+  }
+
+  window.location.replace(fallbackUrl);
+  return true;
+}
+
+function authenticatedPortalFallbackUrl(role) {
+  const path = window.location.pathname.toLowerCase();
+  const segments = path.split("/").filter(Boolean);
+
+  if (role === "VISITOR" && segments[0] === "visitor" && !["login", "register", "sign-in"].includes(segments[1])) {
+    const route = normalizeVisitorRoute(segments[1] || "dashboard");
+    return `/pages/visitor/index.html#${route}`;
+  }
+
+  if (["EMPLOYEE", "RECEPTION", "OPERATOR", "MANAGER"].includes(role) && segments[0] === "employee") {
+    return `/pages/employee/index.html#${normalizeEmployeeRoute(segments[1] || "dashboard")}`;
+  }
+
+  if (role === "SECURITY_GUARD" && segments[0] === "security") {
+    return `/pages/security/index.html#${normalizeSecurityRoute(segments[1] || "emergency")}`;
+  }
+
+  if (["ADMIN", "SUPER_ADMIN"].includes(role) && segments[0] === "admin") {
+    return `/pages/admin/index.html#${normalizeAdminRoute(segments[1] || "")}`;
+  }
+
+  return "";
+}
+
+function normalizeVisitorRoute(route) {
+  const aliases = {
+    "": "dashboard",
+    visitor: "dashboard",
+    visits: "requests",
+    visit: "requests",
+    invites: "requests",
+    invite: "requests",
+    request: "pre-registration",
+    pass: "badge",
+    dashboard: "dashboard",
+    badge: "badge",
+    requests: "requests",
+    history: "history",
+    profile: "profile",
+    notifications: "notifications",
+    settings: "settings",
+    "pre-registration": "pre-registration",
+    preregistration: "pre-registration",
+  };
+  return aliases[route] || "dashboard";
+}
+
+function normalizeEmployeeRoute(route) {
+  const aliases = {
+    "": "dashboard",
+    employee: "dashboard",
+    credential: "badge",
+    attendance: "presence",
+    "visitor-requests": "requests",
+    approvals: "requests",
+    requests: "requests",
+    scheduled: "requests",
+    history: "history",
+    badge: "badge",
+    dashboard: "dashboard",
+    notifications: "notifications",
+    settings: "settings",
+    profile: "profile",
+    presence: "presence",
+  };
+  return aliases[route] || "dashboard";
+}
+
+function normalizeAdminRoute(route) {
+  const aliases = {
+    "": "dashboard",
+    analytics: "dashboard",
+    dashboard: "dashboard",
+    users: "employees",
+    employees: "employees",
+    departments: "departments",
+    organizations: "organizations",
+    reports: "reports",
+    monitoring: "system-monitoring",
+    "system-monitoring": "system-monitoring",
+    emergency: "emergency-ops",
+    incidents: "emergency-ops",
+    "emergency-ops": "emergency-ops",
+    visitors: "visitor-access",
+    "visitor-access": "visitor-access",
+    "workforce-approvals": "workforce-approvals",
+    "attendance-presence": "attendance-presence",
+    "homepage-settings": "platform-settings",
+    "homepage-controls": "platform-settings",
+    notifications: "notifications",
+    "organization-settings": "organization-settings",
+    "tenant-health": "tenant-health",
+    "global-audit": "global-audit",
+    "workforce-oversight": "workforce-oversight",
+    "security-monitoring": "security-monitoring",
+    "platform-settings": "platform-settings",
+    "platform-analytics": "platform-analytics",
+    "runtime-status": "runtime-status",
+    "feature-flags": "feature-flags",
+    "api-health": "api-health",
+  };
+  return aliases[route] || "dashboard";
+}
+
+function normalizeSecurityRoute(route) {
+  const allowed = new Set([
+    "emergency",
+    "visitor-registration",
+    "queue",
+    "monitoring",
+    "check-in",
+    "photo",
+    "qr",
+    "badges",
+    "employee-check-in",
+    "workforce-onboarding",
+    "employee-attendance",
+    "workforce-logs",
+  ]);
+  return allowed.has(route) ? route : "emergency";
 }
 
 function secondsFromNow(seconds) {
