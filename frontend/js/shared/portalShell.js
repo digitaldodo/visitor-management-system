@@ -527,6 +527,9 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     if (portalPath.includes("/admin")) {
       return adminTarget("visitor-access");
     }
+    if (portalPath.includes("/security")) {
+      return securityTarget("approvals");
+    }
     if (portalPath.includes("/visitor")) {
       return "/visitor/requests";
     }
@@ -537,7 +540,7 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
       return adminTarget("visitor-access");
     }
     if (portalPath.includes("/security")) {
-      return "#badges";
+      return securityTarget("verification");
     }
     if (portalPath.includes("/employee") && normalized.includes("EMPLOYEE")) {
       return employeeTarget("badge");
@@ -545,31 +548,49 @@ function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deep
     return portalPath.includes("/visitor") ? "/visitor/badge" : employeeTarget("requests");
   }
   if (normalized.includes("EMERGENCY") || normalized.includes("INCIDENT") || normalized.includes("SUSPICIOUS")) {
-    return portalPath.includes("/admin") ? adminTarget("emergency-ops") : "#monitoring";
+    if (portalPath.includes("/admin")) {
+      return adminTarget("emergency-ops");
+    }
+    return portalPath.includes("/security") ? securityTarget("incidents") : employeeTarget("notifications");
   }
   if (normalized.includes("WORKFORCE") || normalized.includes("EMPLOYEE")) {
-    return portalPath.includes("/admin") ? adminTarget("workforce-approvals") : "#workforce-onboarding";
+    if (portalPath.includes("/admin")) {
+      return adminTarget("workforce-approvals");
+    }
+    return portalPath.includes("/security")
+      ? securityTarget(normalized.includes("APPROVAL") || normalized.includes("ONBOARDING") ? "approvals" : "checkins")
+      : employeeTarget("presence");
   }
   if (normalized.includes("APPROVAL")) {
-    return portalPath.includes("/admin") ? adminTarget("visitor-access") : employeeTarget("requests");
+    if (portalPath.includes("/admin")) {
+      return adminTarget("visitor-access");
+    }
+    return portalPath.includes("/security") ? securityTarget("approvals") : employeeTarget("requests");
   }
   if (normalized.includes("VISITOR") || normalized.includes("BADGE") || resolvedTargetId) {
     if (portalPath.includes("/admin")) {
       return adminTarget("visitor-access");
     }
     if (portalPath.includes("/security")) {
-      return "#badges";
+      return securityTarget("visitors");
     }
     if (portalPath.includes("/visitor")) {
       return "/visitor/requests";
     }
     return employeeTarget("requests");
   }
-  return portalPath.includes("/admin") ? adminTarget("notifications") : employeeTarget("notifications");
+  if (portalPath.includes("/admin")) {
+    return adminTarget("notifications");
+  }
+  return portalPath.includes("/security") ? securityTarget("notifications") : employeeTarget("notifications");
 }
 
 function adminTarget(route) {
   return window.location.pathname.toLowerCase().includes("/pages/admin") ? `#${route}` : `/admin/${route}`;
+}
+
+function securityTarget(route) {
+  return `/security/${route}`;
 }
 
 function employeeTarget(route) {

@@ -144,8 +144,20 @@ const ROUTE_ALIASES = {
   settings: "settings",
   profile: "profile",
 };
-const ACTIVE_SECTION_KEY = "accessflow.security.activeSection";
-const MODULE_STATE_PREFIX = "accessflow.security.module";
+const ROUTE_DATA_REQUIREMENTS = {
+  dashboard: ["overview", "monitoring", "visitorInvites", "workforceRequests", "employeeLogs", "emergencyState", "emergencyFeed"],
+  verification: ["photo", "monitoring"],
+  scanner: ["monitoring"],
+  visitors: ["queue", "monitoring"],
+  checkins: ["monitoring", "employees"],
+  approvals: ["visitorInvites", "workforceRequests"],
+  incidents: ["emergencyFeed"],
+  emergency: ["emergencyState", "emergencyFeed", "emergencyEvacuation", "operationalEvents"],
+  logs: ["monitoring", "employeeLogs"],
+  notifications: [],
+  settings: [],
+  profile: [],
+};
 const state = {
   session: null,
   monitoringQuery: "",
@@ -161,7 +173,6 @@ const state = {
   activeBadge: null,
   activeEmployeeBadge: null,
   activeVerification: null,
-  activeScrollUntil: 0,
   approvedBadgeVisitors: [],
   portalLoading: false,
   portalLoadQueued: false,
@@ -421,6 +432,8 @@ function setPageTitle(definition) {
 }
 
 async function loadSecurityPortal(showErrors = true) {
+  const route = activeRenderedSecurityRoute();
+  const needs = dataRequirementsForRoute(route);
   if (state.portalLoading) {
     state.portalLoadRevision += 1;
     state.portalLoadQueued = true;
@@ -431,42 +444,22 @@ async function loadSecurityPortal(showErrors = true) {
   state.portalLoadQueued = false;
 
   if (showErrors) {
-    renderMetrics([]);
-    renderLoadingList("#queue-list");
-    renderLoadingList("#checkins-list");
-    renderLoadingList("#photo-list");
-    renderLoadingList("#badge-list");
-    renderLoadingList("#monitor-inside-list");
-    renderLoadingList("#monitor-overdue-list");
-    renderLoadingList("#monitor-checkedout-list");
-    renderLoadingList("#monitor-rejected-list");
-    renderLoadingList("#monitor-recurring-active-list");
-    renderLoadingList("#monitor-recurring-expired-list");
-    renderLoadingList("#monitor-suspended-list");
-    renderLoadingList("#monitor-attendance-list");
-    renderLoadingList("#security-invite-list");
-    renderEmergencyLoading();
-    renderLoadingList("#employee-directory-list");
-    renderLoadingList("#employee-attendance-log-list");
-    renderLoadingList("#workforce-request-list");
-    renderLoadingList("#dashboard-active-visitors", 2);
-    renderLoadingList("#dashboard-pending-approvals", 2);
-    renderLoadingList("#dashboard-checkin-activity", 2);
+    renderRouteLoadingState(needs);
   }
 
   const [overview, queue, photo, monitoring, visitorInvites, emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents, employees, employeeLogs, workforceRequests] = await Promise.allSettled([
-    request("/security/overview"),
-    request("/security/queue"),
-    request("/security/photo-capture"),
-    getSecurityMonitoring(state.monitoringQuery),
-    listSecurityVisitorInvites(),
-    getEmergencyState(),
-    getEmergencyFeed(),
-    getEmergencyEvacuationRegister(),
-    getOperationalEvents(state.operationalEventCursor, 80),
-    searchEmployees(state.employeeQuery),
-    getEmployeeAttendanceLogs("/security"),
-    listSecurityWorkforceOnboardingRequests(),
+    fetchIfNeeded(needs.overview, () => request("/security/overview")),
+    fetchIfNeeded(needs.queue, () => request("/security/queue")),
+    fetchIfNeeded(needs.photo, () => request("/security/photo-capture")),
+    fetchIfNeeded(needs.monitoring, () => getSecurityMonitoring(state.monitoringQuery)),
+    fetchIfNeeded(needs.visitorInvites, () => listSecurityVisitorInvites()),
+    fetchIfNeeded(needs.emergencyState, () => getEmergencyState()),
+    fetchIfNeeded(needs.emergencyFeed, () => getEmergencyFeed()),
+    fetchIfNeeded(needs.emergencyEvacuation, () => getEmergencyEvacuationRegister()),
+    fetchIfNeeded(needs.operationalEvents, () => getOperationalEvents(state.operationalEventCursor, 80)),
+    fetchIfNeeded(needs.employees, () => searchEmployees(state.employeeQuery)),
+    fetchIfNeeded(needs.employeeLogs, () => getEmployeeAttendanceLogs("/security")),
+    fetchIfNeeded(needs.workforceRequests, () => listSecurityWorkforceOnboardingRequests()),
   ]);
 
   if (revision !== state.portalLoadRevision) {
@@ -477,33 +470,33 @@ async function loadSecurityPortal(showErrors = true) {
     return;
   }
 
-  if (overview.status === "fulfilled") {
+  if (needs.overview && overview.status === "fulfilled") {
     renderMetrics(overview.value?.data?.metrics || []);
-  } else if (showErrors) {
+  } else if (needs.overview && showErrors) {
     renderMetrics([]);
   }
 
-  if (queue.status === "fulfilled") {
+  if (needs.queue && queue.status === "fulfilled") {
     renderWorkList("#queue-list", queue.value?.data?.items || [], queueCard, "No approved arrivals", "Approved visitors waiting for arrival will appear here.");
-  } else if (showErrors) {
+  } else if (needs.queue && showErrors) {
     renderWorkList("#queue-list", [], (item) => item, "Queue unavailable", queue.reason?.message || "Queue could not be loaded.");
   }
 
-  if (photo.status === "fulfilled") {
+  if (needs.photo && photo.status === "fulfilled") {
     renderPhotoCapturePanel(photo.value?.data || {});
-  } else if (showErrors) {
+  } else if (needs.photo && showErrors) {
     const message = photo.reason?.message || "Camera status could not be loaded.";
     renderWorkList("#photo-list", [], (item) => item, "Camera status unavailable", message);
     setCameraFrameStatus(message);
   }
 
-  if (monitoring.status === "fulfilled") {
+  if (needs.monitoring && monitoring.status === "fulfilled") {
     const monitoringData = monitoring.value?.data || {};
     renderWorkList("#checkins-list", monitoringData.currentlyInside || [], checkedInCard, "No active check-ins", "Checked-in visitors will appear here.");
     renderMonitoring(monitoringData);
     state.approvedBadgeVisitors = monitoringData.approvedVisitors || [];
     await refreshBadgeListIfVisible();
-  } else if (showErrors) {
+  } else if (needs.monitoring && showErrors) {
     const message = monitoring.reason?.message || "Monitoring could not be loaded.";
     renderWorkList("#checkins-list", [], (item) => item, "Check-ins unavailable", message);
     renderWorkList("#badge-list", [], (item) => item, "Badges unavailable", message);
@@ -517,59 +510,124 @@ async function loadSecurityPortal(showErrors = true) {
     renderWorkList("#monitor-attendance-list", [], (item) => item, "Monitoring unavailable", message);
   }
 
-  if (visitorInvites.status === "fulfilled") {
+  if (needs.visitorInvites && visitorInvites.status === "fulfilled") {
     renderSecurityVisitorInvites(visitorInvites.value?.data || []);
-  } else if (showErrors) {
+  } else if (needs.visitorInvites && showErrors) {
     renderWorkList("#security-invite-list", [], (item) => item, "Invites unavailable", visitorInvites.reason?.message || "Visitor invites could not be loaded.");
   }
 
-  if (emergencyState.status === "fulfilled") {
+  if (needs.emergencyState && emergencyState.status === "fulfilled") {
     state.emergencyState = emergencyState.value?.data || null;
   }
-  if (emergencyFeed.status === "fulfilled") {
+  if (needs.emergencyFeed && emergencyFeed.status === "fulfilled") {
     state.emergencyFeed = emergencyFeed.value?.data || [];
   }
-  if (emergencyEvacuation.status === "fulfilled") {
+  if (needs.emergencyEvacuation && emergencyEvacuation.status === "fulfilled") {
     state.emergencyEvacuation = emergencyEvacuation.value?.data || null;
   }
-  if (operationalEvents.status === "fulfilled") {
+  if (needs.operationalEvents && operationalEvents.status === "fulfilled") {
     mergeOperationalEvents(operationalEvents.value?.data || {});
   }
-  if ([emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents].some((result) => result.status === "fulfilled")) {
+  if (needsEmergencyRender(needs) && [emergencyState, emergencyFeed, emergencyEvacuation, operationalEvents].some((result) => result.status === "fulfilled" && result.value !== null)) {
     renderEmergencyWorkspace();
-  } else if (showErrors) {
+  } else if (needsEmergencyRender(needs) && showErrors) {
     renderEmergencyUnavailable(emergencyFeed.reason?.message || emergencyState.reason?.message || "Emergency operations could not be loaded.");
   }
 
-  if (employees.status === "fulfilled") {
+  if (needs.employees && employees.status === "fulfilled") {
     renderEmployeeDirectory(employees.value?.data || []);
-  } else if (showErrors) {
+  } else if (needs.employees && showErrors) {
     renderWorkList("#employee-directory-list", [], (item) => item, "Employee lookup unavailable", employees.reason?.message || "Employee directory could not be loaded.");
   }
 
-  if (employeeLogs.status === "fulfilled") {
+  if (needs.employeeLogs && employeeLogs.status === "fulfilled") {
     renderEmployeeAttendanceLogs(employeeLogs.value?.data || []);
-  } else if (showErrors) {
+  } else if (needs.employeeLogs && showErrors) {
     renderWorkList("#employee-attendance-log-list", [], (item) => item, "Presence logs unavailable", employeeLogs.reason?.message || "Workforce presence could not be loaded.");
   }
 
-  if (workforceRequests.status === "fulfilled") {
+  if (needs.workforceRequests && workforceRequests.status === "fulfilled") {
     renderSubmittedWorkforceRequests(workforceRequests.value?.data || []);
-  } else if (showErrors) {
+  } else if (needs.workforceRequests && showErrors) {
     renderWorkList("#workforce-request-list", [], (item) => item, "Submitted requests unavailable", workforceRequests.reason?.message || "Workforce approval status could not be loaded.");
   }
 
-  renderSecurityDashboard({
-    queue: queue.status === "fulfilled" ? queue.value?.data?.items || [] : [],
-    monitoring: monitoring.status === "fulfilled" ? monitoring.value?.data || {} : {},
-    visitorInvites: visitorInvites.status === "fulfilled" ? visitorInvites.value?.data || [] : [],
-    workforceRequests: workforceRequests.status === "fulfilled" ? workforceRequests.value?.data || [] : [],
-    employeeLogs: employeeLogs.status === "fulfilled" ? employeeLogs.value?.data || [] : [],
-  });
+  if (route === "dashboard") {
+    renderSecurityDashboard({
+      queue: queue.status === "fulfilled" && queue.value ? queue.value?.data?.items || [] : [],
+      monitoring: monitoring.status === "fulfilled" && monitoring.value ? monitoring.value?.data || {} : {},
+      visitorInvites: visitorInvites.status === "fulfilled" && visitorInvites.value ? visitorInvites.value?.data || [] : [],
+      workforceRequests: workforceRequests.status === "fulfilled" && workforceRequests.value ? workforceRequests.value?.data || [] : [],
+      employeeLogs: employeeLogs.status === "fulfilled" && employeeLogs.value ? employeeLogs.value?.data || [] : [],
+    });
+  }
 
   state.portalLoading = false;
   if (state.portalLoadQueued) {
     void loadSecurityPortal(false);
+  }
+}
+
+function activeRenderedSecurityRoute() {
+  const activeRoute = document.querySelector("#main-content")?.dataset.activeRoute;
+  return ROUTES.includes(activeRoute) ? activeRoute : currentSecurityRoute();
+}
+
+function dataRequirementsForRoute(route) {
+  const keys = ROUTE_DATA_REQUIREMENTS[route] || ROUTE_DATA_REQUIREMENTS.dashboard;
+  return keys.reduce((requirements, key) => {
+    requirements[key] = true;
+    return requirements;
+  }, { route });
+}
+
+function fetchIfNeeded(needed, loader) {
+  return needed ? loader() : Promise.resolve(null);
+}
+
+function needsEmergencyRender(needs) {
+  return Boolean(needs.emergencyState || needs.emergencyFeed || needs.emergencyEvacuation || needs.operationalEvents);
+}
+
+function renderRouteLoadingState(needs) {
+  if (needs.overview) {
+    renderMetrics([]);
+    renderLoadingList("#dashboard-active-visitors", 2);
+    renderLoadingList("#dashboard-pending-approvals", 2);
+    renderLoadingList("#dashboard-checkin-activity", 2);
+  }
+  if (needs.queue) {
+    renderLoadingList("#queue-list");
+  }
+  if (needs.photo) {
+    renderLoadingList("#photo-list");
+  }
+  if (needs.monitoring) {
+    renderLoadingList("#checkins-list");
+    renderLoadingList("#badge-list");
+    renderLoadingList("#monitor-inside-list");
+    renderLoadingList("#monitor-overdue-list");
+    renderLoadingList("#monitor-checkedout-list");
+    renderLoadingList("#monitor-rejected-list");
+    renderLoadingList("#monitor-recurring-active-list");
+    renderLoadingList("#monitor-recurring-expired-list");
+    renderLoadingList("#monitor-suspended-list");
+    renderLoadingList("#monitor-attendance-list");
+  }
+  if (needs.visitorInvites) {
+    renderLoadingList("#security-invite-list");
+  }
+  if (needsEmergencyRender(needs)) {
+    renderEmergencyLoading();
+  }
+  if (needs.employees) {
+    renderLoadingList("#employee-directory-list");
+  }
+  if (needs.employeeLogs) {
+    renderLoadingList("#employee-attendance-log-list");
+  }
+  if (needs.workforceRequests) {
+    renderLoadingList("#workforce-request-list");
   }
 }
 
@@ -634,26 +692,8 @@ function summaryTile(label, value) {
   `;
 }
 
-function initOperationalWorkspace() {
-  const activeRoute = resolveInitialActiveRoute();
-  prepareOperationalModules(activeRoute);
-  mountSecurityReportExports();
-  mountSecurityInviteLifecycle();
-  initSecurityInviteActions();
-  bindOperationalNavigation();
-  initActiveSectionObserver();
-  state.activeScrollUntil = Date.now() + 1200;
-  setActiveOperationalSection(activeRoute, { persist: false });
-
-  if (!window.location.hash && activeRoute !== ROUTES[0]) {
-    window.requestAnimationFrame(() => focusOperationalSection(activeRoute, { updateHash: false, smooth: false }));
-  }
-}
-
 function mountSecurityReportExports() {
-  const target = document.querySelector("#security-report-export-target")
-    || document.querySelector("#monitoring .operational-module__body-inner")
-    || document.querySelector("#monitoring");
+  const target = document.querySelector("#security-report-export-target");
   if (!target || document.querySelector("#security-report-export-panel")) {
     return;
   }
@@ -696,27 +736,6 @@ function mountSecurityReportExports() {
     });
   });
   target.append(panel);
-}
-
-function mountSecurityInviteLifecycle() {
-  const target = document.querySelector("#monitoring .security-monitor-grid");
-  if (!target || document.querySelector("#security-invite-lifecycle-panel")) {
-    return;
-  }
-  const panel = document.createElement("article");
-  panel.className = "security-monitor-card";
-  panel.id = "security-invite-lifecycle-panel";
-  panel.innerHTML = `
-    <div class="security-monitor-card__header">
-      <div>
-        <p class="eyebrow">Invite Lifecycle</p>
-        <h3>Visitor Invites</h3>
-      </div>
-      <span class="status-badge status-badge--tone-info" id="security-invite-count">0</span>
-    </div>
-    <div class="work-list" id="security-invite-list"></div>
-  `;
-  target.prepend(panel);
 }
 
 function initSecurityInviteActions() {
@@ -784,195 +803,6 @@ function initSecurityInviteActions() {
       button.classList.remove("is-loading");
     }
   });
-}
-
-function prepareOperationalModules(activeRoute) {
-  document.querySelectorAll("[data-operational-module]").forEach((module) => {
-    if (!module.id || module.dataset.operationalReady === "true") {
-      return;
-    }
-
-    const header = module.querySelector(".panel__header");
-    if (!header) {
-      return;
-    }
-
-    module.dataset.operationalReady = "true";
-    module.classList.add("operational-module");
-    module.setAttribute("tabindex", "-1");
-
-    const body = document.createElement("div");
-    const bodyInner = document.createElement("div");
-    body.className = "operational-module__body";
-    body.id = `${module.id}-module-body`;
-    bodyInner.className = "operational-module__body-inner";
-
-    let sibling = header.nextSibling;
-    while (sibling) {
-      const current = sibling;
-      sibling = sibling.nextSibling;
-      bodyInner.append(current);
-    }
-    body.append(bodyInner);
-    module.append(body);
-
-    const toggle = document.createElement("button");
-    toggle.className = "icon-button operational-module__toggle";
-    toggle.type = "button";
-    toggle.setAttribute("aria-controls", body.id);
-    toggle.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5Z"/></svg>`;
-    header.append(toggle);
-
-    const saved = readSessionValue(moduleStateKey(module.id));
-    const shouldExpand = module.id === activeRoute || saved === "expanded" || (!saved && module.id === ROUTES[0]);
-    setModuleExpanded(module, shouldExpand, { persist: false });
-
-    toggle.addEventListener("click", () => {
-      const nextExpanded = module.classList.contains("is-collapsed");
-      setModuleExpanded(module, nextExpanded);
-      if (nextExpanded) {
-        setActiveOperationalSection(module.id);
-        if (module.id === "badges") {
-          void refreshBadgeListIfVisible(true);
-        }
-      }
-    });
-  });
-}
-
-function bindOperationalNavigation() {
-  document.querySelectorAll("#sidebar-nav .nav-link[href^='#'], .security-quick-action[href^='#']").forEach((link) => {
-    link.addEventListener("click", (event) => {
-      const route = link.getAttribute("href")?.slice(1);
-      if (!route || !ROUTES.includes(route)) {
-        return;
-      }
-      event.preventDefault();
-      focusOperationalSection(route);
-    });
-  });
-
-  window.addEventListener("hashchange", () => {
-    const route = window.location.hash.replace("#", "");
-    if (ROUTES.includes(route)) {
-      focusOperationalSection(route, { updateHash: false, smooth: false });
-    }
-  });
-}
-
-function initActiveSectionObserver() {
-  if (!("IntersectionObserver" in window)) {
-    return;
-  }
-
-  const sections = ROUTES.map((route) => document.getElementById(route)).filter(Boolean);
-  const observer = new IntersectionObserver((entries) => {
-    if (Date.now() < state.activeScrollUntil) {
-      return;
-    }
-    const visible = entries
-      .filter((entry) => entry.isIntersecting)
-      .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
-    if (visible?.target?.id) {
-      setActiveOperationalSection(visible.target.id);
-    }
-  }, {
-    rootMargin: "-30% 0px -55% 0px",
-    threshold: [0.05, 0.2, 0.55],
-  });
-
-  sections.forEach((section) => observer.observe(section));
-}
-
-function focusOperationalSection(route, options = {}) {
-  const { updateHash = true, smooth = true } = options;
-  const section = document.getElementById(route);
-  if (!section) {
-    return;
-  }
-
-  setModuleExpanded(section, true);
-  setActiveOperationalSection(route);
-  state.activeScrollUntil = Date.now() + 1400;
-  if (updateHash) {
-    window.history.pushState(null, "", `#${route}`);
-  }
-  section.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
-  window.setTimeout(() => section.focus({ preventScroll: true }), smooth ? 260 : 0);
-  if (route === "badges") {
-    void refreshBadgeListIfVisible(true);
-  }
-}
-
-function setActiveOperationalSection(route, options = {}) {
-  const { persist = true } = options;
-  if (!ROUTES.includes(route)) {
-    return;
-  }
-
-  document.querySelectorAll("#sidebar-nav .nav-link, .security-quick-action").forEach((link) => {
-    const isActive = link.dataset.route === route;
-    link.classList.toggle("is-active", isActive);
-    if (isActive) {
-      link.setAttribute("aria-current", "page");
-    } else {
-      link.removeAttribute("aria-current");
-    }
-  });
-
-  document.querySelectorAll("[data-operational-module]").forEach((module) => {
-    module.classList.toggle("is-active-section", module.id === route);
-  });
-
-  if (persist) {
-    writeSessionValue(ACTIVE_SECTION_KEY, route);
-  }
-}
-
-function setModuleExpanded(module, expanded, options = {}) {
-  const { persist = true } = options;
-  const toggle = module.querySelector(".operational-module__toggle");
-  const body = module.querySelector(".operational-module__body");
-  module.classList.toggle("is-collapsed", !expanded);
-  toggle?.setAttribute("aria-expanded", String(expanded));
-  toggle?.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} ${moduleLabel(module)}`);
-  body?.setAttribute("aria-hidden", String(!expanded));
-  if (persist) {
-    writeSessionValue(moduleStateKey(module.id), expanded ? "expanded" : "collapsed");
-  }
-}
-
-function resolveInitialActiveRoute() {
-  const hashRoute = window.location.hash.replace("#", "");
-  if (ROUTES.includes(hashRoute)) {
-    return hashRoute;
-  }
-  const savedRoute = readSessionValue(ACTIVE_SECTION_KEY);
-  return ROUTES.includes(savedRoute) ? savedRoute : ROUTES[0];
-}
-
-function moduleLabel(module) {
-  return module.querySelector(".panel__header h2")?.textContent?.trim() || "section";
-}
-
-function moduleStateKey(route) {
-  return `${MODULE_STATE_PREFIX}:${route}`;
-}
-
-function readSessionValue(key) {
-  try {
-    return window.sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeSessionValue(key, value) {
-  try {
-    window.sessionStorage.setItem(key, value);
-  } catch {
-    // Session persistence is progressive enhancement for kiosk browsers.
-  }
 }
 
 function initMonitoringSearch() {
