@@ -301,7 +301,7 @@ function initLogout() {
       void logout(refreshToken, { keepalive: true });
     }
 
-    window.location.replace(LOGIN_FROM_PORTAL);
+    replaceShellLocation(LOGIN_FROM_PORTAL);
   });
 }
 
@@ -510,7 +510,7 @@ function openNotificationTarget(item) {
     window.location.hash = resolved;
     return;
   }
-  window.location.assign(resolved);
+  assignShellLocation(resolved);
 }
 
 function resolveNotificationTarget({ actionUrl, type, targetType, targetId, deepLink }) {
@@ -911,5 +911,43 @@ function bindMediaQuery(query, eventName, listener) {
     query.addEventListener(eventName, listener);
   } else if (typeof query?.addListener === "function") {
     query.addListener(listener);
+  }
+}
+
+function assignShellLocation(target) {
+  const nextUrl = resolveShellUrl(target);
+  if (!nextUrl || sameShellLocation(nextUrl)) {
+    return false;
+  }
+  window.location.assign(nextUrl);
+  return true;
+}
+
+function replaceShellLocation(target) {
+  const nextUrl = resolveShellUrl(target);
+  if (!nextUrl || sameShellLocation(nextUrl)) {
+    return false;
+  }
+  window.location.replace(nextUrl);
+  return true;
+}
+
+function sameShellLocation(target) {
+  try {
+    const current = new URL(window.location.href);
+    const next = new URL(target, window.location.href);
+    current.searchParams.delete("afv");
+    next.searchParams.delete("afv");
+    return current.toString() === next.toString();
+  } catch {
+    return false;
+  }
+}
+
+function resolveShellUrl(target) {
+  try {
+    return new URL(target, window.location.href).toString();
+  } catch {
+    return "";
   }
 }

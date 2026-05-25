@@ -20,6 +20,7 @@
   let currentVersion = readCurrentVersion();
   let ready = false;
   let versionMonitor = 0;
+  let recoveryInFlight = false;
 
   injectRuntimeStyles();
 
@@ -83,13 +84,16 @@
 
   function markReady() {
     ready = true;
-    clearRecoveryState();
     hideNotice();
     showRecoveredNoticeIfNeeded();
   }
 
   function recover(reason, options = {}) {
     const details = normalizeRecoveryOptions(reason, options);
+    if (recoveryInFlight) {
+      return true;
+    }
+    recoveryInFlight = true;
     const recoveryState = incrementRecovery(details.reason);
 
     reportError(details.reason, details.error, { autoReload: recoveryState.count <= 1, redirectToLogin: details.redirectToLogin });
@@ -102,16 +106,21 @@
         primaryLabel: "Sign in",
         primaryAction: () => redirectTo(details.loginPath),
       });
-      redirectTo(details.loginPath);
+      if (!redirectTo(details.loginPath)) {
+        recoveryInFlight = false;
+      }
       return true;
     }
 
-    if (recoveryState.count <= 1 && details.forceReload) {
+    if (recoveryState.count <= 1 && details.forceReload && !hasCurrentRecoveryToken()) {
       showNotice(details.message);
-      reloadCurrentPage();
+      if (!reloadCurrentPage()) {
+        recoveryInFlight = false;
+      }
       return true;
     }
 
+    recoveryInFlight = false;
     showNotice(details.message, {
       primaryLabel: "Refresh now",
       primaryAction: reloadCurrentPage,
@@ -659,12 +668,51 @@
 
   function reloadCurrentPage() {
     const url = new URL(window.location.href);
-    url.searchParams.set("afv", currentVersion || "refresh");
-    window.location.replace(url.toString());
+    const token = currentVersion || "refresh";
+    if (url.searchParams.get("afv") === token) {
+      return false;
+    }
+    url.searchParams.set("afv", token);
+    return replaceLocationOnce(url.toString());
   }
 
   function redirectTo(target) {
-    window.location.replace(target || DEFAULT_LOGIN_PATH);
+    return replaceLocationOnce(target || DEFAULT_LOGIN_PATH);
+  }
+
+  function replaceLocationOnce(target) {
+    const nextUrl = resolveLocationUrl(target);
+    if (!nextUrl || stripRuntimeNavigationToken(nextUrl) === stripRuntimeNavigationToken(window.location.href)) {
+      return false;
+    }
+    window.location.replace(nextUrl);
+    return true;
+  }
+
+  function hasCurrentRecoveryToken() {
+    try {
+      return new URL(window.location.href).searchParams.get("afv") === (currentVersion || "refresh");
+    } catch {
+      return false;
+    }
+  }
+
+  function resolveLocationUrl(target) {
+    try {
+      return new URL(target, window.location.href).toString();
+    } catch {
+      return "";
+    }
+  }
+
+  function stripRuntimeNavigationToken(value) {
+    try {
+      const url = new URL(value, window.location.href);
+      url.searchParams.delete("afv");
+      return url.toString();
+    } catch {
+      return String(value || "");
+    }
   }
 
   function readableMessage(error) {

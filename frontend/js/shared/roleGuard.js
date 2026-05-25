@@ -4,11 +4,11 @@ import { clearSession, getPrimaryRole, getSession, getTokenRoles, isAuthenticate
 
 export function redirectToPortal(role, fromPortal = false) {
   const target = fromPortal ? ROLE_PORTALS_FROM_PORTAL[role] : ROLE_PORTALS[role];
-  window.location.assign(target || (fromPortal ? LOGIN_FROM_PORTAL : "./index.html"));
+  navigateOnce(target || (fromPortal ? LOGIN_FROM_PORTAL : "./index.html"));
 }
 
 export function redirectToLogin() {
-  window.location.assign(LOGIN_FROM_PORTAL);
+  navigateOnce(LOGIN_FROM_PORTAL);
 }
 
 export function redirectAuthenticatedFromLogin() {
@@ -101,4 +101,34 @@ function rolesOverlap(left = [], right = []) {
 function logRoleGuardWarning(message, details) {
   void message;
   void details;
+}
+
+function navigateOnce(target) {
+  const nextUrl = resolveUrl(target);
+  if (!nextUrl || sameDocumentLocation(nextUrl)) {
+    return false;
+  }
+
+  window.location.assign(nextUrl);
+  return true;
+}
+
+function sameDocumentLocation(target) {
+  try {
+    const current = new URL(window.location.href);
+    const next = new URL(target, window.location.href);
+    current.searchParams.delete("afv");
+    next.searchParams.delete("afv");
+    return current.toString() === next.toString();
+  } catch {
+    return false;
+  }
+}
+
+function resolveUrl(target) {
+  try {
+    return new URL(target, window.location.href).toString();
+  } catch {
+    return "";
+  }
 }

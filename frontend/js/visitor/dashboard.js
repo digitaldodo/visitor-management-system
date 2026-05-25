@@ -91,6 +91,8 @@ const ROUTE_ALIASES = {
 let activeBadge = null;
 let visitorRouteLoading = false;
 let visitorRouteQueued = false;
+let visitorRouteQueuedRoute = "";
+let visitorRouteRenderId = 0;
 let visitorRouteRevision = 0;
 let visitorProfileLoaded = false;
 let activeVisitorProfile = null;
@@ -164,6 +166,12 @@ async function renderVisitorRoute(route = currentVisitorRoute(), options = {}) {
   if (!host || !definition) {
     return;
   }
+  if (!options.replace && host.dataset.activeRoute === resolvedRoute && window.location.pathname === definition.href && !host.classList.contains("is-transitioning")) {
+    setActiveRoute(resolvedRoute);
+    return;
+  }
+
+  const renderId = ++visitorRouteRenderId;
 
   if (!options.replace && window.location.pathname !== definition.href) {
     window.history.pushState({}, "", definition.href);
@@ -186,12 +194,21 @@ async function renderVisitorRoute(route = currentVisitorRoute(), options = {}) {
 
   try {
     const pageModule = await definition.loader();
+    if (renderId !== visitorRouteRenderId) {
+      return;
+    }
     host.innerHTML = pageModule.render();
     host.dataset.activeRoute = resolvedRoute;
-    await initializeRenderedRoute(resolvedRoute);
+    await initializeRenderedRoute(resolvedRoute, renderId);
+    if (renderId !== visitorRouteRenderId) {
+      return;
+    }
     host.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
+    if (renderId !== visitorRouteRenderId) {
+      return;
+    }
     host.innerHTML = `
       <section class="visitor-route panel">
         <div class="empty-state empty-state--inline">
@@ -202,14 +219,22 @@ async function renderVisitorRoute(route = currentVisitorRoute(), options = {}) {
     `;
     showToast("Workspace unavailable", error?.message || "Route module could not be loaded.");
   } finally {
-    requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+    if (renderId === visitorRouteRenderId) {
+      requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+    }
   }
 }
 
-async function initializeRenderedRoute(route) {
+async function initializeRenderedRoute(route, renderId) {
   if (route === "requests" || route === "pre-registration") {
     await runSafely("visitor organizations", () => initOrganizations(), { toastTitle: "Organizations unavailable" });
+    if (renderId !== visitorRouteRenderId) {
+      return;
+    }
     await runSafely("visitor host picker", () => initHostPickers(), { toastTitle: "Host search unavailable" });
+    if (renderId !== visitorRouteRenderId) {
+      return;
+    }
     initRequestForms();
     initScheduleHints();
     initRequestFilters();
@@ -231,7 +256,9 @@ async function initializeRenderedRoute(route) {
   if (route === "notifications") {
     initNotificationActions();
   }
-  await loadRouteData({ force: true });
+  if (renderId === visitorRouteRenderId) {
+    await loadRouteData({ force: true, route });
+  }
 }
 
 function bindVisitorWorkspaceNavigation() {
@@ -245,7 +272,8 @@ function bindVisitorWorkspaceNavigation() {
       return;
     }
     event.preventDefault();
-    void renderVisitorRoute(ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard");
+    const nextRoute = ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard";
+    void renderVisitorRoute(nextRoute);
   });
 
   window.addEventListener("popstate", () => {
@@ -281,12 +309,14 @@ function setPageTitle(definition) {
 async function loadRouteData(options = {}) {
   if (visitorRouteLoading) {
     visitorRouteQueued = true;
+    visitorRouteQueuedRoute = options.route || currentVisitorRoute();
     return;
   }
-  const route = currentVisitorRoute();
+  const route = options.route || currentVisitorRoute();
   const revision = ++visitorRouteRevision;
   visitorRouteLoading = true;
   visitorRouteQueued = false;
+  visitorRouteQueuedRoute = "";
 
   try {
     if (route === "dashboard") {
@@ -307,7 +337,10 @@ async function loadRouteData(options = {}) {
   } finally {
     visitorRouteLoading = false;
     if (visitorRouteQueued) {
-      void loadRouteData({ force: true });
+      const queuedRoute = visitorRouteQueuedRoute || currentVisitorRoute();
+      visitorRouteQueued = false;
+      visitorRouteQueuedRoute = "";
+      void loadRouteData({ force: true, route: queuedRoute });
     }
   }
 }

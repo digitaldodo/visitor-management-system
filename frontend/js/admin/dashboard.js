@@ -52,6 +52,7 @@ let userDepartmentOrganizationId = "";
 let adminRouteState = null;
 let activeOrganizationWorkspace = null;
 let currentOrganizationWorkspaceId = "";
+let adminRouteActivationId = 0;
 let operationalEventCursor = "";
 let operationalEventPoller = null;
 let operationalEventsHydrated = false;
@@ -145,7 +146,7 @@ async function bootAdminPortal() {
   const allowedRoutes = resolveAllowedRoutes();
   const routeContext = resolveRouteContext(allowedRoutes);
   if (routeContext.redirectTo) {
-    window.location.replace(routeContext.redirectTo);
+    replaceAdminLocation(routeContext.redirectTo);
     return;
   }
 
@@ -1414,7 +1415,7 @@ async function syncRouteFromLocation() {
 
   const routeContext = resolveRouteContext(adminRouteState.allowedRoutes);
   if (routeContext.redirectTo) {
-    window.location.replace(routeContext.redirectTo);
+    replaceAdminLocation(routeContext.redirectTo);
     return;
   }
 
@@ -1437,7 +1438,7 @@ async function navigateToAdminRoute(routeKey) {
     currentOrganizationWorkspaceId = "";
     collapseAdminSidebarForNavigation();
     if (routeKey === "organizations") {
-      window.history.pushState({}, "", adminRouteState.routeMap?.[routeKey]?.href || "/admin/organizations");
+      pushAdminState(adminRouteState.routeMap?.[routeKey]?.href || "/admin/organizations");
       await activateAdminRoute(routeKey, { preserveToasts: true });
     }
     return;
@@ -1453,7 +1454,7 @@ async function navigateToAdminRoute(routeKey) {
     return;
   }
 
-  window.history.pushState({}, "", href);
+  pushAdminState(href);
   currentOrganizationWorkspaceId = "";
   await activateAdminRoute(routeKey, { preserveToasts: true });
 }
@@ -1492,6 +1493,7 @@ async function activateAdminRoute(routeKey, options = {}) {
     return;
   }
 
+  const activationId = ++adminRouteActivationId;
   currentRoute = routeKey;
   currentOrganizationWorkspaceId = routeKey === "organizations" ? resolveOrganizationWorkspaceRouteId(window.location.pathname) : "";
   collapseAdminSidebarForNavigation();
@@ -1506,8 +1508,51 @@ async function activateAdminRoute(routeKey, options = {}) {
     showToast("Workspace module unavailable", error.message);
   }
   window.scrollTo(0, 0);
-  if (initialized) {
+  if (initialized && activationId === adminRouteActivationId) {
     await loadWorkspace(routeKey, options);
+  }
+}
+
+function pushAdminState(href) {
+  const nextUrl = resolveAdminUrl(href);
+  if (!nextUrl || sameAdminLocation(nextUrl)) {
+    return false;
+  }
+  window.history.pushState({}, "", nextUrl);
+  return true;
+}
+
+function replaceAdminLocation(href) {
+  const nextUrl = resolveAdminUrl(href);
+  if (!nextUrl || sameAdminLocation(nextUrl)) {
+    return false;
+  }
+  window.location.replace(nextUrl);
+  return true;
+}
+
+function replaceAdminState(href) {
+  const nextUrl = resolveAdminUrl(href);
+  if (!nextUrl || sameAdminLocation(nextUrl)) {
+    return false;
+  }
+  window.history.replaceState({}, "", nextUrl);
+  return true;
+}
+
+function sameAdminLocation(href) {
+  try {
+    return new URL(window.location.href).toString() === new URL(href, window.location.href).toString();
+  } catch {
+    return false;
+  }
+}
+
+function resolveAdminUrl(href) {
+  try {
+    return new URL(href, window.location.href).toString();
+  } catch {
+    return "";
   }
 }
 
@@ -2648,7 +2693,7 @@ async function navigateToOrganizationWorkspace(organizationId, options = {}) {
   const normalizedId = String(organizationId || "new");
   const href = `${adminRouteState.routeMap?.organizations?.href || "/admin/organizations"}/${encodeURIComponent(normalizedId)}`;
   currentOrganizationWorkspaceId = normalizedId;
-  window.history.pushState({}, "", href);
+  pushAdminState(href);
   await activateAdminRoute("organizations", { preserveToasts: true, ...options });
 }
 
@@ -2777,7 +2822,7 @@ async function submitOrganizationWorkspaceForm(form) {
     if (!organizationId && nextId) {
       const href = `${adminRouteState?.routeMap?.organizations?.href || "/admin/organizations"}/${encodeURIComponent(nextId)}`;
       currentOrganizationWorkspaceId = nextId;
-      window.history.replaceState({}, "", href);
+      replaceAdminState(href);
     }
     await refreshOrganizationsCache();
     await loadOrganizationManagementWorkspace(nextId, { activeTab: "overview" });

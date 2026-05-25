@@ -5,7 +5,11 @@ import { clearSession, getAccessToken, getRefreshToken, normalizeAuthResponse, s
 const REQUEST_TIMEOUT_MS = 30000;
 const TRANSIENT_STATUS_CODES = new Set([408, 425, 429, 502, 503, 504]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const TERMINAL_REFRESH_COOLDOWN_MS = 10000;
 let refreshPromise = null;
+let lastTerminalRefreshFailureAt = 0;
+let lastTerminalRefreshToken = "";
+let unauthorizedRecoveryStarted = false;
 const inFlightGetRequests = new Map();
 
 export async function request(path, options = {}) {
@@ -73,9 +77,7 @@ export async function request(path, options = {}) {
     const payload = await parseResponsePayload(response);
 
     if (response.status === 401 && auth) {
-      handleUnauthorizedSession("unauthorized-response", {
-        message: "Your AccessFlow session expired. Returning to sign in...",
-      });
+      beginUnauthorizedRecovery("unauthorized-response", "Your AccessFlow session expired. Returning to sign in...");
     }
 
     if (!response.ok) {
@@ -128,6 +130,11 @@ async function refreshAccessTokenOnce() {
 async function refreshAccessToken() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
+    markTerminalRefreshFailure("");
+    return { refreshed: false, terminal: true };
+  }
+
+  if (lastTerminalRefreshToken === refreshToken && lastTerminalRefreshFailureAt && Date.now() - lastTerminalRefreshFailureAt < TERMINAL_REFRESH_COOLDOWN_MS) {
     return { refreshed: false, terminal: true };
   }
 
@@ -156,6 +163,7 @@ async function refreshAccessToken() {
   if (!response.ok || !session) {
     if (response.status === 400 || response.status === 401 || response.status === 403) {
       clearSession();
+      markTerminalRefreshFailure(refreshToken);
       return { refreshed: false, terminal: true };
     }
     return {
@@ -171,7 +179,23 @@ async function refreshAccessToken() {
   }
 
   setSession(session);
+  lastTerminalRefreshFailureAt = 0;
+  lastTerminalRefreshToken = "";
+  unauthorizedRecoveryStarted = false;
   return { refreshed: true };
+}
+
+function markTerminalRefreshFailure(refreshToken) {
+  lastTerminalRefreshFailureAt = Date.now();
+  lastTerminalRefreshToken = refreshToken || "";
+}
+
+function beginUnauthorizedRecovery(reason, message) {
+  if (unauthorizedRecoveryStarted) {
+    return;
+  }
+  unauthorizedRecoveryStarted = true;
+  handleUnauthorizedSession(reason, { message });
 }
 
 async function fetchWithRetry(url, options, retryOptions) {

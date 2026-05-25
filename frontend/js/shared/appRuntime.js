@@ -106,7 +106,9 @@ function reportApiConfigurationRecovery(runtime, label, apiState) {
     runtime.showNotice("AccessFlow recovered the API endpoint for this deployment.", {
       primaryLabel: "Refresh now",
       primaryAction: () => {
-        window.location.reload();
+        const url = new URL(window.location.href);
+        url.searchParams.set("afv", APP_VERSION || "refresh");
+        window.location.replace(url.toString());
       },
     });
   }

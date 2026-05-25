@@ -87,6 +87,7 @@ let approvalPollTimer;
 let employeePortalLoading = false;
 let employeePortalQueued = false;
 let employeePortalRevision = 0;
+let employeeRouteRenderId = 0;
 let approvalsLoading = false;
 let approvalsQueued = false;
 let activeEmployeeBadge = null;
@@ -183,6 +184,12 @@ async function renderEmployeeRoute(route = currentEmployeeRoute(), options = {})
   if (!host || !definition) {
     return;
   }
+  if (!options.replace && host.dataset.activeRoute === resolvedRoute && window.location.pathname === definition.href && !host.classList.contains("is-transitioning")) {
+    setActiveRoute(resolvedRoute);
+    return;
+  }
+
+  const renderId = ++employeeRouteRenderId;
 
   if (!options.replace && window.location.pathname !== definition.href) {
     window.history.pushState({}, "", definition.href);
@@ -207,12 +214,21 @@ async function renderEmployeeRoute(route = currentEmployeeRoute(), options = {})
 
   try {
     const pageModule = await definition.loader();
+    if (renderId !== employeeRouteRenderId) {
+      return;
+    }
     host.innerHTML = pageModule.render();
     host.dataset.activeRoute = resolvedRoute;
-    await initializeRenderedRoute(resolvedRoute);
+    await initializeRenderedRoute(resolvedRoute, renderId);
+    if (renderId !== employeeRouteRenderId) {
+      return;
+    }
     host.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
+    if (renderId !== employeeRouteRenderId) {
+      return;
+    }
     host.innerHTML = `
       <section class="employee-route panel">
         <div class="empty-state empty-state--inline">
@@ -223,11 +239,13 @@ async function renderEmployeeRoute(route = currentEmployeeRoute(), options = {})
     `;
     showToast("Workspace unavailable", error?.message || "Route module could not be loaded.");
   } finally {
-    requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+    if (renderId === employeeRouteRenderId) {
+      requestAnimationFrame(() => host.classList.remove("is-transitioning"));
+    }
   }
 }
 
-async function initializeRenderedRoute(route) {
+async function initializeRenderedRoute(route, renderId) {
   if (route === "requests") {
     initPreApprovalForm();
     initVisitorInviteForm();
@@ -245,8 +263,13 @@ async function initializeRenderedRoute(route) {
   if (route === "history") {
     initVisitorHistoryFilters();
   }
+  if (renderId !== employeeRouteRenderId) {
+    return;
+  }
   await loadEmployeePortal();
-  await loadRouteData({ force: false });
+  if (renderId === employeeRouteRenderId) {
+    await loadRouteData({ force: false, route });
+  }
 }
 
 function bindEmployeeWorkspaceNavigation() {
@@ -260,7 +283,8 @@ function bindEmployeeWorkspaceNavigation() {
       return;
     }
     event.preventDefault();
-    void renderEmployeeRoute(ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard");
+    const nextRoute = ROUTE_ALIASES[url.pathname.split("/").filter(Boolean)[1] || "dashboard"] || "dashboard";
+    void renderEmployeeRoute(nextRoute);
   });
 
   window.addEventListener("popstate", () => {
@@ -611,7 +635,7 @@ function initEmployeeBadgeActions() {
 
 async function loadRouteData(options = {}) {
   const { force = false } = options;
-  const route = currentEmployeeRoute();
+  const route = options.route || currentEmployeeRoute();
   if (route === "badge") {
     await loadCredentialPage(force);
   }
