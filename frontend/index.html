@@ -46,48 +46,91 @@
             </div>
 
             <div class="hero-proof" aria-label="Core highlights">
-              <span>Approval-based access</span>
-              <span>QR pass verification</span>
-              <span>Operational visibility</span>
+              <span>Trusted workplace operations</span>
+              <span>Secure QR verification</span>
+              <span>Role-based access</span>
+              <span>Real-time approvals</span>
             </div>
 
-            <article class="hero-note" aria-label="Operational summary">
-              <strong>Built for calmer workplace arrivals.</strong>
-              <div class="hero-note__grid">
-                <span>Guide visitors from request to verified entry.</span>
-                <span>Keep hosts, security, and admins aligned in one flow.</span>
+            <article class="workflow-preview" aria-label="Visitor workflow preview">
+              <div class="workflow-preview__header">
+                <div>
+                  <span class="dashboard-label">Visitor access flow</span>
+                  <h2>Request to verified check-in, with every handoff visible.</h2>
+                </div>
+                <span class="dashboard-chip">Live-ready</span>
+              </div>
+
+              <div class="workflow-preview__body">
+                <div class="workflow-timeline" aria-label="Visitor journey steps">
+                  <article class="workflow-step">
+                    <span class="workflow-step__icon">01</span>
+                    <div>
+                      <strong>Request visit</strong>
+                      <p>Purpose, timing, and host.</p>
+                    </div>
+                  </article>
+                  <article class="workflow-step">
+                    <span class="workflow-step__icon">02</span>
+                    <div>
+                      <strong>Host approval</strong>
+                      <p>Employee confirms before arrival.</p>
+                    </div>
+                  </article>
+                  <article class="workflow-step">
+                    <span class="workflow-step__icon">03</span>
+                    <div>
+                      <strong>QR issued</strong>
+                      <p>Verified access pass is issued.</p>
+                    </div>
+                  </article>
+                  <article class="workflow-step">
+                    <span class="workflow-step__icon">04</span>
+                    <div>
+                      <strong>Security verification</strong>
+                      <p>Desk validates identity and status.</p>
+                    </div>
+                  </article>
+                  <article class="workflow-step">
+                    <span class="workflow-step__icon">05</span>
+                    <div>
+                      <strong>Check-in completed</strong>
+                      <p>Hosts receive the entry update.</p>
+                    </div>
+                  </article>
+                </div>
+
+                <aside class="qr-preview" aria-label="QR verification preview">
+                  <div class="qr-preview__top">
+                    <span class="qr-preview__status">Verified pass</span>
+                    <strong>Access window active</strong>
+                    <p>Host: Workplace Operations</p>
+                  </div>
+                  <div class="qr-preview__code" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <div class="qr-preview__meta">
+                    <span>Desk lane</span>
+                    <strong>Security cleared</strong>
+                  </div>
+                </aside>
+              </div>
+
+              <div class="workflow-preview__footer">
+                <div class="dashboard-summary homepage-counter-grid workflow-preview__counters" id="homepage-counters"></div>
+                <div class="workflow-trust" aria-label="Enterprise trust controls">
+                  <span>Encrypted sign-in</span>
+                  <span>Audit history</span>
+                  <span>Host notifications</span>
+                </div>
               </div>
             </article>
           </div>
 
           <div class="hero-stage">
-            <article class="dashboard-mockup" aria-label="AccessFlow preview">
-              <div class="dashboard-mockup__header">
-                <div>
-                  <span class="dashboard-label">Workflow preview</span>
-                  <h2>One clear view from visitor approval to verified arrival.</h2>
-                </div>
-                <span class="dashboard-chip">Role-based</span>
-              </div>
-
-              <div class="dashboard-mockup__body">
-                <div class="dashboard-flow">
-                  <article class="flow-step">
-                    <span class="flow-step__label">Approval</span>
-                    <strong>Host confirms the visitor request.</strong>
-                    <p>Visit purpose, expected arrival, and employee ownership stay attached to the entry flow.</p>
-                  </article>
-                  <article class="flow-step">
-                    <span class="flow-step__label">Entry</span>
-                    <strong>Security verifies the pass at the desk.</strong>
-                    <p>QR validation, host notification, and check-in status stay aligned inside one operating surface.</p>
-                  </article>
-                </div>
-              </div>
-
-              <div class="dashboard-summary homepage-counter-grid" id="homepage-counters"></div>
-            </article>
-
             <section class="auth-card auth-card--hub" id="access-hub" aria-label="Account access">
               <div class="auth-card__top">
                 <div>
@@ -190,6 +233,14 @@
                 <button class="link-button" type="button" data-auth-target="visitor">Already registered? Sign in as a visitor</button>
               </form>
             </section>
+
+            <article class="access-assurance" aria-label="Access assurance">
+              <div>
+                <strong>Operationally calm by default</strong>
+                <p>Visitors, employees, security, and admins enter through the right portal without sharing a crowded screen.</p>
+              </div>
+              <span>SSO-ready controls</span>
+            </article>
           </div>
         </section>
 
