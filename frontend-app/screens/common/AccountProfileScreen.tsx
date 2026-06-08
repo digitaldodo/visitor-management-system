@@ -40,6 +40,11 @@ type Props = {
   title?: string;
   subtitle?: string;
   roleSummary?: ReactNode;
+  visitorSummary?: {
+    passStatus?: string;
+    nextVisit?: string | null;
+    timezone?: string;
+  };
   refreshing?: boolean;
   onRefresh?: () => Promise<unknown> | unknown;
 };
@@ -52,6 +57,7 @@ export function AccountProfileScreen({
   title = 'Profile',
   subtitle = 'Manage your identity, secure account settings, and role-scoped AccessFlow workspace.',
   roleSummary,
+  visitorSummary,
   refreshing,
   onRefresh,
 }: Props) {
@@ -85,6 +91,8 @@ export function AccountProfileScreen({
   const status = identity?.accountStatus || session?.user.accountStatus || (identity?.active === false ? 'INACTIVE' : 'ACTIVE');
   const statusTone = status === 'ACTIVE' ? 'success' : status === 'UNVERIFIED' ? 'warning' : 'danger';
   const headerName = identity?.fullName || session?.user.fullName || roleLabel(role);
+  const headerInitials = initialsFor(headerName);
+  const isVisitorProfile = String(role) === 'VISITOR';
 
   const passwordValidation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -236,7 +244,15 @@ export function AccountProfileScreen({
               <Image source={{ uri: photoUri }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarFallback}>
-                <Text style={styles.avatarFallbackLabel}>{initialsFor(headerName)}</Text>
+                <Text
+                  adjustsFontSizeToFit
+                  allowFontScaling={false}
+                  minimumFontScale={0.62}
+                  numberOfLines={1}
+                  style={[styles.avatarFallbackLabel, headerInitials.length >= 3 ? styles.avatarFallbackLabelCompact : null]}
+                >
+                  {headerInitials}
+                </Text>
               </View>
             )}
             <StatusPill label={statusLabel(status)} tone={statusTone} />
@@ -292,7 +308,7 @@ export function AccountProfileScreen({
         </View>
       </SurfaceCard>
 
-      <SurfaceCard title="Editable account details" subtitle="These fields belong to you. Organization-controlled identity and access fields stay locked below.">
+      <SurfaceCard title="Editable account details" subtitle={isVisitorProfile ? 'These fields belong to you. Visit access details stay read-only below.' : 'These fields belong to you. Organization-controlled identity and access fields stay locked below.'}>
         <AppTextField
           label="Username"
           value={username}
@@ -342,16 +358,25 @@ export function AccountProfileScreen({
         <PrimaryButton label="Save account changes" onPress={() => void saveProfile()} loading={updateProfileMutation.isPending} />
       </SurfaceCard>
 
-      <SurfaceCard title="Organization-managed identity" subtitle="These fields are read-only on mobile and remain controlled by authorized organization administrators.">
-        <DetailRow label="Full name" value={identity?.fullName || session?.user.fullName || 'Provisioned account'} />
-        <DetailRow label="Email" value={identity?.email || session?.user.email || 'Managed by organization'} />
-        <DetailRow label="Organization" value={identity?.organizationName || identity?.organizationCode || session?.user.organizationName || session?.user.organizationCode || 'Platform scope'} />
-        <DetailRow label="Role / workspace" value={roleLabel(role)} />
-        <DetailRow label="Employee ID" value={identity?.employeeId || session?.user.employeeId || 'Not assigned'} muted={!identity?.employeeId && !session?.user.employeeId} />
-        <DetailRow label="Department" value={identity?.department || session?.user.department || 'Not assigned'} muted={!identity?.department && !session?.user.department} />
-        <DetailRow label="Designation" value={identity?.designation || session?.user.designation || 'Not assigned'} muted={!identity?.designation && !session?.user.designation} />
-        <DetailRow label="Shift" value={formatShift(identity?.shiftName, identity?.shiftStartTime, identity?.shiftEndTime)} />
-      </SurfaceCard>
+      {isVisitorProfile ? (
+        <SurfaceCard title="Visitor profile summary" subtitle="Visitor account">
+          <DetailRow label="Visitor" value={identity?.fullName || session?.user.fullName || 'Visitor account'} />
+          <DetailRow label="Pass status" value={visitorSummary?.passStatus || 'No active pass'} />
+          {visitorSummary?.nextVisit ? <DetailRow label="Next visit" value={visitorSummary.nextVisit} /> : null}
+          <DetailRow label="Timezone" value={visitorSummary?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone} />
+        </SurfaceCard>
+      ) : (
+        <SurfaceCard title="Organization-managed identity" subtitle="These fields are read-only on mobile and remain controlled by authorized organization administrators.">
+          <DetailRow label="Full name" value={identity?.fullName || session?.user.fullName || 'Provisioned account'} />
+          <DetailRow label="Email" value={identity?.email || session?.user.email || 'Managed by organization'} />
+          <DetailRow label="Organization" value={identity?.organizationName || identity?.organizationCode || session?.user.organizationName || session?.user.organizationCode || 'Platform scope'} />
+          <DetailRow label="Role / workspace" value={roleLabel(role)} />
+          <DetailRow label="Employee ID" value={identity?.employeeId || session?.user.employeeId || 'Not assigned'} muted={!identity?.employeeId && !session?.user.employeeId} />
+          <DetailRow label="Department" value={identity?.department || session?.user.department || 'Not assigned'} muted={!identity?.department && !session?.user.department} />
+          <DetailRow label="Designation" value={identity?.designation || session?.user.designation || 'Not assigned'} muted={!identity?.designation && !session?.user.designation} />
+          <DetailRow label="Shift" value={formatShift(identity?.shiftName, identity?.shiftStartTime, identity?.shiftEndTime)} />
+        </SurfaceCard>
+      )}
 
       {roleSummary}
 
@@ -568,7 +593,7 @@ function initialsFor(fullName: string) {
   return fullName
     .split(/\s+/)
     .filter(Boolean)
-    .slice(0, 2)
+    .slice(0, 3)
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'AF';
 }
@@ -602,23 +627,31 @@ const styles = StyleSheet.create({
   avatar: {
     width: 112,
     height: 112,
-    borderRadius: 28,
+    borderRadius: 56,
     backgroundColor: theme.colors.surfaceMuted,
+    overflow: 'hidden',
   },
   avatarFallback: {
     width: 112,
     height: 112,
-    borderRadius: 28,
+    borderRadius: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: theme.colors.primaryLine,
     backgroundColor: theme.colors.primarySoft,
+    paddingHorizontal: theme.spacing.sm,
   },
   avatarFallbackLabel: {
     color: theme.colors.textPrimary,
     fontSize: 32,
     fontWeight: '800',
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
+  avatarFallbackLabelCompact: {
+    fontSize: 28,
   },
   identityCopy: {
     flex: 1,

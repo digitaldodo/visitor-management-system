@@ -650,13 +650,16 @@ export function VisitorNotificationsScreen() {
 
 export function VisitorProfileScreen() {
   const history = useVisitorHistory();
+  const visits = useVisitorVisits();
+  const visitorSummary = useMemo(() => buildVisitorProfileSummary(visits.data ?? []), [visits.data]);
 
   return (
     <AccountProfileScreen
       title="Profile"
       subtitle="Visitor identity, personal account settings, pass readiness, and visit history."
-      refreshing={history.isRefetching}
-      onRefresh={() => history.refetch()}
+      refreshing={history.isRefetching || visits.isRefetching}
+      onRefresh={() => Promise.all([history.refetch(), visits.refetch()])}
+      visitorSummary={visitorSummary}
       roleSummary={(
         <SurfaceCard title="Visit history" subtitle="Visitor profile data stays scoped to your own requests and active passes.">
           <View style={styles.metricsGrid}>
@@ -685,6 +688,40 @@ function selectActiveVisit(visits: VisitorRecord[]) {
   return visits.find((visit) => ['APPROVED', 'CHECKED_IN'].includes(String(visit.status)))
     ?? visits.find((visit) => String(visit.status) === 'PENDING')
     ?? null;
+}
+
+function buildVisitorProfileSummary(visits: VisitorRecord[]) {
+  const statusVisit = selectActiveVisit(visits)
+    ?? visits.find((visit) => !['CHECKED_OUT', 'REJECTED', 'EXPIRED', 'SUSPENDED'].includes(String(visit.status)))
+    ?? null;
+  const nextVisit = selectNextVisitorVisit(visits);
+  const timezone = nextVisit?.organizationTimezone
+    || nextVisit?.scheduledTimezone
+    || statusVisit?.organizationTimezone
+    || statusVisit?.scheduledTimezone
+    || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return {
+    passStatus: statusVisit ? visitorProfileStatusLabel(statusVisit.status) : 'No active pass',
+    nextVisit: nextVisit ? formatDateTime(nextVisit.scheduledStartTime || nextVisit.accessWindowStartTime, timezone) : null,
+    timezone,
+  };
+}
+
+function selectNextVisitorVisit(visits: VisitorRecord[]) {
+  const now = Date.now();
+  return visits
+    .filter((visit) => !['CHECKED_OUT', 'REJECTED', 'EXPIRED', 'SUSPENDED'].includes(String(visit.status)))
+    .map((visit) => ({
+      visit,
+      time: new Date(visit.scheduledStartTime || visit.accessWindowStartTime || visit.createdAt || 0).getTime(),
+    }))
+    .filter((entry) => Number.isFinite(entry.time) && entry.time >= now)
+    .sort((left, right) => left.time - right.time)[0]?.visit ?? null;
+}
+
+function visitorProfileStatusLabel(status?: VisitorRecord['status']) {
+  return String(status) === 'CHECKED_IN' ? 'Checked-in' : visitorStatusLabel(status);
 }
 
 function isActionableInvite(invite: VisitorInviteRecord) {

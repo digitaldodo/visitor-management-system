@@ -3,7 +3,7 @@ import { initAppErrorBoundary, runSafely } from "../shared/appErrorBoundary.js";
 import { bootstrapApplication } from "../shared/appRuntime.js";
 import { formatDate, formatDurationMinutes, getDefaultTimezone, minutesBetween, timezoneLabel, toIsoInstant } from "../shared/formatters.js";
 import { requireRole } from "../shared/roleGuard.js";
-import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, workCard, escapeHtml } from "../shared/portalShell.js";
+import { initPortalShell, renderLoadingList, renderMetrics, renderWorkList, updatePortalIdentitySummary, workCard, escapeHtml } from "../shared/portalShell.js";
 import { initOrganizationSelectors } from "../shared/organizationSelector.js";
 import { cancelVisitorVisit, getAccountProfile, getVisitorPass, getVisitorHistory, listVisitorInvites, requestVisitReschedule, updateAccountPassword, updateAccountProfile, uploadAccountProfilePhoto, uploadVisitPhoto } from "../shared/accessService.js";
 import { canonicalVisitorInviteStage, enterpriseStatusLabel, statusBadgeClass, visitorInviteStatusLabel } from "../shared/workflowEnums.js";
@@ -87,6 +87,15 @@ const ROUTE_ALIASES = {
   "pre-registration": "pre-registration",
   preregistration: "pre-registration",
 };
+const VISITOR_PORTAL_PROFILE = {
+  identityScope: "Visitor",
+  contextLabel: () => "Visitor account",
+  menuItems: (_session, summary = {}) => [
+    { label: "Pass status", value: summary.passStatus || "Not available" },
+    ...(summary.nextVisit ? [{ label: "Next visit", value: summary.nextVisit }] : []),
+    { label: "Timezone", value: summary.timezone || timezoneLabel(getDefaultTimezone()) },
+  ],
+};
 
 let activeBadge = null;
 let visitorRouteLoading = false;
@@ -126,6 +135,8 @@ async function bootVisitorPortal() {
     routeMap: ROUTE_DEFINITIONS,
     activeRoute: initialRoute,
     defaultHref: ROUTE_DEFINITIONS.dashboard.href,
+    portalProfile: VISITOR_PORTAL_PROFILE,
+    identitySummary: buildVisitorIdentitySummary([]),
     onRefresh: async () => loadRouteData({ force: true }),
   });
   bindVisitorWorkspaceNavigation();
@@ -372,6 +383,7 @@ async function loadDashboardRoute(revision) {
   }
 
   cachedVisits = visits.status === "fulfilled" ? visits.value?.data || [] : [];
+  updatePortalIdentitySummary(buildVisitorIdentitySummary(cachedVisits));
   cachedNotifications = notifications.status === "fulfilled" ? notifications.value?.data || { items: [] } : { items: [] };
   cachedHistory = history.status === "fulfilled" ? history.value?.data || null : null;
   renderDashboardBadge(cachedVisits);
@@ -387,6 +399,7 @@ async function loadBadgeRoute(revision) {
     return;
   }
   cachedVisits = visitsResponse?.data || [];
+  updatePortalIdentitySummary(buildVisitorIdentitySummary(cachedVisits));
   const selectedVisit = selectBadgeVisit(cachedVisits);
   renderBadgeVisitList(cachedVisits, selectedVisit?.id);
   if (!selectedVisit) {
@@ -413,6 +426,7 @@ async function loadRequestsRoute(revision) {
     return;
   }
   cachedVisits = visits.status === "fulfilled" ? visits.value?.data || [] : [];
+  updatePortalIdentitySummary(buildVisitorIdentitySummary(cachedVisits));
   renderRequestGroups(cachedVisits);
   if (visits.status === "rejected") {
     showToast("Visits unavailable", visits.reason?.message || "Visit requests could not be loaded.");
@@ -1369,6 +1383,49 @@ function selectBadgeVisit(items) {
   return items.find((visit) => ["APPROVED", "CHECKED_IN"].includes(visit.status) && (visit.qrCode || visit.qrIssuedAt))
     || items.find((visit) => ["APPROVED", "CHECKED_IN"].includes(visit.status))
     || null;
+}
+
+function buildVisitorIdentitySummary(items = []) {
+  const visits = Array.isArray(items) ? items : [];
+  const statusVisit = selectBadgeVisit(visits)
+    || visits.find((visit) => visit.status === "PENDING")
+    || visits.find((visit) => !["CHECKED_OUT", "REJECTED", "EXPIRED", "SUSPENDED"].includes(visit.status))
+    || null;
+  const nextVisit = selectNextVisitorVisit(visits);
+  const timezone = nextVisit?.organizationTimezone
+    || nextVisit?.scheduledTimezone
+    || statusVisit?.organizationTimezone
+    || statusVisit?.scheduledTimezone
+    || getDefaultTimezone();
+
+  return {
+    passStatus: statusVisit ? visitorMenuStatusLabel(statusVisit.status) : "No active pass",
+    nextVisit: nextVisit ? formatDate(nextVisit.scheduledStartTime || nextVisit.accessWindowStartTime, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: timezone,
+    }) : "",
+    timezone: timezoneLabel(timezone),
+  };
+}
+
+function selectNextVisitorVisit(items = []) {
+  const now = Date.now();
+  return items
+    .filter((visit) => !["CHECKED_OUT", "REJECTED", "EXPIRED", "SUSPENDED"].includes(visit.status))
+    .map((visit) => ({
+      visit,
+      time: new Date(visit.scheduledStartTime || visit.accessWindowStartTime || visit.createdAt || 0).getTime(),
+    }))
+    .filter((entry) => Number.isFinite(entry.time) && entry.time >= now)
+    .sort((left, right) => left.time - right.time)[0]?.visit || null;
+}
+
+function visitorMenuStatusLabel(status) {
+  if (status === "CHECKED_IN") {
+    return "Checked-in";
+  }
+  return enterpriseStatusLabel(status, "visitor");
 }
 
 function renderPreRegistrationSuccess(payload) {

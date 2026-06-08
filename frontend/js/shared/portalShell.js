@@ -12,6 +12,9 @@ import { createNonOverlappingPoller, renderHtmlIfChanged, renderMappedList } fro
 let notificationPoller;
 let notificationHydrated = false;
 let notificationLoading = false;
+let activeIdentitySession = null;
+let activeIdentityPortalProfile = null;
+let activeIdentitySummary = {};
 const seenNotificationIds = new Set();
 const browserNotificationIds = new Set();
 const OPERATIONAL_NOTIFICATION_FRESH_MS = 10 * 60 * 1000;
@@ -25,8 +28,18 @@ export function initPortalShell(session, options = {}) {
   safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
   safeShellInit("localization", initWebLocalization);
 
+  activeIdentitySession = session;
+  activeIdentityPortalProfile = options.portalProfile || null;
+  activeIdentitySummary = options.identitySummary || {};
   renderIdentityChip(session, options.portalProfile);
   refreshHealth(false);
+}
+
+export function updatePortalIdentitySummary(summary = {}) {
+  activeIdentitySummary = { ...activeIdentitySummary, ...summary };
+  if (activeIdentitySession) {
+    renderIdentityChip(activeIdentitySession, activeIdentityPortalProfile);
+  }
 }
 
 export function renderMetrics(metrics = []) {
@@ -762,13 +775,14 @@ function renderIdentityChip(session, portalProfile) {
 
   const displayName = session.fullName || session.email || "Signed in";
   const scope = typeof portalProfile?.contextLabel === "function"
-    ? portalProfile.contextLabel(session)
+    ? portalProfile.contextLabel(session, activeIdentitySummary)
     : (session.organizationName || session.organizationCode || "Platform");
   const role = portalProfile?.identityScope || formatRole(session.roles?.[0]);
-  const timezone = session.organizationName || session.organizationCode
+  const timezone = activeIdentitySummary.timezone || (session.organizationName || session.organizationCode
     ? timezoneLabel(session.organizationTimezone || session.user?.organizationTimezone || "UTC")
-    : "Global";
-  const parts = [displayName, scope, timezone, role].filter(Boolean);
+    : "Global");
+  const metaItems = resolveIdentityMenuItems(session, portalProfile, { scope, role, timezone });
+  const parts = [displayName, scope, ...metaItems.map((item) => item.value)].filter(Boolean);
   chip.title = parts.join(" · ");
   chip.dataset.i18nIgnore = "true";
   chip.setAttribute("role", "button");
@@ -779,8 +793,24 @@ function renderIdentityChip(session, portalProfile) {
   chip.setAttribute("aria-label", `Profile for ${displayName}`);
   chip.innerHTML = WorkspaceProfileChip({ displayName });
   ensureIdentityChipAnchor(chip);
-  renderIdentityMenu(chip, { displayName, scope, timezone, role });
+  renderIdentityMenu(chip, { displayName, scope, timezone, role, metaItems });
   bindIdentityMenu(chip);
+}
+
+function resolveIdentityMenuItems(session, portalProfile, identity) {
+  if (typeof portalProfile?.menuItems === "function") {
+    return portalProfile.menuItems(session, activeIdentitySummary)
+      .filter((item) => item && item.label && item.value)
+      .map((item) => ({
+        label: String(item.label),
+        value: String(item.value),
+      }));
+  }
+  return [
+    { label: "Organization", value: identity.scope || "Platform" },
+    { label: "Role", value: identity.role || "User" },
+    { label: "Timezone", value: identity.timezone || "UTC" },
+  ];
 }
 
 function ensureIdentityChipAnchor(chip) {
@@ -847,9 +877,9 @@ function renderIdentityMenu(chip, identity) {
       ${UserIdentityBadge(identity)}
     </div>
     <dl class="profile-menu__meta">
-      <div><dt>Organization</dt><dd data-i18n-ignore title="${escapeHtml(identity.scope || "Platform")}">${escapeHtml(identity.scope || "Platform")}</dd></div>
-      <div><dt>Role</dt><dd data-i18n-ignore title="${escapeHtml(identity.role || "User")}">${escapeHtml(identity.role || "User")}</dd></div>
-      <div><dt>Timezone</dt><dd data-i18n-ignore title="${escapeHtml(identity.timezone || "UTC")}">${escapeHtml(identity.timezone || "UTC")}</dd></div>
+      ${identity.metaItems.map((item) => `
+        <div><dt>${escapeHtml(item.label)}</dt><dd data-i18n-ignore title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</dd></div>
+      `).join("")}
     </dl>
   `;
 }
@@ -938,7 +968,7 @@ function initials(value) {
     .replace(/[_.,;:()[\]{}<>/\\|+="'`~!?@#$%^&*-]+/g, " ")
     .split(/\s+/)
     .filter(Boolean)
-    .slice(0, 2);
+    .slice(0, 3);
   const letters = words.map((part) => firstGrapheme(part).toLocaleUpperCase()).join("");
   if (letters) {
     return letters;
