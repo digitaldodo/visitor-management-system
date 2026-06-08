@@ -2,56 +2,62 @@
 
 :root {
   color-scheme: dark;
-  --color-bg: #0a1322;
-  --color-bg-alt: #0f1a2d;
-  --color-surface: #121d31;
-  --color-surface-raised: #18253d;
-  --color-surface-alt: #0f1728;
-  --color-surface-muted: #132034;
-  --color-text: #edf3fb;
-  --color-muted: #afbdd1;
-  --color-subtle: #8797ae;
-  --color-line: rgba(148, 163, 184, 0.2);
-  --color-line-strong: rgba(191, 219, 254, 0.24);
-  --color-input: rgba(9, 16, 29, 0.8);
-  --color-overlay: rgba(6, 10, 18, 0.46);
-  --color-primary: #4f7cff;
-  --color-primary-strong: #3765ee;
-  --color-primary-soft: rgba(79, 124, 255, 0.16);
-  --color-accent: #14b8a6;
-  --color-accent-strong: #0f766e;
-  --color-accent-soft: rgba(20, 184, 166, 0.14);
-  --color-info: #7dd3fc;
-  --color-info-soft: rgba(14, 165, 233, 0.14);
+  --color-bg: #071120;
+  --color-bg-alt: #0a1628;
+  --color-bg-deep: #0b1730;
+  --color-surface: #0a1628;
+  --color-surface-raised: #0b1730;
+  --color-surface-alt: #0c1b33;
+  --color-surface-muted: #10213a;
+  --color-surface-soft: rgba(11, 23, 48, 0.72);
+  --color-text: #f8fafc;
+  --color-muted: #94a3b8;
+  --color-subtle: #64748b;
+  --color-line: rgba(148, 163, 184, 0.16);
+  --color-line-strong: rgba(79, 140, 255, 0.28);
+  --color-input: rgba(10, 22, 40, 0.84);
+  --color-overlay: rgba(7, 17, 32, 0.62);
+  --color-primary: #3b82f6;
+  --color-primary-strong: #2563eb;
+  --color-primary-bright: #4f8cff;
+  --color-primary-soft: rgba(59, 130, 246, 0.16);
+  --color-accent: #22d3ee;
+  --color-accent-strong: #14b8a6;
+  --color-accent-soft: rgba(34, 211, 238, 0.13);
+  --color-info: #22d3ee;
+  --color-info-soft: rgba(34, 211, 238, 0.12);
   --color-warning: #f59e0b;
   --color-warning-soft: rgba(245, 158, 11, 0.14);
-  --color-success: #4ade80;
+  --color-success: #22c55e;
   --color-success-soft: rgba(34, 197, 94, 0.14);
-  --color-danger: #f87171;
+  --color-danger: #ef4444;
   --color-danger-soft: rgba(239, 68, 68, 0.14);
   --status-neutral-bg: rgba(148, 163, 184, 0.14);
   --status-neutral-text: #cbd5e1;
   --status-neutral-border: rgba(203, 213, 225, 0.24);
   --status-neutral-indicator: #94a3b8;
   --status-success-bg: rgba(34, 197, 94, 0.14);
-  --status-success-text: #86efac;
-  --status-success-border: rgba(134, 239, 172, 0.28);
-  --status-success-indicator: #4ade80;
+  --status-success-text: #bbf7d0;
+  --status-success-border: rgba(34, 197, 94, 0.32);
+  --status-success-indicator: #22c55e;
   --status-warning-bg: rgba(245, 158, 11, 0.14);
   --status-warning-text: #fcd34d;
   --status-warning-border: rgba(252, 211, 77, 0.30);
   --status-warning-indicator: #f59e0b;
   --status-danger-bg: rgba(239, 68, 68, 0.14);
-  --status-danger-text: #fca5a5;
-  --status-danger-border: rgba(252, 165, 165, 0.30);
-  --status-danger-indicator: #f87171;
-  --status-info-bg: rgba(14, 165, 233, 0.14);
-  --status-info-text: #7dd3fc;
-  --status-info-border: rgba(125, 211, 252, 0.30);
-  --status-info-indicator: #7dd3fc;
-  --shadow-xs: 0 1px 2px rgba(2, 6, 23, 0.22);
-  --shadow-soft: 0 18px 48px rgba(2, 6, 23, 0.3);
-  --shadow-pop: 0 28px 72px rgba(2, 6, 23, 0.38);
+  --status-danger-text: #fecaca;
+  --status-danger-border: rgba(239, 68, 68, 0.32);
+  --status-danger-indicator: #ef4444;
+  --status-info-bg: rgba(34, 211, 238, 0.12);
+  --status-info-text: #a5f3fc;
+  --status-info-border: rgba(34, 211, 238, 0.28);
+  --status-info-indicator: #22d3ee;
+  --surface-gradient: linear-gradient(180deg, rgba(11, 23, 48, 0.96), rgba(10, 22, 40, 0.96));
+  --surface-gradient-strong: linear-gradient(180deg, rgba(16, 33, 58, 0.98), rgba(10, 22, 40, 0.98));
+  --surface-gradient-subtle: linear-gradient(180deg, rgba(11, 23, 48, 0.76), rgba(10, 22, 40, 0.68));
+  --shadow-xs: 0 1px 2px rgba(7, 17, 32, 0.24);
+  --shadow-soft: 0 18px 48px rgba(7, 17, 32, 0.28);
+  --shadow-pop: 0 28px 72px rgba(7, 17, 32, 0.36);
   --radius-card: 12px;
   --radius-control: 10px;
   --radius-pill: 999px;
@@ -74,9 +80,9 @@ html {
 
 body {
   background:
-    radial-gradient(circle at top left, rgba(79, 124, 255, 0.18), transparent 26rem),
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.12), transparent 28rem),
-    linear-gradient(180deg, #091221 0%, #0d1729 48%, #09111e 100%);
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 26rem),
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.10), transparent 28rem),
+    linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-alt) 48%, var(--color-bg) 100%);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -87,7 +93,7 @@ body {
 }
 
 .skip-link {
-  background: #111827;
+  background: var(--color-bg-deep);
   border-radius: 0 0 8px 0;
   color: #ffffff;
   font-weight: 800;
@@ -202,14 +208,14 @@ form {
 }
 
 .button--primary {
-  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
-  border-color: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: linear-gradient(180deg, var(--color-primary-bright), var(--color-primary-strong));
+  border-color: rgba(79, 140, 255, 0.36);
+  color: var(--color-text);
 }
 
 .button--primary:hover {
-  background: var(--color-primary-strong);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
   transform: translateY(-1px);
 }
 
@@ -292,8 +298,8 @@ form {
 }
 
 .toast {
-  background: rgba(11, 17, 29, 0.94);
-  border: 1px solid rgba(191, 219, 254, 0.16);
+  background: var(--surface-gradient-strong);
+  border: 1px solid var(--color-line);
   border-radius: 14px;
   box-shadow: var(--shadow-pop);
   color: #ffffff;
@@ -368,10 +374,10 @@ form {
 }
 
 .organization-combobox__panel {
-  background: linear-gradient(180deg, rgba(15, 24, 40, 0.99), rgba(8, 15, 28, 0.99));
-  border: 1px solid rgba(191, 219, 254, 0.2);
+  background: var(--surface-gradient-strong);
+  border: 1px solid var(--color-line-strong);
   border-radius: 12px;
-  box-shadow: 0 22px 52px rgba(2, 6, 23, 0.44);
+  box-shadow: 0 22px 52px rgba(7, 17, 32, 0.36);
   display: grid;
   gap: 0.3rem;
   left: 0;

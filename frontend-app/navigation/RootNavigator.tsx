@@ -529,7 +529,7 @@ const adminTabStyles = StyleSheet.create({
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: 'rgba(9, 17, 30, 0.94)',
+    backgroundColor: 'rgba(10, 22, 40, 0.94)',
     paddingHorizontal: 6,
     paddingVertical: 6,
   },

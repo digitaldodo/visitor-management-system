@@ -4,7 +4,7 @@
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 8px;
-  color: #101828;
+  color: #071120;
   display: grid;
   gap: 1rem;
   min-width: 0;
@@ -59,7 +59,7 @@
 }
 
 .employee-badge-skeleton {
-  background: rgba(11, 18, 31, 0.52);
+  background: var(--panel-subtle-bg);
   border: 1px dashed rgba(153, 246, 228, 0.2);
   border-radius: 8px;
   color: var(--color-text);
@@ -240,12 +240,12 @@
 }
 
 :root {
-  --role-accent: #0f766e;
-  --role-accent-soft: #99f6e4;
+  --role-accent: var(--color-accent);
+  --role-accent-soft: var(--color-accent);
 }
 
 .employee-shell .button--primary {
-  background: linear-gradient(180deg, var(--role-accent), #115e59);
+  background: linear-gradient(180deg, var(--color-primary-bright), var(--color-primary-strong));
 }
 
 .employee-shell .nav-link__icon {
@@ -253,7 +253,7 @@
 }
 
 .employee-shell .metric-card {
-  background: linear-gradient(180deg, rgba(10, 46, 41, 0.98) 0%, rgba(8, 24, 22, 0.98) 100%);
+  background: var(--panel-bg);
 }
 
 .employee-route {
@@ -288,7 +288,7 @@
 
 .employee-presence {
   align-items: center;
-  background: rgba(9, 16, 29, 0.72);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: flex;
@@ -375,7 +375,7 @@
 
 .quick-action,
 .employee-summary-tile {
-  background: rgba(9, 16, 29, 0.72);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -385,7 +385,7 @@
 }
 
 .quick-action:hover {
-  border-color: rgba(153, 246, 228, 0.34);
+  border-color: var(--color-line-strong);
   transform: translateY(-1px);
 }
 
@@ -424,7 +424,7 @@
 .credential-qr-card,
 .credential-mobile-card,
 .restricted-profile-card {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -461,7 +461,7 @@
 }
 
 .credential-qr-card code {
-  background: rgba(9, 16, 29, 0.72);
+  background: var(--field-bg);
   border: 1px solid var(--color-line);
   border-radius: 8px;
   color: #dbe7f5;
@@ -473,7 +473,7 @@
 
 .mobile-badge-preview {
   align-items: center;
-  background: #101828;
+  background: var(--color-bg-deep);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   display: grid;
@@ -518,7 +518,7 @@
 }
 
 .settings-form {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -625,7 +625,7 @@
 }
 
 .history-card .approval-timeline {
-  background: rgba(9, 16, 29, 0.5);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 0.75rem;
@@ -651,7 +651,7 @@
 }
 
 .approval-card {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -663,7 +663,7 @@
 
 .approval-card__media {
   aspect-ratio: 4 / 3;
-  background: rgba(9, 16, 29, 0.92);
+  background: var(--color-bg-deep);
   border-radius: var(--radius-card);
   overflow: hidden;
 }
@@ -710,7 +710,7 @@
 }
 
 .approval-meta div {
-  background: rgba(9, 16, 29, 0.72);
+  background: var(--field-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 0.65rem;
@@ -743,7 +743,7 @@
 }
 
 .approval-empty {
-  background: rgba(11, 18, 31, 0.52);
+  background: var(--panel-subtle-bg);
   border: 1px dashed rgba(153, 246, 228, 0.18);
   border-radius: var(--radius-card);
   display: grid;
@@ -761,7 +761,7 @@
 }
 
 .preapproval-form {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -785,7 +785,7 @@
 }
 
 .scheduled-card {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;

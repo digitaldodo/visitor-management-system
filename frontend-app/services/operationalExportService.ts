@@ -59,15 +59,15 @@ function operationalReportHtml(report: OperationalReportExport) {
   )).join('');
 
   return `<!doctype html><html><head><meta charset="utf-8" /><style>
-body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28px;color:#111827}
-header{border-bottom:2px solid #111827;padding-bottom:14px;margin-bottom:18px}
-h1{font-size:26px;margin:0 0 6px}p{margin:4px 0;color:#4b5563}
+body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28px;background:#071120;color:#F8FAFC}
+header{border-bottom:2px solid rgba(79,140,255,0.28);padding-bottom:14px;margin-bottom:18px}
+h1{font-size:26px;margin:0 0 6px}p{margin:4px 0;color:#94A3B8}
 section{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}
-article{border:1px solid #d1d5db;border-radius:8px;padding:10px;background:#f9fafb}
-span{display:block;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+article{border:1px solid rgba(79,140,255,0.28);border-radius:8px;padding:10px;background:#0A1628}
+span{display:block;color:#94A3B8;font-size:10px;text-transform:uppercase;letter-spacing:0}
 strong{display:block;font-size:18px;margin-top:6px}
-table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #d1d5db;padding:6px;text-align:left;vertical-align:top}
-th{background:#111827;color:white}footer{margin-top:18px;color:#6b7280;font-size:10px}
+table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid rgba(148,163,184,0.22);padding:6px;text-align:left;vertical-align:top}
+th{background:#0B1730;color:#F8FAFC}footer{margin-top:18px;color:#94A3B8;font-size:10px}
 </style></head><body><header><h1>${escapeHtml(report.title)}</h1><p>Generated ${escapeHtml(report.generatedAt)} by ${escapeHtml(report.generatedBy)}</p><p>${escapeHtml(report.organizationName || report.organizationId || 'Platform scope')}</p></header><section>${summary}</section><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table><footer>AccessFlow operational export ${escapeHtml(report.exportId)}. Generated for audit-safe review.</footer></body></html>`;
 }
 

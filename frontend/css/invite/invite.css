@@ -2,10 +2,10 @@
 
 :root {
   --invite-max: 78rem;
-  --invite-card: rgba(15, 25, 42, 0.9);
-  --invite-card-strong: rgba(19, 31, 51, 0.96);
-  --invite-line: rgba(191, 219, 254, 0.18);
-  --invite-field: rgba(7, 14, 26, 0.72);
+  --invite-card: var(--surface-gradient);
+  --invite-card-strong: var(--surface-gradient-strong);
+  --invite-line: var(--color-line);
+  --invite-field: var(--field-bg, rgba(7, 17, 32, 0.72));
 }
 
 body {
@@ -78,8 +78,8 @@ body {
 
 .invite-hero__copy {
   background:
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.12), transparent 18rem),
-    linear-gradient(180deg, rgba(18, 31, 51, 0.94), rgba(10, 18, 31, 0.9));
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 18rem),
+    var(--surface-gradient-strong);
   display: grid;
   gap: 0.7rem;
   min-height: clamp(15rem, 27vw, 21rem);
@@ -195,8 +195,8 @@ body {
 }
 
 .invite-timeline__step--done > span {
-  background: #34d399;
-  border-color: #34d399;
+  background: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .invite-timeline__step--current {
@@ -204,8 +204,8 @@ body {
 }
 
 .invite-timeline__step--current > span {
-  background: #fbbf24;
-  border-color: #fde68a;
+  background: var(--color-warning);
+  border-color: var(--status-warning-border);
   box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.16);
 }
 
@@ -251,21 +251,21 @@ body {
 }
 
 .invite-chip--success {
-  background: rgba(6, 118, 71, 0.16);
-  border-color: rgba(52, 211, 153, 0.24);
-  color: #b7f7d8;
+  background: var(--status-success-bg);
+  border-color: var(--status-success-border);
+  color: var(--status-success-text);
 }
 
 .invite-chip--warning {
-  background: rgba(181, 71, 8, 0.18);
-  border-color: rgba(251, 191, 36, 0.24);
-  color: #fde68a;
+  background: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
 }
 
 .invite-chip--danger {
-  background: rgba(180, 35, 24, 0.18);
-  border-color: rgba(252, 165, 165, 0.24);
-  color: #fecaca;
+  background: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
+  color: var(--status-danger-text);
 }
 
 .invite-chip--neutral {
@@ -321,7 +321,7 @@ body {
 .form-field input:focus,
 .form-field select:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(79, 124, 255, 0.14);
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
   outline: 0;
 }
 
@@ -372,7 +372,7 @@ body {
 
 .invite-pass {
   align-content: start;
-  background: rgba(9, 16, 29, 0.58);
+  background: var(--panel-subtle-bg, rgba(11, 23, 48, 0.72));
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;

@@ -206,10 +206,10 @@ async function createEmployeeBadgeCanvas(badge) {
   ctx.fillStyle = "#b8cbe6";
   ctx.font = `700 30px ${FONT_STACK}`;
   wrapText(ctx, normalizedBadge.employeeId || "Employee ID pending", 112, 870, 300, 36);
-  ctx.fillStyle = "#101828";
+  ctx.fillStyle = "#071120";
   ctx.font = `700 42px ${FONT_STACK}`;
   ctx.fillText(normalizedBadge.organizationName || "AccessFlow", 550, 145);
-  ctx.fillStyle = "#52627a";
+  ctx.fillStyle = "#64748b";
   ctx.font = `600 24px ${FONT_STACK}`;
   ctx.fillText(normalizedBadge.organizationCode || "Managed workforce", 550, 186);
   const details = [
@@ -226,14 +226,14 @@ async function createEmployeeBadgeCanvas(badge) {
   });
   roundRect(ctx, 1210, 250, 330, 330, 26, "#f6f9fc");
   drawImageContain(ctx, qr, 1260, 300, 230, 230);
-  ctx.fillStyle = "#344054";
+  ctx.fillStyle = "#64748b";
   ctx.font = `700 22px ${FONT_STACK}`;
   ctx.fillText("Static employee QR", 1270, 555);
   roundRect(ctx, 550, 750, 990, 128, 24, "#f6f9fc");
-  ctx.fillStyle = "#607187";
+  ctx.fillStyle = "#64748b";
   ctx.font = `700 22px ${FONT_STACK}`;
   ctx.fillText("CHECKPOINT USE", 590, 800);
-  ctx.fillStyle = "#101828";
+  ctx.fillStyle = "#071120";
   ctx.font = `700 28px ${FONT_STACK}`;
   wrapText(ctx, "First scan checks in. Next scan checks out. Disabled accounts invalidate immediately.", 590, 846, 850, 34);
   return canvas;
@@ -366,7 +366,7 @@ function drawMeta(ctx, x, y, width, height, label, value) {
   ctx.fillStyle = "#607187";
   ctx.font = `700 19px ${FONT_STACK}`;
   ctx.fillText(String(label || "").toUpperCase(), x + 24, y + 38);
-  ctx.fillStyle = "#101828";
+  ctx.fillStyle = "#071120";
   ctx.font = `700 26px ${FONT_STACK}`;
   wrapText(ctx, value, x + 24, y + 76, width - 48, 30);
 }

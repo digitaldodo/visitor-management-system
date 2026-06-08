@@ -1,24 +1,24 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #0369a1;
-  --role-accent-soft: #bae6fd;
+  --role-accent: var(--color-primary-bright);
+  --role-accent-soft: var(--color-accent);
 }
 
 .security-shell .button--primary {
-  background: linear-gradient(180deg, var(--role-accent), #075985);
+  background: linear-gradient(180deg, var(--color-primary-bright), var(--color-primary-strong));
 }
 
 .security-shell .button--primary:hover {
-  background: #075985;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
 }
 
 .security-shell .button--danger {
-  background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+  background: linear-gradient(180deg, var(--color-danger), #b91c1c);
 }
 
 .security-shell .button--danger:hover {
-  background: #7f1d1d;
+  background: #b91c1c;
 }
 
 .security-shell .nav-link__icon {
@@ -106,7 +106,7 @@
 
 .scanner-stage__idle {
   align-items: center;
-  color: #dbeafe;
+  color: var(--color-text);
   display: grid;
   gap: 0.45rem;
   justify-items: center;
@@ -136,7 +136,7 @@
 
 .scanner-form {
   align-content: start;
-  background: rgba(8, 16, 29, 0.52);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: 8px;
   display: grid;
@@ -179,10 +179,10 @@
 
 .security-quick-actions {
   align-items: center;
-  background: rgba(8, 16, 29, 0.9);
+  background: rgba(10, 22, 40, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: var(--radius-card);
-  box-shadow: 0 18px 34px rgba(2, 8, 20, 0.18);
+  box-shadow: 0 18px 34px rgba(7, 17, 32, 0.18);
   display: flex;
   gap: 0.55rem;
   overflow-x: auto;
@@ -211,17 +211,17 @@
 
 .security-quick-action:hover,
 .security-quick-action.is-active {
-  background: rgba(3, 105, 161, 0.24);
-  border-color: rgba(186, 230, 253, 0.34);
-  color: #ffffff;
+  background: var(--color-primary-soft);
+  border-color: var(--color-line-strong);
+  color: var(--color-text);
 }
 
 .security-quick-action span {
   align-items: center;
-  background: rgba(186, 230, 253, 0.16);
-  border: 1px solid rgba(186, 230, 253, 0.18);
+  background: var(--color-info-soft);
+  border: 1px solid var(--status-info-border);
   border-radius: 999px;
-  color: #e0f2fe;
+  color: var(--status-info-text);
   display: inline-flex;
   font-size: 0.72rem;
   font-weight: 900;
@@ -365,7 +365,7 @@
 
 .visitor-pass-card,
 .qr-result {
-  background: rgba(11, 18, 31, 0.6);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -401,7 +401,7 @@
 
 .visitor-pass__brand {
   align-items: center;
-  background: #0f172a;
+  background: var(--color-bg-deep);
   color: #ffffff;
   display: flex;
   gap: 0.75rem;
@@ -418,7 +418,7 @@
 }
 
 .visitor-pass__brand small {
-  color: #bae6fd;
+  color: var(--status-info-text);
   display: block;
   font-weight: 800;
 }
@@ -483,7 +483,7 @@
 }
 
 .badge-empty {
-  background: rgba(11, 18, 31, 0.52);
+  background: var(--panel-subtle-bg);
   border: 1px dashed rgba(186, 230, 253, 0.24);
   border-radius: var(--radius-card);
   padding: 1rem;
@@ -502,7 +502,7 @@
 }
 
 .security-monitor-card {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 1rem;
@@ -564,7 +564,7 @@
 }
 
 .security-emergency-metric {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -656,7 +656,7 @@
 }
 
 .qr-verify-form {
-  background: rgba(8, 16, 29, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: var(--radius-card);
   display: grid;
@@ -673,7 +673,7 @@
 
 .qr-scan-video {
   aspect-ratio: 4 / 3;
-  background: #101828;
+  background: var(--color-bg-deep);
   border: 1px solid rgba(186, 230, 253, 0.26);
   border-radius: var(--radius-card);
   margin-top: 0.75rem;
@@ -845,7 +845,7 @@
 
 .workforce-receipt__stamp {
   padding: 0.45rem 0.7rem;
-  border: 1px solid #f59e0b;
+  border: 1px solid var(--color-warning);
   border-radius: 999px;
   color: #9a6700;
   background: #fff7e8;
@@ -862,7 +862,7 @@
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 8px;
-  color: #101828;
+  color: #071120;
   display: grid;
   gap: 1rem;
   margin: 0 auto;
@@ -986,7 +986,7 @@
 }
 
 .security-report-export-panel {
-  background: rgba(14, 21, 35, 0.72);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;

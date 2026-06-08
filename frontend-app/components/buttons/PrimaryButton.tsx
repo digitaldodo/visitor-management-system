@@ -18,13 +18,13 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
   const translatedLabel = tText(label);
   const toneStyles = {
     primary: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: theme.colors.primaryBright,
       borderColor: theme.colors.primaryLine,
       labelColor: theme.colors.textInverse,
     },
     secondary: {
-      backgroundColor: theme.colors.surfaceRaised,
-      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderColor: theme.colors.borderStrong,
       labelColor: theme.colors.textPrimary,
     },
     danger: {

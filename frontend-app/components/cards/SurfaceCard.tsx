@@ -33,9 +33,9 @@ export function SurfaceCard({ title, subtitle, children }: Props) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderStrong,
     ...theme.shadows.card,
   },
   header: {

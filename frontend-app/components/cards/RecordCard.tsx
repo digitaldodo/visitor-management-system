@@ -35,9 +35,9 @@ const styles = StyleSheet.create({
   card: {
     gap: theme.spacing.sm,
     borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.surfaceMuted,
+    backgroundColor: theme.colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderStrong,
     padding: theme.spacing.md,
   },
   header: {

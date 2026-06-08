@@ -1756,7 +1756,7 @@ function operationalReportHtml(snapshot: AnalyticsSnapshot, payload?: AdminOpera
     `<li><strong>${escapeReport(item.label)}</strong> ${escapeReport(item.detail || '')}</li>`
   )).join('');
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
-body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28px;color:#111827}h1{margin:0 0 8px}p{color:#4b5563}section{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:22px 0}article{border:1px solid #d1d5db;border-radius:10px;padding:12px}span,small{display:block;color:#6b7280;font-size:11px;text-transform:uppercase}strong{display:block;font-size:24px;margin:8px 0}</style></head><body><h1>${escapeReport(snapshot.label)}</h1><p>${escapeReport(snapshot.note || 'AccessFlow operational snapshot')}</p><section>${live}</section><h2>Actionable insights</h2><ul>${insights}</ul></body></html>`;
+body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28px;background:#071120;color:#F8FAFC}h1{margin:0 0 8px}p{color:#94A3B8}section{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:22px 0}article{background:#0A1628;border:1px solid rgba(79,140,255,0.28);border-radius:10px;padding:12px}span,small{display:block;color:#94A3B8;font-size:11px;text-transform:uppercase}strong{display:block;font-size:24px;margin:8px 0}</style></head><body><h1>${escapeReport(snapshot.label)}</h1><p>${escapeReport(snapshot.note || 'AccessFlow operational snapshot')}</p><section>${live}</section><h2>Actionable insights</h2><ul>${insights}</ul></body></html>`;
 }
 
 function snapshotRows(snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) {

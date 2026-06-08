@@ -13,9 +13,9 @@ const baseShadow = Platform.select({
     elevation: 4,
   },
   default: {
-    shadowColor: '#020617',
+    shadowColor: '#071120',
     shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.24,
     shadowRadius: 28,
   },
 });

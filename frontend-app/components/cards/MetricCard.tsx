@@ -14,7 +14,7 @@ export function MetricCard({ label, value, tone = 'default' }: Props) {
   const layout = useResponsiveLayout();
   const { tText } = useLocalization();
   const accent = {
-    default: theme.colors.surfaceRaised,
+    default: theme.colors.surfaceMuted,
     success: theme.colors.successSoft,
     warning: theme.colors.warningSoft,
     danger: theme.colors.dangerSoft,
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     borderRadius: theme.radii.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderStrong,
     padding: theme.spacing.md,
     ...theme.shadows.card,
   },

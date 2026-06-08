@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     borderRadius: theme.radii.md,
     borderWidth: 1,
-    backgroundColor: '#111827',
+    backgroundColor: theme.colors.surfaceRaised,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     elevation: 18,

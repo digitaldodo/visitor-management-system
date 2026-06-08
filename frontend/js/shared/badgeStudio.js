@@ -352,18 +352,18 @@ async function createBadgeCanvas(pass) {
   roundRect(context, 1690, 340, 560, 560, 34, "#f6f9fc");
   roundRect(context, 1730, 380, 480, 480, 28, "#ffffff");
   drawImageContain(context, qr, 1780, 430, 380, 380);
-  context.fillStyle = "#344054";
+  context.fillStyle = "#64748b";
   context.font = `700 24px ${FONT_STACK}`;
   context.fillText("Scan to validate this badge live", 1778, 850);
 
   roundRect(context, 690, 1260, 1560, 166, 30, "#f6f9fc");
-  context.fillStyle = "#5b6b82";
+  context.fillStyle = "#64748b";
   context.font = `700 24px ${FONT_STACK}`;
   context.fillText("VISIT PURPOSE", 740, 1320);
-  context.fillStyle = "#101828";
+  context.fillStyle = "#071120";
   context.font = `700 36px ${FONT_STACK}`;
   wrapText(context, pass.purposeOfVisit || "General visit", 740, 1374, 980, 42);
-  context.fillStyle = "#52627a";
+  context.fillStyle = "#64748b";
   context.font = `600 24px ${FONT_STACK}`;
   wrapText(context, "Present photo identification if requested by security. Badge remains valid only while the approved AccessFlow visit window is active.", 1500, 1320, 680, 34);
 
@@ -563,7 +563,7 @@ function drawMetaCard(context, x, y, width, height, label, value) {
   context.fillStyle = "#607187";
   context.font = `700 24px ${FONT_STACK}`;
   context.fillText(String(label || "").toUpperCase(), x + 34, y + 48);
-  context.fillStyle = "#101828";
+  context.fillStyle = "#071120";
   context.font = `700 34px ${FONT_STACK}`;
   wrapText(context, value, x + 34, y + 102, width - 68, 40);
 }

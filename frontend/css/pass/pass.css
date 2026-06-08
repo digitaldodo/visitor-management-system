@@ -1,19 +1,20 @@
 :root {
-  color-scheme: light;
-  --pass-bg: #edf3f9;
-  --pass-ink: #0f1728;
-  --pass-muted: #52627a;
-  --pass-line: rgba(82, 98, 122, 0.16);
-  --pass-card: rgba(255, 255, 255, 0.92);
-  --pass-shadow: 0 32px 80px rgba(15, 23, 42, 0.14);
-  --pass-valid: #166534;
-  --pass-valid-soft: #eaf8ef;
-  --pass-danger: #b42318;
-  --pass-danger-soft: #fff2f0;
-  --pass-warning: #9a6700;
-  --pass-warning-soft: #fff8e7;
-  --pass-neutral: #475467;
-  --pass-neutral-soft: #eef2f7;
+  color-scheme: dark;
+  --pass-bg: #071120;
+  --pass-bg-alt: #0a1628;
+  --pass-ink: #f8fafc;
+  --pass-muted: #94a3b8;
+  --pass-line: rgba(148, 163, 184, 0.16);
+  --pass-card: linear-gradient(180deg, rgba(11, 23, 48, 0.96), rgba(10, 22, 40, 0.96));
+  --pass-shadow: 0 32px 80px rgba(7, 17, 32, 0.36);
+  --pass-valid: #bbf7d0;
+  --pass-valid-soft: rgba(34, 197, 94, 0.14);
+  --pass-danger: #fecaca;
+  --pass-danger-soft: rgba(239, 68, 68, 0.14);
+  --pass-warning: #fcd34d;
+  --pass-warning-soft: rgba(245, 158, 11, 0.14);
+  --pass-neutral: #cbd5e1;
+  --pass-neutral-soft: rgba(148, 163, 184, 0.14);
 }
 
 * {
@@ -26,8 +27,9 @@ body {
   min-height: 100dvh;
   font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
   background:
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.14), transparent 26rem),
-    linear-gradient(180deg, #f8fbff, var(--pass-bg));
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 26rem),
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.1), transparent 28rem),
+    linear-gradient(180deg, var(--pass-bg), var(--pass-bg-alt));
   color: var(--pass-ink);
 }
 
@@ -201,7 +203,7 @@ img {
 }
 
 .pass-verify-detail {
-  background: rgba(248, 250, 252, 0.96);
+  background: rgba(11, 23, 48, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 22px;
   display: grid;
@@ -230,7 +232,7 @@ img {
 
 .pass-verify-button {
   align-items: center;
-  background: #0f1728;
+  background: linear-gradient(180deg, #4f8cff, #2563eb);
   border: 0;
   border-radius: 999px;
   color: #ffffff;
@@ -248,7 +250,7 @@ a.pass-verify-button {
 }
 
 .pass-verify-button:hover {
-  background: #1d3557;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
 }
 
 .pass-verify-button--ghost {

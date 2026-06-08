@@ -72,14 +72,14 @@ export function reportHtml(report) {
     <tr>${columns.map((column) => `<td>${escapeHtml(row[column.key])}</td>`).join("")}</tr>
   `).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(report?.title || "Operational Report")}</title><style>
-    body{font-family:Inter,Arial,sans-serif;margin:32px;color:#111827}
-    header{border-bottom:2px solid #111827;margin-bottom:20px;padding-bottom:14px}
-    h1{font-size:28px;margin:0 0 6px}p{color:#4b5563;margin:4px 0}
+    body{background:#071120;font-family:Inter,Arial,sans-serif;margin:32px;color:#f8fafc}
+    header{border-bottom:2px solid #2563eb;margin-bottom:20px;padding-bottom:14px}
+    h1{font-size:28px;margin:0 0 6px}p{color:#94a3b8;margin:4px 0}
     section{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}
-    article{border:1px solid #d1d5db;border-radius:8px;padding:10px;background:#f9fafb}
-    span{display:block;color:#6b7280;font-size:10px;text-transform:uppercase}strong{display:block;font-size:18px;margin-top:6px}
-    table{border-collapse:collapse;font-size:10px;width:100%}th,td{border:1px solid #d1d5db;padding:6px;text-align:left;vertical-align:top}
-    th{background:#111827;color:#fff}footer{color:#6b7280;font-size:10px;margin-top:18px}
+    article{background:linear-gradient(180deg,#0b1730,#0a1628);border:1px solid rgba(79,140,255,.18);border-radius:8px;padding:10px}
+    span{display:block;color:#64748b;font-size:10px;text-transform:uppercase}strong{display:block;font-size:18px;margin-top:6px}
+    table{border-collapse:collapse;font-size:10px;width:100%}th,td{border:1px solid rgba(79,140,255,.18);padding:6px;text-align:left;vertical-align:top}
+    th{background:#0b1730;color:#f8fafc}footer{color:#64748b;font-size:10px;margin-top:18px}
   </style></head><body><header><h1>${escapeHtml(report?.title || "Operational Report")}</h1><p>Generated ${escapeHtml(report?.generatedAt || "")} by ${escapeHtml(report?.generatedBy || "AccessFlow")}</p><p>${escapeHtml(report?.organizationName || report?.organizationId || "Platform scope")}</p></header><section>${summary}</section><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table><footer>AccessFlow operational export ${escapeHtml(report?.exportId || "")}. Generated for audit-safe review.</footer></body></html>`;
 }
 

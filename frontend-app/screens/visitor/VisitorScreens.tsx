@@ -552,14 +552,14 @@ async function shareFile(uri: string, dialogTitle: string, mimeType: string) {
 function buildVisitorBadgeHtml(pass: VisitorPass) {
   return `
     <html>
-      <body style="margin:0;padding:32px;background:#09111e;font-family:Arial,sans-serif;">
-        <div style="max-width:520px;margin:0 auto;background:#0f1728;border:1px solid rgba(191,219,254,0.26);border-radius:24px;padding:28px;color:#ffffff;">
+      <body style="margin:0;padding:32px;background:#071120;font-family:Arial,sans-serif;">
+        <div style="max-width:520px;margin:0 auto;background:#0A1628;border:1px solid rgba(79,140,255,0.28);border-radius:24px;padding:28px;color:#F8FAFC;">
           <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
             ${pass.photoUrl ? `<img src="${escapeReportHtml(pass.photoUrl)}" alt="Visitor photo" style="width:72px;height:72px;border-radius:20px;object-fit:cover;" />` : ''}
             <div>
               <div style="font-size:28px;font-weight:800;">${escapeReportHtml(pass.fullName || 'Visitor')}</div>
-              <div style="font-size:16px;color:#afbdd1;">${escapeReportHtml(pass.purposeOfVisit || pass.companyName || 'Visitor access')}</div>
-              <div style="font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#4f7cff;">${escapeReportHtml(pass.organizationName || pass.organizationCode || 'AccessFlow')}</div>
+              <div style="font-size:16px;color:#94A3B8;">${escapeReportHtml(pass.purposeOfVisit || pass.companyName || 'Visitor access')}</div>
+              <div style="font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#4F8CFF;">${escapeReportHtml(pass.organizationName || pass.organizationCode || 'AccessFlow')}</div>
             </div>
           </div>
           <div style="background:#ffffff;border-radius:20px;padding:20px;text-align:center;margin-bottom:24px;">
@@ -574,7 +574,7 @@ function buildVisitorBadgeHtml(pass: VisitorPass) {
             <div><strong>Issued</strong><br />${escapeReportHtml(pass.issuedAt || 'Recorded')}</div>
             <div><strong>Expires</strong><br />${escapeReportHtml(pass.expiresAt || 'Access window')}</div>
           </div>
-          <div style="margin-top:20px;padding:14px;border-radius:14px;background:rgba(79,124,255,0.14);color:#dbeafe;font-size:13px;line-height:1.45;">
+          <div style="margin-top:20px;padding:14px;border-radius:14px;background:rgba(59,130,246,0.16);color:#F8FAFC;font-size:13px;line-height:1.45;">
             This export is a timestamped copy. Security should still verify the live AccessFlow approval record at checkpoint scan time.
           </div>
         </div>

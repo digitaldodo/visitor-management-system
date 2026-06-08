@@ -433,11 +433,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0,
     flex: 1,
   },
   timestamp: {
-    color: '#111827',
+    color: theme.colors.canvasDeep,
     fontSize: 12,
     fontWeight: '800',
   },

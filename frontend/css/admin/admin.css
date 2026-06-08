@@ -1,32 +1,32 @@
 @import url("../shared/portal.css");
 
 :root {
-  --role-accent: #0f766e;
-  --role-accent-soft: #5eead4;
+  --role-accent: var(--color-accent-strong);
+  --role-accent-soft: var(--color-accent);
 }
 
 .super-admin-shell {
-  --role-accent: #2563eb;
-  --role-accent-soft: #7dd3fc;
+  --role-accent: var(--color-primary);
+  --role-accent-soft: var(--color-accent);
   --sidebar-bg:
-    linear-gradient(180deg, rgba(7, 16, 33, 0.98), rgba(12, 24, 43, 0.98)),
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 18rem);
+    linear-gradient(180deg, rgba(7, 17, 32, 0.98), rgba(10, 22, 40, 0.98)),
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 18rem);
 }
 
 .org-admin-shell {
-  --role-accent: #0f766e;
-  --role-accent-soft: #5eead4;
+  --role-accent: var(--color-accent-strong);
+  --role-accent-soft: var(--color-accent);
   --sidebar-bg:
-    linear-gradient(180deg, rgba(8, 27, 30, 0.98), rgba(13, 26, 38, 0.98)),
-    radial-gradient(circle at top, rgba(20, 184, 166, 0.14), transparent 18rem);
+    linear-gradient(180deg, rgba(7, 17, 32, 0.98), rgba(10, 22, 40, 0.98)),
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 18rem);
 }
 
 .admin-shell .button--primary {
-  background: linear-gradient(180deg, var(--role-accent), #0f4f5f);
+  background: linear-gradient(180deg, var(--color-primary-bright), var(--color-primary-strong));
 }
 
 .admin-shell .button--primary:hover {
-  background: #0f4f5f;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-strong));
 }
 
 .admin-shell .nav-link__icon {
@@ -193,7 +193,7 @@
 
 .chart-stage {
   align-content: start;
-  background: rgba(11, 18, 31, 0.5);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.08);
   border-radius: 14px;
   min-height: 13rem;
@@ -216,16 +216,16 @@
 }
 
 .bar-chart rect {
-  fill: #3b82f6;
+  fill: var(--color-primary);
 }
 
 .bar-chart rect:nth-of-type(2n) {
-  fill: #f59e0b;
+  fill: var(--color-warning);
 }
 
 .line-chart polyline {
   fill: none;
-  stroke: #2563eb;
+  stroke: var(--color-primary-strong);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 5;
@@ -269,7 +269,7 @@
 
 .hour-chart__row i,
 .approval-rate-chart i {
-  background: linear-gradient(90deg, #2563eb, var(--role-accent));
+  background: linear-gradient(90deg, var(--color-primary-strong), var(--role-accent));
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -280,7 +280,7 @@
 }
 
 .approval-rate-chart article {
-  background: rgba(14, 21, 35, 0.72);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -308,7 +308,7 @@
 .operational-export-card,
 .operational-insight-card,
 .operational-signal-card {
-  background: rgba(14, 21, 35, 0.74);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   min-width: 0;
@@ -360,11 +360,11 @@
 }
 
 .operational-insight-card--high {
-  border-left-color: #f87171;
+  border-left-color: var(--color-danger);
 }
 
 .operational-insight-card--medium {
-  border-left-color: #f59e0b;
+  border-left-color: var(--color-warning);
 }
 
 .operational-signal-card {
@@ -413,7 +413,7 @@
 
 .traffic-heatmap__row i {
   aspect-ratio: 1;
-  background: linear-gradient(180deg, #7dd3fc, #4f7cff);
+  background: linear-gradient(180deg, var(--color-accent), var(--color-primary-bright));
   border-radius: 0.2rem;
   min-height: 0.5rem;
 }
@@ -430,7 +430,7 @@
 }
 
 .employee-analytics-table {
-  background: rgba(10, 16, 28, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   overflow: hidden;
@@ -506,7 +506,7 @@
 }
 
 .metric-selector {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -560,7 +560,7 @@
 }
 
 .homepage-preview-card {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -621,7 +621,7 @@
 }
 
 .admin-user-card {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -646,7 +646,7 @@
 }
 
 .admin-user-card__role {
-  background: rgba(10, 16, 28, 0.48);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   padding: 0.75rem;
@@ -694,7 +694,7 @@
 }
 
 .organization-form {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -723,7 +723,7 @@
 }
 
 .organization-card {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -795,7 +795,7 @@
 }
 
 .department-summary div {
-  background: rgba(9, 16, 29, 0.58);
+  background: var(--field-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 8px;
   min-width: 0;
@@ -857,7 +857,7 @@
 }
 
 .department-card {
-  background: rgba(11, 18, 31, 0.56);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -916,7 +916,7 @@
 }
 
 .department-preset-editor {
-  background: rgba(10, 16, 28, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -966,7 +966,7 @@
 }
 
 .department-chip button {
-  background: rgba(10, 16, 28, 0.72);
+  background: var(--field-bg);
   border: 1px solid var(--color-line);
   border-radius: 999px;
   color: var(--color-muted);
@@ -1006,7 +1006,7 @@
 
 .settings-card,
 .organization-overview-card {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -1043,7 +1043,7 @@
 
 .toggle-card {
   align-items: center;
-  background: rgba(6, 10, 18, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 22px;
   cursor: pointer;
@@ -1125,7 +1125,7 @@
 }
 
 .metric-selector {
-  background: rgba(6, 10, 18, 0.36);
+  background: var(--panel-subtle-bg);
   border-radius: 22px;
   padding: 1rem;
 }
@@ -1147,7 +1147,7 @@
 
 .metric-option-card {
   align-items: center;
-  background: rgba(6, 10, 18, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 20px;
   cursor: pointer;
@@ -1278,7 +1278,7 @@
 }
 
 .organization-summary-card {
-  background: rgba(6, 10, 18, 0.38);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 20px;
   display: grid;
@@ -1341,7 +1341,7 @@
 }
 
 .organization-table-wrap {
-  background: rgba(10, 16, 28, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   max-width: 100%;
@@ -1418,7 +1418,7 @@
 }
 
 .organization-tab {
-  background: rgba(6, 10, 18, 0.46);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 999px;
   color: var(--color-muted);
@@ -1477,7 +1477,7 @@
 .organization-department-card,
 .organization-activity-item,
 .organization-audit-item {
-  background: rgba(6, 10, 18, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid rgba(191, 219, 254, 0.12);
   border-radius: 20px;
   display: grid;
@@ -1530,7 +1530,7 @@
 }
 
 .organization-page-loading {
-  background: rgba(11, 18, 31, 0.58);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   display: grid;
@@ -1608,7 +1608,7 @@
 }
 
 .organization-admin-table-wrap {
-  background: rgba(10, 16, 28, 0.42);
+  background: var(--panel-subtle-bg);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   max-width: 100%;
@@ -1742,7 +1742,7 @@
   }
 
   .employee-analytics-table tr {
-    background: rgba(11, 18, 31, 0.84);
+    background: var(--panel-bg);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     margin-bottom: 0.75rem;
@@ -1816,7 +1816,7 @@
   }
 
   .organization-table tr {
-    background: rgba(11, 18, 31, 0.84);
+    background: var(--panel-bg);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     margin-bottom: 0.75rem;
@@ -1866,7 +1866,7 @@
   }
 
   .organization-admin-table tr {
-    background: rgba(11, 18, 31, 0.84);
+    background: var(--panel-bg);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     margin-bottom: 0.75rem;

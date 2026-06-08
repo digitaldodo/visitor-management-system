@@ -3674,9 +3674,9 @@ function reportHtml(label, analytics) {
   `).join("");
   const insights = normalizeArray(analytics.operationalInsights).map((item) => `<li><strong>${escapeHtml(item.label)}</strong> ${escapeHtml(item.detail || "")}</li>`).join("");
   return `<!doctype html><html><head><title>${escapeHtml(label || "Operational snapshot")}</title><style>
-    body{font-family:Inter,Arial,sans-serif;margin:32px;color:#111827} h1{margin:0 0 8px} p{color:#4b5563}
+    body{background:#071120;font-family:Inter,Arial,sans-serif;margin:32px;color:#f8fafc} h1{margin:0 0 8px} p{color:#94a3b8}
     section{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:24px 0}
-    article{border:1px solid #d1d5db;border-radius:10px;padding:14px} span,small{display:block;color:#6b7280;font-size:12px;text-transform:uppercase} strong{display:block;font-size:28px;margin:8px 0}
+    article{background:linear-gradient(180deg,#0b1730,#0a1628);border:1px solid rgba(79,140,255,.18);border-radius:10px;padding:14px} span,small{display:block;color:#64748b;font-size:12px;text-transform:uppercase} strong{display:block;font-size:28px;margin:8px 0}
   </style></head><body><h1>${escapeHtml(label || "Operational snapshot")}</h1><p>AccessFlow operational intelligence export generated ${escapeHtml(new Date().toLocaleString())}.</p><section>${cards}</section><h2>Actionable insights</h2><ul>${insights}</ul></body></html>`;
 }
 

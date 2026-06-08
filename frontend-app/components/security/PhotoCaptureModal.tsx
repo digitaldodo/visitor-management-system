@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: theme.spacing.lg,
-    backgroundColor: 'rgba(0,0,0,0.10)',
+    backgroundColor: 'rgba(7, 17, 32, 0.18)',
   },
   faceGuide: {
     alignSelf: 'center',
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
-    backgroundColor: 'rgba(6, 10, 18, 0.70)',
+    backgroundColor: theme.colors.overlay,
     padding: theme.spacing.md,
   },
   guidanceTitle: {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.bodyStrong.fontWeight,
   },
   guidanceText: {
-    color: '#DCE6F5',
+    color: theme.colors.textSecondary,
     fontSize: theme.typography.body.fontSize,
     lineHeight: 21,
   },
