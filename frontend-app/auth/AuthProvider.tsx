@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const versions = await withTimeout(
         getApiVersions(),
         8_000,
-        'AccessFlow could not complete runtime validation.',
+        'AccessFlow could not prepare your workspace.',
       );
       ensureVersionSupport(versions);
 
@@ -275,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStateSafely({
         status: 'signed-out',
         session: null,
-        lastError: 'Set EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL before launching the app.',
+        lastError: 'AccessFlow could not prepare this workspace. Please try again later.',
       });
       return;
     }
@@ -516,7 +516,7 @@ function ensureVersionSupport(versions: VersionHandshakePayload) {
   if (!versions.supported.includes('v1')) {
     throw createAppError({
       kind: 'version',
-      message: 'This mobile runtime is no longer supported by the backend. Update the app before continuing.',
+      message: 'This app version is no longer supported. Update AccessFlow before continuing.',
       recoverable: false,
     } satisfies Partial<AppError> & Pick<AppError, 'kind' | 'message'>);
   }
@@ -524,7 +524,7 @@ function ensureVersionSupport(versions: VersionHandshakePayload) {
   if (versions.minimumRuntimeVersion && compareVersionStrings(apiConfig.runtimeVersion, versions.minimumRuntimeVersion) < 0) {
     throw createAppError({
       kind: 'version',
-      message: `This build is older than the minimum supported runtime (${versions.minimumRuntimeVersion}). Update the app and sign in again.`,
+      message: 'This app version is out of date. Update AccessFlow and sign in again.',
       recoverable: false,
     });
   }

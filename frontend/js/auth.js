@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initForgotPassword();
     setAuthTab(resolveInitialAuthTab(), { scroll: false });
   }, {
-    failureMessage: "AccessFlow had trouble restoring the sign-in screen. Refreshing...",
+    failureMessage: "Preparing sign in...",
   });
 });
 
@@ -235,8 +235,8 @@ async function initHomepageContent() {
     renderHomepageMetrics("#homepage-counters", response.data?.publicCounters || [], response.data?.publicCountersEmptyState, "Public counters appear after organizations, employee accounts, or visitor records are created.");
   } catch {
     renderAnnouncement(null);
-    renderHomepageMetrics("#homepage-featured-metrics", [], null, "Platform insights appear here after the backend is reachable and real activity is recorded.");
-    renderHomepageMetrics("#homepage-counters", [], null, "Counters appear only when the backend can return real values.");
+    renderHomepageMetrics("#homepage-featured-metrics", [], null, "Platform insights appear here after real activity is recorded.");
+    renderHomepageMetrics("#homepage-counters", [], null, "Counters appear as verified activity becomes available.");
   }
 }
 

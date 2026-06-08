@@ -28,6 +28,8 @@ const ROUTE_ALIASES = {
   organizations: "organizations",
   reports: "reports",
   monitoring: "system-monitoring",
+  "runtime-status": "system-monitoring",
+  "api-health": "system-monitoring",
   emergency: "emergency-ops",
   incidents: "emergency-ops",
   visitors: "visitor-access",
@@ -130,7 +132,7 @@ const INTERNAL_ROLE_DEPARTMENT_RULES = {
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("admin-portal", () => bootAdminPortal(), {
     redirectToLogin: true,
-    failureMessage: "AccessFlow had trouble restoring the admin workspace. Refreshing workspace...",
+    failureMessage: "Preparing dashboard...",
   });
 });
 
@@ -911,10 +913,9 @@ function organizationsTemplate() {
           <div>
             <p class="eyebrow">Platform Tenancy</p>
             <h3>Organization Directory</h3>
-            <p class="panel__subtle">Operate tenants as managed entities with search, health signals, and dedicated workspaces instead of editing static forms inline.</p>
+            <p class="panel__subtle">Operate tenants as managed entities with search, readiness signals, and dedicated workspaces instead of editing static forms inline.</p>
           </div>
           <div class="organization-directory-hero__actions">
-            <button class="button button--ghost" id="organization-refresh" type="button">Refresh directory</button>
             <button class="button button--primary" id="organization-create-open" type="button">New organization</button>
           </div>
         </div>
@@ -1105,7 +1106,7 @@ function reportsTemplate() {
           <div>
             <p class="eyebrow">Structured Reporting</p>
             <h3>Operational Exports</h3>
-            <p class="panel__subtle">Generate backend-backed CSV or print-ready PDF reports for visitor, workforce, incident, denied-entry, and audit workflows.</p>
+            <p class="panel__subtle">Generate audit-ready CSV or print-ready PDF reports for visitor, workforce, incident, denied-entry, and governance workflows.</p>
           </div>
         </div>
         <div class="operational-export-grid" id="reports-export-grid"></div>
@@ -1132,8 +1133,8 @@ function monitoringTemplate() {
         <article class="panel">
           <div class="panel__header">
             <div>
-              <p class="eyebrow">Health</p>
-              <h3>Platform Status</h3>
+              <p class="eyebrow">Readiness</p>
+              <h3>Operating Posture</h3>
             </div>
           </div>
           <div class="health-card" id="health-card"></div>
@@ -1143,7 +1144,7 @@ function monitoringTemplate() {
           <div class="panel__header">
             <div>
               <p class="eyebrow">Signals</p>
-              <h3>System Monitoring</h3>
+              <h3>Platform Activity</h3>
             </div>
           </div>
           <div class="work-list" id="monitoring-list"></div>
@@ -2559,9 +2560,6 @@ function initOrganizationsWorkspace() {
   document.querySelector("#organization-search")?.addEventListener("input", () => renderOrganizations(organizationWorkspaceItems));
   document.querySelector("#organization-status-filter")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
   document.querySelector("#organization-sort")?.addEventListener("change", () => renderOrganizations(organizationWorkspaceItems));
-  document.querySelector("#organization-refresh")?.addEventListener("click", async () => {
-    await loadOrganizationsWorkspace();
-  });
   document.querySelector("#organization-create-open")?.addEventListener("click", () => {
     void navigateToOrganizationWorkspace("new");
   });
@@ -3122,7 +3120,7 @@ function userCard(user) {
       </div>
   ` : platformOwner ? `
       <div class="admin-user-card__role">
-        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure backend workflows.</p>
+        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure governance workflows.</p>
       </div>
   ` : `
       <div class="admin-user-card__role">
@@ -3200,7 +3198,7 @@ function renderMonitoring(data) {
       ? Object.entries(status).map(([key, count]) => `${formatMonitoringTitle(key)}: ${count}`).join(" · ")
       : String(status);
     return workCard(title, value);
-  }, "No monitoring signals", "System signals will appear after the API responds.");
+  }, "No readiness signals", "Platform readiness signals will appear as activity is available.");
 }
 
 function renderMonitoringSummary(entries) {
@@ -3218,8 +3216,8 @@ function renderMonitoringSummary(entries) {
     </article>
   `).join("") : `
     <article class="empty-state empty-state--inline">
-      <h3>No monitoring summary yet</h3>
-      <p>Service indicators will appear after the API responds.</p>
+      <h3>No readiness summary yet</h3>
+      <p>Platform readiness indicators will appear as activity is available.</p>
     </article>
   `;
 }
@@ -3692,14 +3690,14 @@ function renderPlatformAnalytics(data, organizations, monitoring) {
   const pausedOrganizations = organizationItems.length - activeOrganizations;
   const pendingApprovals = analytics.metrics?.pendingApprovals ?? findWidgetValue(analytics.widgets, "Pending approvals");
   const visitorsToday = analytics.metrics?.todayCheckIns ?? findWidgetValue(analytics.widgets, "Today's check-ins");
-  const apiStatus = monitoringData.runtime || "Unknown";
+  const readinessStatus = monitoringData.runtime || "Review";
 
   renderDashboardCards([
     { label: "Active organizations", value: activeOrganizations, note: `${organizationItems.length} total tenants` },
     { label: "Paused tenants", value: pausedOrganizations, note: "Lifecycle controls requiring review" },
     { label: "Pending approvals", value: pendingApprovals, note: "System-wide visitor workload" },
     { label: "Visitors today", value: visitorsToday, note: "Cross-organization usage" },
-    { label: "Runtime", value: apiStatus, note: "Latest platform health signal" },
+    { label: "Readiness", value: readinessStatus, note: "Latest operating signal" },
   ]);
   renderChart("#daily-visitors-chart", barChart(analytics.dailyVisitors, "Visitors"));
   renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
@@ -3744,7 +3742,7 @@ function renderPlatformSignalList(selector, monitoring) {
     formatMonitoringTitle(name),
     formatMonitoringStatus(status),
     formatMonitoringDetail(status),
-  ), "No platform signals yet", "Runtime and API readiness will appear after the backend responds.");
+  ), "No platform signals yet", "Readiness signals will appear as platform activity is available.");
 }
 
 function renderSecurityMonitoring(reports, monitoring) {
@@ -3761,7 +3759,7 @@ function renderSecurityMonitoring(reports, monitoring) {
     })),
   ];
   renderSecuritySummary(entries);
-  renderWorkList("#security-monitoring-list", entries, (item) => workCard(item.title, item.detail, item.meta), "No security signals yet", "Privileged events and runtime security posture will appear here.");
+  renderWorkList("#security-monitoring-list", entries, (item) => workCard(item.title, item.detail, item.meta), "No security signals yet", "Privileged events and security posture will appear here.");
 }
 
 function renderSecuritySummary(entries) {
@@ -3770,8 +3768,8 @@ function renderSecuritySummary(entries) {
     return;
   }
   grid.innerHTML = [
-    { label: "Signals", value: entries.length, note: "Audit and runtime indicators" },
-    { label: "Runtime", value: entries.some((item) => item.title === "Runtime") ? "Tracked" : "Pending", note: "Backend health visibility" },
+    { label: "Signals", value: entries.length, note: "Audit and readiness indicators" },
+    { label: "Readiness", value: entries.some((item) => item.title === "Runtime") ? "Tracked" : "Pending", note: "Platform operating visibility" },
     { label: "Audit stream", value: entries.length ? "Active" : "Quiet", note: "Privileged event feed" },
   ].map(metricCard).join("");
 }
@@ -3887,7 +3885,7 @@ function renderOrganizationSettings(organizations, departments) {
       meta: "Available for employee assignment",
     })),
   ];
-  renderWorkList("#organization-settings-list", items, (item) => workCard(item.title, item.detail, item.meta), "Organization settings unavailable", "Organization context will appear after the API responds.");
+  renderWorkList("#organization-settings-list", items, (item) => workCard(item.title, item.detail, item.meta), "Organization settings unavailable", "Organization context will appear when details are available.");
 }
 
 function metricCard(metric) {
@@ -4646,7 +4644,7 @@ function organizationAdminCard(user) {
   const platformOwner = (user.roles || []).includes("SUPER_ADMIN");
   const roleControls = platformOwner ? `
       <div class="admin-user-card__role">
-        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure backend workflows.</p>
+        <p class="form-field__message form-field__message--inline">Platform-owner access is controlled by secure governance workflows.</p>
       </div>
   ` : `
       <div class="admin-user-card__role">

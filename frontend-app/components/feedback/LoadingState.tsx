@@ -56,9 +56,9 @@ export function SkeletonCard({ rows = 4 }: SkeletonProps) {
 }
 
 export function OperationalLoadingState({
-  title = 'Preparing workspace',
-  body = 'AccessFlow is loading operational data and restoring a secure mobile session.',
-  icon = 'sync-circle-outline',
+  title = 'Preparing workspace...',
+  body = 'Loading the latest workspace details.',
+  icon = 'sparkles-outline',
   children,
 }: OperationalLoadingProps) {
   const { tText } = useLocalization();

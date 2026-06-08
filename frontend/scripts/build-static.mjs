@@ -231,9 +231,7 @@ async function writeRouteAliases(targetDir) {
         "admin/homepage-settings",
         "admin/homepage-controls",
         "admin/system-monitoring",
-        "admin/runtime-status",
         "admin/feature-flags",
-        "admin/api-health",
       ],
     },
     {

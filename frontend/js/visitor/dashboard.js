@@ -115,7 +115,7 @@ let activeSession = null;
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("visitor-portal", () => bootVisitorPortal(), {
     redirectToLogin: true,
-    failureMessage: "AccessFlow had trouble restoring the visitor portal. Refreshing workspace...",
+    failureMessage: "Opening visitor workspace...",
   });
 });
 
@@ -703,7 +703,7 @@ function renderBadgePage(pass, error = "") {
     ${detailPanel("Validity window", formatWindow(pass.accessWindowStartTime, pass.accessWindowEndTime, pass.organizationTimezone))}
     ${detailPanel("Organization", pass.organizationName || pass.organizationCode || "Pending")}
     ${detailPanel("Host information", [pass.hostEmployee, pass.hostEmployeeDepartment].filter(Boolean).join(" · ") || "Pending")}
-    ${detailPanel("Arrival instructions", "Present this badge at reception. Security will verify your photo and live approval record before check-in.")}
+    ${detailPanel("Arrival instructions", "Present this badge at reception. Security will verify your photo and current approval record before check-in.")}
     ${detailPanel("Badge export", "Use print, PNG, or PDF export for a stable mobile and print-ready preview.")}
   `;
 }
@@ -711,7 +711,7 @@ function renderBadgePage(pass, error = "") {
 function badgeHelpMarkup() {
   return `
     ${detailPanel("Approval required", "Pending, denied, expired, or suspended visits do not expose QR access.")}
-    ${detailPanel("Security flow", "Security validates your photo and QR against the live approval record at arrival.")}
+    ${detailPanel("Security flow", "Security validates your photo and QR against the current approval record at arrival.")}
   `;
 }
 
@@ -1172,7 +1172,7 @@ async function handleProfilePhotoUpload(form) {
     visitorProfileLoaded = Boolean(activeVisitorProfile);
     renderVisitorProfile(activeVisitorProfile);
     setText("#visitor-photo-status", "Profile photo updated.");
-    showToast("Photo updated", "Your account photo was refreshed.");
+    showToast("Photo updated", "Your account photo was updated.");
   } catch (error) {
     setText("#visitor-photo-status", "Photo update failed.");
     showToast("Photo update failed", error.message);

@@ -838,7 +838,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'approvals' ? (
           <SplitPane>
-            <SurfaceCard title="Workforce approvals" subtitle="Verify the live photo, department, shift, and security submitter before activation.">
+            <SurfaceCard title="Workforce approvals" subtitle="Verify the current photo, department, shift, and security submitter before activation.">
               <WorkforceList
                 workers={workforceOnboarding.data ?? []}
                 onApprove={approveWorkforce}
@@ -979,7 +979,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
                   ['Employee access', 'Directory, roles, sessions, and invites', () => navigation.navigate('Employees'), 'id-card-outline'],
                   ['Analytics', 'Operational intelligence and trends', () => navigation.navigate('Analytics'), 'analytics-outline'],
                   ['Reports', 'CSV/PDF snapshots and audit exports', () => navigation.navigate('Reports'), 'document-text-outline'],
-                  ['Activity feed', 'Organization-scoped live operational updates', () => navigation.navigate('Live'), 'pulse-outline'],
+                  ['Activity feed', 'Organization-scoped operational updates', () => navigation.navigate('Live'), 'pulse-outline'],
                 ]}
               />
               <AdminMenuGroup
@@ -1016,7 +1016,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'register' ? (
           <>
-            <SurfaceCard title="Visitor registration" subtitle="Admin-scoped walk-in creation uses the same backend lifecycle, photo upload, QR, approval, and audit rules as web.">
+            <SurfaceCard title="Visitor registration" subtitle="Admin-scoped walk-in creation follows the same organization lifecycle, photo, QR, approval, and audit rules as web.">
               {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
               <View style={[styles.formGrid, layout.isTwoColumn ? styles.formGridWide : null]}>
                 <AppTextField label="Visitor name" value={visitorForm.fullName} onChangeText={(value) => updateVisitorForm('fullName', value)} placeholder="Full name" />
@@ -1069,7 +1069,7 @@ function AdminOperationalScreen({ section }: SectionProps) {
 
         {section === 'employees' ? (
           <>
-            <SurfaceCard title="Create workforce invite" subtitle="Invite employees, security, reception, operators, and managers with the same organization-scoped backend role rules as web.">
+            <SurfaceCard title="Create workforce invite" subtitle="Invite employees, security, reception, operators, and managers with the same organization-scoped role rules as web.">
               {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
               <View style={[styles.formGrid, layout.isTwoColumn ? styles.formGridWide : null]}>
                 <AppTextField label="Workforce member name" value={workforceInviteForm.fullName} onChangeText={(value) => updateWorkforceInviteForm('fullName', value)} placeholder="Full name" />
@@ -1349,13 +1349,13 @@ function AdminHelpWorkspace({
         <View style={styles.helpStack}>
           <HelpRow icon="checkmark-done-outline" title="Approval triage" body="Review photo, host, department, shift, and status history before approving visitor or workforce access." />
           <HelpRow icon="shield-checkmark-outline" title="Access exceptions" body="Use Alerts for denied, suspended, escalated, and mismatch records. Emergency controls remain under More." />
-          <HelpRow icon="cloud-done-outline" title="Offline recovery" body="Queued scans and admin actions sync silently when connectivity returns. Keep the app open during weak-network recovery." />
+          <HelpRow icon="shield-checkmark-outline" title="Continuity recovery" body="Saved scans and admin actions complete silently when AccessFlow confirms them. Keep the app open during limited availability." />
         </View>
       </SurfaceCard>
       <SplitPane>
         <SurfaceCard title="FAQs">
           <View style={styles.helpStack}>
-            <HelpRow title="Why can a record look stale?" body="Pull to refresh the workspace. Live activity also appears in Activity feed when the organization event stream is available." />
+            <HelpRow title="Why can a record look stale?" body="AccessFlow updates records automatically. Current activity also appears in Activity feed when organization updates are available." />
             <HelpRow title="Where are exports?" body="Open Reports for audit snapshots and Analytics for operational trend exports." />
             <HelpRow title="How do admins manage people?" body="Use Workforce for approvals and Employees for active directory, roles, sessions, invites, and account controls." />
           </View>
@@ -1485,7 +1485,7 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
         <SurfaceCard title="Workforce access anomalies" subtitle="Access/security anomaly detection without payroll or HR scoring.">
           <AnalyticsList items={anomalies} emptyTitle="No workforce anomalies" emptyBody="Late, missing check-out, and manual override signals will appear here." />
         </SurfaceCard>
-        <SurfaceCard title="Workforce analytics" subtitle="Lifecycle, presence, approval backlog, and attendance signals use the same backend analytics contract as web.">
+        <SurfaceCard title="Workforce analytics" subtitle="Lifecycle, presence, approval backlog, and attendance signals use the same organization analytics model as web.">
           <AnalyticsList items={[...workforceLifecycle, ...workforceAttendance, ...workforceAlerts].slice(0, 10)} emptyTitle="No workforce analytics" emptyBody="Workforce lifecycle and presence analytics will appear after requests, invites, or scans are recorded." />
         </SurfaceCard>
       </SplitPane>
@@ -1509,7 +1509,7 @@ function EnterpriseAnalytics({ data, onExport }: { data?: AdminOperationalAnalyt
 
 function AnalyticsTileGrid({ items }: { items: AnalyticsPoint[] }) {
   if (!items.length) {
-    return <EmptyState title="No live state" body="Current operational state will appear when analytics are available." />;
+    return <EmptyState title="No current state" body="Current operational state will appear when analytics are available." />;
   }
   return (
     <View style={styles.analyticsTileGrid}>
@@ -1761,7 +1761,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:28p
 
 function snapshotRows(snapshot: AnalyticsSnapshot, payload?: AdminOperationalAnalytics) {
   const sections: [string, (AnalyticsPoint | OperationalInsight)[] | undefined][] = [
-    ['Live operations', payload?.liveOperations],
+    ['Current operations', payload?.liveOperations],
     ['Repeat visitors', payload?.repeatVisitors],
     ['Denied reasons', payload?.denialReasons],
     ['Security incidents', payload?.securityIncidents],
@@ -1831,7 +1831,7 @@ function WorkforceList({
 }) {
   const layout = useResponsiveLayout();
   if (!workers.length) {
-    return <EmptyState title="No workforce approvals" body="Security-assisted onboarding requests will appear here as live backend records." />;
+    return <EmptyState title="No workforce approvals" body="Security-assisted onboarding requests will appear here as current organization records." />;
   }
   return (
     <View style={styles.listStack}>
@@ -1901,7 +1901,7 @@ function VisitorList({
   const layout = useResponsiveLayout();
   const [expandedVisitorId, setExpandedVisitorId] = useState<string | null>(null);
   if (!visitors.length) {
-    return <EmptyState title="No visitor records" body="Live visitor requests, active passes, denied entries, and recurring access will appear here." />;
+    return <EmptyState title="No visitor records" body="Visitor requests, active passes, denied entries, and recurring access will appear here." />;
   }
   return (
     <View style={styles.listStack}>
@@ -2235,11 +2235,11 @@ function reasonHelper(action: AdminAction | null) {
     case 'changes-workforce':
       return 'Describe the missing or incorrect workforce member details so security can resubmit cleanly.';
     case 'disable-user':
-      return 'Record why this employee access should be suspended. The backend audit trail will capture the action.';
+      return 'Record why this employee access should be suspended. The audit trail will capture the action.';
     case 'mismatch-visitor':
       return 'Record what did not match between the person, badge, and approved visitor profile.';
     default:
-      return 'Record the operational reason. This note is sent to the backend workflow and audit history where supported.';
+      return 'Record the operational reason. This note is added to the workflow and audit history where supported.';
   }
 }
 

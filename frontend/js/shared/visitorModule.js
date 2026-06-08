@@ -210,7 +210,7 @@ export function initVisitorModule(selector, options) {
           return;
         }
         await denyVisitorEntry(options.basePath, id, reason);
-        showToast("Entry denied", "Visitor denial was recorded with backend audit history.");
+        showToast("Entry denied", "Visitor denial was recorded with audit history.");
       }
       if (type === "suspend") {
         const reason = await promptOperationalReason("Suspend recurring access", "Record why recurring access should be paused.", "Suspend access");
@@ -246,7 +246,7 @@ export function initVisitorModule(selector, options) {
           return;
         }
         await reportVisitorMismatch(options.basePath, id, reason);
-        showToast("Mismatch recorded", "Visitor mismatch was recorded with backend audit history.");
+        showToast("Mismatch recorded", "Visitor mismatch was recorded with audit history.");
       }
       if (type === "delete" && options.canDelete) {
         await deleteVisitor(options.basePath, id);

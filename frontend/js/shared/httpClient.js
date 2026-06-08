@@ -225,7 +225,7 @@ async function fetchWithRetry(url, options, retryOptions) {
     await delay(backoffDelay(retryDelayMs, attempt));
   }
 
-  throw lastError || apiError("Connection interrupted", "AccessFlow could not reach the API. Try again in a moment.", {
+  throw lastError || apiError("Request interrupted", "AccessFlow could not complete the request. Try again in a moment.", {
     code: "NETWORK_RETRY_EXHAUSTED",
     retryable: true,
   });
@@ -284,7 +284,7 @@ function networkError(error) {
       cause: error,
     });
   }
-  return apiError("Connection interrupted", "AccessFlow could not reach the API. Check the connection and try again.", {
+  return apiError("Request interrupted", "AccessFlow could not complete the request. Try again in a moment.", {
     code: "NETWORK_UNREACHABLE",
     retryable: true,
     cause: error,

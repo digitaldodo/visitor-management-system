@@ -19,7 +19,7 @@ export function createAppError(error: Partial<AppError> & Pick<AppError, 'kind' 
   };
 }
 
-export function createPayloadError(message = 'AccessFlow received an invalid response from the backend.') {
+export function createPayloadError(message = 'AccessFlow could not load the expected data.') {
   return createAppError({
     kind: 'payload',
     message,
@@ -55,7 +55,7 @@ export function normalizeApiError(error: unknown): AppError {
       message: error.response.status === 429
         ? 'The service is busy. We will retry automatically when possible.'
         : sanitizeUserFacingErrorMessage(
-            payload?.message || payload?.error || 'The backend rejected this request.',
+            payload?.message || payload?.error || 'This request could not be completed.',
             isAuthFailure ? 'auth' : 'http',
           ),
       details: payload?.errors,
@@ -75,7 +75,7 @@ export function normalizeApiError(error: unknown): AppError {
 
   return createAppError({
     kind: 'runtime',
-    message: 'An unexpected runtime error occurred.',
+    message: 'Something went wrong. Please try again.',
     recoverable: true,
   });
 }

@@ -213,7 +213,7 @@ export function WorkforceScreen() {
       resetForm();
       await refreshWorkspace();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Workforce onboarding could not be completed. Retry when the connection is stable.';
+      const message = error instanceof Error ? error.message : 'Workforce onboarding could not be completed. Try again shortly.';
       setFormError(message);
       showSnackbar({ message, tone: 'danger', dedupeKey: 'workforce-onboarding-failed' });
     }
@@ -265,7 +265,7 @@ export function WorkforceScreen() {
         <SurfaceCard
           title="Assisted onboarding"
           subtitle={offlineLookupActive
-            ? 'New workforce onboarding requires connectivity so admin approval and credential issuance stay authoritative.'
+            ? 'New workforce onboarding is temporarily paused while AccessFlow restores approvals and credential issuance.'
             : 'Capture the workforce member identity, service type, and shift context for admin approval.'}
         >
           <AppTextField label="Workforce member name" value={fullName} onChangeText={setFullName} placeholder="Full name" />
@@ -343,7 +343,7 @@ export function WorkforceScreen() {
           ) : null}
 
           <PrimaryButton
-            label={offlineLookupActive ? 'Onboarding requires connectivity' : 'Submit onboarding request'}
+            label={offlineLookupActive ? 'Onboarding temporarily paused' : 'Submit onboarding request'}
             onPress={() => void submitOnboarding()}
             loading={createWorkforceMutation.isPending || uploadWorkforcePhotoMutation.isPending}
             disabled={offlineLookupActive}
@@ -357,8 +357,8 @@ export function WorkforceScreen() {
         <SurfaceCard
           title="Workforce search"
           subtitle={offlineLookupActive
-            ? `Offline lookup uses approved cached workers only. Last sync: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
-            : 'Look up cleaners, gardeners, support staff, contract labor, and active employees from the backend directory.'}
+            ? `Limited lookup uses approved saved workers only. Last updated: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
+            : 'Look up cleaners, gardeners, support staff, contract labor, and active employees from the workforce directory.'}
         >
           <AppTextField label="Search workforce" value={search} onChangeText={setSearch} placeholder="Search by name, employee ID, designation, or department" />
           {!offlineLookupActive && employees.isLoading ? (
@@ -392,8 +392,8 @@ export function WorkforceScreen() {
                   <View style={styles.actionRow}>
                     {offlineLookupActive ? (
                       <PrimaryButton
-                        label="Manual actions require connectivity"
-                        onPress={() => showSnackbar({ message: 'Offline Mode allows cached lookup only here. Use QR scan for queued offline presence.', tone: 'warning' })}
+                        label="Manual actions temporarily paused"
+                        onPress={() => showSnackbar({ message: 'Use QR scan for saved presence actions while AccessFlow restores full workspace actions.', tone: 'warning' })}
                         tone="secondary"
                       />
                     ) : (
@@ -408,7 +408,7 @@ export function WorkforceScreen() {
               );
             })
           ) : (
-            <EmptyState title="No workforce matches" body="Search results will appear here when the backend directory returns security-visible workers." />
+            <EmptyState title="No workforce matches" body="Search results will appear here when security-visible workers are available." />
           )}
         </SurfaceCard>
 

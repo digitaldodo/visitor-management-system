@@ -79,7 +79,7 @@ export function VisitorDetailScreen() {
       showSnackbar({ message: `${updated.fullName} checked in`, tone: 'success' });
       await refreshWorkspace();
     } catch (error) {
-      showSnackbar({ message: getErrorMessage(error, 'Connection lost. Retry shortly'), tone: 'danger' });
+      showSnackbar({ message: getErrorMessage(error, 'Unable to check in visitor right now'), tone: 'danger' });
     }
   };
 
@@ -93,7 +93,7 @@ export function VisitorDetailScreen() {
       showSnackbar({ message: `${updated.fullName} checked out`, tone: 'success' });
       await refreshWorkspace();
     } catch (error) {
-      showSnackbar({ message: getErrorMessage(error, 'Connection lost. Retry shortly'), tone: 'danger' });
+      showSnackbar({ message: getErrorMessage(error, 'Unable to check out visitor right now'), tone: 'danger' });
     }
   };
 
@@ -163,10 +163,10 @@ export function VisitorDetailScreen() {
                 <PrimaryButton label="Back" onPress={() => navigation.goBack()} tone="secondary" />
                 {visitor.status === 'APPROVED' ? (
                   <PrimaryButton
-                    label={offlineLookupActive ? 'Check-in via scanner offline' : 'Check in'}
+                    label={offlineLookupActive ? 'Use scanner check-in' : 'Check in'}
                     onPress={() => {
                       if (offlineLookupActive) {
-                        showSnackbar({ message: 'Use QR scan for offline queued check-in so badge cache validation is enforced.', tone: 'warning' });
+                        showSnackbar({ message: 'Use QR scan for saved check-in while AccessFlow restores full record actions.', tone: 'warning' });
                         return;
                       }
                       void checkIn();
@@ -177,10 +177,10 @@ export function VisitorDetailScreen() {
                 ) : null}
                 {visitor.status === 'CHECKED_IN' ? (
                   <PrimaryButton
-                    label={offlineLookupActive ? 'Check-out via scanner offline' : 'Check out'}
+                    label={offlineLookupActive ? 'Use scanner check-out' : 'Check out'}
                     onPress={() => {
                       if (offlineLookupActive) {
-                        showSnackbar({ message: 'Use QR scan for offline queued check-out so badge cache validation is enforced.', tone: 'warning' });
+                        showSnackbar({ message: 'Use QR scan for saved check-out while AccessFlow restores full record actions.', tone: 'warning' });
                         return;
                       }
                       void checkOut();
@@ -243,7 +243,7 @@ export function VisitorDetailScreen() {
               />
             </SurfaceCard>
 
-            <SurfaceCard title="Repeat-Visitor Intelligence" subtitle="Operational context derived from this backend record and audit trail.">
+            <SurfaceCard title="Repeat-Visitor Intelligence" subtitle="Operational context derived from this visitor record and audit trail.">
               <View style={styles.metricGrid}>
                 {intelligence.map((item) => (
                   <View key={item.label} style={styles.metricTile}>
@@ -304,7 +304,7 @@ export function VisitorDetailScreen() {
       <ReasonCaptureModal
         visible={reactivateReasonOpen}
         title="Reactivate visitor"
-        helperText="Confirm that the visitor has been reviewed before reactivation. Backend audit history remains preserved."
+        helperText="Confirm that the visitor has been reviewed before reactivation. Audit history remains preserved."
         confirmLabel="Reactivate"
         loading={reactivateMutation.isPending}
         onCancel={() => setReactivateReasonOpen(false)}

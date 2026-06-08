@@ -14,7 +14,7 @@ export function OperationalLockOverlay() {
 
   const title = runtimeHealth === 'update-required' ? 'Update required' : 'Workspace locked';
   const body = runtimeHealth === 'update-required'
-    ? 'This AccessFlow build is older than the backend allows. Update the app before resuming guard, employee, or admin operations.'
+    ? 'Your organization requires a newer AccessFlow mobile release before guard, employee, or admin operations can continue.'
     : 'This workspace is temporarily locked by policy.';
 
   return (
@@ -24,7 +24,7 @@ export function OperationalLockOverlay() {
           <View style={styles.copy}>
             <Text style={styles.body}>{body}</Text>
             <Text style={styles.context}>Screenshot protection: {sessionLock.screenshotProtectionEnabled ? 'enabled' : 'disabled'}</Text>
-            {otaUpdate.updateDownloaded ? <Text style={styles.context}>OTA update: downloaded and ready</Text> : null}
+            {otaUpdate.updateDownloaded ? <Text style={styles.context}>Update ready to apply</Text> : null}
           </View>
           <View style={styles.actions}>
             {runtimeHealth === 'update-required' && otaUpdate.updateDownloaded ? (

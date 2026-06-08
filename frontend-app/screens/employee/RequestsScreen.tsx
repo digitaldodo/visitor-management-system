@@ -334,7 +334,7 @@ export function RequestsScreen() {
       visitorId: queueAction.visitor.id,
       note: reason,
     });
-    setActionMessage(`${updatedVisitor.fullName} denied. The backend audit trail and notification flow remain intact.`);
+    setActionMessage(`${updatedVisitor.fullName} denied. Audit history and notifications are up to date.`);
     setQueueAction(null);
     await refreshWorkspace();
   };
@@ -348,14 +348,14 @@ export function RequestsScreen() {
       visitorId: queueAction.visitor.id,
       payload,
     });
-    setActionMessage(`${updatedVisitor.fullName} rescheduled. The access window and QR validity were refreshed from the backend.`);
+    setActionMessage(`${updatedVisitor.fullName} rescheduled. The access window and QR validity are up to date.`);
     setQueueAction(null);
     await refreshWorkspace();
   };
 
   const approveReschedule = async (visitor: VisitorRecord) => {
     const updatedVisitor = await approveRescheduleMutation.mutateAsync({ visitorId: visitor.id, note: 'Approved from AccessFlow mobile employee workspace.' });
-    setActionMessage(`${updatedVisitor.fullName} timing change approved. QR validity was refreshed from the backend.`);
+    setActionMessage(`${updatedVisitor.fullName} timing change approved. QR validity is up to date.`);
     await refreshWorkspace();
   };
 
@@ -431,7 +431,7 @@ export function RequestsScreen() {
 
         <SurfaceCard
           title="Approval queue"
-          subtitle="Fast host decisions for one-time, recurring, and pre-approved visitors. Backend validation still governs every sensitive transition."
+          subtitle="Fast host decisions for one-time, recurring, and pre-approved visitors. AccessFlow keeps every sensitive transition governed and auditable."
         >
           {pendingVisitors.length ? (
             pendingVisitors.map((visitor) => (
@@ -697,7 +697,7 @@ export function RequestsScreen() {
 
         {actionMessage ? (
           <SurfaceCard title="Operational update">
-            <StatusPill label="Synced" tone="success" />
+            <StatusPill label="Updated" tone="success" />
             <Text style={styles.bodyText}>{actionMessage}</Text>
           </SurfaceCard>
         ) : null}

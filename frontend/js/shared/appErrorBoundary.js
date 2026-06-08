@@ -16,7 +16,7 @@ export function initAppErrorBoundary() {
       recoverRuntime("resource-load-failure", {
         error: event.error || new Error(String(event.message || "Resource load failed")),
         forceReload: true,
-        message: "AccessFlow is recovering from an incomplete update...",
+        message: "Preparing workspace...",
         preserveSession: true,
       });
       return;
@@ -31,7 +31,7 @@ export function initAppErrorBoundary() {
       recoverRuntime("runtime-error", {
         error: event.error || new Error(String(event.message || "Unexpected runtime error")),
         forceReload: true,
-        message: "AccessFlow hit an outdated runtime. Recovering workspace...",
+        message: "Preparing workspace...",
         preserveSession: true,
       });
       return;
@@ -51,7 +51,7 @@ export function initAppErrorBoundary() {
       recoverRuntime("runtime-rejection", {
         error: event.reason,
         forceReload: true,
-        message: "AccessFlow hit an outdated runtime. Recovering workspace...",
+        message: "Preparing workspace...",
         preserveSession: true,
       });
       return;
@@ -71,7 +71,7 @@ export async function runSafely(label, action, options = {}) {
       recoverRuntime("action-failure", {
         error,
         forceReload: true,
-        message: "AccessFlow is recovering this workspace after an update...",
+        message: "Preparing workspace...",
         preserveSession: true,
       });
       if (rethrow) {

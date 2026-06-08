@@ -285,9 +285,9 @@ export function VisitorRequestScreen() {
         }
         if (queuedPayload) {
           await enqueueVisitorRequest(queuedPayload, clientRequestId);
-          setSuccessMessage('Request queued for sync. We will retry automatically.');
+          setSuccessMessage('Request saved. We will retry automatically.');
           showSnackbar({
-            message: 'Request queued for sync',
+            message: 'Request saved',
             tone: 'warning',
             dedupeKey: 'visitor-request-queued',
             minIntervalMs: 20_000,
@@ -519,7 +519,7 @@ export function VisitorPassScreen() {
             <DetailRow label="Host" value={pass.data.hostEmployee || 'Pending'} muted={!pass.data.hostEmployee} />
             <DetailRow label="Access window" value={formatPassWindow(pass.data)} />
             <DetailRow label="Expires" value={pass.data.expiresAt ? formatDateTime(pass.data.expiresAt, pass.data.organizationTimezone) : 'Pending'} muted={!pass.data.expiresAt} />
-            <DetailRow label="Guidance" value="Present this badge at reception. Security will verify the live approval record before check-in." />
+            <DetailRow label="Guidance" value="Present this badge at reception. Security will verify the current approval record before check-in." />
           </>
         ) : null}
       </SurfaceCard>
@@ -575,7 +575,7 @@ function buildVisitorBadgeHtml(pass: VisitorPass) {
             <div><strong>Expires</strong><br />${escapeReportHtml(pass.expiresAt || 'Access window')}</div>
           </div>
           <div style="margin-top:20px;padding:14px;border-radius:14px;background:rgba(59,130,246,0.16);color:#F8FAFC;font-size:13px;line-height:1.45;">
-            This export is a timestamped copy. Security should still verify the live AccessFlow approval record at checkpoint scan time.
+            This export is a timestamped copy. Security should still verify the current AccessFlow approval record at checkpoint scan time.
           </div>
         </div>
       </body>

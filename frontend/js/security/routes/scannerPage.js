@@ -6,7 +6,7 @@ export function render() {
           <div>
             <p class="eyebrow">QR scanner</p>
             <h2>Visitor Badge Verification</h2>
-            <p class="panel__lede">Scan the visitor badge, verify its live approval state, then record check-in or check-out from the result panel.</p>
+            <p class="panel__lede">Scan the visitor badge, verify its current approval state, then record check-in or check-out from the result panel.</p>
           </div>
         </div>
         <div class="scanner-layout">

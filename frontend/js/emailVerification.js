@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initAppErrorBoundary();
     initVerificationPage();
   }, {
-    failureMessage: "AccessFlow had trouble loading the email verification screen. Refreshing...",
+    failureMessage: "Preparing email verification...",
   });
 });
 

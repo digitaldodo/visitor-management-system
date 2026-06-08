@@ -131,7 +131,7 @@ export function OperationalFeedScreen() {
             />
           </View>
 
-          <SyncRecoveryPanel runtime={runtime} />
+          <WorkspaceReadinessPanel runtime={runtime} />
 
           <SurfaceCard title={t('feed.streamTitle')} subtitle={t('feed.streamSubtitle')}>
             <View style={styles.filterRow}>
@@ -154,7 +154,7 @@ export function OperationalFeedScreen() {
   );
 }
 
-function SyncRecoveryPanel({
+function WorkspaceReadinessPanel({
   runtime,
 }: {
   runtime: ReturnType<typeof useOperationalRuntime>;
@@ -170,29 +170,29 @@ function SyncRecoveryPanel({
   const scans = runtime.offlineScanQueueSize;
   const lastEvent = runtime.syncConnection.lastEventAt ? relativeTime(runtime.syncConnection.lastEventAt) : 'No events';
   const stateLabel = runtime.isSyncingOfflineOperations
-    ? 'Syncing'
+    ? 'Updating'
     : runtime.syncConnection.status === 'live'
-      ? 'Connected'
+      ? 'Current'
       : runtime.syncConnection.status === 'offline' || runtime.offlineOperationalMode === 'offline'
-        ? 'Offline'
-        : 'Limited';
+        ? 'Restoring'
+        : 'Limited access';
 
   return (
     <View style={styles.syncPanel}>
       <View style={styles.syncStatusRow}>
         <View style={styles.syncIcon}>
           <Ionicons
-            name={runtime.offlineOperationalMode === 'offline' ? 'cloud-offline-outline' : 'radio-outline'}
+            name="sparkles-outline"
             size={18}
             color={connectionTone === 'success' ? theme.colors.success : connectionTone === 'warning' ? theme.colors.warning : theme.colors.info}
           />
         </View>
         <View style={styles.syncCopy}>
-          <Text numberOfLines={1} style={styles.syncTitle}>Operational sync</Text>
+          <Text numberOfLines={1} style={styles.syncTitle}>Workspace updates</Text>
           <Text numberOfLines={1} style={styles.syncMeta}>
             {queued
-              ? `${queued} queued${scans ? `, ${scans} scans` : ''}`
-              : `Latest event ${lastEvent}`}
+              ? `${queued} awaiting review${scans ? `, ${scans} scans` : ''}`
+              : `Latest activity ${lastEvent}`}
           </Text>
         </View>
         <StatusPill label={stateLabel} tone={connectionTone} />
@@ -271,7 +271,7 @@ function FeedRow({
             <Text numberOfLines={1} style={styles.sourceText}>{item.source}</Text>
           </View>
           {item.groupCount && item.groupCount > 1 ? <MiniPill label={t('feed.grouped', { count: item.groupCount })} /> : null}
-          {item.pendingSync ? <MiniPill label="Pending sync" warning /> : null}
+          {item.pendingSync ? <MiniPill label="Pending review" warning /> : null}
           {item.offlineGenerated ? <MiniPill label="Needs review" warning /> : null}
         </View>
       </View>
@@ -350,7 +350,7 @@ function severityIcon(severity: OperationalFeedSeverity, category: OperationalFe
     return 'id-card-outline';
   }
   if (category === 'sync') {
-    return 'sync-outline';
+    return 'sparkles-outline';
   }
   return 'flash-outline';
 }

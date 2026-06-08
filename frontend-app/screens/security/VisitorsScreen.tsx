@@ -384,7 +384,7 @@ export function VisitorsScreen() {
         },
         deny: {
           title: 'Deny visitor entry',
-          helperText: 'This denies the visit at the checkpoint and keeps the backend audit trail intact.',
+          helperText: 'This denies the visit at the checkpoint and keeps the audit trail intact.',
           confirmLabel: 'Deny entry',
         },
         escalate: {
@@ -413,7 +413,7 @@ export function VisitorsScreen() {
         <SurfaceCard
           title="Walk-in registration"
           subtitle={offlineLookupActive
-            ? 'Registration requires connectivity so identity photos, host assignment, and badge creation stay backend-verified.'
+            ? 'Registration is temporarily paused while AccessFlow restores identity photo, host assignment, and badge creation.'
             : 'Optimized for front-desk speed with minimal typing and immediate photo capture.'}
         >
           <View style={styles.segmentRow}>
@@ -511,7 +511,7 @@ export function VisitorsScreen() {
                 value={scheduledStart}
                 onChangeText={setScheduledStart}
                 placeholder="2026-05-16T14:30"
-                helperText="Use the local device time format. Security only captures the arrival slot; the backend enforces the access window."
+                helperText="Use the local device time format. Security captures the arrival slot while AccessFlow applies the access window."
               />
               <View style={styles.segmentRow}>
                 {DURATION_OPTIONS.map((option) => (
@@ -531,7 +531,7 @@ export function VisitorsScreen() {
             {photoAsset ? <Image source={{ uri: photoAsset.uri }} style={styles.photoPreview} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoPlaceholderText}>Photo required</Text></View>}
             <View style={styles.photoMeta}>
               <Text style={styles.photoTitle}>Visitor photo</Text>
-              <Text style={styles.helperText}>Capture a live identity photo before the badge is issued or the visitor is admitted.</Text>
+              <Text style={styles.helperText}>Capture a current identity photo before the badge is issued or the visitor is admitted.</Text>
               <PrimaryButton label={photoAsset ? 'Retake photo' : 'Capture photo'} onPress={() => setPhotoPreviewVisible(true)} tone="secondary" />
             </View>
           </View>
@@ -544,7 +544,7 @@ export function VisitorsScreen() {
           ) : null}
 
           <PrimaryButton
-            label={offlineLookupActive ? 'Registration requires connectivity' : 'Register visitor'}
+            label={offlineLookupActive ? 'Registration temporarily paused' : 'Register visitor'}
             onPress={() => void submitRegistration()}
             loading={createVisitorMutation.isPending || uploadVisitorPhotoMutation.isPending}
             disabled={!photoAsset || offlineLookupActive}
@@ -554,8 +554,8 @@ export function VisitorsScreen() {
         <SurfaceCard
           title="Checkpoint queue"
           subtitle={offlineLookupActive
-            ? `Offline lookup from cached records only. Last sync: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
-            : 'Search across the live queue without opening a dashboard-heavy workspace.'}
+            ? `Limited lookup from saved records. Last updated: ${runtime.offlineLastSyncAt ? new Date(runtime.offlineLastSyncAt).toLocaleString() : 'not available'}.`
+            : 'Search across the current queue without opening a dashboard-heavy workspace.'}
         >
           <AppTextField
             label="Search queue"
@@ -733,7 +733,7 @@ export function VisitorsScreen() {
       <ReasonCaptureModal
         visible={Boolean(revokeInviteId)}
         title="Cancel visitor invite"
-        helperText="This closes the pending invite lifecycle and records the security reason in the backend audit trail."
+        helperText="This closes the pending invite lifecycle and records the security reason in the audit trail."
         confirmLabel="Revoke invite"
         minLength={4}
         loading={revokeInviteMutation.isPending}

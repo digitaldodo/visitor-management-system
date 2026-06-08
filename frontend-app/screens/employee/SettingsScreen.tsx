@@ -32,7 +32,7 @@ export function SettingsScreen() {
         attendance.refetch(),
       ])}
       roleSummary={(
-        <SurfaceCard title="Employee credential" subtitle="Badge authority stays backend-managed while personal settings remain user-editable.">
+        <SurfaceCard title="Employee credential" subtitle="Badge authority stays managed by AccessFlow while personal settings remain user-editable.">
           <StatusPill label={badge.data?.active ? 'Badge active' : 'Badge unavailable'} tone={badge.data?.active ? 'success' : 'danger'} />
           <View style={styles.metricsGrid}>
             <MetricCard label="Pending approvals" value={overview.data?.metrics?.pending ?? 0} tone={(overview.data?.metrics?.pending ?? 0) ? 'warning' : 'default'} />

@@ -1,5 +1,4 @@
 import { logout } from "./authApi.js";
-import { getHealth } from "./healthApi.js";
 import { $, $$, setText } from "./dom.js";
 import { LOGIN_FROM_PORTAL } from "./config.js";
 import { clearSession, getRefreshToken } from "./session.js";
@@ -25,14 +24,12 @@ export function initPortalShell(session, options = {}) {
   safeShellInit("logout", initLogout);
   safeShellInit("route navigation", () => initRouteNavigation(options));
   safeShellInit("notifications", initNotifications);
-  safeShellInit("refresh control", () => initRefreshControl(options.onRefresh));
   safeShellInit("localization", initWebLocalization);
 
   activeIdentitySession = session;
   activeIdentityPortalProfile = options.portalProfile || null;
   activeIdentitySummary = options.identitySummary || {};
   renderIdentityChip(session, options.portalProfile);
-  refreshHealth(false);
 }
 
 export function updatePortalIdentitySummary(summary = {}) {
@@ -660,102 +657,10 @@ function adminRouteFromLegacyHash(hash) {
   return aliases[normalized] || normalized;
 }
 
-async function refreshHealth(showSuccessToast) {
-  setHealthLoading();
-
-  try {
-    const response = await getHealth();
-    setHealthOnline(response?.data?.status || "UP");
-    if (showSuccessToast) {
-      showToast("API online", "Backend health check completed.");
-    }
-  } catch (error) {
-    setHealthOffline(error.message);
-    showToast("API unavailable", error.message);
-  }
-}
-
-function initRefreshControl(onRefresh) {
-  const button = $("#refresh-health");
-  if (!button) {
-    return;
-  }
-
-  button.onclick = null;
-  button.addEventListener("click", async () => {
-    if (button.disabled) {
-      return;
-    }
-
-    button.disabled = true;
-    button.classList.add("is-loading");
-    button.setAttribute("aria-busy", "true");
-
-    try {
-      const tasks = [refreshHealth(false)];
-      if (typeof onRefresh === "function") {
-        tasks.push(Promise.resolve().then(() => onRefresh()).catch((error) => {
-          showToast("Workspace refresh failed", error?.message || "Workspace data could not be refreshed.");
-        }));
-      }
-      await Promise.all(tasks);
-      showToast(
-        typeof onRefresh === "function" ? "Dashboard refreshed" : "API online",
-        typeof onRefresh === "function" ? "Latest workspace data loaded." : "Backend health check completed.",
-      );
-    } catch (error) {
-      showToast("Refresh interrupted", error?.message || "Some dashboard data could not be refreshed.");
-    } finally {
-      button.disabled = false;
-      button.classList.remove("is-loading");
-      button.removeAttribute("aria-busy");
-    }
-  });
-}
-
 function resolveShellStorageScope() {
   const path = window.location.pathname || "portal";
   const segments = path.split("/").filter(Boolean);
   return segments.slice(0, 2).join(":") || "portal";
-}
-
-function setHealthLoading() {
-  setText("#api-status-text", "API checking");
-  $("#api-status-dot")?.classList.remove("is-online", "is-offline");
-  const card = $("#health-card");
-  if (card) {
-    card.innerHTML = "<strong>Checking</strong><span>Contacting backend health endpoint.</span>";
-  }
-}
-
-function setHealthOnline(status) {
-  setText("#api-status-text", "API online");
-  $("#api-status-dot")?.classList.add("is-online");
-  const card = $("#health-card");
-  if (card) {
-    card.innerHTML = `
-      <span class="status-dot is-online" aria-hidden="true"></span>
-      <div>
-        <strong>${escapeHtml(status)}</strong>
-        <span>/api/v1/health</span>
-      </div>
-    `;
-  }
-}
-
-function setHealthOffline(message) {
-  setText("#api-status-text", "API offline");
-  $("#api-status-dot")?.classList.add("is-offline");
-  const card = $("#health-card");
-  if (card) {
-    card.innerHTML = `
-      <span class="status-dot is-offline" aria-hidden="true"></span>
-      <div>
-        <strong>Offline</strong>
-        <span>${escapeHtml(message)}</span>
-      </div>
-    `;
-  }
 }
 
 function formatRole(role) {

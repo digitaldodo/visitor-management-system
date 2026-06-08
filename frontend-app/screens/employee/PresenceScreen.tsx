@@ -79,7 +79,7 @@ export function PresenceScreen() {
       {latestRecord?.late ? (
         <SurfaceCard title="Access note">
           <Text style={styles.bodyText}>
-            Your latest entry was flagged as late by the backend shift rules. This screen only mirrors the security state and does not create attendance analytics.
+            Your latest entry was flagged as late by shift rules. This screen only mirrors the security state and does not create attendance analytics.
           </Text>
         </SurfaceCard>
       ) : null}

@@ -54,7 +54,7 @@ export function BadgeScreen() {
     const subscription = addScreenshotListener(() => {
       Alert.alert(
         'Credential copied',
-        'Screenshots are timestamped and the live QR rotates quickly. Use the current badge screen for checkpoint validation.',
+        'Screenshots are timestamped and the QR updates quickly. Use the current badge screen for checkpoint validation.',
       );
     });
 
@@ -135,7 +135,7 @@ export function BadgeScreen() {
   const requestControlledShare = () => {
     Alert.alert(
       'Share credential export?',
-      'Share only with authorized operations staff. Exports are timestamped copies and do not replace live checkpoint validation.',
+      'Share only with authorized operations staff. Exports are timestamped copies and do not replace current checkpoint validation.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Share export', onPress: () => void exportPng('share') },
@@ -147,7 +147,7 @@ export function BadgeScreen() {
     <>
       <AppScreen
         title="Badge"
-        subtitle="Your live workforce credential for secure checkpoint presentation on Android."
+        subtitle="Your current workforce credential for secure checkpoint presentation on Android."
         sensitive
         sensitiveReason="employee-badge"
         refreshing={badge.isRefetching}
@@ -162,7 +162,7 @@ export function BadgeScreen() {
             <View style={styles.actionGrid}>
               <PrimaryButton label="Full-screen QR" onPress={() => setIsQrVisible(true)} />
               <PrimaryButton
-                label={qrVariant === 'dynamic' ? 'Offline fallback' : 'Live QR'}
+                label={qrVariant === 'dynamic' ? 'Contingency QR' : 'Access QR'}
                 onPress={() => setQrVariant((current) => (current === 'dynamic' ? 'fallback' : 'dynamic'))}
                 tone="secondary"
               />
@@ -177,18 +177,18 @@ export function BadgeScreen() {
               <DetailRow label="Designation" value={badge.data.designation || 'Assigned by admin'} muted={!badge.data.designation} />
               <DetailRow label="Shift" value={formatShift(badge.data.shiftName, badge.data.shiftStartTime, badge.data.shiftEndTime)} muted={!badge.data.shiftName} />
               <DetailRow label="Credential" value={badge.data.statusLabel || (badge.data.active ? 'Active' : 'Revoked or inactive')} muted={!badge.data.active} />
-              <DetailRow label="Validation mode" value={runtime.offlineOperationalMode === 'online' ? 'Online validation' : runtime.offlineOperationalMode === 'offline' ? 'Cached credential available' : 'Limited connectivity'} muted={runtime.offlineOperationalMode !== 'online'} />
-              <DetailRow label="QR health" value={badge.data.qrExpiresAt ? `Rotates every ${badge.data.qrRefreshIntervalSeconds ?? 60}s` : 'Dynamic QR pending'} muted={!badge.data.qrExpiresAt} />
+              <DetailRow label="Validation mode" value={runtime.offlineOperationalMode === 'online' ? 'Current validation' : runtime.offlineOperationalMode === 'offline' ? 'Contingency credential available' : 'Limited availability'} muted={runtime.offlineOperationalMode !== 'online'} />
+              <DetailRow label="QR status" value={badge.data.qrExpiresAt ? `Updates every ${badge.data.qrRefreshIntervalSeconds ?? 60}s` : 'QR pending'} muted={!badge.data.qrExpiresAt} />
             </SurfaceCard>
 
             <SurfaceCard title="Credential history" subtitle="Recent lifecycle markers available to security operations.">
-              {(badge.data.credentialHistory?.length ? badge.data.credentialHistory : ['Credential provisioned for live workforce validation.']).map((entry) => (
+              {(badge.data.credentialHistory?.length ? badge.data.credentialHistory : ['Credential provisioned for workforce validation.']).map((entry) => (
                 <DetailRow key={entry} label="Event" value={entry} />
               ))}
             </SurfaceCard>
           </>
         ) : (
-          <EmptyState title="Badge not available" body="Your employee credential has not been provisioned yet. Pull to retry once the backend finishes setup." />
+          <EmptyState title="Badge not available" body="Your employee credential has not been provisioned yet. AccessFlow will update this workspace automatically." />
         )}
       </AppScreen>
 
@@ -199,7 +199,7 @@ export function BadgeScreen() {
               <View>
                 <Text style={styles.modalTitle}>Present your QR</Text>
                 <Text style={styles.modalSubtitle}>
-                  {qrVariant === 'fallback' ? 'Offline fallback for supervised dead-zone validation.' : 'Live credential rotates automatically for rapid scan.'}
+                  {qrVariant === 'fallback' ? 'Contingency QR for supervised checkpoint validation.' : 'Access credential updates automatically for rapid scan.'}
                 </Text>
               </View>
               <Pressable accessibilityRole="button" onPress={() => void closeQrModal()} style={styles.closeButton}>
@@ -217,7 +217,7 @@ export function BadgeScreen() {
 
             <View style={styles.modalActions}>
               <PrimaryButton
-                label={qrVariant === 'dynamic' ? 'Show fallback QR' : 'Show live QR'}
+                label={qrVariant === 'dynamic' ? 'Show contingency QR' : 'Show access QR'}
                 onPress={() => setQrVariant((current) => (current === 'dynamic' ? 'fallback' : 'dynamic'))}
                 tone="secondary"
               />
@@ -279,7 +279,7 @@ function buildBadgeHtml(badge: NonNullable<ReturnType<typeof useEmployeeBadge>['
             <div><strong>Checkpoint</strong><br />${escapeHtml(badge.checkpointMarker || badge.organizationCode || 'AccessFlow')}</div>
           </div>
           <div style="margin-top:20px;padding:14px;border-radius:14px;background:rgba(59,130,246,0.16);color:#F8FAFC;font-size:13px;line-height:1.45;">
-            This PDF is an operational export. Live access decisions should use the current rotating digital credential or backend verification.
+            This PDF is an operational export. Access decisions should use the current rotating digital credential or checkpoint verification.
           </div>
         </div>
       </body>

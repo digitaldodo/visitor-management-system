@@ -62,7 +62,7 @@ export function bootstrapApplication(label, action, options = {}) {
       runtime.recover("bootstrap-failure", {
         error,
         forceReload: true,
-        message: options.failureMessage || "AccessFlow had trouble restoring this workspace. Refreshing...",
+        message: options.failureMessage || "Preparing workspace...",
         preserveSession: true,
         redirectToLogin: Boolean(options.redirectToLogin),
       });
@@ -102,16 +102,7 @@ function reportApiConfigurationRecovery(runtime, label, apiState) {
     source: apiState.source,
   });
 
-  if (apiState.usedFallback || apiState.productionUsingLocalApi || apiState.previousWasInvalid) {
-    runtime.showNotice("AccessFlow recovered the API endpoint for this deployment.", {
-      primaryLabel: "Refresh now",
-      primaryAction: () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set("afv", APP_VERSION || "refresh");
-        window.location.replace(url.toString());
-      },
-    });
-  }
+  void APP_VERSION;
 }
 
 function hostFromApiBaseUrl(apiBaseUrl) {

@@ -166,7 +166,7 @@ export function ScanScreen() {
       case 'deny':
         return {
           title: 'Deny visitor entry',
-          helperText: 'This will deny the visit at the checkpoint and preserve the guard audit trail in the backend.',
+          helperText: 'This will deny the visit at the checkpoint and preserve the guard audit trail.',
           confirmLabel: 'Deny entry',
         };
       case 'escalate':
@@ -313,7 +313,7 @@ export function ScanScreen() {
           payloadFingerprint,
           dedupeKey: `employee-scan:${payloadFingerprint}`,
         });
-        setScanError('Offline Mode: this workforce badge is not cached locally. The scan was queued for backend verification only; do not grant access until sync confirms.');
+        setScanError('This workforce badge is not available on this device. The scan was saved for review; do not grant access until AccessFlow confirms it.');
         await refreshWorkspaceStateAfterOfflineQueue();
         return true;
       }
@@ -321,7 +321,7 @@ export function ScanScreen() {
       const policy = canUseCachedEmployeeForOfflineOperation(cached);
       if (!policy.allowed) {
         setEmployeeScan(buildOfflineEmployeeScan({ ...cached, queued: false }));
-        setScanError(`Offline Mode: ${policy.reason}`);
+        setScanError(`Review needed: ${policy.reason}`);
         return true;
       }
 
@@ -336,7 +336,7 @@ export function ScanScreen() {
         dedupeKey: `employee-scan:${payloadFingerprint}`,
       });
       setEmployeeScan(buildOfflineEmployeeScan({ ...cached, queued: true }));
-      setLastActionMessage(queued.duplicate ? 'This workforce scan is already queued for sync.' : 'Offline workforce scan queued. Sync will confirm the final presence state.');
+      setLastActionMessage(queued.duplicate ? 'This workforce scan is already saved for review.' : 'Workforce scan saved. AccessFlow will confirm the final presence state.');
       await recordOfflineQueuedMetric('employee-qr-scan', queued.duplicate);
       await refreshWorkspaceStateAfterOfflineQueue();
       return true;
@@ -351,7 +351,7 @@ export function ScanScreen() {
         payloadFingerprint,
         dedupeKey: `visitor-verify:${payloadFingerprint}`,
       });
-      setScanError('Offline Mode: this visitor badge is not cached locally. The scan was queued for backend verification only; do not approve entry until sync confirms.');
+      setScanError('This visitor badge is not available on this device. The scan was saved for review; do not approve entry until AccessFlow confirms it.');
       await refreshWorkspaceStateAfterOfflineQueue();
       return true;
     }
@@ -359,7 +359,7 @@ export function ScanScreen() {
     const policy = canUseCachedVisitorForOfflineOperation(cached);
     if (!policy.allowed) {
       setVisitorVerification(buildOfflineVisitorVerification({ ...cached, queued: false }));
-      setScanError(`Offline Mode: ${policy.reason}`);
+      setScanError(`Review needed: ${policy.reason}`);
       return true;
     }
 
@@ -376,7 +376,7 @@ export function ScanScreen() {
     });
 
     setVisitorVerification(buildOfflineVisitorVerification({ ...cached, queued: true }));
-    setLastActionMessage(queued.duplicate ? 'This visitor operation is already queued for sync.' : `Offline visitor ${isCheckOut ? 'check-out' : 'check-in'} queued. Sync will reconcile the final record.`);
+    setLastActionMessage(queued.duplicate ? 'This visitor action is already saved for review.' : `Visitor ${isCheckOut ? 'check-out' : 'check-in'} saved. AccessFlow will reconcile the final record.`);
     await recordOfflineQueuedMetric(isCheckOut ? 'visitor-check-out' : 'visitor-qr-check-in', queued.duplicate);
     await refreshWorkspaceStateAfterOfflineQueue();
     return true;
@@ -395,7 +395,7 @@ export function ScanScreen() {
       },
     });
     showSnackbar({
-      message: duplicate ? 'Queued action already pending' : 'Offline action queued for sync',
+      message: duplicate ? 'Saved action already pending' : 'Action saved for review',
       tone: 'warning',
     });
   };
@@ -465,14 +465,14 @@ export function ScanScreen() {
           level: 'warn',
           scope: 'scanner',
           code: 'SCAN_QUEUED_OFFLINE',
-          message: 'A scan was processed through Offline Operational Mode because the backend was unreachable.',
+          message: 'A scan was saved for later review while full workspace actions were unavailable.',
           context: {
             handledOffline,
             kind: looksLikeEmployeeQr(nextPayload) ? 'employee' : 'visitor',
           },
         });
         if (isMountedRef.current && !handledOffline) {
-          setScanError('Network is degraded. The scan was queued locally for a supervised retry when connectivity returns.');
+          setScanError('AccessFlow is restoring this workspace. The scan was saved for supervised review.');
         }
         return;
       }
@@ -643,11 +643,11 @@ export function ScanScreen() {
               {runtime.offlineScanQueueSize > 0 ? (
                 <View style={styles.degradedState}>
                   <StatusPill
-                    label={`${runtime.offlineScanQueueSize} queued`}
+                    label={`${runtime.offlineScanQueueSize} saved`}
                     tone="warning"
                   />
                   <Text style={styles.helperText}>
-                    Offline scans are saved for backend validation before access is granted.
+                    Saved scans await AccessFlow confirmation before access is granted.
                   </Text>
                 </View>
               ) : null}
@@ -707,7 +707,7 @@ export function ScanScreen() {
                       <Text style={styles.iconControlText}>{torchEnabled ? 'Torch on' : 'Torch off'}</Text>
                     </Pressable>
                     <Pressable accessibilityRole="button" onPress={resetScanner} style={styles.iconControl}>
-                      <Ionicons name="refresh" size={22} color={theme.colors.textPrimary} />
+                      <Ionicons name="scan-circle-outline" size={22} color={theme.colors.textPrimary} />
                       <Text style={styles.iconControlText}>{scannerMode === 'idle' ? 'Reset scanner' : 'Scan next'}</Text>
                     </Pressable>
                   </View>
@@ -717,14 +717,14 @@ export function ScanScreen() {
               <AppTextField
                 label="Manual QR fallback"
                 multiline
-                helperText="Use this if the camera is blocked, the code is damaged, or the checkpoint needs an offline-safe retry path."
+                helperText="Use this if the camera is blocked, the code is damaged, or the checkpoint needs a supervised retry path."
                 onChangeText={setManualPayload}
                 value={manualPayload}
-                placeholder="Paste a QR payload, verification link, or employee badge token."
+                placeholder="Paste a QR code, verification link, or employee badge code."
               />
               <View style={[styles.buttonGrid, layout.isTablet ? styles.buttonGridWide : null]}>
                 <PrimaryButton
-                  label="Verify payload"
+                  label="Verify code"
                   onPress={() => {
                     lastScannedPayloadRef.current = manualPayload.trim();
                     lastScanAtRef.current = Date.now();
@@ -742,7 +742,7 @@ export function ScanScreen() {
               <SurfaceCard title="Scan issue">
                 <StatusPill label="Action needed" tone="danger" />
                 <Text style={styles.bodyText}>{scanError}</Text>
-                <Text style={styles.helperText}>The app stayed responsive. Security can retry the scan, paste the payload manually, or use a logged override from the screens below.</Text>
+                <Text style={styles.helperText}>The app stayed responsive. Security can retry the scan, paste the code manually, or use a logged override from the screens below.</Text>
               </SurfaceCard>
             ) : null}
           </View>
@@ -805,8 +805,8 @@ export function ScanScreen() {
                   ) : null}
                   {!liveActionsAvailable || (emergencyCheckInsBlocked && visitorVerification.canCheckIn) ? (
                     <PrimaryButton
-                      label={emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Check-ins blocked by lockdown' : 'Live actions require connectivity'}
-                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Emergency lockdown is active. New check-ins are suspended.' : 'Privileged actions are disabled in Offline Mode', tone: 'warning' })}
+                      label={emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Check-ins blocked by lockdown' : 'Actions temporarily paused'}
+                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && visitorVerification.canCheckIn ? 'Emergency lockdown is active. New check-ins are suspended.' : 'Privileged actions will resume automatically.', tone: 'warning' })}
                       tone="secondary"
                     />
                   ) : null}
@@ -858,8 +858,8 @@ export function ScanScreen() {
                   ) : null}
                   {!liveActionsAvailable || (emergencyCheckInsBlocked && !employeeScan.currentlyIn) ? (
                     <PrimaryButton
-                      label={emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Workforce check-ins blocked' : 'Assisted actions require connectivity'}
-                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Emergency lockdown is active. New workforce check-ins are suspended.' : 'Manual workforce overrides are disabled in Offline Mode', tone: 'warning' })}
+                      label={emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Workforce check-ins blocked' : 'Assisted actions paused'}
+                      onPress={() => showSnackbar({ message: emergencyCheckInsBlocked && !employeeScan.currentlyIn ? 'Emergency lockdown is active. New workforce check-ins are suspended.' : 'Manual workforce overrides will resume automatically.', tone: 'warning' })}
                       tone="secondary"
                     />
                   ) : null}
@@ -872,7 +872,7 @@ export function ScanScreen() {
               <SurfaceCard title="Checkpoint update">
                 <StatusPill label="Recorded" tone="success" />
                 <Text style={styles.bodyText}>{lastActionMessage}</Text>
-                {lastPayload ? <Text style={styles.helperText}>Last payload: {truncatePayload(lastPayload)}</Text> : null}
+                {lastPayload ? <Text style={styles.helperText}>Last code: {truncatePayload(lastPayload)}</Text> : null}
               </SurfaceCard>
             ) : null}
           </View>
@@ -915,21 +915,21 @@ function scannerStatusCopy(
 ) {
   if (offlineMode === 'offline' && scannerMode === 'idle') {
     return {
-      eyebrow: 'Offline Mode',
-      title: 'Ready for cached badge scan',
-      body: 'Known visitors and workforce can be processed provisionally. Unknown or stale badges are queued for backend verification.',
-      icon: 'cloud-offline-outline' as const,
+      eyebrow: 'Continuity Review',
+      title: 'Ready for saved badge scan',
+      body: 'Known visitors and workforce can be processed provisionally. Unknown or stale badges are saved for review.',
+      icon: 'shield-outline' as const,
       tone: 'info' as const,
     };
   }
 
   if (scannerMode === 'processing') {
     return {
-      eyebrow: offlineMode === 'online' ? 'Validating' : 'Offline check',
-      title: offlineMode === 'online' ? 'Checking badge...' : 'Checking local cache...',
+      eyebrow: offlineMode === 'online' ? 'Validating' : 'Checking saved records',
+      title: offlineMode === 'online' ? 'Checking badge...' : 'Checking saved records...',
       body: offlineMode === 'online'
-        ? 'Hold steady for backend verification. Access is granted only after the secure validation response.'
-        : 'AccessFlow is matching the badge against bounded local operational records.',
+        ? 'Hold steady while AccessFlow verifies this credential.'
+        : 'AccessFlow is matching the badge against saved operational records.',
       icon: 'sync-circle-outline' as const,
       tone: 'info' as const,
     };
@@ -949,7 +949,7 @@ function scannerStatusCopy(
     return {
       eyebrow: 'Approved',
       title: 'Check-in Successful',
-      body: 'Recorded by the backend. The scanner will ready itself for the next badge.',
+      body: 'Recorded successfully. The scanner will ready itself for the next badge.',
       icon: 'checkmark-circle-outline' as const,
       tone: 'success' as const,
     };
@@ -988,7 +988,7 @@ function scannerStatusCopy(
   }
 
   return {
-    eyebrow: 'Live scan',
+    eyebrow: 'Ready',
     title: 'Ready for badge scan',
     body: 'Center the QR in the illuminated frame and hold steady for a quick secure read.',
     icon: 'scan-outline' as const,

@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector("[data-pass-year]")?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
     initVerificationPage();
   }, {
-    failureMessage: "AccessFlow had trouble restoring badge verification. Refreshing...",
+    failureMessage: "Preparing badge verification...",
   });
 });
 
@@ -50,7 +50,7 @@ function renderLoadingState() {
     <article class="pass-verify-card pass-verify-card--loading">
       <div class="pass-verify-status pass-verify-status--neutral">Loading</div>
       <h1>Verifying badge</h1>
-      <p>AccessFlow is checking this visitor pass against the live approval record.</p>
+      <p>AccessFlow is checking this visitor pass against the current approval record.</p>
     </article>
   `;
 }
@@ -99,7 +99,7 @@ function renderVerification(result) {
         ${detailCard("Check-in state", checkInState(result))}
       </div>
       <div class="pass-verify-toolbar">
-        <button class="pass-verify-button" type="button" data-pass-refresh>Refresh status</button>
+        <button class="pass-verify-button" type="button" data-pass-refresh>Check status</button>
         <a class="pass-verify-button pass-verify-button--ghost" href="/">AccessFlow home</a>
       </div>
       <p class="pass-verify-note">Badge verification is organization-scoped and reflects the current approval record in AccessFlow.</p>

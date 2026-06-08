@@ -118,7 +118,7 @@ publicApi.interceptors.response.use(
 privateApi.interceptors.response.use(
   (response) => {
     if (response.status >= 200 && response.status < 300 && response.data === undefined) {
-      throw createPayloadError('AccessFlow received an empty response from the backend.');
+      throw createPayloadError('AccessFlow could not load the expected data.');
     }
 
     return response;
@@ -329,7 +329,7 @@ function assertApiConfigured() {
   if (!apiConfig.isConfigured) {
     throw createAppError({
       kind: 'config',
-      message: 'EXPO_PUBLIC_ACCESSFLOW_API_BASE_URL is missing or invalid.',
+      message: 'AccessFlow could not prepare this workspace. Please try again later.',
       recoverable: false,
     });
   }
@@ -343,7 +343,7 @@ function unwrapApiResponse<T>(payload: T | ApiEnvelope<T>) {
   if (payload && typeof payload === 'object' && 'data' in (payload as ApiEnvelope<T>)) {
     const envelope = payload as Partial<ApiEnvelope<T>>;
     if (envelope.success === false) {
-      throw createPayloadError(envelope.message || 'The backend reported an unsuccessful response.');
+      throw createPayloadError(envelope.message || 'This request could not be completed.');
     }
     if (!('data' in envelope)) {
       throw createPayloadError();

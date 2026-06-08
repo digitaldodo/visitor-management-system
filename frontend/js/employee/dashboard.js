@@ -106,7 +106,7 @@ let historyState = {
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("employee-portal", () => bootEmployeePortal(), {
     redirectToLogin: true,
-    failureMessage: "AccessFlow had trouble restoring the employee workspace. Refreshing workspace...",
+    failureMessage: "Opening employee workspace...",
   });
 });
 

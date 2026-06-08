@@ -125,7 +125,7 @@ export function EmployeeRescheduleModal({ visible, visitor, loading, onCancel, o
           <View style={styles.sheet}>
             <Text style={styles.title}>Reschedule visit</Text>
             <Text style={styles.helper}>
-              Keep the access window accurate for security. The backend remains the authority for visitor validity, QR timing, and role checks.
+              Keep the access window accurate for security. AccessFlow keeps visitor validity, QR timing, and role checks aligned.
             </Text>
 
             <View style={styles.windowSummary}>

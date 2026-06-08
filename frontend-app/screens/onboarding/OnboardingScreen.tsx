@@ -16,7 +16,7 @@ const slides = [
     title: 'Run every front desk workflow with confidence',
     body: 'Register visitors, track requests, and keep approved access visible across reception, security, employee, and admin roles.',
     icon: 'people-outline',
-    signals: ['Visitor records', 'Host routing', 'Live activity'],
+    signals: ['Visitor records', 'Host routing', 'Current activity'],
   },
   {
     eyebrow: 'QR access',
@@ -33,11 +33,11 @@ const slides = [
     signals: ['Approvals', 'Incident alerts', 'Role-aware routing'],
   },
   {
-    eyebrow: 'Offline support',
-    title: 'Stay useful when connectivity is degraded',
-    body: 'Known operational records can remain available offline, while queued actions sync back for backend confirmation.',
-    icon: 'cloud-offline-outline',
-    signals: ['Cached records', 'Queued actions', 'Provisional access'],
+    eyebrow: 'Continuity support',
+    title: 'Stay useful during limited availability',
+    body: 'Known operational records remain available, while saved actions complete automatically after AccessFlow confirms them.',
+    icon: 'shield-checkmark-outline',
+    signals: ['Saved records', 'Automatic updates', 'Provisional access'],
   },
 ] as const;
 
@@ -55,7 +55,7 @@ export function OnboardingScreen() {
     { icon: 'camera-outline' as const, label: 'Camera', body: 'QR verification and identity photos' },
     { icon: 'notifications-outline' as const, label: 'Notifications', body: 'Approvals, incidents, and account updates' },
     { icon: 'images-outline' as const, label: 'Files', body: 'Selected credential and profile images' },
-    { icon: 'refresh-circle-outline' as const, label: 'Session', body: 'Encrypted token restore and automatic refresh' },
+    { icon: 'shield-checkmark-outline' as const, label: 'Session', body: 'Protected access and automatic updates' },
   ], []);
 
   const finish = async () => {

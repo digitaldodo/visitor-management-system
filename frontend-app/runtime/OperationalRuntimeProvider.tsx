@@ -275,7 +275,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
         level: 'error',
         scope: 'security',
         code: 'SESSION_LOCKED',
-        message: 'The mobile runtime requires an app update before the workspace can resume.',
+        message: 'AccessFlow requires an app update before the workspace can resume.',
         context: {
           role: activeRole,
           reason,
@@ -922,7 +922,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
 
       lastApiVersionRef.current = versions.current;
       if (!health.status || String(health.status).toUpperCase() !== 'UP') {
-        throw new Error('The backend health check reported a degraded state.');
+        throw new Error('AccessFlow reported limited workspace availability.');
       }
     } catch (error) {
       setNetworkState((current) => {
@@ -976,7 +976,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
     } catch (error) {
       await recordSyncFailure({
         code: 'OFFLINE_QUEUE_RECONCILIATION_FAILED',
-        message: error instanceof Error ? error.message : 'Offline queue reconciliation failed.',
+        message: error instanceof Error ? error.message : 'Saved action review failed.',
         status: syncConnection.status,
       });
     } finally {
@@ -1090,7 +1090,7 @@ export function OperationalRuntimeProvider({ children }: { children: ReactNode }
               level: 'warn',
               scope: 'runtime',
               code: 'LIFECYCLE_RECOVERY_DEFERRED_OFFLINE',
-              message: 'Lifecycle recovery was deferred because the backend is unreachable.',
+              message: 'Workspace recovery was deferred because AccessFlow is unavailable.',
               context: {
                 reason,
                 elapsedMs,

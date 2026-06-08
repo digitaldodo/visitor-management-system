@@ -87,7 +87,7 @@ export function badgeMarkup(pass, options = {}) {
           </div>
           <div class="enterprise-badge__scan-copy">
             <strong>Security checkpoint</strong>
-            <span>Scan to validate this badge against the live AccessFlow approval record.</span>
+            <span>Scan to validate this badge against the current AccessFlow approval record.</span>
           </div>
         </aside>
       </div>

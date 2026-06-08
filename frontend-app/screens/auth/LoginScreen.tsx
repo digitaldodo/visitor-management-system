@@ -682,7 +682,7 @@ function RecoveryFlow({
         <View style={styles.recoveryDone}>
           <Ionicons name="checkmark-circle-outline" size={42} color={theme.colors.success} />
           <Text style={styles.recoveryDoneTitle}>Account access restored</Text>
-          <Text style={styles.recoveryDoneBody}>All refresh sessions were revoked by the backend. Sign in again with the new password.</Text>
+          <Text style={styles.recoveryDoneBody}>Your previous sessions were cleared. Sign in again with the new password.</Text>
         </View>
         <PrimaryButton label="Return to sign in" onPress={onReturnToLogin} />
       </>
@@ -830,7 +830,7 @@ function classifyError(message: string) {
     return { tone: 'warning' as const, title: 'Session expired', body: message };
   }
   if (normalized.includes('network') || normalized.includes('could not reach') || normalized.includes('timeout')) {
-    return { tone: 'warning' as const, title: 'Connection temporarily unavailable', body: message };
+      return { tone: 'warning' as const, title: 'Unable to complete request', body: message };
   }
   if (normalized.includes('server') || normalized.includes('backend') || normalized.includes('503') || normalized.includes('502')) {
     return { tone: 'danger' as const, title: 'Unable to complete request', body: message };

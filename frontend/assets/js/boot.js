@@ -5,7 +5,6 @@
 
   const VERSION_KEY = "accessflow.runtime.version";
   const RECOVERY_KEY = "accessflow.runtime.recovery";
-  const RECOVERY_NOTICE_KEY = "accessflow.runtime.recoveredNotice";
   const LANGUAGE_KEY = "accessflow.web.language.v1";
   const LEGACY_LOCAL_KEYS = ["visitor_management_session"];
   const LEGACY_SESSION_PREFIXES = ["accessflow.", "accessflow.sidebar:", "passwordReset"];
@@ -21,8 +20,6 @@
   let ready = false;
   let versionMonitor = 0;
   let recoveryInFlight = false;
-
-  injectRuntimeStyles();
 
   const runtimeConfigReady = syncRuntimeEnvironment();
 
@@ -74,7 +71,7 @@
     }
 
     recover("deployment-update", {
-      message: "AccessFlow has been updated. Refreshing workspace...",
+      message: "Preparing workspace...",
       forceReload: true,
       preserveSession: true,
       redirectToLogin: false,
@@ -85,7 +82,6 @@
   function markReady() {
     ready = true;
     hideNotice();
-    showRecoveredNoticeIfNeeded();
   }
 
   function recover(reason, options = {}) {
@@ -102,10 +98,6 @@
     persistRecoveredNotice();
 
     if (details.redirectToLogin) {
-      showNotice(details.message, {
-        primaryLabel: "Sign in",
-        primaryAction: () => redirectTo(details.loginPath),
-      });
       if (!redirectTo(details.loginPath)) {
         recoveryInFlight = false;
       }
@@ -113,7 +105,6 @@
     }
 
     if (recoveryState.count <= 1 && details.forceReload && !hasCurrentRecoveryToken()) {
-      showNotice(details.message);
       if (!reloadCurrentPage()) {
         recoveryInFlight = false;
       }
@@ -121,12 +112,9 @@
     }
 
     recoveryInFlight = false;
-    showNotice(details.message, {
-      primaryLabel: "Refresh now",
-      primaryAction: reloadCurrentPage,
-      secondaryLabel: "Sign in",
-      secondaryAction: () => redirectTo(details.loginPath),
-    });
+    if (details.redirectToLogin) {
+      redirectTo(details.loginPath);
+    }
     return true;
   }
 
@@ -233,7 +221,7 @@
     const storedVersion = readStoredVersion();
     if (storedVersion && storedVersion !== currentVersion) {
       recover("deployment-update", {
-        message: "AccessFlow has been updated. Refreshing workspace...",
+      message: "Preparing workspace...",
         forceReload: true,
         preserveSession: true,
       });
@@ -294,7 +282,6 @@
       reportError("persistent-state-recovery", new Error("AccessFlow repaired corrupted persisted UI state."), {
         keys: repaired,
       });
-      persistRecoveredNotice();
     }
   }
 
@@ -339,7 +326,7 @@
       const deployedVersion = typeof manifest?.version === "string" ? manifest.version.trim() : "";
       if (deployedVersion && deployedVersion !== currentVersion) {
         recover("deployment-update", {
-          message: "AccessFlow has been updated. Refreshing workspace...",
+          message: "Preparing workspace...",
           forceReload: true,
           preserveSession: true,
         });
@@ -356,7 +343,7 @@
         event.preventDefault();
         recover("resource-load-failed", {
           error: new Error("AccessFlow could not load a required frontend asset."),
-          message: "AccessFlow is recovering from an incomplete update...",
+          message: "Preparing workspace...",
           forceReload: true,
           preserveSession: true,
         });
@@ -367,7 +354,7 @@
         event.preventDefault();
         recover("runtime-error", {
           error: event?.error || new Error(String(event?.message || "Unexpected runtime error")),
-          message: "AccessFlow hit an outdated runtime. Recovering workspace...",
+          message: "Preparing workspace...",
           forceReload: true,
           preserveSession: true,
         });
@@ -382,7 +369,7 @@
       event.preventDefault();
       recover("unhandled-rejection", {
         error: event.reason,
-        message: "AccessFlow hit an outdated runtime. Recovering workspace...",
+        message: "Preparing workspace...",
         forceReload: true,
         preserveSession: true,
       });
@@ -473,33 +460,14 @@
   }
 
   function persistRecoveredNotice() {
-    safeStorageOperation(window.sessionStorage, (storage) => {
-      storage.setItem(RECOVERY_NOTICE_KEY, "1");
-    });
-  }
-
-  function showRecoveredNoticeIfNeeded() {
-    const shouldShow = safeStorageOperation(window.sessionStorage, (storage) => {
-      const value = storage.getItem(RECOVERY_NOTICE_KEY);
-      storage.removeItem(RECOVERY_NOTICE_KEY);
-      return value === "1";
-    }, false);
-
-    if (!shouldShow) {
-      return;
-    }
-
-    showNotice("Workspace refreshed successfully.");
-    window.setTimeout(() => {
-      hideNotice();
-    }, 3200);
+    // Recovery is intentionally silent; the workspace reloads in the background.
   }
 
   function normalizeRecoveryOptions(reason, options) {
     return {
       reason,
       error: options.error || null,
-      message: options.message || "AccessFlow is recovering this workspace...",
+      message: options.message || "Preparing workspace...",
       preserveSession: Boolean(options.preserveSession),
       forceReload: options.forceReload !== false,
       redirectToLogin: Boolean(options.redirectToLogin),
@@ -722,7 +690,7 @@
     if (typeof error === "string" && error.trim()) {
       return error.trim();
     }
-    return "Unexpected runtime state detected.";
+    return "Preparing workspace.";
   }
 
   function isRecoverableResourceError(target) {
@@ -758,73 +726,5 @@
     } catch {
       return fallback;
     }
-  }
-
-  function injectRuntimeStyles() {
-    if (document.getElementById("accessflow-runtime-notice-style")) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "accessflow-runtime-notice-style";
-    style.textContent = `
-      .accessflow-runtime-notice {
-        position: fixed;
-        inset: 0 auto auto 0;
-        width: 100%;
-        display: none;
-        justify-content: center;
-        pointer-events: none;
-        z-index: 9999;
-        padding: 16px;
-        box-sizing: border-box;
-      }
-
-      .accessflow-runtime-notice.is-visible {
-        display: flex;
-      }
-
-      .accessflow-runtime-notice__panel {
-        max-width: 560px;
-        width: min(100%, 560px);
-        background: rgba(11, 19, 32, 0.96);
-        color: #f7f9fc;
-        border: 1px solid rgba(148, 163, 184, 0.24);
-        border-radius: 8px;
-        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
-        padding: 14px 16px;
-        pointer-events: auto;
-      }
-
-      .accessflow-runtime-notice__message {
-        margin: 0;
-        font: 500 0.95rem/1.5 system-ui, sans-serif;
-      }
-
-      .accessflow-runtime-notice__actions {
-        display: flex;
-        gap: 8px;
-        margin-top: 12px;
-        flex-wrap: wrap;
-      }
-
-      .accessflow-runtime-notice__button {
-        appearance: none;
-        border: 0;
-        border-radius: 6px;
-        background: #f7fafc;
-        color: #0f172a;
-        cursor: pointer;
-        font: 600 0.875rem/1 system-ui, sans-serif;
-        padding: 10px 14px;
-      }
-
-      .accessflow-runtime-notice__button.is-secondary {
-        background: transparent;
-        color: #f7fafc;
-        border: 1px solid rgba(226, 232, 240, 0.28);
-      }
-    `;
-    document.head.append(style);
   }
 }());

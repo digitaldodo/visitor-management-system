@@ -166,7 +166,7 @@ export function AccountProfileScreen({
       await updateProfileMutation.mutateAsync({ employeePhotoUrl: uploadedPhoto.url });
       setPendingPhoto(null);
       await refreshAll();
-      Alert.alert(tText('Photo updated'), tText('Your profile and credential photo were refreshed.'));
+      Alert.alert(tText('Photo updated'), tText('Your profile and credential photo were updated.'));
     } catch (error) {
       Alert.alert(tText('Photo update failed'), error instanceof Error ? error.message : tText('Your profile photo could not be updated.'));
     }
@@ -216,7 +216,7 @@ export function AccountProfileScreen({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert(tText('Password updated'), tText('For security, AccessFlow will sign you out because active refresh tokens were revoked.'), [
+      Alert.alert(tText('Password updated'), tText('For security, AccessFlow will sign you out because active sessions were cleared.'), [
         {
           text: tText('Continue'),
           onPress: () => {
@@ -380,7 +380,7 @@ export function AccountProfileScreen({
 
       {roleSummary}
 
-      <SurfaceCard title="Password and security" subtitle="Sensitive account updates are validated by the backend and refresh-token state is cleared after password changes.">
+      <SurfaceCard title="Password and security" subtitle="Sensitive account updates are verified by AccessFlow and active sessions are cleared after password changes.">
         <AppTextField
           label="Current password"
           value={currentPassword}
@@ -426,13 +426,13 @@ export function AccountProfileScreen({
         {securityCenterOpen ? (
           <View style={styles.securityCenter}>
             <View style={styles.securityGrid}>
-              <SecurityStatusTile label="Session" value={runtime.runtimeHealth === 'healthy' ? 'Active' : runtime.runtimeHealth} tone={runtime.runtimeHealth === 'healthy' ? 'success' : 'warning'} />
-              <SecurityStatusTile label="Storage" value="Encrypted tokens" tone="info" />
-              <SecurityStatusTile label="Refresh" value="Automatic" tone="info" />
-              <SecurityStatusTile label="Push identity" value={runtime.pushToken ? 'Mapped' : runtime.pushPermissionStatus} tone="info" />
+              <SecurityStatusTile label="Session" value={runtime.runtimeHealth === 'healthy' ? 'Active' : 'Review needed'} tone={runtime.runtimeHealth === 'healthy' ? 'success' : 'warning'} />
+              <SecurityStatusTile label="Protection" value="Encrypted access" tone="info" />
+              <SecurityStatusTile label="Updates" value="Automatic" tone="info" />
+              <SecurityStatusTile label="Notifications" value={runtime.pushToken ? 'Enabled' : notificationStatusLabel(runtime.pushPermissionStatus)} tone="info" />
             </View>
             <View style={styles.securityActions}>
-              <PrimaryButton label="Refresh session" tone="secondary" onPress={() => void refreshSession()} loading={isBusy} />
+              <PrimaryButton label="Secure account" tone="secondary" onPress={() => void refreshSession()} loading={isBusy} />
               <PrimaryButton label="Log out" tone="danger" onPress={() => void logout()} disabled={isBusy} />
             </View>
           </View>
@@ -610,6 +610,16 @@ function roleLabel(role: ActiveWorkspaceRole | string) {
 
 function statusLabel(status?: string | null) {
   return enterpriseStatusLabel(status || 'ACTIVE', 'workforce');
+}
+
+function notificationStatusLabel(status?: string | null) {
+  if (status === 'GRANTED') {
+    return 'Enabled';
+  }
+  if (status === 'DENIED' || status === 'PERMANENTLY_DENIED') {
+    return 'Action needed';
+  }
+  return 'Available';
 }
 
 const styles = StyleSheet.create({

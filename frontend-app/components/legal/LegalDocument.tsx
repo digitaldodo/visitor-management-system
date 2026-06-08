@@ -14,7 +14,7 @@ const privacySections = [
   },
   {
     title: 'Operational purpose',
-    body: 'Information is used for visitor verification, QR access, approvals, incident response, workforce presence, offline sync reconciliation, and security auditability.',
+    body: 'Information is used for visitor verification, QR access, approvals, incident response, workforce presence, continuity review, and security auditability.',
   },
   {
     title: 'Device permissions',
@@ -22,7 +22,7 @@ const privacySections = [
   },
   {
     title: 'Security controls',
-    body: 'Sessions use encrypted secure storage, refresh-token validation, revocation support, and role-scoped API access. Offline records are bounded to operational use and sync back for backend validation.',
+    body: 'Sessions use encrypted secure storage, account validation, revocation support, and role-scoped access. Saved records are bounded to approved operational use and reconciled against organization policy.',
   },
   {
     title: 'Retention and support',
@@ -41,15 +41,15 @@ const termsSections = [
   },
   {
     title: 'Security operations',
-    body: 'Scanner decisions, manual overrides, approvals, denials, incidents, and offline actions are operational records and may be audited by authorized organization personnel.',
+    body: 'Scanner decisions, manual overrides, approvals, denials, incidents, and assisted actions are operational records and may be audited by authorized organization personnel.',
   },
   {
-    title: 'Connectivity and offline mode',
-    body: 'Offline mode is provisional. Access decisions made from cached data must be reconciled when sync returns and should follow local security policy.',
+    title: 'Continuity procedures',
+    body: 'Continuity procedures are provisional. Access decisions made from saved records must be reviewed when the workspace is fully available and should follow local security policy.',
   },
   {
     title: 'Changes and availability',
-    body: 'Mobile features, runtime policy, and backend availability can change as the organization updates AccessFlow or its operational rules.',
+    body: 'Mobile features, security policy, and workspace availability can change as the organization updates AccessFlow or its operational rules.',
   },
 ];
 

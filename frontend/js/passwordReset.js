@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initVerifyOtpPage();
     initResetPasswordPage();
   }, {
-    failureMessage: "AccessFlow had trouble restoring password recovery. Refreshing...",
+    failureMessage: "Preparing password recovery...",
   });
 });
 

@@ -404,7 +404,7 @@ export function canUseCachedVisitorForOfflineOperation(input: {
     return { allowed: false, reason: 'Badge is not in the offline cache.' };
   }
   if (stale) {
-    return { allowed: false, reason: 'Cached badge data is stale and needs live backend verification.' };
+    return { allowed: false, reason: 'Saved badge data is stale and needs AccessFlow verification.' };
   }
   if (expired) {
     return { allowed: false, reason: 'Cached badge has expired. Connectivity is required.' };
@@ -432,7 +432,7 @@ export function canUseCachedEmployeeForOfflineOperation(input: {
     return { allowed: false, reason: 'Worker badge is not in the offline cache.' };
   }
   if (stale) {
-    return { allowed: false, reason: 'Cached workforce record is stale and needs live backend verification.' };
+    return { allowed: false, reason: 'Saved workforce record is stale and needs AccessFlow verification.' };
   }
   if (inactive || !input.result.valid) {
     return { allowed: false, reason: 'Cached workforce credential is not active.' };

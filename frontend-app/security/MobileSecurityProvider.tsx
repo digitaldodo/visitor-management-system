@@ -95,7 +95,7 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
       level: 'error',
       scope: 'security',
       code: 'TLS_PIN_VALIDATION_FAILED',
-      message: 'Secure connection validation failed for AccessFlow backend communication.',
+      message: 'Secure access validation failed for AccessFlow communication.',
       context: {
         host,
         detail: error.message ?? null,
@@ -112,7 +112,7 @@ export function MobileSecurityProvider({ children }: { children: ReactNode }) {
     }
 
     certificateFailuresRef.current[host] = { ...next, lastWarnedAt: now };
-    setCertificatePinningWarning('Secure connection verification is taking longer than expected. AccessFlow is retrying protected actions.');
+    setCertificatePinningWarning('Secure access verification is taking longer than expected. AccessFlow is restoring protected actions.');
   }, []);
 
   useEffect(() => {
@@ -266,7 +266,7 @@ async function initializeCertificatePinning(
       },
     });
     return apiConfig.security.certificatePinningEnforced
-      ? 'Secure connection verification is not fully configured for this build.'
+      ? 'Secure access verification is not fully configured for this build.'
       : null;
   }
 
@@ -280,7 +280,7 @@ async function initializeCertificatePinning(
     } | null;
 
     if (!sslPinning?.initializeSslPinning) {
-      const diagnosticMessage = 'Native TLS pinning module is unavailable in this runtime.';
+      const diagnosticMessage = 'Native TLS pinning module is unavailable in this build.';
       await recordDiagnosticEvent({
         level: apiConfig.security.certificatePinningEnforced ? 'error' : 'warn',
         scope: 'security',
@@ -292,7 +292,7 @@ async function initializeCertificatePinning(
         },
       });
       return apiConfig.security.certificatePinningEnforced
-        ? 'Secure connection verification is unavailable in this runtime.'
+        ? 'Secure access verification is unavailable in this build.'
         : null;
     }
 
@@ -316,7 +316,7 @@ async function initializeCertificatePinning(
       level: 'info',
       scope: 'security',
       code: 'TLS_PINNING_INITIALIZED',
-      message: 'TLS certificate pinning initialized for AccessFlow backend communication.',
+      message: 'TLS certificate pinning initialized for AccessFlow communication.',
       context: {
         hosts: pinHosts.join(','),
         enforced: apiConfig.security.certificatePinningEnforced,
@@ -335,7 +335,7 @@ async function initializeCertificatePinning(
       },
     });
     return apiConfig.security.certificatePinningEnforced
-      ? 'Secure connection verification could not be initialized for this build.'
+      ? 'Secure access verification could not be initialized for this build.'
       : null;
   }
 }

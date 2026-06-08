@@ -187,7 +187,7 @@ let employeeBadgeActionsBound = false;
 document.addEventListener("DOMContentLoaded", () => {
   void bootstrapApplication("security-portal", () => bootSecurityPortal(), {
     redirectToLogin: true,
-    failureMessage: "AccessFlow had trouble restoring front desk operations. Refreshing workspace...",
+    failureMessage: "Opening front desk operations...",
   });
 });
 
@@ -705,7 +705,7 @@ function mountSecurityReportExports() {
       <div>
         <p class="eyebrow">Structured Reporting</p>
         <h3>Security Report Exports</h3>
-        <p class="panel__subtle">Generate audit-safe CSV or print-ready PDF exports from backend reporting endpoints.</p>
+        <p class="panel__subtle">Generate audit-safe CSV or print-ready PDF exports for visitor, workforce, incident, denied-entry, and governance workflows.</p>
       </div>
     </div>
     <div class="security-report-export-grid">
@@ -1571,7 +1571,7 @@ function renderPhotoCapturePanel(data = {}) {
     ["Photo uploads", uploadsConfigured],
     ["Accepted input", data.acceptedInput || "image/*"],
     ["Storage policy", data.storagePolicy || "Visitor photos stay attached to scoped visitor records."],
-  ], ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear after the API responds.");
+  ], ([label, value]) => workCard(label, value), "Camera status unavailable", "Device readiness will appear when details are available.");
 }
 
 async function refreshBadgeListIfVisible(force = false) {
@@ -1622,7 +1622,7 @@ async function renderBadgeList(visitors) {
   list.innerHTML = validPasses.length ? validPasses.map(passCard).join("") : `
     <article class="badge-empty">
       <h3>Badges unavailable</h3>
-      <p>Approved passes could not be loaded. Refresh and try again.</p>
+      <p>Approved passes could not be loaded. Try again in a moment.</p>
     </article>
   `;
 }
@@ -1789,7 +1789,7 @@ function renderVerificationIdle() {
   target.innerHTML = `
     <article class="qr-result qr-result--idle">
       <strong>Ready to scan</strong>
-      <p>Scan a visitor badge or paste its verification link to validate the live approval record, photo, and access window.</p>
+      <p>Scan a visitor badge or paste its verification link to validate the current approval record, photo, and access window.</p>
     </article>
   `;
 }

@@ -23,7 +23,7 @@ type CredentialState = {
   label: string;
   tone: 'default' | 'success' | 'warning' | 'danger' | 'info';
   markerColor: string;
-  liveLabel: string;
+  stateLabel: string;
 };
 
 const BRAND_PALETTE = [
@@ -37,7 +37,6 @@ const BRAND_PALETTE = [
 export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'online', qrVariant = 'dynamic' }: Props) {
   const layout = useResponsiveLayout();
   const [now, setNow] = useState(() => Date.now());
-  const pulse = useRef(new Animated.Value(0)).current;
   const watermark = useRef(new Animated.Value(0)).current;
 
   const brand = useMemo(() => organizationPalette(badge.organizationCode || badge.organizationName || badge.fullName), [
@@ -51,8 +50,6 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
   const issuedCopy = formatDateTime(badge.issuedAt, badge.organizationTimezone);
   const validatedCopy = formatDateTime(badge.lastValidatedAt || badge.serverTime, badge.organizationTimezone);
   const rotate = watermark.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] });
-  const markerScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1.06] });
-  const markerOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.68, 1] });
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -60,25 +57,17 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
   }, []);
 
   useEffect(() => {
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: true }),
-      ]),
-    );
     const watermarkAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(watermark, { toValue: 1, duration: 4200, useNativeDriver: true }),
         Animated.timing(watermark, { toValue: 0, duration: 4200, useNativeDriver: true }),
       ]),
     );
-    pulseAnimation.start();
     watermarkAnimation.start();
     return () => {
-      pulseAnimation.stop();
       watermarkAnimation.stop();
     };
-  }, [pulse, watermark]);
+  }, [watermark]);
 
   return (
     <View style={[styles.card, { padding: layout.cardPadding }, compact ? styles.cardCompact : null]}>
@@ -110,8 +99,7 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
           <View style={styles.statusStack}>
             <StatusPill label={state.label} tone={state.tone} />
             <View style={styles.liveRow}>
-              <Animated.View style={[styles.liveDot, { backgroundColor: state.markerColor, opacity: markerOpacity, transform: [{ scale: markerScale }] }]} />
-              <Text style={styles.liveText}>{state.liveLabel}</Text>
+              <Text style={styles.liveText}>{state.stateLabel}</Text>
             </View>
           </View>
         </View>
@@ -119,20 +107,20 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
         <View style={styles.securityStrip}>
           <Text style={styles.securityLabel}>Credential</Text>
           <Text style={styles.securityValue}>{badge.checkpointMarker || badge.employeeId || 'ACCESSFLOW'}</Text>
-          <Text style={styles.securityLabel}>{qrVariant === 'fallback' ? 'Offline fallback' : 'Dynamic QR'}</Text>
+          <Text style={styles.securityLabel}>{qrVariant === 'fallback' ? 'Contingency QR' : 'Access QR'}</Text>
         </View>
       </View>
 
       <View style={[styles.qrShell, state.tone === 'danger' ? styles.qrShellDanger : state.tone === 'warning' ? styles.qrShellWarning : null]}>
         <View style={styles.qrHeader}>
           <View>
-            <Text style={styles.qrTitle}>{qrVariant === 'fallback' ? 'Offline Cached QR' : 'Live Validation QR'}</Text>
+            <Text style={styles.qrTitle}>{qrVariant === 'fallback' ? 'Contingency Access QR' : 'Active Access QR'}</Text>
             <Text style={styles.qrSubtitle}>
-              {qrVariant === 'fallback' ? 'Use only during approved connectivity loss' : `Refreshes in ${formatCountdown(remainingSeconds)}`}
+              {qrVariant === 'fallback' ? 'Use only when checkpoint staff request it' : `Updates in ${formatCountdown(remainingSeconds)}`}
             </Text>
           </View>
           <View style={[styles.rotatingMarker, { borderColor: state.markerColor }]}>
-            <Ionicons name={networkMode === 'offline' ? 'cloud-offline-outline' : 'shield-checkmark'} size={18} color={state.markerColor} />
+            <Ionicons name="shield-checkmark" size={18} color={state.markerColor} />
           </View>
         </View>
         {qrImage ? <Image source={{ uri: qrImage }} style={[styles.qrImage, { maxHeight: layout.isTablet ? 360 : compact ? 300 : 280 }]} fadeDuration={0} /> : null}
@@ -146,7 +134,7 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
         <DetailRow label="Employee ID" value={badge.employeeId || 'Pending'} />
         <DetailRow label="Access scope" value={badge.accessScope || formatShift(badge.shiftName, badge.shiftStartTime, badge.shiftEndTime)} />
         <DetailRow label="Status" value={statusDetail(badge, remainingSeconds, networkMode)} muted={state.tone !== 'success'} />
-        <DetailRow label="Last synced" value={validatedCopy} muted={!badge.lastValidatedAt && !badge.serverTime} />
+        <DetailRow label="Last updated" value={validatedCopy} muted={!badge.lastValidatedAt && !badge.serverTime} />
         {!compact ? <DetailRow label="Issued" value={issuedCopy} muted={!badge.issuedAt} /> : null}
       </View>
 
@@ -155,8 +143,8 @@ export function EmployeeBadgeCard({ badge, compact = false, networkMode = 'onlin
           <Ionicons name="scan-circle-outline" size={18} color={state.markerColor} />
           <Text style={styles.footerNote}>
             {networkMode === 'offline'
-              ? 'Offline cached credential visible. Security should treat access as provisional until sync confirms.'
-              : 'Animated watermark, timestamp, and short-lived QR reduce the value of stale screenshots.'}
+              ? 'Contingency credential visible. Security should treat access as provisional until AccessFlow confirms it.'
+              : 'Animated watermark, timestamp, and time-limited QR reduce the value of stale screenshots.'}
           </Text>
         </View>
       ) : null}
@@ -182,21 +170,21 @@ function AvatarFallback({ fullName, brandColor }: { fullName: string; brandColor
 function credentialState(badge: EmployeeBadge, remainingSeconds: number, networkMode: BadgeNetworkMode): CredentialState {
   const status = String(badge.credentialStatus || (badge.active ? 'ACTIVE' : 'REVOKED')).toUpperCase();
   if (networkMode === 'offline') {
-    return { label: 'Offline Cached', tone: 'info', markerColor: theme.colors.info, liveLabel: 'Sync pending' };
+    return { label: 'Contingency', tone: 'info', markerColor: theme.colors.info, stateLabel: 'Review pending' };
   }
   if (['REVOKED', 'SUSPENDED', 'DISABLED', 'LOCKED'].includes(status) || !badge.active) {
-    return { label: badge.statusLabel || 'Revoked', tone: 'danger', markerColor: theme.colors.danger, liveLabel: 'Blocked' };
+    return { label: badge.statusLabel || 'Revoked', tone: 'danger', markerColor: theme.colors.danger, stateLabel: 'Blocked' };
   }
   if (status === 'PENDING_APPROVAL') {
-    return { label: 'Pending Approval', tone: 'warning', markerColor: theme.colors.warning, liveLabel: 'Not live' };
+    return { label: 'Pending Approval', tone: 'warning', markerColor: theme.colors.warning, stateLabel: 'Awaiting approval' };
   }
   if (remainingSeconds <= 0) {
-    return { label: 'Expired', tone: 'danger', markerColor: theme.colors.danger, liveLabel: 'Refresh required' };
+    return { label: 'Expired', tone: 'danger', markerColor: theme.colors.danger, stateLabel: 'Renewal required' };
   }
   if (remainingSeconds <= 15 || networkMode === 'degraded') {
-    return { label: 'Expiring Soon', tone: 'warning', markerColor: theme.colors.warning, liveLabel: networkMode === 'degraded' ? 'Degraded' : 'Rotating' };
+    return { label: 'Expiring Soon', tone: 'warning', markerColor: theme.colors.warning, stateLabel: 'Updating' };
   }
-  return { label: badge.statusLabel || 'Active', tone: 'success', markerColor: theme.colors.success, liveLabel: 'Live verified' };
+  return { label: badge.statusLabel || 'Active', tone: 'success', markerColor: theme.colors.success, stateLabel: 'Approved' };
 }
 
 function organizationPalette(seed: string) {
@@ -226,7 +214,7 @@ function formatCountdown(seconds: number) {
 
 function statusDetail(badge: EmployeeBadge, remainingSeconds: number, networkMode: BadgeNetworkMode) {
   if (networkMode === 'offline') {
-    return 'Offline cached / sync pending';
+    return 'Contingency credential';
   }
   if (!badge.active) {
     return badge.statusLabel || 'Credential unavailable';
@@ -343,11 +331,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-  },
-  liveDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
   },
   liveText: {
     color: theme.colors.textInverse,

@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector("[data-invite-year]")?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
     await initInvitePage();
   }, {
-    failureMessage: "AccessFlow had trouble restoring this invite. Refreshing...",
+    failureMessage: "Preparing invite...",
   });
 });
 
@@ -125,7 +125,7 @@ function renderInvite(invite) {
         <p class="invite-hint">Access window uses ${escapeHtml(timezoneLabel(invite.timezone || invite.organizationTimezone))}. The final QR badge is issued only after this pre-registration is reviewed and approved.</p>
         <div class="invite-actions">
           <button class="button button--primary" type="submit">Complete pre-registration</button>
-          <button class="button button--ghost" type="button" data-refresh-invite>Refresh invite</button>
+          <button class="button button--ghost" type="button" data-refresh-invite>Check invite</button>
         </div>
       </form>
 
@@ -164,7 +164,7 @@ function bindInviteForm() {
 
 async function submitInviteRegistration(form) {
   if (!state.invite || !state.token) {
-    renderError("Invite unavailable", "Refresh this link and try again.");
+    renderError("Invite unavailable", "Open this link again and try once more.");
     return;
   }
   if (!state.photoFile) {
@@ -239,14 +239,14 @@ function renderCompleted(invite) {
           ${detail("Timezone", timezoneLabel(invite.timezone || invite.organizationTimezone))}
         </div>
         <div class="invite-actions">
-          <button class="button button--ghost" type="button" data-refresh-invite>Refresh status</button>
+          <button class="button button--ghost" type="button" data-refresh-invite>Check status</button>
           <a class="button button--ghost" href="/">AccessFlow home</a>
         </div>
       </section>
       <aside class="invite-pass">
         <span class="invite-chip invite-chip--${approved ? "success" : "warning"}">${escapeHtml(approved ? "QR issued" : "Approval pending")}</span>
         <h3>${escapeHtml(approved ? "Badge delivered by email" : "Badge pending")}</h3>
-        <p class="muted">${escapeHtml(approved ? "Use the approved badge email when you arrive. Security will scan that QR against the live AccessFlow record." : "No further action is needed on this page. Keep an eye on your inbox for the approved QR badge after review.")}</p>
+        <p class="muted">${escapeHtml(approved ? "Use the approved badge email when you arrive. Security will scan that QR against the current AccessFlow record." : "No further action is needed on this page. Keep an eye on your inbox for the approved QR badge after review.")}</p>
         <div class="invite-detail-grid">
           ${detail("Current step", approved ? "QR issued" : "Pending approval")}
           ${detail("Next step", approved ? "Present badge at reception" : "Host approval")}
@@ -288,7 +288,7 @@ function renderSummary(invite) {
     summary.innerHTML = `
       <span class="invite-chip invite-chip--neutral">Loading invite</span>
       <strong>Secure visitor workflow</strong>
-      <p>AccessFlow is checking this invite against the live workplace record.</p>
+      <p>AccessFlow is checking this invite against the current workplace record.</p>
     `;
     return;
   }
@@ -324,11 +324,10 @@ function renderPhotoPreview(file) {
 }
 
 function updateHeaderStatus(label, tone) {
-  const text = document.querySelector("#api-status-text");
-  const dot = document.querySelector("#api-status-dot");
+  const text = document.querySelector("#invite-status-text");
   text?.replaceChildren(document.createTextNode(label));
-  dot?.classList.toggle("is-online", tone === "success");
-  dot?.classList.toggle("is-offline", tone === "danger");
+  text?.classList.toggle("is-success", tone === "success");
+  text?.classList.toggle("is-danger", tone === "danger");
 }
 
 function readInviteToken() {

@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { FlatList, Image, RefreshControl, StyleSheet, Text, View, type FlatListProps, type ListRenderItem } from 'react-native';
+import { type ReactElement, type ReactNode } from 'react';
+import { FlatList, Image, StyleSheet, Text, View, type FlatListProps, type ListRenderItem } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -24,8 +24,6 @@ type Props<T> = Omit<FlatListProps<T>, 'data' | 'renderItem' | 'ListHeaderCompon
   sensitiveReason?: string;
 };
 
-const MIN_PULL_REFRESH_MS = 450;
-
 export function AppListScreen<T>({
   title,
   subtitle,
@@ -33,8 +31,6 @@ export function AppListScreen<T>({
   renderItem,
   headerContent,
   emptyComponent,
-  refreshing,
-  onRefresh,
   contentMaxWidth,
   sensitive,
   sensitiveReason,
@@ -45,32 +41,8 @@ export function AppListScreen<T>({
   const insets = useSafeAreaInsets();
   const { t, tText } = useLocalization();
   const { devicePosture } = useOperationalRuntime();
-  const refreshInFlightRef = useRef(false);
-  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   useSensitiveScreenProtection(sensitiveReason ?? title, Boolean(sensitive));
-
-  const finishPullRefresh = useCallback((startedAt: number) => {
-    const elapsedMs = Date.now() - startedAt;
-    const remainingMs = Math.max(0, MIN_PULL_REFRESH_MS - elapsedMs);
-    setTimeout(() => {
-      refreshInFlightRef.current = false;
-      setPullRefreshing(false);
-    }, remainingMs);
-  }, []);
-
-  const handlePullRefresh = useCallback(() => {
-    if (!onRefresh || refreshInFlightRef.current) {
-      return;
-    }
-
-    const startedAt = Date.now();
-    refreshInFlightRef.current = true;
-    setPullRefreshing(true);
-    Promise.resolve(onRefresh())
-      .catch(() => undefined)
-      .finally(() => finishPullRefresh(startedAt));
-  }, [finishPullRefresh, onRefresh]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -95,21 +67,6 @@ export function AppListScreen<T>({
           },
           contentContainerStyle,
         ]}
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              colors={[theme.colors.primary]}
-              enabled={Boolean(onRefresh)}
-              progressBackgroundColor={theme.colors.surface}
-              progressViewOffset={layout.isSmallPhone ? 10 : 16}
-              refreshing={pullRefreshing && Boolean(refreshing || pullRefreshing)}
-              tintColor={theme.colors.primary}
-              title=""
-              titleColor={theme.colors.textMuted}
-              onRefresh={handlePullRefresh}
-            />
-          ) : undefined
-        }
         ListHeaderComponent={(
           <View style={[styles.frame, { maxWidth: contentMaxWidth ?? layout.contentMaxWidth, gap: layout.cardSpacing }]}>
             <FadeSlideView style={[styles.header, layout.isSmallPhone ? styles.headerCompact : null]}>
@@ -120,10 +77,6 @@ export function AppListScreen<T>({
                     <Text allowFontScaling={false} style={styles.brandName}>AccessFlow Mobile</Text>
                     <Text allowFontScaling={false} style={styles.brandMeta}>{t('app.brandMeta')}</Text>
                   </View>
-                </View>
-                <View style={styles.liveBadge}>
-                  <View style={styles.liveDot} />
-                  <Text allowFontScaling={false} style={styles.liveText}>{t('common.live')}</Text>
                 </View>
               </View>
               <Text allowFontScaling maxFontSizeMultiplier={1.18} style={[styles.title, layout.isSmallPhone ? styles.titleCompact : null]}>{tText(title)}</Text>
@@ -208,29 +161,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 11,
     fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: theme.radii.pill,
-    borderWidth: 1,
-    borderColor: theme.colors.primaryLine,
-    backgroundColor: theme.colors.infoSoft,
-    paddingHorizontal: theme.spacing.sm,
-    minHeight: 30,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.success,
-  },
-  liveText: {
-    color: theme.colors.textPrimary,
-    fontSize: 11,
-    fontWeight: '800',
     textTransform: 'uppercase',
   },
   title: {
