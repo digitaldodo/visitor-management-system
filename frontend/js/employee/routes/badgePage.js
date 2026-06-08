@@ -28,7 +28,18 @@ export function render() {
             <form id="credential-photo-form" novalidate>
               <label class="form-field">
                 <span>Upload photo</span>
-                <input name="profilePhoto" type="file" accept="image/*" />
+                <input class="profile-upload__input" name="profilePhoto" type="file" accept="image/png,image/jpeg,image/webp" />
+                <div class="profile-upload profile-upload--compact" data-profile-upload-card role="button" tabindex="0" aria-label="Upload badge photo">
+                  <div class="profile-upload__preview" data-upload-preview><span aria-hidden="true">Upload</span></div>
+                  <div class="profile-upload__copy">
+                    <strong data-upload-title>Upload profile photo</strong>
+                    <span data-upload-meta>PNG, JPG, or WebP up to 5MB</span>
+                  </div>
+                  <div class="profile-upload__actions">
+                    <button class="button button--ghost" type="button" data-upload-replace>Replace</button>
+                    <button class="button button--ghost" type="button" data-upload-clear>Clear</button>
+                  </div>
+                </div>
               </label>
               <div class="danger-zone danger-zone--compact">
                 <button class="button button--ghost" type="button" data-profile-remove-photo>Remove photo</button>

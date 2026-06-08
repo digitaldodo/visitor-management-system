@@ -11,7 +11,7 @@ import { initHostPicker } from "../shared/hostPicker.js";
 import { badgeDialogMarkup, badgeMarkup, downloadBadge, hydrateBadgePreview, printBadge } from "../shared/badgeStudio.js";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../shared/notificationApi.js";
 import { showToast } from "../shared/toast.js";
-import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
+import { initPhoneInput, phonePayload, setPhoneInputValues, validatePhonePayload } from "../shared/phoneInput.js";
 import { LOGIN_FROM_PORTAL } from "../shared/config.js";
 import { setText } from "../shared/dom.js";
 import { clearSession } from "../shared/session.js";
@@ -1029,6 +1029,11 @@ function initVisitorProfileForm() {
   }
   form.dataset.bound = "true";
   initPhoneInput(form);
+  initProfileUploadCard(form, {
+    emptyTitle: "Upload profile photo",
+    emptyMeta: "PNG, JPG, or WebP up to 5MB",
+    currentPhotoUrl: activeVisitorProfile?.employeePhotoUrl || "",
+  });
   form.querySelector("input[name='profilePhoto']")?.addEventListener("change", async () => {
     await handleProfilePhotoUpload(form);
   });
@@ -1149,17 +1154,138 @@ function initSafePreferenceActions() {
   });
 }
 
+function initProfileUploadCard(form, options = {}) {
+  const input = form?.querySelector("input[name='profilePhoto']");
+  const card = form?.querySelector("[data-profile-upload-card]");
+  if (!input || !card || card.dataset.bound === "true") {
+    return;
+  }
+  card.dataset.bound = "true";
+  input.classList.add("profile-upload__input");
+  input.setAttribute("aria-label", "Upload profile photo");
+  const browse = () => input.click();
+  card.addEventListener("click", (event) => {
+    if (!event.target.closest("button")) {
+      browse();
+    }
+  });
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      browse();
+    }
+  });
+  card.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    card.classList.add("is-dragging");
+  });
+  card.addEventListener("dragleave", () => card.classList.remove("is-dragging"));
+  card.addEventListener("drop", (event) => {
+    event.preventDefault();
+    card.classList.remove("is-dragging");
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) {
+      return;
+    }
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  form.querySelector("[data-upload-replace]")?.addEventListener("click", browse);
+  form.querySelector("[data-upload-clear]")?.addEventListener("click", () => {
+    input.value = "";
+    setUploadCardEmpty(form, options.emptyTitle, options.emptyMeta, options.currentPhotoUrl);
+  });
+  setUploadCardEmpty(form, options.emptyTitle, options.emptyMeta, options.currentPhotoUrl);
+}
+
+function updateUploadCardPreview(form, file, status = "Preview ready") {
+  const card = form?.querySelector("[data-profile-upload-card]");
+  if (!card) {
+    return;
+  }
+  const previousUrl = card.dataset.previewUrl;
+  if (previousUrl) {
+    URL.revokeObjectURL(previousUrl);
+  }
+  const previewUrl = URL.createObjectURL(file);
+  card.dataset.previewUrl = previewUrl;
+  card.classList.add("has-preview");
+  card.classList.remove("has-error", "is-success");
+  card.querySelector("[data-upload-preview]").innerHTML = `<img src="${escapeHtml(previewUrl)}" alt="Selected profile photo preview" />`;
+  setUploadText(form, status, `${file.name} · ${formatFileSize(file.size)}`);
+}
+
+function setUploadCardSuccess(form, photoUrl, status = "Photo ready") {
+  const card = form?.querySelector("[data-profile-upload-card]");
+  if (!card) {
+    return;
+  }
+  card.classList.add("has-preview", "is-success");
+  card.classList.remove("has-error");
+  if (photoUrl) {
+    card.querySelector("[data-upload-preview]").innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="Uploaded profile photo preview" />`;
+  }
+  setUploadText(form, status, "Upload complete. You can replace or remove it.");
+}
+
+function setUploadCardError(form, message) {
+  const card = form?.querySelector("[data-profile-upload-card]");
+  card?.classList.add("has-error");
+  card?.classList.remove("is-success");
+  setUploadText(form, "Upload failed", message);
+}
+
+function setUploadCardEmpty(form, title = "Upload profile photo", meta = "PNG, JPG, or WebP up to 5MB", currentPhotoUrl = "") {
+  const card = form?.querySelector("[data-profile-upload-card]");
+  if (!card) {
+    return;
+  }
+  const previousUrl = card.dataset.previewUrl;
+  if (previousUrl) {
+    URL.revokeObjectURL(previousUrl);
+    delete card.dataset.previewUrl;
+  }
+  card.classList.toggle("has-preview", Boolean(currentPhotoUrl));
+  card.classList.remove("has-error", "is-success");
+  card.querySelector("[data-upload-preview]").innerHTML = currentPhotoUrl
+    ? `<img src="${escapeHtml(currentPhotoUrl)}" alt="Current profile photo" />`
+    : `<span aria-hidden="true">Upload</span>`;
+  setUploadText(form, title, meta);
+}
+
+function setUploadText(form, title, meta) {
+  const titleNode = form?.querySelector("[data-upload-title]");
+  const metaNode = form?.querySelector("[data-upload-meta]");
+  if (titleNode) {
+    titleNode.textContent = title;
+  }
+  if (metaNode) {
+    metaNode.textContent = meta;
+  }
+}
+
+function isValidProfilePhoto(file) {
+  return /^image\/(png|jpe?g|webp)$/i.test(file.type) && file.size <= 5 * 1024 * 1024;
+}
+
+function formatFileSize(size) {
+  return size >= 1024 * 1024 ? `${(size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(size / 1024))}KB`;
+}
+
 async function handleProfilePhotoUpload(form) {
   const input = form.querySelector("input[name='profilePhoto']");
   const file = input?.files?.[0];
   if (!file) {
     return;
   }
-  if (!file.type.startsWith("image/")) {
+  if (!isValidProfilePhoto(file)) {
     showToast("Photo rejected", "Choose a JPEG, PNG, or WebP image.");
-    input.value = "";
+    setUploadCardError(form, "Choose a PNG, JPG, or WebP image up to 5MB.");
     return;
   }
+  updateUploadCardPreview(form, file, "Uploading photo...");
   setText("#visitor-photo-status", "Uploading photo...");
   try {
     const upload = await uploadAccountProfilePhoto(file);
@@ -1172,12 +1298,12 @@ async function handleProfilePhotoUpload(form) {
     visitorProfileLoaded = Boolean(activeVisitorProfile);
     renderVisitorProfile(activeVisitorProfile);
     setText("#visitor-photo-status", "Profile photo updated.");
+    setUploadCardSuccess(form, photoUrl, "Photo uploaded");
     showToast("Photo updated", "Your account photo was updated.");
   } catch (error) {
-    setText("#visitor-photo-status", "Photo update failed.");
+    setUploadCardError(form, "Photo update failed. Retry when ready.");
+    setText("#visitor-photo-status", "Photo update failed. Your selected image is still ready to retry.");
     showToast("Photo update failed", error.message);
-  } finally {
-    input.value = "";
   }
 }
 
@@ -1484,14 +1610,7 @@ function setFieldValue(form, name, value) {
 }
 
 function setPhoneFields(form, profile) {
-  const phoneInput = form.querySelector("input[name='phone']");
-  const phoneCode = form.querySelector("select[name='phoneCountryCode']");
-  if (phoneInput) {
-    phoneInput.value = stripDialCode(profile.phone, profile.phoneCountryCode);
-  }
-  if (phoneCode && profile.phoneCountryCode) {
-    phoneCode.value = profile.phoneCountryCode;
-  }
+  setPhoneInputValues(form, profile);
 }
 
 function isStrongPassword(value) {

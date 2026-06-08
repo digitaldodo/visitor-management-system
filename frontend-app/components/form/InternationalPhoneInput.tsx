@@ -1,9 +1,9 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { theme } from '../../theme';
-import { AppTextField } from './AppTextField';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 
 type CountryOption = {
@@ -81,58 +81,67 @@ export function InternationalPhoneInput({
 
   return (
     <View style={styles.container}>
-      <View style={styles.countryHeader}>
-        <Text style={styles.label}>{label}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Select country code"
-          onPress={() => {
-            setPickerOpen((open) => !open);
-            setCountryQuery(selectedCountry.name);
-          }}
-          style={({ pressed }) => [styles.countryButton, pressed ? styles.pressed : null]}
-        >
-          <Text style={styles.flag}>{selectedCountry.flag}</Text>
-          <View style={styles.countryCopy}>
-            <Text style={styles.countryName}>{selectedCountry.name}</Text>
+      <View style={styles.phoneHeader}>
+        <Text style={styles.label}>{phoneLabel}</Text>
+        <View style={[styles.phoneFrame, errorText ? styles.phoneFrameError : null]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Select country code"
+            onPress={() => {
+              setPickerOpen((open) => !open);
+              setCountryQuery(selectedCountry.name);
+            }}
+            style={({ pressed }) => [styles.countryButton, pressed ? styles.pressed : null]}
+          >
+            <Text style={styles.flag}>{selectedCountry.flag}</Text>
             <Text style={styles.countryCode}>{selectedCountry.dialCode}</Text>
-          </View>
-        </Pressable>
+            <Ionicons name={pickerOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.colors.textSecondary} />
+          </Pressable>
+          <TextInput
+            accessibilityLabel={phoneLabel}
+            value={formatPhoneForDisplay(phone, selectedCountry.iso2)}
+            onChangeText={(value) => onPhoneChange(value.replace(/\D/g, '').slice(0, 15))}
+            placeholder={selectedCountry.example}
+            placeholderTextColor={theme.colors.textMuted}
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxFontSizeMultiplier={1.12}
+            selectionColor={theme.colors.primary}
+            style={styles.phoneInput}
+          />
+        </View>
+        {errorText ? (
+          <Text maxFontSizeMultiplier={1.1} style={styles.errorText}>{errorText}</Text>
+        ) : (
+          <Text maxFontSizeMultiplier={1.1} style={styles.helperText}>{`${selectedCountry.flag} ${selectedCountry.dialCode} selected · Example ${selectedCountry.example}`}</Text>
+        )}
       </View>
 
       {pickerOpen ? (
-        <AutocompleteDropdown
-          label="Search country"
-          value={countryQuery}
-          onChangeText={setCountryQuery}
-          placeholder="India, USA, UAE"
-          helperText={helperText}
-          minQueryLength={0}
-          results={countryResults}
-          selectedTitle={null}
-          onSelect={(country) => {
-            onCountryCodeChange(country.dialCode);
-            setSelectedIso2(country.iso2);
-            setCountryQuery(country.name);
-            setPickerOpen(false);
-          }}
-          getKey={(country) => country.iso2}
-          getTitle={(country) => `${country.flag} ${country.name}`}
-          getMeta={(country) => `${country.dialCode} · Example ${country.example}`}
-        />
+        <View style={styles.pickerPanel}>
+          <Text style={styles.label}>{label}</Text>
+          <AutocompleteDropdown
+            label="Search country"
+            value={countryQuery}
+            onChangeText={setCountryQuery}
+            placeholder="India, USA, UAE"
+            helperText={helperText}
+            minQueryLength={0}
+            results={countryResults}
+            selectedTitle={null}
+            onSelect={(country) => {
+              onCountryCodeChange(country.dialCode);
+              setSelectedIso2(country.iso2);
+              setCountryQuery(country.name);
+              setPickerOpen(false);
+            }}
+            getKey={(country) => country.iso2}
+            getTitle={(country) => `${country.flag} ${country.name}`}
+            getMeta={(country) => `${country.dialCode} · Example ${country.example}`}
+          />
+        </View>
       ) : null}
-
-      <AppTextField
-        label={phoneLabel}
-        value={formatPhoneForDisplay(phone, selectedCountry.iso2)}
-        onChangeText={(value) => onPhoneChange(value.replace(/\D/g, '').slice(0, 15))}
-        placeholder={selectedCountry.example}
-        keyboardType="phone-pad"
-        textContentType="telephoneNumber"
-        autoComplete="tel"
-        helperText={`${selectedCountry.flag} ${selectedCountry.dialCode} selected`}
-        errorText={errorText ?? undefined}
-      />
     </View>
   );
 }
@@ -210,7 +219,7 @@ const styles = StyleSheet.create({
   container: {
     gap: theme.spacing.sm,
   },
-  countryHeader: {
+  phoneHeader: {
     gap: theme.spacing.xs,
   },
   label: {
@@ -221,33 +230,62 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   countryButton: {
-    minHeight: 58,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
-    borderRadius: theme.radii.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.input,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.xs,
+    borderRightWidth: 1,
+    borderRightColor: theme.colors.border,
+    backgroundColor: theme.colors.primarySoft,
+    paddingHorizontal: theme.spacing.sm,
+    alignSelf: 'stretch',
   },
   flag: {
     fontSize: 24,
   },
-  countryCopy: {
-    flex: 1,
-    gap: 2,
+  countryCode: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '900',
   },
-  countryName: {
+  phoneFrame: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.input,
+  },
+  phoneFrameError: {
+    borderColor: theme.colors.danger,
+  },
+  phoneInput: {
+    flex: 1,
+    minWidth: 0,
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body.fontSize,
-    fontWeight: theme.typography.bodyStrong.fontWeight,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
   },
-  countryCode: {
+  pickerPanel: {
+    gap: theme.spacing.xs,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.surfaceRaised,
+    padding: theme.spacing.sm,
+  },
+  helperText: {
     color: theme.colors.textSecondary,
     fontSize: 13,
-    fontWeight: '800',
+    lineHeight: 18,
+  },
+  errorText: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    lineHeight: 18,
   },
   pressed: {
     opacity: 0.82,

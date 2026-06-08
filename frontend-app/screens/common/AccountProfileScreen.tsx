@@ -82,6 +82,7 @@ export function AccountProfileScreen({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [legalOpen, setLegalOpen] = useState<LegalDocumentType | null>(null);
   const [securityCenterOpen, setSecurityCenterOpen] = useState(true);
 
@@ -150,9 +151,12 @@ export function AccountProfileScreen({
       if (!asset) {
         return;
       }
+      setPhotoError(null);
       setPendingPhoto({ ...asset, previewUri: asset.uri });
-    } catch {
-      Alert.alert(tText('Photo unavailable'), tText('The photo picker could not be opened. Check permission settings and try again.'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : tText('The photo picker could not be opened. Check permission settings and try again.');
+      setPhotoError(message);
+      Alert.alert(tText('Photo unavailable'), message);
     }
   };
 
@@ -164,17 +168,21 @@ export function AccountProfileScreen({
     try {
       const uploadedPhoto = await uploadPhotoMutation.mutateAsync(pendingPhoto);
       await updateProfileMutation.mutateAsync({ employeePhotoUrl: uploadedPhoto.url });
+      setPhotoError(null);
       setPendingPhoto(null);
       await refreshAll();
       Alert.alert(tText('Photo updated'), tText('Your profile and credential photo were updated.'));
     } catch (error) {
-      Alert.alert(tText('Photo update failed'), error instanceof Error ? error.message : tText('Your profile photo could not be updated.'));
+      const message = error instanceof Error ? error.message : tText('Your profile photo could not be updated.');
+      setPhotoError(message);
+      Alert.alert(tText('Photo update failed'), message);
     }
   };
 
   const removePhoto = async () => {
     if (pendingPhoto) {
       setPendingPhoto(null);
+      setPhotoError(null);
       return;
     }
 
@@ -272,18 +280,41 @@ export function AccountProfileScreen({
       </SurfaceCard>
 
       <SurfaceCard title="Profile photo" subtitle="Capture or select a square profile photo. Preview it before applying it to your account and credential surfaces.">
-        <View style={[styles.photoTools, layout.fieldStacked ? styles.photoToolsStacked : null]}>
-          <IconAction icon="camera-outline" label="Camera" onPress={() => void choosePhoto('camera')} disabled={uploadPhotoMutation.isPending} />
-          <IconAction icon="images-outline" label="Gallery" onPress={() => void choosePhoto('gallery')} disabled={uploadPhotoMutation.isPending} />
-          <IconAction icon={pendingPhoto ? 'refresh-outline' : 'trash-outline'} label={pendingPhoto ? 'Retake' : 'Remove'} onPress={() => void removePhoto()} disabled={uploadPhotoMutation.isPending || (!photoUri && !pendingPhoto)} danger={!pendingPhoto} />
+        <View style={[styles.photoUploadCard, photoError ? styles.photoUploadCardError : null, pendingPhoto ? styles.photoUploadCardReady : null]}>
+          <View style={styles.photoUploadPreview}>
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.photoUploadImage} />
+            ) : (
+              <Ionicons name="cloud-upload-outline" size={30} color={theme.colors.info} />
+            )}
+          </View>
+          <View style={styles.photoUploadCopy}>
+            <Text style={styles.panelTitle}>{pendingPhoto ? tText('Preview ready') : tText('Upload profile photo')}</Text>
+            <Text style={styles.helperText}>
+              {photoError
+                ? photoError
+                : pendingPhoto
+                  ? tText('Review the image, then apply it to your profile.')
+                  : tText('Tap to use camera or gallery. PNG, JPG up to 5MB.')}
+            </Text>
+          </View>
+          <View style={[styles.photoTools, layout.fieldStacked ? styles.photoToolsStacked : null]}>
+            <IconAction icon="camera-outline" label="Camera" onPress={() => void choosePhoto('camera')} disabled={uploadPhotoMutation.isPending} />
+            <IconAction icon="images-outline" label="Gallery" onPress={() => void choosePhoto('gallery')} disabled={uploadPhotoMutation.isPending} />
+            <IconAction icon={pendingPhoto ? 'refresh-outline' : 'trash-outline'} label={pendingPhoto ? 'Clear' : 'Remove'} onPress={() => void removePhoto()} disabled={uploadPhotoMutation.isPending || (!photoUri && !pendingPhoto)} danger={!pendingPhoto} />
+          </View>
+          {pendingPhoto ? (
+            <View style={styles.photoApplyRow}>
+              <PrimaryButton label={photoError ? 'Retry upload' : 'Apply photo'} onPress={() => void applyPhoto()} loading={uploadPhotoMutation.isPending || updateProfileMutation.isPending} />
+            </View>
+          ) : null}
         </View>
         {pendingPhoto ? (
           <View style={styles.pendingPanel}>
             <Image source={{ uri: pendingPhoto.previewUri }} style={styles.pendingPhoto} />
             <View style={styles.pendingCopy}>
-              <Text style={styles.panelTitle}>{tText('Preview ready')}</Text>
-              <Text style={styles.helperText}>{tText('Review the crop before replacing the current account photo.')}</Text>
-              <PrimaryButton label="Apply photo" onPress={() => void applyPhoto()} loading={uploadPhotoMutation.isPending || updateProfileMutation.isPending} />
+              <Text style={styles.panelTitle}>{photoError ? tText('Ready to retry') : tText('Preview preserved')}</Text>
+              <Text style={styles.helperText}>{photoError ? tText('Your selected image is still available.') : tText('This image is queued for your account photo.')}</Text>
             </View>
           </View>
         ) : null}
@@ -572,6 +603,9 @@ async function pickProfilePhoto(source: 'camera' | 'gallery') {
   }
 
   const asset = result.assets[0];
+  if (typeof asset.fileSize === 'number' && asset.fileSize > 5 * 1024 * 1024) {
+    throw new Error('Choose a PNG or JPG image up to 5MB.');
+  }
   return {
     uri: asset.uri,
     name: asset.fileName || `account-photo-${Date.now()}.jpg`,
@@ -690,6 +724,38 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     lineHeight: 22,
   },
+  photoUploadCard: {
+    gap: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.surfaceMuted,
+    padding: theme.spacing.md,
+  },
+  photoUploadCardReady: {
+    backgroundColor: theme.colors.primarySoft,
+  },
+  photoUploadCardError: {
+    borderColor: theme.colors.danger,
+  },
+  photoUploadPreview: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLine,
+    backgroundColor: theme.colors.infoSoft,
+  },
+  photoUploadImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoUploadCopy: {
+    gap: theme.spacing.xs,
+  },
   photoTools: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -729,6 +795,9 @@ const styles = StyleSheet.create({
   },
   iconActionLabelDanger: {
     color: theme.colors.danger,
+  },
+  photoApplyRow: {
+    gap: theme.spacing.sm,
   },
   pendingPanel: {
     flexDirection: 'row',
