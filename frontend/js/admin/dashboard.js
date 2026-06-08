@@ -10,7 +10,7 @@ import { initVisitorModule } from "../shared/visitorModule.js";
 import { approveWorkforceOnboarding, listWorkforceOnboardingRequests, rejectWorkforceOnboarding, requestWorkforceOnboardingModification, updateWorkforceOnboarding } from "../shared/accessService.js";
 import { getNotifications } from "../shared/notificationApi.js";
 import { getOperationalEvents } from "../shared/operationalEventApi.js";
-import { createNonOverlappingPoller, scheduleIdle } from "../shared/performance.js";
+import { cancelIdle, createLatestOnlyTask, createNonOverlappingPoller, debounceAsync, renderHtmlIfChanged, scheduleIdle } from "../shared/performance.js";
 import { showToast } from "../shared/toast.js";
 import { attachFieldValidator, isEmail, validateUsername } from "../shared/validation.js";
 import { initPhoneInput, phonePayload, validatePhonePayload } from "../shared/phoneInput.js";
@@ -61,6 +61,33 @@ let operationalEventsHydrated = false;
 let recentOperationalEvents = [];
 let operationalFeedRenderHandle = 0;
 const seenOperationalEventIds = new Set();
+const ANALYTICS_CACHE_TTL_MS = 45000;
+const analyticsCache = new Map();
+const lazyChartObservers = new Map();
+const lazyChartIdleHandles = new Map();
+const analyticsRenderMemo = {
+  dashboard: "",
+  platform: "",
+};
+let analyticsTooltipElement = null;
+let pinnedAnalyticsTooltip = null;
+
+const runLatestAnalyticsLoad = createLatestOnlyTask(async (task, routeKey, renderer, options = {}) => {
+  const analytics = await getCachedAnalyticsPayload({ force: options.forceRefresh });
+  if (!task.isCurrent()) {
+    return null;
+  }
+  renderer(analytics);
+  renderAnalyticsRecovery();
+  return analytics;
+});
+
+const debouncedAnalyticsRefresh = debounceAsync(async ({ signal }, routeKey) => {
+  if (signal?.aborted) {
+    return;
+  }
+  await loadWorkspace(routeKey, { preserveToasts: true, forceRefresh: true });
+}, 220);
 
 const DEFAULT_DEPARTMENT_PRESETS = [
   "Operations",
@@ -1628,10 +1655,10 @@ async function loadWorkspace(routeKey, options = {}) {
   try {
     switch (routeKey) {
       case "dashboard":
-        await loadAnalyticsWorkspace();
+        await loadAnalyticsWorkspace(options);
         break;
       case "platform-analytics":
-        await loadPlatformAnalyticsWorkspace();
+        await loadPlatformAnalyticsWorkspace(options);
         break;
       case "employees":
         await loadUsersWorkspace();
@@ -1694,13 +1721,11 @@ async function loadWorkspace(routeKey, options = {}) {
   }
 }
 
-async function loadAnalyticsWorkspace() {
-  renderDashboardCards([]);
+async function loadAnalyticsWorkspace(options = {}) {
+  renderDashboardCards([], { loading: true });
   renderAnalyticsLoading();
   try {
-    const analytics = await request("/admin/analytics");
-    renderAnalytics(analytics?.data || {});
-    renderAnalyticsRecovery();
+    await runLatestAnalyticsLoad("dashboard", renderAnalytics, options);
   } catch (error) {
     renderAnalytics(defaultAnalyticsPayload());
     renderAnalyticsRecovery(error.message || "Analytics are temporarily unavailable.");
@@ -1708,18 +1733,31 @@ async function loadAnalyticsWorkspace() {
   }
 }
 
-async function loadPlatformAnalyticsWorkspace() {
-  renderDashboardCards([]);
+async function getCachedAnalyticsPayload(options = {}) {
+  const { force = false } = options;
+  const cacheKey = `${currentSession?.organizationId || "platform"}:${currentSession?.role || "admin"}`;
+  const cached = analyticsCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.timestamp < ANALYTICS_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const response = await request("/admin/analytics");
+  const data = response?.data || {};
+  analyticsCache.set(cacheKey, { data, timestamp: Date.now() });
+  return data;
+}
+
+async function loadPlatformAnalyticsWorkspace(options = {}) {
+  renderDashboardCards([], { loading: true });
   renderAnalyticsLoading();
   renderLoadingList("#tenant-health-list", 3);
   renderLoadingList("#security-overview-list", 3);
   const [analyticsResult, organizationsResult, monitoringResult] = await Promise.allSettled([
-    request("/admin/analytics"),
+    getCachedAnalyticsPayload({ force: options.forceRefresh }),
     listManagedOrganizations(),
     request("/admin/monitoring"),
   ]);
 
-  const analyticsData = analyticsResult.status === "fulfilled" ? analyticsResult.value?.data : defaultAnalyticsPayload();
+  const analyticsData = analyticsResult.status === "fulfilled" ? analyticsResult.value : defaultAnalyticsPayload();
   const organizations = organizationsResult.status === "fulfilled" ? normalizeArray(organizationsResult.value?.data) : [];
   const monitoring = monitoringResult.status === "fulfilled" && isObject(monitoringResult.value?.data) ? monitoringResult.value.data : {};
   renderPlatformAnalytics(analyticsData, organizations, monitoring);
@@ -3238,21 +3276,28 @@ function formatMonitoringDetail(status) {
 
 function renderAnalytics(data) {
   const analytics = normalizeAnalyticsPayload(data);
+  const signature = JSON.stringify(analytics);
+  if (analyticsRenderMemo.dashboard === signature) {
+    return;
+  }
+  analyticsRenderMemo.dashboard = signature;
   renderDashboardCards(analytics.widgets);
   renderChart("#daily-visitors-chart", barChart(analytics.dailyVisitors, "Visitors"));
   renderChart("#monthly-trends-chart", lineChart(analytics.monthlyTrends));
   renderChart("#peak-hours-chart", compactBars(analytics.peakHours));
-  renderChart("#approval-rates-chart", approvalRateChart(analytics.approvalRates));
+  renderChart("#approval-rates-chart", approvalRateChart(analytics.approvalRates), { lazy: true, label: "Approval rates" });
   renderOperationalAnalytics(analytics);
   renderEmployeeAnalytics(analytics.employeeAnalytics);
   renderWorkforceAttendanceAnalytics(analytics.workforceAttendance);
 }
 
 function renderAnalyticsLoading() {
-  renderChart("#daily-visitors-chart", chartEmpty("Waiting for visitor activity..."));
-  renderChart("#monthly-trends-chart", chartEmpty("Trends will appear as activity accumulates."));
-  renderChart("#peak-hours-chart", chartEmpty("Peak-hour signals will appear after check-ins."));
-  renderChart("#approval-rates-chart", chartEmpty("Decision patterns will appear after approvals."));
+  analyticsRenderMemo.dashboard = "";
+  analyticsRenderMemo.platform = "";
+  renderChart("#daily-visitors-chart", chartSkeletonMarkup("Daily visitors"));
+  renderChart("#monthly-trends-chart", chartSkeletonMarkup("Monthly trend"));
+  renderChart("#peak-hours-chart", chartSkeletonMarkup("Peak hours"));
+  renderChart("#approval-rates-chart", chartSkeletonMarkup("Approval rates"));
   renderOperationalAnalytics(defaultAnalyticsPayload());
   renderEmployeeAnalytics([]);
   renderWorkforceAttendanceAnalytics({});
@@ -3277,7 +3322,7 @@ function renderAnalyticsRecovery(message = "") {
     <button class="button button--ghost button--small" type="button" data-analytics-retry>Retry</button>
   `;
   panel.querySelector("[data-analytics-retry]")?.addEventListener("click", () => {
-    void loadWorkspace(currentRoute, { preserveToasts: true });
+    debouncedAnalyticsRefresh(currentRoute);
   });
 }
 
@@ -3297,7 +3342,7 @@ function defaultAnalyticsPayload() {
     workforce: [],
     alerts: [],
     widgets: [
-      { label: "Total visitors", value: 0, note: "No analytics available yet" },
+      { label: "Total visitors", value: 0, note: "Analytics begin after visitor activity" },
       { label: "Active visitors", value: 0, note: "Waiting for organization activity" },
       { label: "Pending approvals", value: 0, note: "No visitor activity recorded" },
       { label: "Today's check-ins", value: 0, note: "No check-ins recorded today" },
@@ -3422,7 +3467,7 @@ function normalizeMetricItems(items, fallback = []) {
     .map((item) => ({
       label: item.label || "Metric",
       value: item.value ?? 0,
-      note: item.note || "No analytics available yet",
+      note: item.note || "Analytics begin after visitor activity",
     }));
   return values.length ? values : fallback;
 }
@@ -3433,6 +3478,9 @@ function normalizeChartSeries(items) {
     .map((item) => ({
       label: item.label || "N/A",
       value: Number(item.value) || 0,
+      date: item.date || item.day || item.timestamp || "",
+      hour: item.hour || "",
+      trendPercentage: Number(item.trendPercentage ?? item.trend ?? item.changePercentage),
     }));
 }
 
@@ -3452,10 +3500,10 @@ function normalizeHeatmap(items) {
 function renderOperationalAnalytics(analytics) {
   renderOperationalTiles("#live-operations-grid", analytics.liveOperations, "No live operations yet", "Current active visitors, workforce, checkpoints, and expiration windows will appear here.");
   renderOperationalInsights(analytics.operationalInsights);
-  renderChart("#traffic-heatmap-chart", heatmapChart(analytics.trafficHeatmap));
-  renderChart("#workforce-rush-chart", compactBars(analytics.workforceRushHours));
-  renderChart("#denial-trends-chart", lineChart(analytics.denialTrends));
-  renderChart("#incident-trends-chart", lineChart(analytics.incidentTrends));
+  renderChart("#traffic-heatmap-chart", heatmapChart(analytics.trafficHeatmap), { lazy: true, label: "Traffic heatmap" });
+  renderChart("#workforce-rush-chart", compactBars(analytics.workforceRushHours), { lazy: true, label: "Workforce rush periods" });
+  renderChart("#denial-trends-chart", lineChart(analytics.denialTrends), { lazy: true, label: "Denial trend" });
+  renderChart("#incident-trends-chart", lineChart(analytics.incidentTrends), { lazy: true, label: "Incident spikes" });
   renderOperationalSignals("#repeat-visitor-list", [
     ...analytics.repeatVisitors.map((item) => ({ ...item, group: "Frequent visitor" })),
     ...analytics.repeatOrganizations.map((item) => ({ ...item, group: "Repeat organization" })),
@@ -3488,13 +3536,13 @@ function renderOperationalTiles(selector, items, emptyTitle, emptyBody) {
     return;
   }
   const rows = normalizeArray(items);
-  element.innerHTML = rows.length ? rows.map((item) => `
+  renderHtmlIfChanged(element, rows.length ? rows.map((item) => `
     <article class="operational-intel-card">
       <span>${escapeHtml(item.label || "Signal")}</span>
       <strong>${escapeHtml(item.value ?? 0)}</strong>
       <small>${escapeHtml(item.note || "Operational state")}</small>
     </article>
-  `).join("") : emptyInline(emptyTitle, emptyBody);
+  `).join("") : emptyInline(emptyTitle, emptyBody));
 }
 
 function renderOperationalInsights(items) {
@@ -3503,13 +3551,13 @@ function renderOperationalInsights(items) {
     return;
   }
   const rows = normalizeArray(items);
-  element.innerHTML = rows.length ? rows.slice(0, 6).map((item) => `
+  renderHtmlIfChanged(element, rows.length ? rows.slice(0, 6).map((item) => `
     <article class="operational-insight-card operational-insight-card--${escapeHtml(String(item.severity || "low").toLowerCase())}">
       <span>${escapeHtml(item.severity || "Signal")}</span>
       <strong>${escapeHtml(item.label || "Operational insight")}</strong>
       <small>${escapeHtml(item.detail || "Access pattern detected.")}</small>
     </article>
-  `).join("") : emptyInline("No insights yet", "Actionable operational insights will appear after traffic, denial, incident, and workforce patterns accumulate.");
+  `).join("") : emptyInline("No insights yet", "Actionable operational insights will appear after traffic, denial, incident, and workforce patterns accumulate."));
 }
 
 function renderOperationalSignals(selector, items, emptyTitle, emptyBody) {
@@ -3518,7 +3566,7 @@ function renderOperationalSignals(selector, items, emptyTitle, emptyBody) {
     return;
   }
   const rows = normalizeArray(items).filter((item) => isObject(item));
-  element.innerHTML = rows.length ? rows.slice(0, 10).map((item) => `
+  renderHtmlIfChanged(element, rows.length ? rows.slice(0, 10).map((item) => `
     <article class="operational-signal-card">
       <div>
         <span>${escapeHtml(item.group || item.severity || "Signal")}</span>
@@ -3527,7 +3575,7 @@ function renderOperationalSignals(selector, items, emptyTitle, emptyBody) {
       </div>
       <b>${escapeHtml(item.value ?? item.records ?? "")}</b>
     </article>
-  `).join("") : emptyInline(emptyTitle, emptyBody);
+  `).join("") : emptyInline(emptyTitle, emptyBody));
 }
 
 function renderOperationalExports(items, analytics) {
@@ -3541,14 +3589,17 @@ function renderOperationalExports(items, analytics) {
     { label: "Security Incident Report", reportType: "incident-report", format: "PDF", note: "Print-ready security incident export." },
     { label: "Workforce Activity Report", reportType: "workforce-activity", format: "CSV", note: "Employee presence and checkpoint activity." },
   ];
-  element.innerHTML = catalog.map((item) => `
+  const changed = renderHtmlIfChanged(element, catalog.map((item) => `
     <article class="operational-export-card">
       <span>${escapeHtml(item.format || "CSV")}</span>
       <strong>${escapeHtml(item.label || "Operational report")}</strong>
       <small>${escapeHtml(item.note || "Exportable operational snapshot")}</small>
       <button class="button button--ghost button--small" type="button" data-export-snapshot="${escapeHtml(item.reportType || item.label || "snapshot")}" data-export-format="${escapeHtml(item.format || "CSV")}">Export ${escapeHtml(item.format || "CSV")}</button>
     </article>
-  `).join("");
+  `).join(""));
+  if (!changed) {
+    return;
+  }
   element.querySelectorAll("[data-export-snapshot]").forEach((button) => {
     button.addEventListener("click", () => exportOperationalSnapshot(button.dataset.exportSnapshot, button.dataset.exportFormat, analytics));
   });
@@ -3556,7 +3607,7 @@ function renderOperationalExports(items, analytics) {
 
 function heatmapChart(rows) {
   if (!rows.length || !rows.some((row) => normalizeArray(row.hours).some((hour) => Number(hour.value) > 0))) {
-    return chartEmpty("No hourly traffic activity yet.");
+    return chartEmpty("Hourly traffic analytics will appear once visitor activity is recorded.", "Busiest entry-hour patterns unlock as check-ins and check-outs accumulate.");
   }
   const max = Math.max(1, ...rows.flatMap((row) => normalizeArray(row.hours).map((hour) => Number(hour.value) || 0)));
   return `
@@ -3567,7 +3618,8 @@ function heatmapChart(rows) {
           <div>
             ${normalizeArray(row.hours).map((hour) => {
               const alpha = 0.16 + Math.min(0.84, (Number(hour.value) || 0) / max);
-              return `<i style="opacity:${alpha}" title="${escapeHtml(row.label)} ${escapeHtml(hour.hour)}: ${escapeHtml(hour.value)}"></i>`;
+              const tooltip = `${row.label} ${formatHourLabel(hour.hour)}\nVisitors: ${Number(hour.value) || 0}`;
+              return `<i style="opacity:${alpha}" tabindex="0" role="button" aria-label="${escapeHtml(tooltip.replaceAll("\n", ", "))}" data-tooltip="${escapeHtml(tooltip)}"></i>`;
             }).join("")}
           </div>
         </div>
@@ -3686,6 +3738,11 @@ function renderPlatformAnalytics(data, organizations, monitoring) {
   const analytics = normalizeAnalyticsPayload(data);
   const organizationItems = normalizeArray(organizations);
   const monitoringData = isObject(monitoring) ? monitoring : {};
+  const signature = JSON.stringify({ analytics, organizationItems, monitoringData });
+  if (analyticsRenderMemo.platform === signature) {
+    return;
+  }
+  analyticsRenderMemo.platform = signature;
   const activeOrganizations = organizationItems.filter((organization) => organization?.activeStatus !== false).length;
   const pausedOrganizations = organizationItems.length - activeOrganizations;
   const pendingApprovals = analytics.metrics?.pendingApprovals ?? findWidgetValue(analytics.widgets, "Pending approvals");
@@ -4781,53 +4838,115 @@ function formatTabLabel(tab) {
   }[tab] || tab;
 }
 
-function renderDashboardCards(widgets) {
+function renderDashboardCards(widgets, options = {}) {
   const grid = document.querySelector("#metric-grid");
   if (!grid) {
     return;
   }
 
-  if (!widgets.length) {
-    grid.innerHTML = `
-      <article class="empty-state empty-state--inline">
-        <h3>No analytics available yet</h3>
-        <p>Waiting for organization activity and visitor records.</p>
+  if (options.loading) {
+    renderHtmlIfChanged(grid, Array.from({ length: 5 }).map(() => `
+      <article class="admin-metric-card admin-metric-card--skeleton" aria-hidden="true">
+        <span class="admin-metric-card__icon"></span>
+        <span></span>
+        <strong></strong>
+        <small></small>
       </article>
-    `;
+    `).join(""));
+    return;
+  }
+
+  if (!widgets.length) {
+    renderHtmlIfChanged(grid, analyticsEmptyState(
+      "Analytics will appear once visitor activity is recorded.",
+      "Create visitor records, approve entries, or check in guests to unlock operational trends.",
+    ));
     return;
   }
 
   const icons = ["M4 19h16v2H4Zm2-8h3v6H6Zm5-6h3v12h-3Zm5 3h3v9h-3Z", "M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7 8a7 7 0 0 1 14 0Z", "m9 16.2-3.5-3.5L4 14.2 9 19 20 8l-1.5-1.5Z", "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 11h5v-2h-4V6h-2Z", "M12 2 2 20h20Zm0 6 5.2 10H6.8Z"];
-  grid.innerHTML = widgets.map((metric, index) => `
+  renderHtmlIfChanged(grid, widgets.map((metric, index) => `
     <article class="admin-metric-card">
       <span class="admin-metric-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${icons[index] || icons[0]}"/></svg></span>
       <span class="metric-card__label">${escapeHtml(metric.label)}</span>
       <strong>${escapeHtml(metric.value)}</strong>
       <small>${escapeHtml(metric.note)}</small>
     </article>
-  `).join("");
+  `).join(""));
 }
 
-function renderChart(selector, markup) {
+function renderChart(selector, markup, options = {}) {
   const element = document.querySelector(selector);
-  if (element) {
-    element.innerHTML = markup;
+  if (!element) {
+    return;
   }
+
+  const hydrate = () => {
+    renderHtmlIfChanged(element, markup);
+    attachAnalyticsInteractions(element);
+    element.classList.remove("chart-stage--loading");
+    element.removeAttribute("aria-busy");
+  };
+
+  if (!options.lazy || !("IntersectionObserver" in window)) {
+    hydrate();
+    return;
+  }
+
+  const existingObserver = lazyChartObservers.get(selector);
+  if (existingObserver) {
+    existingObserver.disconnect();
+    lazyChartObservers.delete(selector);
+  }
+  const existingIdleHandle = lazyChartIdleHandles.get(selector);
+  if (existingIdleHandle) {
+    cancelIdle(existingIdleHandle);
+    lazyChartIdleHandles.delete(selector);
+  }
+
+  element.classList.add("chart-stage--loading");
+  element.setAttribute("aria-busy", "true");
+  if (!element.innerHTML.trim()) {
+    renderHtmlIfChanged(element, chartSkeletonMarkup(options.label || "Analytics chart"));
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) {
+      return;
+    }
+    observer.disconnect();
+    lazyChartObservers.delete(selector);
+    const idleHandle = scheduleIdle(() => {
+      lazyChartIdleHandles.delete(selector);
+      hydrate();
+    }, 400);
+    lazyChartIdleHandles.set(selector, idleHandle);
+  }, { rootMargin: "220px 0px" });
+  lazyChartObservers.set(selector, observer);
+  observer.observe(element);
 }
 
 function barChart(data, suffix) {
   if (!data.length || !hasSeriesActivity(data)) {
-    return chartEmpty("No visitor activity recorded yet.");
+    return chartEmpty("Analytics will appear once visitor activity is recorded.", "Daily flow unlocks after the first visitor check-in.");
   }
   const max = maxValue(data);
+  const labelStep = Math.max(1, Math.ceil(data.length / 8));
   const bars = data.map((item, index) => {
     const height = Math.max(4, Math.round((Number(item.value) / max) * 150));
     const x = 22 + index * 38;
     const y = 174 - height;
+    const tooltip = chartTooltipText(item, {
+      title: formatAnalyticsDate(item.date || item.label),
+      valueLabel: suffix,
+      previous: data[index - 1],
+    });
+    const axisLabel = index % labelStep === 0 || index === data.length - 1
+      ? `<text x="${x + 11}" y="198" text-anchor="middle">${escapeHtml(item.label)}</text>`
+      : "";
     return `
-      <rect x="${x}" y="${y}" width="22" height="${height}" rx="5"></rect>
-      <text x="${x + 11}" y="198" text-anchor="middle">${escapeHtml(item.label)}</text>
-      <title>${escapeHtml(item.label)}: ${escapeHtml(item.value)} ${escapeHtml(suffix)}</title>
+      <rect class="chart-hit-target" x="${x}" y="${y}" width="22" height="${height}" rx="5" tabindex="0" role="button" aria-label="${escapeHtml(tooltip)}" data-tooltip="${escapeHtml(tooltip)}"></rect>
+      ${axisLabel}
     `;
   }).join("");
   return `<svg class="chart-svg bar-chart" viewBox="0 0 560 220" role="img" aria-label="${escapeHtml(suffix)} bar chart">${bars}</svg>`;
@@ -4835,57 +4954,253 @@ function barChart(data, suffix) {
 
 function lineChart(data) {
   if (!data.length || !hasSeriesActivity(data)) {
-    return chartEmpty("Waiting for organization activity.");
+    return chartEmpty("Analytics will appear once visitor activity is recorded.", "Trend lines become useful after several data points accumulate.");
   }
   const max = maxValue(data);
-  const points = data.map((item, index) => {
-    const x = 22 + index * 46;
+  const step = data.length > 1 ? 516 / (data.length - 1) : 0;
+  const labelStep = Math.max(1, Math.ceil(data.length / 8));
+  const pointItems = data.map((item, index) => {
+    const x = 22 + index * step;
     const y = 174 - Math.round((Number(item.value) / max) * 145);
-    return `${x},${y}`;
-  }).join(" ");
-  const dots = data.map((item, index) => {
-    const [x, y] = points.split(" ")[index].split(",");
-    return `<circle cx="${x}" cy="${y}" r="5"><title>${escapeHtml(item.label)}: ${escapeHtml(item.value)}</title></circle>`;
+    return { ...item, x: Number(x.toFixed(2)), y };
+  });
+  const points = pointItems.map((item) => `${item.x},${item.y}`).join(" ");
+  const dots = pointItems.map((item, index) => {
+    const tooltip = chartTooltipText(item, {
+      title: formatAnalyticsDate(item.date || item.label),
+      valueLabel: "Visitors",
+      previous: data[index - 1],
+    });
+    return `<circle class="chart-hit-target" cx="${item.x}" cy="${item.y}" r="5" tabindex="0" role="button" aria-label="${escapeHtml(tooltip)}" data-tooltip="${escapeHtml(tooltip)}"></circle>`;
   }).join("");
-  const labels = data.map((item, index) => `<text x="${22 + index * 46}" y="198" text-anchor="middle">${escapeHtml(item.label)}</text>`).join("");
-  return `<svg class="chart-svg line-chart" viewBox="0 0 560 220" role="img" aria-label="Monthly visitor trend"><polyline points="${points}"></polyline>${dots}${labels}</svg>`;
+  const labels = pointItems.map((item, index) => (
+    index % labelStep === 0 || index === pointItems.length - 1
+      ? `<text x="${item.x}" y="198" text-anchor="middle">${escapeHtml(item.label)}</text>`
+      : ""
+  )).join("");
+  return `<svg class="chart-svg line-chart" viewBox="0 0 560 220" role="img" aria-label="Monthly visitor trend"><polyline class="line-chart__glow" points="${points}"></polyline><polyline points="${points}"></polyline>${dots}${labels}</svg>`;
 }
 
 function compactBars(data) {
-  const filtered = data.filter((_, index) => index % 2 === 0);
+  const filtered = data;
   if (!filtered.length || !hasSeriesActivity(filtered)) {
-    return chartEmpty("No peak-hour activity yet.");
+    return chartEmpty("Peak-hour analytics will appear once visitor activity is recorded.", "Hourly check-in density helps plan reception and security coverage.");
   }
   const max = maxValue(filtered);
   return `
-    <div class="hour-chart">
-      ${filtered.map((item) => `
-        <div class="hour-chart__row">
+    <div class="hour-chart" role="list" aria-label="Peak visitor hours">
+      ${filtered.map((item, index) => {
+        const hourLabel = formatHourLabel(item.hour || item.label);
+        const visitorLabel = `${Number(item.value) || 0} ${Number(item.value) === 1 ? "visitor" : "visitors"}`;
+        const tooltip = `${hourLabel}\n${visitorLabel}`;
+        return `
+        <div class="hour-chart__row" role="listitem" tabindex="0" style="--bar-delay: ${index * 28}ms" aria-label="${escapeHtml(`${hourLabel}, ${visitorLabel}`)}" data-tooltip="${escapeHtml(tooltip)}">
           <span>${escapeHtml(item.label)}</span>
           <div><i style="width: ${Math.max(4, Math.round((Number(item.value) / max) * 100))}%"></i></div>
           <strong>${escapeHtml(item.value)}</strong>
         </div>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
 }
 
 function approvalRateChart(data) {
   if (!data.length || !hasSeriesActivity(data)) {
-    return chartEmpty("No approval decisions yet.");
+    return chartEmpty("Decision analytics will appear once approvals are recorded.", "Approval and denial rates will populate as teams process visitor requests.");
   }
   return `
     <div class="approval-rate-chart">
-      ${data.map((item) => `
-        <article>
+      ${data.map((item, index) => {
+        const tooltip = `${item.label}\n${item.percentage}%\n${item.value} visitors`;
+        return `
+        <article tabindex="0" style="--bar-delay: ${index * 40}ms" aria-label="${escapeHtml(`${item.label}, ${item.percentage}%, ${item.value} visitors`)}" data-tooltip="${escapeHtml(tooltip)}">
           <span>${escapeHtml(item.label)}</span>
           <strong>${escapeHtml(item.percentage)}%</strong>
           <div><i style="width: ${Math.max(2, Number(item.percentage))}%"></i></div>
           <small>${escapeHtml(item.value)} visitors</small>
         </article>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
+}
+
+function attachAnalyticsInteractions(root) {
+  root.querySelectorAll("[data-tooltip]").forEach((target) => {
+    if (target.dataset.tooltipBound === "true") {
+      return;
+    }
+    target.dataset.tooltipBound = "true";
+    let longPressTimer = 0;
+
+    const show = (event, options = {}) => {
+      const pointer = pointerPosition(event, target);
+      showAnalyticsTooltip(target.dataset.tooltip, pointer.x, pointer.y, options);
+      target.classList.add("is-active");
+    };
+    const hide = () => {
+      window.clearTimeout(longPressTimer);
+      if (pinnedAnalyticsTooltip === target) {
+        return;
+      }
+      hideAnalyticsTooltip();
+      target.classList.remove("is-active");
+    };
+
+    target.addEventListener("pointerenter", show);
+    target.addEventListener("pointermove", (event) => show(event, { follow: true }));
+    target.addEventListener("pointerleave", hide);
+    target.addEventListener("focus", show);
+    target.addEventListener("blur", hide);
+    target.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        pinnedAnalyticsTooltip = pinnedAnalyticsTooltip === target ? null : target;
+        show(event, { pinned: Boolean(pinnedAnalyticsTooltip) });
+      }
+      if (event.key === "Escape") {
+        pinnedAnalyticsTooltip = null;
+        hideAnalyticsTooltip();
+        target.classList.remove("is-active");
+      }
+    });
+    target.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse") {
+        return;
+      }
+      show(event);
+      longPressTimer = window.setTimeout(() => {
+        pinnedAnalyticsTooltip = target;
+        show(event, { pinned: true });
+      }, 520);
+    });
+    target.addEventListener("pointerup", (event) => {
+      window.clearTimeout(longPressTimer);
+      if (event.pointerType !== "mouse" && pinnedAnalyticsTooltip !== target) {
+        window.setTimeout(hide, 1600);
+      }
+    });
+    target.addEventListener("click", (event) => {
+      if (event.pointerType === "mouse") {
+        return;
+      }
+      pinnedAnalyticsTooltip = pinnedAnalyticsTooltip === target ? null : target;
+      show(event, { pinned: Boolean(pinnedAnalyticsTooltip) });
+    });
+  });
+}
+
+function showAnalyticsTooltip(content, x, y, options = {}) {
+  if (!analyticsTooltipElement) {
+    analyticsTooltipElement = document.createElement("div");
+    analyticsTooltipElement.className = "analytics-tooltip";
+    analyticsTooltipElement.setAttribute("role", "status");
+    document.body.append(analyticsTooltipElement);
+  }
+  analyticsTooltipElement.innerHTML = String(content || "")
+    .split("\n")
+    .filter(Boolean)
+    .map((line, index) => index === 0 ? `<strong>${escapeHtml(line)}</strong>` : `<span>${escapeHtml(line)}</span>`)
+    .join("");
+  analyticsTooltipElement.classList.toggle("is-pinned", Boolean(options.pinned));
+  analyticsTooltipElement.classList.add("is-visible");
+  positionAnalyticsTooltip(x, y);
+}
+
+function hideAnalyticsTooltip() {
+  if (!analyticsTooltipElement) {
+    return;
+  }
+  analyticsTooltipElement.classList.remove("is-visible", "is-pinned");
+}
+
+function positionAnalyticsTooltip(x, y) {
+  const tooltip = analyticsTooltipElement;
+  if (!tooltip) {
+    return;
+  }
+  const padding = 12;
+  const offset = 18;
+  const rect = tooltip.getBoundingClientRect();
+  const left = Math.min(window.innerWidth - rect.width - padding, Math.max(padding, x + offset));
+  const top = Math.min(window.innerHeight - rect.height - padding, Math.max(padding, y - rect.height - offset));
+  tooltip.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+}
+
+function pointerPosition(event, fallbackElement) {
+  if (typeof event?.clientX === "number" && typeof event?.clientY === "number") {
+    return { x: event.clientX, y: event.clientY };
+  }
+  const rect = fallbackElement.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function chartTooltipText(item, options = {}) {
+  const value = Number(item?.value) || 0;
+  const previousValue = Number(options.previous?.value);
+  const trend = Number.isFinite(Number(item?.trendPercentage))
+    ? Number(item.trendPercentage)
+    : Number.isFinite(previousValue) && previousValue > 0
+      ? ((value - previousValue) / previousValue) * 100
+      : 0;
+  const trendPrefix = trend > 0 ? "+" : "";
+  const trendLabel = options.previous
+    ? `${trendPrefix}${Math.round(trend)}% from previous period`
+    : "Baseline period";
+  return [
+    options.title || item?.label || "Analytics point",
+    `${options.valueLabel || "Value"}: ${value}`,
+    trendLabel,
+  ].join("\n");
+}
+
+function chartSkeletonMarkup(label = "Analytics chart") {
+  return `
+    <div class="chart-skeleton" aria-label="${escapeHtml(label)} loading">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  `;
+}
+
+function analyticsEmptyState(title, body) {
+  return `
+    <article class="empty-state empty-state--inline analytics-empty-state">
+      <div class="analytics-empty-state__visual" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(body)}</p>
+    </article>
+  `;
+}
+
+function formatAnalyticsDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "Analytics point";
+  }
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  }
+  return raw;
+}
+
+function formatHourLabel(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?/);
+  if (!match) {
+    return raw || "Hour";
+  }
+  const hour = Number(match[1]);
+  const minute = match[2] || "00";
+  if (!Number.isFinite(hour)) {
+    return raw;
+  }
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${suffix}`;
 }
 
 function renderEmployeeAnalytics(items) {
@@ -4895,7 +5210,7 @@ function renderEmployeeAnalytics(items) {
   }
   const rows = normalizeArray(items).filter((item) => isObject(item));
 
-  table.innerHTML = `
+  renderHtmlIfChanged(table, `
     <table>
       <thead>
         <tr>
@@ -4918,7 +5233,7 @@ function renderEmployeeAnalytics(items) {
         `).join("") : `<tr><td colspan="5"><div class="empty-state empty-state--inline"><h3>No employee activity</h3><p>Host-level analytics will appear after visitor records are created.</p></div></td></tr>`}
       </tbody>
     </table>
-  `;
+  `);
 }
 
 function renderWorkforceAttendanceAnalytics(data) {
@@ -4928,7 +5243,7 @@ function renderWorkforceAttendanceAnalytics(data) {
   }
   const widgets = normalizeMetricItems(data?.widgets, []);
   const recentLogs = normalizeArray(data?.recentLogs).filter((log) => isObject(log));
-  table.innerHTML = `
+  renderHtmlIfChanged(table, `
     <div class="workforce-summary-grid">
       ${widgets.length ? widgets.map((item) => `
         <article class="homepage-preview-counter">
@@ -4958,7 +5273,7 @@ function renderWorkforceAttendanceAnalytics(data) {
         `).join("") : `<tr><td colspan="4"><div class="empty-state empty-state--inline"><h3>No workforce presence yet</h3><p>Waiting for employee scan activity.</p></div></td></tr>`}
       </tbody>
     </table>
-  `;
+  `);
 }
 
 function populateOrganizationForm(form, organization, departments = []) {
@@ -5348,8 +5663,8 @@ function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function chartEmpty(message) {
-  return `<div class="empty-state empty-state--inline"><h3>No analytics available yet</h3><p>${escapeHtml(message)}</p></div>`;
+function chartEmpty(title, message = "") {
+  return analyticsEmptyState(title || "Analytics will appear once visitor activity is recorded.", message || "Operational analytics unlock as visitor records accumulate.");
 }
 
 function emptyInline(title, body) {

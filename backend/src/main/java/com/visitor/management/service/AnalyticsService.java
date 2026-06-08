@@ -156,7 +156,7 @@ public class AnalyticsService {
         for (int index = 0; index < 14; index++) {
             LocalDate day = startDate.plusDays(index);
             String key = day.toString();
-            series.add(point(key.substring(5), counts.getOrDefault(key, 0L)));
+            series.add(point(key.substring(5), counts.getOrDefault(key, 0L), key, null));
         }
         return series;
     }
@@ -174,7 +174,7 @@ public class AnalyticsService {
         for (int index = 0; index < 12; index++) {
             YearMonth month = startMonth.plusMonths(index);
             String key = month.toString();
-            series.add(point(month.getMonth().name().substring(0, 3), counts.getOrDefault(key, 0L)));
+            series.add(point(month.getMonth().name().substring(0, 3), counts.getOrDefault(key, 0L), month.atDay(1).toString(), null));
         }
         return series;
     }
@@ -190,7 +190,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int hour = 0; hour < 24; hour++) {
             String key = String.format("%02d", hour);
-            series.add(point(key + ":00", counts.getOrDefault(key, 0L)));
+            series.add(point(key + ":00", counts.getOrDefault(key, 0L), null, key + ":00"));
         }
         return series;
     }
@@ -205,7 +205,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int hour = 0; hour < 24; hour++) {
             String key = String.format("%02d", hour);
-            series.add(point(key + ":00", scheduled.getOrDefault(key, 0L)));
+            series.add(point(key + ":00", scheduled.getOrDefault(key, 0L), null, key + ":00"));
         }
         return series;
     }
@@ -233,7 +233,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int index = 0; index < 7; index++) {
             LocalDate day = LocalDate.now(timezone).minusDays(6 - index);
-            series.add(point(day.getDayOfWeek().name().substring(0, 3), counts.getOrDefault(day.toString(), 0L)));
+            series.add(point(day.getDayOfWeek().name().substring(0, 3), counts.getOrDefault(day.toString(), 0L), day.toString(), null));
         }
         return series;
     }
@@ -312,7 +312,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int hour = 0; hour < 24; hour++) {
             String key = String.format("%02d", hour);
-            series.add(point(key + ":00", counts.getOrDefault(key, 0L)));
+            series.add(point(key + ":00", counts.getOrDefault(key, 0L), null, key + ":00"));
         }
         return series;
     }
@@ -328,7 +328,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int hour = 0; hour < 24; hour++) {
             String key = String.format("%02d", hour);
-            series.add(point(key + ":00", counts.getOrDefault(key, 0L)));
+            series.add(point(key + ":00", counts.getOrDefault(key, 0L), null, key + ":00"));
         }
         return series;
     }
@@ -375,7 +375,7 @@ public class AnalyticsService {
         for (int index = 0; index < 8; index++) {
             LocalDate weekStart = startDate.plusWeeks(index);
             String key = weekStart.getYear() + "-" + String.format("%02d", weekStart.get(java.time.temporal.WeekFields.SUNDAY_START.weekOfYear()) - 1);
-            series.add(point("W" + weekStart.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()), counts.getOrDefault(key, 0L)));
+            series.add(point("W" + weekStart.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()), counts.getOrDefault(key, 0L), weekStart.toString(), null));
         }
         return series;
     }
@@ -457,7 +457,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int index = 0; index < 14; index++) {
             LocalDate day = startDate.plusDays(index);
-            series.add(point(day.toString().substring(5), counts.getOrDefault(day.toString(), 0L)));
+            series.add(point(day.toString().substring(5), counts.getOrDefault(day.toString(), 0L), day.toString(), null));
         }
         return series;
     }
@@ -518,7 +518,7 @@ public class AnalyticsService {
         List<Map<String, Object>> series = new ArrayList<>();
         for (int index = 0; index < 14; index++) {
             LocalDate day = startDate.plusDays(index);
-            series.add(point(day.toString().substring(5), counts.getOrDefault(day.toString(), 0L)));
+            series.add(point(day.toString().substring(5), counts.getOrDefault(day.toString(), 0L), day.toString(), null));
         }
         return series;
     }
@@ -822,6 +822,19 @@ public class AnalyticsService {
 
     private Map<String, Object> point(String label, long value) {
         return Map.of("label", label, "value", value);
+    }
+
+    private Map<String, Object> point(String label, long value, String date, String hour) {
+        Map<String, Object> point = new LinkedHashMap<>();
+        point.put("label", label);
+        point.put("value", value);
+        if (date != null) {
+            point.put("date", date);
+        }
+        if (hour != null) {
+            point.put("hour", hour);
+        }
+        return point;
     }
 
     private Map<String, Object> rate(String label, long value, long total) {

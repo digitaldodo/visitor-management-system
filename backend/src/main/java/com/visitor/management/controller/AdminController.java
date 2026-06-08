@@ -546,7 +546,7 @@ public class AdminController {
 
     private Map<String, Object> adminAnalyticsFallback() {
         List<Map<String, Object>> widgets = List.of(
-                Map.of("label", "Total visitors", "value", 0, "note", "No analytics available yet"),
+                Map.of("label", "Total visitors", "value", 0, "note", "Analytics begin after visitor activity"),
                 Map.of("label", "Active visitors", "value", 0, "note", "Waiting for organization activity"),
                 Map.of("label", "Pending approvals", "value", 0, "note", "No visitor activity recorded"),
                 Map.of("label", "Today's check-ins", "value", 0, "note", "No check-ins recorded today"),
