@@ -17,6 +17,7 @@ import com.visitor.management.dto.VisitorResponse;
 import com.visitor.management.dto.VisitorStatusHistoryResponse;
 import com.visitor.management.dto.VisitorUpdateRequest;
 import com.visitor.management.dto.VisitorVisitRequest;
+import com.visitor.management.dto.formatting.VisitorDtoFormatting;
 import com.visitor.management.config.AppProperties;
 import com.visitor.management.config.CorsOriginResolver;
 import com.visitor.management.entity.NotificationType;
@@ -1614,7 +1615,7 @@ public class VisitorService {
                 visitor.getAllowedEntryEndTime(),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
-                displayStatus(visitor.getStatus()),
+                VisitorDtoFormatting.displayStatus(visitor.getStatus()),
                 checkInState(visitor, now),
                 isPassValid(visitor, now),
                 passValidityStatus(visitor, now),
@@ -2634,7 +2635,7 @@ public class VisitorService {
                 visitor.getAllowedEntryEndTime(),
                 visitor.getPhotoUrl(),
                 visitor.getStatus(),
-                displayStatus(visitor.getStatus()),
+                VisitorDtoFormatting.displayStatus(visitor.getStatus()),
                 resolveBadgeId(visitor),
                 visitor.getQrCode(),
                 visitor.getQrIssuedAt(),
@@ -2651,18 +2652,6 @@ public class VisitorService {
                 valid && (visitor.getStatus() == VisitorStatus.APPROVED || (isRecurringVisitor(visitor) && visitor.getStatus() == VisitorStatus.CHECKED_OUT)),
                 visitor.getStatus() == VisitorStatus.CHECKED_IN
         );
-    }
-
-    private String displayStatus(VisitorStatus status) {
-        return switch (status) {
-            case PENDING -> "Pending approval";
-            case APPROVED -> "Approved";
-            case REJECTED -> "Denied";
-            case CHECKED_IN -> "Checked in";
-            case CHECKED_OUT -> "Checked out";
-            case EXPIRED -> "Expired";
-            case SUSPENDED -> "Suspended";
-        };
     }
 
     private String checkInState(Visitor visitor, Instant now) {
@@ -2687,7 +2676,7 @@ public class VisitorService {
         if (visitor.getStatus() == VisitorStatus.SUSPENDED) {
             return "Visitor suspended";
         }
-        return displayStatus(visitor.getStatus());
+        return VisitorDtoFormatting.displayStatus(visitor.getStatus());
     }
 
     private VisitorResponse recordSecurityIssue(String id, String actorId, String reason, String action, String outcome) {

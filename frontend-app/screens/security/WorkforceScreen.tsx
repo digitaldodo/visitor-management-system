@@ -31,6 +31,7 @@ import { theme } from '../../theme';
 import type { EmployeeAttendanceRecord, EmployeeDirectoryEntry, WorkforceOnboardingRecord } from '../../types/domain';
 import { enterpriseStatusLabel } from '../../types/workflow';
 import { employeePresenceLabel, formatDateTime, relativePresenceSummary, statusTone } from '../../utils/securityFormatting';
+import { roleLabel } from '../../utils/roleFormatting';
 
 type WorkforceAction =
   | { type: 'check-in'; employee: EmployeeDirectoryEntry }
@@ -490,14 +491,6 @@ function SubmittedRequestList({ requests }: { requests: WorkforceOnboardingRecor
       ))}
     </View>
   );
-}
-
-function roleLabel(role?: string | null) {
-  return String(role || 'WORKFORCE')
-    .toLowerCase()
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
 }
 
 const styles = StyleSheet.create({

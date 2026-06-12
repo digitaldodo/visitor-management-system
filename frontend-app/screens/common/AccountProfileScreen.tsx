@@ -30,6 +30,7 @@ import type { ActiveWorkspaceRole } from '../../types/auth';
 import type { UserProfile } from '../../types/domain';
 import { enterpriseStatusLabel } from '../../types/workflow';
 import { formatShift } from '../../utils/employeeFormatting';
+import { roleLabel } from '../../utils/roleFormatting';
 
 const LANGUAGE_OPTIONS = [
   { labelKey: 'common.english', value: 'en' },
@@ -630,16 +631,6 @@ function initialsFor(fullName: string) {
     .slice(0, 3)
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'AF';
-}
-
-function roleLabel(role: ActiveWorkspaceRole | string) {
-  const labels: Record<string, string> = {
-    ADMIN: 'Admin workspace',
-    EMPLOYEE: 'Employee workspace',
-    SECURITY_GUARD: 'Security workspace',
-    VISITOR: 'Visitor workspace',
-  };
-  return labels[String(role)] || String(role).replaceAll('_', ' ');
 }
 
 function statusLabel(status?: string | null) {

@@ -85,6 +85,7 @@ import {
   visitorStatusLabel,
   visitorTypeLabel,
 } from '../../utils/securityFormatting';
+import { roleLabel } from '../../utils/roleFormatting';
 
 type AdminAction =
   | { type: 'reject-workforce'; worker: WorkforceOnboardingRecord }
@@ -2117,14 +2118,6 @@ function DepartmentList({
       ))}
     </View>
   );
-}
-
-function roleLabel(role?: string | null) {
-  return String(role || 'WORKFORCE')
-    .toLowerCase()
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
 }
 
 function SegmentRow<T extends string>({

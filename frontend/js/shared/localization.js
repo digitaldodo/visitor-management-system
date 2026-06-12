@@ -1,3 +1,5 @@
+import { escapeHtml, interpolate } from "./localizationHelpers.js";
+
 const LANGUAGE_KEY = "accessflow.web.language.v1";
 const DEFAULT_LANGUAGE = "en";
 const SUPPORTED_LANGUAGES = new Set(["en", "hi"]);
@@ -557,22 +559,6 @@ function translateAttributes(root) {
       }
     });
   });
-}
-
-function interpolate(template, params) {
-  return String(template).replace(/\{(\w+)\}/g, (_, key) => {
-    const value = params[key];
-    return value === null || value === undefined ? "" : String(value);
-  });
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function readLanguage() {

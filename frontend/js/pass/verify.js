@@ -1,6 +1,7 @@
 import { bootstrapApplication } from "../shared/appRuntime.js";
 import { formatDate, setDefaultTimezone, timezoneLabel } from "../shared/formatters.js";
 import { getPublicPassVerification } from "../shared/accessService.js";
+import { visitorTypeLabel } from "../shared/workflowLabels.js";
 
 const FALLBACK_PHOTO = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
@@ -167,22 +168,6 @@ function statusTone(result) {
     return "neutral";
   }
   return "danger";
-}
-
-function visitorTypeLabel(type) {
-  if (type === "RECURRING") {
-    return "Recurring visitor";
-  }
-  if (type === "CONTRACTOR_VENDOR") {
-    return "Contractor / vendor";
-  }
-  if (type === "WALK_IN") {
-    return "Walk-in visitor";
-  }
-  if (type === "EMERGENCY") {
-    return "Emergency access";
-  }
-  return "One-time visitor";
 }
 
 function accessWindow(result) {

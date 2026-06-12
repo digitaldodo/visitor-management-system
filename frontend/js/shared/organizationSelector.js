@@ -1,4 +1,11 @@
 import { listOrganizations } from "./organizationApi.js";
+import {
+  findOrganizationByValue,
+  normalizeOrganizationSearch,
+  normalizeOrganizations,
+  organizationOptionLabel,
+  organizationValue,
+} from "./organizationHelpers.js";
 
 const MAX_VISIBLE_OPTIONS = 8;
 let selectorId = 0;
@@ -291,12 +298,12 @@ export function initOrganizationSelector(control, options = {}) {
 }
 
 function filteredOrganizations(state) {
-  const query = normalizeSearch(state.query);
+    const query = normalizeOrganizationSearch(state.query);
   if (!query) {
     return state.organizations.slice();
   }
   return state.organizations.filter((organization) => {
-    const haystack = normalizeSearch([
+      const haystack = normalizeOrganizationSearch([
       organization.companyName,
       organization.companyCode,
       organization.regionCountry,
@@ -305,39 +312,14 @@ function filteredOrganizations(state) {
   });
 }
 
-function normalizeOrganizations(organizations = []) {
-  return (Array.isArray(organizations) ? organizations : [])
-    .filter((organization) => organization && (organization.companyCode || organization.id))
-    .slice()
-    .sort((first, second) => String(first.companyName || first.companyCode || "").localeCompare(String(second.companyName || second.companyCode || "")));
-}
-
-function organizationValue(organization, valueField = "companyCode") {
-  return String(organization?.[valueField] || organization?.companyCode || "");
-}
-
-function findOrganizationByValue(organizations, value, valueField) {
-  const normalizedValue = String(value || "").trim().toLowerCase();
-  if (!normalizedValue) {
-    return null;
-  }
-  return organizations.find((organization) => organizationValue(organization, valueField).toLowerCase() === normalizedValue) || null;
-}
-
 function optionLabel(organization) {
-  const name = organization.companyName || organization.name || "Unnamed organization";
-  const code = organization.companyCode || organization.code;
-  return code ? `${name} (${code})` : name;
+  return organizationOptionLabel(organization);
 }
 
 function setControlValue(control, value) {
   control.value = value;
   control.dispatchEvent(new Event("input", { bubbles: true }));
   control.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function normalizeSearch(value) {
-  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function escapeHtml(value) {
