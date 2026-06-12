@@ -47,6 +47,16 @@ import {
 import { initializeProductionObservability, recordSyncFailure, setObservabilityContext } from './observability';
 import { applyDownloadedOtaUpdate, checkForOtaUpdate, readOtaUpdateState } from './otaUpdates';
 import { clearOperationalMetrics, readOperationalMetrics, recordOperationalMetric } from './telemetry';
+import {
+  defaultDevicePosture,
+  defaultLockState,
+  initialNetworkState,
+  initialSyncConnection,
+  isOfflineNetworkState,
+  isSameDevicePosture,
+  isSameNetworkState,
+  isSameSessionLock,
+} from './operationalRuntimeState';
 import { approveEmployeeVisitor, rejectEmployeeVisitor } from '../services/employeeService';
 import {
   markNotificationRead,
@@ -123,61 +133,11 @@ if (startupNotifications) {
   });
 }
 
-const defaultLockState: SessionLockState = {
-  isLocked: false,
-  reason: null,
-  lockedAt: null,
-  screenshotProtectionEnabled: apiConfig.security.screenshotProtectionEnabled,
-};
-
-const defaultDevicePosture: DevicePostureState = {
-  deviceId: null,
-  managedMode: apiConfig.deviceManagement.managedMode,
-  kioskModeReady: apiConfig.deviceManagement.kioskModeReady,
-  remoteLogoutSupported: true,
-  checkpointId: null,
-  checkpointName: null,
-  operationalZone: null,
-  operationalModeEnabled: false,
-  scannerFirst: false,
-  restrictedNavigation: false,
-  autoRestoreScanner: false,
-  sharedOperationalDevice: false,
-  inactivityTimeoutSeconds: null,
-  suspicious: false,
-  rootedOrJailbroken: false,
-  emulator: false,
-  debugBuild: false,
-  integrityReasons: [],
-  sensitiveOperationsRestricted: false,
-  concurrentSessionCount: 0,
-  lastPolicySyncAt: null,
-};
-
 const RESUME_RECOVERY_THROTTLE_MS = 12_000;
 const SYNC_NOW_THROTTLE_MS = 8_000;
 const OFFLINE_SYNC_NOTICE_COOLDOWN_MS = 60_000;
 const SESSION_DIRECT_RESTORE_MS = 5 * 60_000;
 const FULL_SESSION_RECHECK_AFTER_BACKGROUND_MS = 30 * 60_000;
-const initialNetworkState: NetworkReachabilityState = {
-  isConnected: null,
-  isInternetReachable: null,
-  isApiReachable: true,
-  lastOnlineAt: null,
-  lastOfflineAt: null,
-  lastApiReachableAt: null,
-  consecutiveFailures: 0,
-};
-
-const initialSyncConnection: OperationalSyncConnectionState = {
-  status: 'idle',
-  cursor: null,
-  lastEventAt: null,
-  lastConnectedAt: null,
-  lastError: null,
-  reconnectAttempt: 0,
-  pendingEventCount: 0,
-};
 
 function canAccessOperationalFeed(role?: string | null) {
   return role === 'ADMIN' || role === 'SECURITY_GUARD';
@@ -1629,60 +1589,6 @@ export function useOperationalRuntime() {
     throw new Error('useOperationalRuntime must be used within OperationalRuntimeProvider.');
   }
   return context;
-}
-
-function isSameSessionLock(left: SessionLockState, right: SessionLockState) {
-  return left.isLocked === right.isLocked
-    && left.reason === right.reason
-    && left.lockedAt === right.lockedAt
-    && left.screenshotProtectionEnabled === right.screenshotProtectionEnabled;
-}
-
-function isSameDevicePosture(left: DevicePostureState, right: DevicePostureState) {
-  return left.deviceId === right.deviceId
-    && left.managedMode === right.managedMode
-    && left.kioskModeReady === right.kioskModeReady
-    && left.remoteLogoutSupported === right.remoteLogoutSupported
-    && left.checkpointId === right.checkpointId
-    && left.checkpointName === right.checkpointName
-    && left.operationalZone === right.operationalZone
-    && left.operationalModeEnabled === right.operationalModeEnabled
-    && left.scannerFirst === right.scannerFirst
-    && left.restrictedNavigation === right.restrictedNavigation
-    && left.autoRestoreScanner === right.autoRestoreScanner
-    && left.sharedOperationalDevice === right.sharedOperationalDevice
-    && left.inactivityTimeoutSeconds === right.inactivityTimeoutSeconds
-    && left.suspicious === right.suspicious
-    && left.rootedOrJailbroken === right.rootedOrJailbroken
-    && left.emulator === right.emulator
-    && left.debugBuild === right.debugBuild
-    && left.sensitiveOperationsRestricted === right.sensitiveOperationsRestricted
-    && left.concurrentSessionCount === right.concurrentSessionCount
-    && left.lastPolicySyncAt === right.lastPolicySyncAt
-    && areStringArraysEqual(left.integrityReasons, right.integrityReasons);
-}
-
-function isSameNetworkState(left: NetworkReachabilityState, right: NetworkReachabilityState) {
-  return left.isConnected === right.isConnected
-    && left.isInternetReachable === right.isInternetReachable
-    && left.isApiReachable === right.isApiReachable
-    && left.lastOnlineAt === right.lastOnlineAt
-    && left.lastOfflineAt === right.lastOfflineAt
-    && left.lastApiReachableAt === right.lastApiReachableAt
-    && left.consecutiveFailures === right.consecutiveFailures;
-}
-
-function areStringArraysEqual(left: string[], right: string[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-  return left.every((value, index) => value === right[index]);
-}
-
-function isOfflineNetworkState(state: NetworkReachabilityState) {
-  return state.isConnected === false
-    || state.isInternetReachable === false
-    || (!state.isApiReachable && state.consecutiveFailures >= 2);
 }
 
 function notificationLifecycleStatus(status?: string | null, canAskAgain?: boolean | null) {
