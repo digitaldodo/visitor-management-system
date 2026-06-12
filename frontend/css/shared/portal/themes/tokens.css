@@ -1,0 +1,18 @@
+:root {
+  --portal-content-max: 108rem;
+  --portal-gutter: clamp(1rem, 2vw, 1.75rem);
+  --sidebar-bg:
+    linear-gradient(180deg, rgba(7, 17, 32, 0.98), rgba(10, 22, 40, 0.98)),
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 18rem);
+  --topbar-bg: rgba(10, 22, 40, 0.88);
+  --panel-bg: var(--surface-gradient);
+  --panel-bg-strong: var(--surface-gradient-strong);
+  --panel-subtle-bg: var(--surface-gradient-subtle);
+  --card-muted-bg: rgba(148, 163, 184, 0.08);
+  --card-muted-hover-bg: rgba(59, 130, 246, 0.12);
+  --field-bg: rgba(7, 17, 32, 0.72);
+  --table-head-bg: rgba(79, 140, 255, 0.08);
+  --overlay-soft: rgba(7, 17, 32, 0.58);
+}
+
+

@@ -1,0 +1,119 @@
+.profile-chip-shell {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 2.4rem;
+  max-width: clamp(9rem, 16vw, 14.5rem);
+  position: relative;
+}
+
+.notification-menu {
+  position: relative;
+}
+
+.notification-button {
+  min-width: 2.65rem;
+  overflow: visible;
+  position: relative;
+}
+
+.notification-badge {
+  align-items: center;
+  background: var(--color-danger);
+  border: 2px solid rgba(10, 22, 40, 0.92);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  height: 1.15rem;
+  justify-content: center;
+  line-height: 1;
+  min-width: 1.15rem;
+  padding: 0 0.25rem;
+  position: absolute;
+  right: 0;
+  top: -0.25rem;
+}
+
+.notification-popover {
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+  max-height: min(30rem, calc(100vh - 7rem));
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.6rem);
+  width: min(24rem, calc(100vw - 2rem));
+  z-index: 80;
+}
+
+.notification-popover__header {
+  align-items: center;
+  border-bottom: 1px solid var(--color-line);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.85rem;
+}
+
+.notification-popover__header .button {
+  min-height: 2rem;
+  padding: 0 0.65rem;
+}
+
+.notification-list {
+  display: grid;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.notification-item {
+  background: rgba(148, 163, 184, 0.035);
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-text);
+  cursor: pointer;
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.notification-item:hover {
+  background: var(--card-muted-hover-bg);
+}
+
+.notification-item.is-unread {
+  background: var(--color-primary-soft);
+}
+
+.notification-item strong,
+.notification-item small,
+.notification-item time,
+.notification-empty strong,
+.notification-empty span {
+  display: block;
+}
+
+.notification-item small,
+.notification-item time,
+.notification-empty span {
+  color: var(--color-muted);
+}
+
+.notification-item time {
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.notification-empty {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+}
+
+

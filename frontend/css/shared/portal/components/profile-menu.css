@@ -1,0 +1,259 @@
+.topbar__menu {
+  display: none;
+}
+
+.user-chip {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(79, 140, 255, 0.14), rgba(59, 130, 246, 0.06)),
+    rgba(10, 22, 40, 0.82);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.06);
+  color: var(--color-text);
+  cursor: pointer;
+  display: inline-grid;
+  flex: 0 1 100%;
+  font-size: 0.84rem;
+  font-weight: 800;
+  gap: 0.48rem;
+  grid-template-columns: 1.6rem minmax(0, 1fr) 1rem;
+  line-height: 1;
+  min-height: 2.25rem;
+  min-width: 2.4rem;
+  max-width: clamp(9rem, 16vw, 14.5rem);
+  overflow: hidden;
+  padding: 0.31rem 0.58rem 0.31rem 0.36rem;
+  text-overflow: ellipsis;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.user-chip:hover,
+.user-chip[aria-expanded="true"] {
+  background:
+    linear-gradient(180deg, rgba(79, 140, 255, 0.18), rgba(34, 211, 238, 0.07)),
+    rgba(11, 23, 48, 0.9);
+  border-color: rgba(79, 140, 255, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 8px 22px rgba(7, 17, 32, 0.16);
+}
+
+.user-chip:focus-visible {
+  outline: 2px solid rgba(153, 246, 228, 0.72);
+  outline-offset: 2px;
+}
+
+.user-chip__avatar {
+  align-items: center;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-primary-bright));
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: var(--color-bg);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 900;
+  height: 1.55rem;
+  justify-content: center;
+  line-height: 1;
+  overflow: hidden;
+  text-align: center;
+  width: 1.55rem;
+}
+
+.avatar-chip {
+  --avatar-size: 1.6rem;
+  --avatar-font-size: 0.68rem;
+  align-items: center;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-primary-bright));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 1px rgba(8, 47, 73, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+  color: var(--color-bg);
+  display: inline-flex;
+  flex: 0 0 var(--avatar-size);
+  height: var(--avatar-size);
+  justify-content: center;
+  line-height: 1;
+  max-height: var(--avatar-size);
+  max-width: var(--avatar-size);
+  min-height: var(--avatar-size);
+  min-width: var(--avatar-size);
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  text-align: center;
+  width: var(--avatar-size);
+}
+
+.avatar-chip--lg {
+  --avatar-size: 1.95rem;
+  --avatar-font-size: 0.78rem;
+}
+
+.avatar-chip img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.avatar-chip__initials {
+  align-items: center;
+  box-sizing: border-box;
+  display: inline-flex;
+  font-size: var(--avatar-font-size);
+  font-weight: 900;
+  height: 100%;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 1;
+  max-height: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 0.12rem 0.01rem;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.avatar-chip[data-initial-count="2"] .avatar-chip__initials {
+  font-size: calc(var(--avatar-font-size) * 0.86);
+}
+
+.avatar-chip[data-initial-count="3"] .avatar-chip__initials {
+  font-size: calc(var(--avatar-font-size) * 0.74);
+  padding-inline: 0.08rem;
+}
+
+.user-chip__primary {
+  align-self: center;
+  color: var(--color-text);
+  display: block;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-chip__chevron {
+  align-self: center;
+  color: rgba(219, 231, 255, 0.68);
+  display: inline-flex;
+  height: 1rem;
+  justify-content: center;
+  width: 1rem;
+}
+
+.user-chip__chevron svg {
+  fill: currentColor;
+  height: 100%;
+  width: 100%;
+}
+
+.user-chip--platform {
+  background: var(--color-info-soft);
+  border-color: var(--status-info-border);
+  color: var(--status-info-text);
+}
+
+.user-chip--organization {
+  background: var(--color-accent-soft);
+  border-color: rgba(34, 211, 238, 0.28);
+  color: var(--status-info-text);
+}
+
+.profile-menu {
+  background:
+    linear-gradient(180deg, rgba(79, 140, 255, 0.055), rgba(79, 140, 255, 0)),
+    var(--panel-bg-strong);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  box-shadow: 0 22px 60px rgba(7, 17, 32, 0.34), var(--shadow-soft);
+  display: grid;
+  gap: 0.8rem;
+  max-width: min(22.5rem, calc(100vw - 2rem));
+  min-width: min(19.5rem, calc(100vw - 2rem));
+  padding: 0.85rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.55rem);
+  z-index: 90;
+}
+
+.profile-menu__header {
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: 0.8rem;
+}
+
+.user-identity-badge {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.user-identity-badge__copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.user-identity-badge__copy strong,
+.user-identity-badge__copy span,
+.profile-menu__meta dd,
+.profile-menu__meta dt {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-menu__meta dd {
+  overflow-wrap: anywhere;
+}
+
+.user-identity-badge__copy strong {
+  line-height: 1.2;
+}
+
+.user-identity-badge__copy span,
+.profile-menu__meta dt {
+  color: var(--color-muted);
+}
+
+.profile-menu__meta {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.profile-menu__meta div {
+  background: var(--field-bg);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.62rem 0.68rem;
+}
+
+.profile-menu__meta dt {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.profile-menu__meta dd {
+  color: var(--color-text);
+  font-weight: 800;
+  margin: 0.15rem 0 0;
+}
+
+
